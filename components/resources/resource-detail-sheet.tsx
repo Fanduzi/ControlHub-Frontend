@@ -6,7 +6,7 @@ import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -127,13 +127,12 @@ export function ResourceDetailSheet({
                 Open the dedicated detail page for the full resource record.
               </p>
             </div>
-            <Button
-              render={<Link href={`/resources/${resource.id}`} />}
-              variant="outline"
-              size="sm"
+            <Link
+              href={`/resources/${resource.id}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               Open full detail
-            </Button>
+            </Link>
           </div>
         </div>
       </SheetContent>

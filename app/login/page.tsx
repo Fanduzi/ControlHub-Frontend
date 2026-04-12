@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -12,16 +13,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { login } from "@/services/auth";
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, "Password is required"),
-});
-
-type LoginValues = z.infer<typeof loginSchema>;
+type LoginValues = {
+  email: string;
+  password: string;
+};
 
 export default function LoginPage() {
+  const t = useTranslations("login");
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(1, t("form.passwordRequired")),
+  });
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -40,18 +44,16 @@ export default function LoginPage() {
       router.push("/overview");
     } catch (submitError) {
       const message =
-        submitError instanceof Error ? submitError.message : "Unknown error";
+        submitError instanceof Error ? submitError.message : t("errors.unknown");
 
       if (
         message.includes("fetch") ||
         message.includes("Failed to fetch") ||
         message.includes("NetworkError")
       ) {
-        setError(
-          "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
-        );
+        setError(t("errors.backend"));
       } else if (message.includes("401")) {
-        setError("Invalid email or password.");
+        setError(t("errors.invalidCredentials"));
       } else {
         setError(message);
       }
@@ -61,42 +63,40 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-10">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-2xl border border-border bg-card px-6 py-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
-            ControlHub
+        <section className="rounded-lg border border-border bg-card px-6 py-8">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+            {t("eyebrow")}
           </p>
           <h1 className="mt-4 max-w-xl text-4xl font-semibold tracking-tight text-foreground">
-            Unified resource visibility for platform operations.
+            {t("title")}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-            Phase 1 focuses on manual registration, owner alignment, environment
-            context, and baseline auditability across hosts, services, clusters,
-            and database instances.
+            {t("description")}
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Shell
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                {t("cards.shell.label")}
               </p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                Shared navigation, search, and environment controls
+                {t("cards.shell.description")}
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Resource model
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                {t("cards.resourceModel.label")}
               </p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                One asset backbone with typed profiles and relations
+                {t("cards.resourceModel.description")}
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Audit baseline
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                {t("cards.auditBaseline.label")}
               </p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                Manual changes captured before workflow automation
+                {t("cards.auditBaseline.description")}
               </p>
             </div>
           </div>
@@ -104,9 +104,9 @@ export default function LoginPage() {
 
         <Card className="border-border shadow-none">
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
+            <CardTitle>{t("form.title")}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Connect to the ControlHub backend to manage resources and audits.
+              {t("form.description")}
             </p>
           </CardHeader>
           <CardContent>
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   className="text-sm font-medium text-foreground"
                   htmlFor="email"
                 >
-                  Email
+                  {t("form.email")}
                 </label>
                 <Input id="email" type="email" {...form.register("email")} />
                 {form.formState.errors.email ? (
@@ -131,7 +131,7 @@ export default function LoginPage() {
                   className="text-sm font-medium text-foreground"
                   htmlFor="password"
                 >
-                  Password
+                  {t("form.password")}
                 </label>
                 <Input
                   id="password"
@@ -152,7 +152,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={form.formState.isSubmitting}
               >
-                Enter console
+                {t("form.submit")}
               </Button>
             </form>
           </CardContent>

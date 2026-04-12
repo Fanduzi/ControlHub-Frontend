@@ -5,16 +5,20 @@ import { formatLabel } from "@/lib/format";
 
 type ResourceRelationPanelProps = {
   relations: ResourceRelationViewModel[];
+  emptyTitle?: string;
+  emptyDescription?: string;
 };
 
 export function ResourceRelationPanel({
   relations,
+  emptyTitle = "No linked resources",
+  emptyDescription = "Use relations to capture containment, ownership, and service dependency context.",
 }: ResourceRelationPanelProps) {
   if (!relations.length) {
     return (
       <EmptyState
-        title="No linked resources"
-        description="Use relations to capture containment, ownership, and service dependency context."
+        title={emptyTitle}
+        description={emptyDescription}
       />
     );
   }
@@ -34,7 +38,7 @@ export function ResourceRelationPanel({
               {formatLabel(relation.relationType)} · {relation.direction}
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">{relation.relatedResourceId}</p>
+          <p className="font-mono text-xs text-muted-foreground">{relation.relatedResourceId}</p>
         </div>
       ))}
     </div>

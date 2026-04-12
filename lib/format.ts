@@ -1,19 +1,17 @@
-const dateTimeFormatter = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+import { DEFAULT_LOCALE, type AppLocale } from "@/i18n/locales";
 
-const shortDateFormatter = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-});
-
-export function formatDateTime(value: string) {
-  return dateTimeFormatter.format(new Date(value));
+export function formatDateTime(value: string, locale: AppLocale = DEFAULT_LOCALE) {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
-export function formatShortDate(value: string) {
-  return shortDateFormatter.format(new Date(value));
+export function formatShortDate(value: string, locale: AppLocale = DEFAULT_LOCALE) {
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
 }
 
 export function formatLabel(value: string) {

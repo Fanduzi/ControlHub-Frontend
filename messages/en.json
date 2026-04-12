@@ -1,0 +1,299 @@
+{
+  "common": {
+    "brand": "ControlHub",
+    "loading": "Loading...",
+    "notSet": "Not set",
+    "unknown": "Unknown",
+    "actions": {
+      "tryAgain": "Try again",
+      "registerResource": "Register resource",
+      "openFullDetail": "Open full detail"
+    },
+    "fields": {
+      "resource": "Resource",
+      "resourceType": "Resource type",
+      "resourceSubtype": "Resource subtype",
+      "environment": "Environment",
+      "owner": "Owner",
+      "source": "Source",
+      "externalId": "External ID",
+      "lastUpdated": "Last updated",
+      "updated": "Updated",
+      "lifecycle": "Lifecycle",
+      "status": "Status",
+      "health": "Health",
+      "actor": "Actor",
+      "action": "Action",
+      "timestamp": "Timestamp",
+      "changeSummary": "Change summary",
+      "engine": "Engine"
+    }
+  },
+  "navigation": {
+    "overview": {
+      "title": "Overview",
+      "description": "Operational posture and attention queue"
+    },
+    "resources": {
+      "title": "Resources",
+      "description": "Unified inventory and ownership context"
+    },
+    "cmdb": {
+      "title": "CMDB",
+      "description": "Configuration maintenance over shared assets"
+    },
+    "databases": {
+      "title": "Databases",
+      "description": "Instance and cluster-centric operational view"
+    },
+    "audits": {
+      "title": "Audits",
+      "description": "Recent baseline changes and operator actions"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Reference dictionaries, users, and roles"
+    }
+  },
+  "shell": {
+    "title": "Unified Resource Console",
+    "description": "Platform asset context, ownership, and auditability.",
+    "baseline": "Baseline phase: manual registration, relations, and audit feeds.",
+    "subtitle": "Shared shell for asset visibility, ownership context, and change traces.",
+    "searchPlaceholder": "Search resources, owners, IDs",
+    "environmentPlaceholder": "Environment",
+    "quickAction": "Quick action",
+    "notifications": "Notifications",
+    "workspace": "Workspace",
+    "openCommandPalette": "Open command palette",
+    "profile": "Profile",
+    "signOut": "Sign out",
+    "role": "admin",
+    "userName": "Chen Hao"
+  },
+  "environments": {
+    "production": "Production",
+    "staging": "Staging",
+    "development": "Development"
+  },
+  "controls": {
+    "theme": {
+      "label": "Theme",
+      "options": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      }
+    },
+    "language": {
+      "label": "Language",
+      "options": {
+        "zh-CN": "Chinese",
+        "en": "English"
+      }
+    }
+  },
+  "login": {
+    "eyebrow": "ControlHub",
+    "title": "Unified resource visibility for platform operations.",
+    "description": "The foundation focuses on manual registration, owner alignment, environment context, and baseline auditability across hosts, services, clusters, and database instances.",
+    "cards": {
+      "shell": {
+        "label": "Shell",
+        "description": "Shared navigation, search, and environment controls"
+      },
+      "resourceModel": {
+        "label": "Resource model",
+        "description": "One asset backbone with typed profiles and relations"
+      },
+      "auditBaseline": {
+        "label": "Audit baseline",
+        "description": "Manual changes captured before workflow automation"
+      }
+    },
+    "form": {
+      "title": "Sign in",
+      "description": "Connect to the ControlHub backend to manage resources and audits.",
+      "email": "Email",
+      "password": "Password",
+      "passwordRequired": "Password is required",
+      "submit": "Enter console"
+    },
+    "errors": {
+      "backend": "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
+      "invalidCredentials": "Invalid email or password.",
+      "unknown": "Unknown error"
+    }
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "backend": "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
+    "auth": "Authentication failed. Please sign in again.",
+    "forbidden": "You do not have permission to access this data.",
+    "notFound": "The requested resource was not found.",
+    "unexpected": "An unexpected error occurred: {message}"
+  },
+  "pages": {
+    "overview": {
+      "eyebrow": "Overview",
+      "title": "Operational posture across shared resources",
+      "description": "Overview stays close to the work: attention queues, environment posture, asset ownership, and recent changes instead of a generic dashboard.",
+      "attention": {
+        "title": "Attention queue",
+        "description": "Resources needing immediate operator context or ownership follow-up.",
+        "emptyTitle": "No attention items",
+        "emptyDescription": "All resources are healthy and running."
+      },
+      "posture": {
+        "title": "Resource posture",
+        "description": "Counts emphasize actionability rather than vanity totals.",
+        "total": "Total managed assets",
+        "degraded": "Degraded",
+        "warning": "Warning",
+        "pending": "Pending"
+      },
+      "lanes": {
+        "title": "Environment lanes",
+        "description": "Each lane compresses health, ownership, and scope by environment."
+      },
+      "recentAudits": {
+        "title": "Recent audit events",
+        "description": "Latest changes to the shared resource baseline."
+      }
+    },
+    "resources": {
+      "eyebrow": "Resources",
+      "title": "Unified resource inventory",
+      "description": "Search, filter, and inspect manually managed assets from a single operational list. Row click opens the right-side detail panel."
+    },
+    "resourceDetail": {
+      "eyebrow": "Resource detail",
+      "identity": {
+        "title": "Identity and ownership",
+        "description": "Core fields mirror the resource contract names used by the backend."
+      },
+      "labels": {
+        "title": "Labels and source",
+        "description": "Wire data keeps labels in a key-value map; the page presents them without mutating the contract."
+      },
+      "profile": {
+        "title": "Operational profile",
+        "description": "Typed extension fields remain explicit and readable on the detail page."
+      },
+      "relations": {
+        "title": "Relations",
+        "description": "Dependencies, containment, and ownership context anchored to resource IDs."
+      },
+      "audit": {
+        "title": "Audit history",
+        "description": "Recent changes to the asset baseline for this resource."
+      }
+    },
+    "cmdb": {
+      "eyebrow": "CMDB",
+      "title": "Configuration maintenance view",
+      "description": "The CMDB page reuses the shared resource foundation but emphasizes maintenance ownership, source quality, and update cadence.",
+      "records": {
+        "title": "Configuration records",
+        "description": "High-signal configuration fields aligned with the resource model.",
+        "emptyTitle": "No configuration records",
+        "emptyDescription": "Resources will appear here once they are registered through the resource inventory."
+      }
+    },
+    "databases": {
+      "eyebrow": "Databases",
+      "title": "Database clusters and instances",
+      "description": "Clusters and instances are first-class resources, with shared ownership and audit flows.",
+      "posture": {
+        "title": "Database posture",
+        "description": "The console keeps clusters visible as logical containers without forcing heavy topology views.",
+        "clusters": "Cluster records",
+        "instances": "Instance records"
+      }
+    },
+    "audits": {
+      "eyebrow": "Audits",
+      "title": "Baseline audit events",
+      "description": "Audit records capture manual maintenance activity so resource history stays visible before workflow automation arrives.",
+      "latest": {
+        "title": "Latest changes",
+        "description": "Compact timeline for recent ownership, relation, and metadata changes."
+      }
+    },
+    "settings": {
+      "eyebrow": "Settings",
+      "title": "Reference dictionaries and access baseline",
+      "description": "Settings cover environments, owners, users, roles, and supporting dictionaries for resource maintenance.",
+      "environments": {
+        "title": "Environments",
+        "description": "Environment catalog for asset registration and filtering.",
+        "emptyTitle": "No environments",
+        "emptyDescription": "Environments will appear here once they are created in the backend."
+      },
+      "owners": {
+        "title": "Owners",
+        "description": "Current owner groups attached to resources.",
+        "emptyTitle": "No owners",
+        "emptyDescription": "Owner groups will appear here once they are created in the backend."
+      },
+      "roles": {
+        "title": "Roles",
+        "description": "Basic role distinction before fine-grained permissions.",
+        "emptyTitle": "No roles",
+        "emptyDescription": "Roles will appear here once they are created in the backend."
+      },
+      "dictionaries": {
+        "title": "Supporting dictionaries",
+        "description": "Small but explicit dictionary management keeps contracts readable."
+      }
+    }
+  },
+  "tables": {
+    "resources": {
+      "title": "Unified inventory",
+      "description": "List-first browsing with a right-side detail sheet for day-to-day inspection.",
+      "searchPlaceholder": "Search resource, owner, or ID",
+      "filterType": "Filter type",
+      "allTypes": "All types",
+      "host": "Host",
+      "databaseInstance": "Database instance",
+      "databaseCluster": "Database cluster",
+      "service": "Service",
+      "emptyTitle": "No resources found",
+      "emptyDescription": "No resources match the current filters, or no resources have been registered yet."
+    },
+    "databases": {
+      "title": "Database resources",
+      "description": "Cluster and instance records share the same resource backbone with database-specific emphasis.",
+      "asset": "Database asset",
+      "emptyTitle": "No database resources",
+      "emptyDescription": "No database instances or clusters have been registered yet."
+    },
+    "audits": {
+      "title": "Audit feed",
+      "description": "Baseline asset mutations are captured as append-only operational history.",
+      "emptyTitle": "No audit events",
+      "emptyDescription": "Audit records will appear here once resource changes are captured."
+    }
+  },
+  "detailSheet": {
+    "summary": "Summary",
+    "profile": "Operational profile",
+    "profileDescription": "High-frequency fields stay explicit; vendor detail remains supplemental.",
+    "relationsDescription": "List-row context should immediately expose upstream and downstream dependencies.",
+    "audit": "Audit activity",
+    "auditDescription": "Baseline changes captured for ownership and asset maintenance.",
+    "emptyAuditTitle": "No audit activity yet",
+    "emptyAuditDescription": "Audit signals will show up here once the backend event feed is available.",
+    "inspectionTitle": "Need deeper inspection?",
+    "inspectionDescription": "Open the dedicated detail page for the full resource record."
+  },
+  "relations": {
+    "emptyTitle": "No linked resources",
+    "emptyDescription": "Use relations to capture containment, ownership, and service dependency context."
+  },
+  "timeline": {
+    "emptyTitle": "No audit activity yet",
+    "emptyDescription": "Recent resource changes will appear here once the backend audit feed is connected."
+  }
+}

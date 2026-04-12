@@ -1,10 +1,16 @@
+import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 
 import { Sidebar } from "@/components/app-shell/sidebar";
+import messages from "@/messages/en.json";
 
 describe("Sidebar", () => {
   it("renders the console navigation groups in the agreed order", () => {
-    render(<Sidebar pathname="/resources" />);
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
 
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
@@ -33,7 +39,11 @@ describe("Sidebar", () => {
   });
 
   it("marks the active route for the current console section", () => {
-    render(<Sidebar pathname="/resources" />);
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
 
     expect(screen.getByRole("link", { name: "Resources" })).toHaveAttribute(
       "aria-current",

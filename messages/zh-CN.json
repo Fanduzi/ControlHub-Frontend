@@ -1,0 +1,299 @@
+{
+  "common": {
+    "brand": "ControlHub",
+    "loading": "加载中...",
+    "notSet": "未设置",
+    "unknown": "未知",
+    "actions": {
+      "tryAgain": "重试",
+      "registerResource": "登记资源",
+      "openFullDetail": "打开完整详情"
+    },
+    "fields": {
+      "resource": "资源",
+      "resourceType": "资源类型",
+      "resourceSubtype": "资源子类型",
+      "environment": "环境",
+      "owner": "负责人",
+      "source": "来源",
+      "externalId": "外部 ID",
+      "lastUpdated": "最后更新",
+      "updated": "更新于",
+      "lifecycle": "生命周期",
+      "status": "状态",
+      "health": "健康",
+      "actor": "操作者",
+      "action": "动作",
+      "timestamp": "时间戳",
+      "changeSummary": "变更摘要",
+      "engine": "引擎"
+    }
+  },
+  "navigation": {
+    "overview": {
+      "title": "概览",
+      "description": "运行态势与关注队列"
+    },
+    "resources": {
+      "title": "资源",
+      "description": "统一清单与负责人上下文"
+    },
+    "cmdb": {
+      "title": "CMDB",
+      "description": "围绕共享资产维护配置"
+    },
+    "databases": {
+      "title": "数据库",
+      "description": "以实例和集群为中心的运行视图"
+    },
+    "audits": {
+      "title": "审计",
+      "description": "最近的基线变更与操作动作"
+    },
+    "settings": {
+      "title": "设置",
+      "description": "基础字典、用户与角色"
+    }
+  },
+  "shell": {
+    "title": "统一资源控制台",
+    "description": "平台资产上下文、负责人和审计可见性。",
+    "baseline": "基线阶段：手动登记、关系维护和审计流。",
+    "subtitle": "面向资产可见性、负责人上下文和变更痕迹的共享工作台。",
+    "searchPlaceholder": "搜索资源、负责人、ID",
+    "environmentPlaceholder": "环境",
+    "quickAction": "快捷操作",
+    "notifications": "通知",
+    "workspace": "工作区",
+    "openCommandPalette": "打开命令面板",
+    "profile": "个人资料",
+    "signOut": "退出登录",
+    "role": "管理员",
+    "userName": "陈皓"
+  },
+  "environments": {
+    "production": "生产",
+    "staging": "预发",
+    "development": "开发"
+  },
+  "controls": {
+    "theme": {
+      "label": "主题",
+      "options": {
+        "light": "浅色",
+        "dark": "深色",
+        "system": "跟随系统"
+      }
+    },
+    "language": {
+      "label": "语言",
+      "options": {
+        "zh-CN": "中文",
+        "en": "English"
+      }
+    }
+  },
+  "login": {
+    "eyebrow": "ControlHub",
+    "title": "面向平台运营的统一资源可见性。",
+    "description": "基础能力聚焦手动登记、负责人对齐、环境上下文，以及主机、服务、集群和数据库实例的基线审计。",
+    "cards": {
+      "shell": {
+        "label": "工作台",
+        "description": "共享导航、搜索和环境控制"
+      },
+      "resourceModel": {
+        "label": "资源模型",
+        "description": "以统一资产骨架承载类型化画像和关系"
+      },
+      "auditBaseline": {
+        "label": "审计基线",
+        "description": "在流程自动化前捕获手动变更"
+      }
+    },
+    "form": {
+      "title": "登录",
+      "description": "连接 ControlHub 后端以管理资源和审计。",
+      "email": "邮箱",
+      "password": "密码",
+      "passwordRequired": "请输入密码",
+      "submit": "进入控制台"
+    },
+    "errors": {
+      "backend": "无法连接后端服务。请检查 API 是否运行，并确认 NEXT_PUBLIC_API_BASE_URL 是否正确。",
+      "invalidCredentials": "邮箱或密码无效。",
+      "unknown": "未知错误"
+    }
+  },
+  "errors": {
+    "title": "出现问题",
+    "backend": "无法连接后端服务。请检查 API 是否运行，并确认 NEXT_PUBLIC_API_BASE_URL 是否正确。",
+    "auth": "认证失败。请重新登录。",
+    "forbidden": "你没有权限访问这些数据。",
+    "notFound": "未找到请求的资源。",
+    "unexpected": "发生未知错误：{message}"
+  },
+  "pages": {
+    "overview": {
+      "eyebrow": "概览",
+      "title": "共享资源的运行态势",
+      "description": "概览紧贴日常工作：关注队列、环境态势、资产负责人和最近变更，而不是泛化仪表盘。",
+      "attention": {
+        "title": "关注队列",
+        "description": "需要立即补充运维上下文或负责人跟进的资源。",
+        "emptyTitle": "暂无关注项",
+        "emptyDescription": "所有资源均处于健康运行状态。"
+      },
+      "posture": {
+        "title": "资源态势",
+        "description": "计数聚焦可行动性，而不是展示型总量。",
+        "total": "托管资产总数",
+        "degraded": "降级",
+        "warning": "告警",
+        "pending": "待处理"
+      },
+      "lanes": {
+        "title": "环境泳道",
+        "description": "每个泳道按环境压缩健康、负责人和范围。"
+      },
+      "recentAudits": {
+        "title": "最近审计事件",
+        "description": "共享资源基线的最近变更。"
+      }
+    },
+    "resources": {
+      "eyebrow": "资源",
+      "title": "统一资源清单",
+      "description": "从单一运行列表搜索、过滤并查看手动维护资产。点击行会打开右侧详情面板。"
+    },
+    "resourceDetail": {
+      "eyebrow": "资源详情",
+      "identity": {
+        "title": "身份与负责人",
+        "description": "核心字段与后端资源契约命名保持一致。"
+      },
+      "labels": {
+        "title": "标签与来源",
+        "description": "线缆数据保持键值映射；页面只负责呈现，不改变契约。"
+      },
+      "profile": {
+        "title": "运行画像",
+        "description": "类型化扩展字段在详情页保持明确可读。"
+      },
+      "relations": {
+        "title": "关系",
+        "description": "依赖、包含和负责人上下文均锚定到资源 ID。"
+      },
+      "audit": {
+        "title": "审计历史",
+        "description": "此资源资产基线的最近变更。"
+      }
+    },
+    "cmdb": {
+      "eyebrow": "CMDB",
+      "title": "配置维护视图",
+      "description": "CMDB 复用共享资源基础，并强调维护负责人、来源质量和更新节奏。",
+      "records": {
+        "title": "配置记录",
+        "description": "与资源模型对齐的高信号配置字段。",
+        "emptyTitle": "暂无配置记录",
+        "emptyDescription": "资源通过资源清单登记后会出现在这里。"
+      }
+    },
+    "databases": {
+      "eyebrow": "数据库",
+      "title": "数据库集群与实例",
+      "description": "集群和实例都是一等资源，并共享负责人和审计流。",
+      "posture": {
+        "title": "数据库态势",
+        "description": "控制台将集群作为逻辑容器呈现，不强制进入重型拓扑视图。",
+        "clusters": "集群记录",
+        "instances": "实例记录"
+      }
+    },
+    "audits": {
+      "eyebrow": "审计",
+      "title": "基线审计事件",
+      "description": "审计记录捕获手动维护活动，让流程自动化前的资源历史保持可见。",
+      "latest": {
+        "title": "最近变更",
+        "description": "负责人、关系和元数据变更的紧凑时间线。"
+      }
+    },
+    "settings": {
+      "eyebrow": "设置",
+      "title": "基础字典与访问基线",
+      "description": "设置覆盖环境、负责人、用户、角色和支撑资源维护的基础字典。",
+      "environments": {
+        "title": "环境",
+        "description": "用于资产登记和过滤的环境目录。",
+        "emptyTitle": "暂无环境",
+        "emptyDescription": "后端创建环境后会显示在这里。"
+      },
+      "owners": {
+        "title": "负责人",
+        "description": "当前绑定到资源的负责人组。",
+        "emptyTitle": "暂无负责人",
+        "emptyDescription": "后端创建负责人组后会显示在这里。"
+      },
+      "roles": {
+        "title": "角色",
+        "description": "细粒度权限前的基础角色区分。",
+        "emptyTitle": "暂无角色",
+        "emptyDescription": "后端创建角色后会显示在这里。"
+      },
+      "dictionaries": {
+        "title": "支撑字典",
+        "description": "小而明确的字典管理让契约保持可读。"
+      }
+    }
+  },
+  "tables": {
+    "resources": {
+      "title": "统一清单",
+      "description": "以列表为先的浏览方式，右侧详情面板用于日常检查。",
+      "searchPlaceholder": "搜索资源、负责人或 ID",
+      "filterType": "过滤类型",
+      "allTypes": "全部类型",
+      "host": "主机",
+      "databaseInstance": "数据库实例",
+      "databaseCluster": "数据库集群",
+      "service": "服务",
+      "emptyTitle": "未找到资源",
+      "emptyDescription": "当前过滤条件没有匹配资源，或尚未登记任何资源。"
+    },
+    "databases": {
+      "title": "数据库资源",
+      "description": "集群和实例记录共享同一资源骨架，并突出数据库相关信息。",
+      "asset": "数据库资产",
+      "emptyTitle": "暂无数据库资源",
+      "emptyDescription": "尚未登记任何数据库实例或集群。"
+    },
+    "audits": {
+      "title": "审计流",
+      "description": "基线资产变更以追加式运行历史记录。",
+      "emptyTitle": "暂无审计事件",
+      "emptyDescription": "资源变更被捕获后，审计记录会显示在这里。"
+    }
+  },
+  "detailSheet": {
+    "summary": "摘要",
+    "profile": "运行画像",
+    "profileDescription": "高频字段保持显式；厂商细节作为补充信息。",
+    "relationsDescription": "列表行上下文应立即暴露上游和下游依赖。",
+    "audit": "审计活动",
+    "auditDescription": "捕获负责人和资产维护的基线变更。",
+    "emptyAuditTitle": "暂无审计活动",
+    "emptyAuditDescription": "后端事件流可用后，审计信号会显示在这里。",
+    "inspectionTitle": "需要更深入检查？",
+    "inspectionDescription": "打开专用详情页查看完整资源记录。"
+  },
+  "relations": {
+    "emptyTitle": "暂无关联资源",
+    "emptyDescription": "使用关系来捕获包含、负责人和服务依赖上下文。"
+  },
+  "timeline": {
+    "emptyTitle": "暂无审计活动",
+    "emptyDescription": "后端审计流接入后，最近资源变更会显示在这里。"
+  }
+}

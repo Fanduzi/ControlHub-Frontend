@@ -9,51 +9,47 @@ import {
 
 export const consoleNavigation = [
   {
-    title: "Overview",
+    id: "overview",
     href: "/overview",
     icon: LayoutDashboard,
-    description: "Operational posture and attention queue",
   },
   {
-    title: "Resources",
+    id: "resources",
     href: "/resources",
     icon: ServerCog,
-    description: "Unified inventory and ownership context",
   },
   {
-    title: "CMDB",
+    id: "cmdb",
     href: "/cmdb",
     icon: FolderKanban,
-    description: "Configuration maintenance over shared assets",
   },
   {
-    title: "Databases",
+    id: "databases",
     href: "/databases",
     icon: Database,
-    description: "Instance and cluster-centric operational view",
   },
   {
-    title: "Audits",
+    id: "audits",
     href: "/audits",
     icon: Activity,
-    description: "Recent baseline changes and operator actions",
   },
   {
-    title: "Settings",
+    id: "settings",
     href: "/settings",
     icon: Settings,
-    description: "Reference dictionaries, users, and roles",
   },
 ] as const;
 
 export const environmentOptions = [
-  { value: "production", label: "Production" },
-  { value: "staging", label: "Staging" },
-  { value: "development", label: "Development" },
+  { value: "production" },
+  { value: "staging" },
+  { value: "development" },
 ] as const;
 
-export function getConsoleSectionTitle(pathname: string) {
+export type ConsoleSectionId = (typeof consoleNavigation)[number]["id"];
+
+export function getConsoleSectionId(pathname: string) {
   const item = consoleNavigation.find((entry) => pathname.startsWith(entry.href));
 
-  return item?.title ?? "ControlHub";
+  return item?.id;
 }

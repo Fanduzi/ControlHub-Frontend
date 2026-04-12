@@ -58,6 +58,10 @@ const resource = {
 
 describe("ResourceDetailSheet", () => {
   it("renders the selected resource with summary, relations, and audit context", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
     render(
       <ResourceDetailSheet
         open
@@ -74,6 +78,9 @@ describe("ResourceDetailSheet", () => {
     expect(
       screen.getByRole("link", { name: /open full detail/i }),
     ).toHaveAttribute("href", "/resources/res-db-primary");
+    expect(consoleError).not.toHaveBeenCalled();
+
+    consoleError.mockRestore();
   });
 
   it("shows empty states when no relations or audit events are present", () => {
