@@ -1,5 +1,9 @@
 import { formatLabel } from "@/lib/format";
-import { listRecentAuditEvents, listAuditEvents, listResourceAuditEvents } from "@/services/audits";
+import {
+  listRecentAuditEvents,
+  listAuditEvents,
+  listResourceAuditEvents,
+} from "@/services/audits";
 import { listEnvironments, listOwners } from "@/services/settings";
 import {
   getOverviewMetrics,
@@ -24,65 +28,52 @@ const resourceDetails: Record<
     profile: Record<string, string>;
   }
 > = {
-  "res-host-bastion": {
+  "40000000-0000-0000-0000-000000000001": {
     summary:
-      "Hardened bastion host used for controlled break-glass access and operator maintenance tunnels.",
+      "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
     profile: {
-      region: "ap-southeast-1",
-      provider: "VMware",
-      address: "10.10.8.14",
+      engine: "mysql",
+      topology: "primary-replica",
+      endpoint: "order-mysql-cluster-prod.internal:3306",
+      replicas: "2",
     },
   },
-  "res-db-cluster-orders": {
+  "40000000-0000-0000-0000-000000000002": {
     summary:
-      "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources.",
+      "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
     profile: {
-      engine: "MySQL 8.0",
-      topology: "single-writer",
-      region: "ap-southeast-1",
+      engine: "mysql",
+      version: "8.0.36",
+      host: "prod-db-host-01.internal",
+      port: "3306",
+      role: "primary",
     },
   },
-  "res-db-primary": {
+  "40000000-0000-0000-0000-000000000003": {
     summary:
-      "Primary transactional database handling order placement, payment finalization, and write-heavy checkout paths.",
+      "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
     profile: {
-      engine: "MySQL 8.0",
-      endpoint: "order-primary.internal:3306",
-      region: "ap-southeast-1",
+      system: "order-api",
+      repository: "https://example.com/repos/order-api",
+      runtime: "kubernetes",
+      language: "go",
     },
   },
-  "res-db-replica": {
+  "40000000-0000-0000-0000-000000000004": {
     summary:
-      "Read replica supporting reporting queries and lower-priority operational traffic.",
+      "Production database host providing compute and storage for the MySQL primary instance.",
     profile: {
-      engine: "MySQL 8.0",
-      endpoint: "order-replica.internal:3306",
-      region: "ap-southeast-1",
-    },
-  },
-  "res-service-checkout": {
-    summary:
-      "Customer-facing checkout service with direct dependency on the order data plane.",
-    profile: {
-      runtime: "Go 1.24",
-      namespace: "payments",
-      repo: "github.com/fan/controlhub-checkout",
-    },
-  },
-  "res-service-inventory": {
-    summary:
-      "Inventory reconciliation worker awaiting production promotion and relation confirmation.",
-    profile: {
-      runtime: "Node.js 24",
-      namespace: "supply",
-      repo: "github.com/fan/inventory-sync",
+      hostname: "prod-db-host-01.internal",
+      ip: "10.0.10.21",
+      os: "Ubuntu 24.04",
+      provider: "vmware",
     },
   },
 };
 
 const actorLabels: Record<string, string> = {
-  "user-admin": "Admin User",
-  "user-editor": "Editor User",
+  "30000000-0000-0000-0000-000000000001": "ControlHub Admin",
+  "30000000-0000-0000-0000-000000000002": "ControlHub Editor",
 };
 
 function fallbackLabel(id: string) {
@@ -119,7 +110,9 @@ function toRelationViewModel(
   resourceMap: Map<string, Resource>,
 ): ResourceRelationViewModel {
   const outgoing = relation.fromResourceId === currentResourceId;
-  const relatedResourceId = outgoing ? relation.toResourceId : relation.fromResourceId;
+  const relatedResourceId = outgoing
+    ? relation.toResourceId
+    : relation.fromResourceId;
 
   return {
     ...relation,
@@ -139,7 +132,8 @@ function toAuditEventViewModel(
 
   return {
     ...event,
-    actorLabel: actorLabels[event.actorUserId] ?? fallbackLabel(event.actorUserId),
+    actorLabel:
+      actorLabels[event.actorUserId] ?? fallbackLabel(event.actorUserId),
     targetResourceName: target?.displayName ?? event.targetResourceId,
     environmentLabel: target
       ? (environmentMap.get(target.environmentId) ?? target.environmentId)
@@ -148,7 +142,9 @@ function toAuditEventViewModel(
   };
 }
 
-async function toResourceViewModel(resource: Resource): Promise<ResourceViewModel> {
+async function toResourceViewModel(
+  resource: Resource,
+): Promise<ResourceViewModel> {
   const [{ resourceMap, environmentMap, ownerMap }, relations, auditEvents] =
     await Promise.all([
       buildLookupMaps(),
@@ -177,19 +173,29 @@ async function toResourceViewModel(resource: Resource): Promise<ResourceViewMode
 export async function listResourceViewModels(): Promise<ResourceViewModel[]> {
   const resources = await listResources();
 
-  return Promise.all(resources.map((resource) => toResourceViewModel(resource)));
+  return Promise.all(
+    resources.map((resource) => toResourceViewModel(resource)),
+  );
 }
 
-export async function listDatabaseResourceViewModels(): Promise<ResourceViewModel[]> {
+export async function listDatabaseResourceViewModels(): Promise<
+  ResourceViewModel[]
+> {
   const resources = await listDatabaseResources();
 
-  return Promise.all(resources.map((resource) => toResourceViewModel(resource)));
+  return Promise.all(
+    resources.map((resource) => toResourceViewModel(resource)),
+  );
 }
 
-export async function listAttentionResourceViewModels(): Promise<ResourceViewModel[]> {
+export async function listAttentionResourceViewModels(): Promise<
+  ResourceViewModel[]
+> {
   const resources = await listAttentionResources();
 
-  return Promise.all(resources.map((resource) => toResourceViewModel(resource)));
+  return Promise.all(
+    resources.map((resource) => toResourceViewModel(resource)),
+  );
 }
 
 export async function getResourceViewModel(
@@ -204,13 +210,17 @@ export async function getResourceViewModel(
   return toResourceViewModel(resource);
 }
 
-export async function listAuditEventViewModels(): Promise<AuditEventViewModel[]> {
+export async function listAuditEventViewModels(): Promise<
+  AuditEventViewModel[]
+> {
   const [{ resourceMap, environmentMap }, events] = await Promise.all([
     buildLookupMaps(),
     listAuditEvents(),
   ]);
 
-  return events.map((event) => toAuditEventViewModel(event, resourceMap, environmentMap));
+  return events.map((event) =>
+    toAuditEventViewModel(event, resourceMap, environmentMap),
+  );
 }
 
 export async function listRecentAuditEventViewModels(
@@ -221,7 +231,9 @@ export async function listRecentAuditEventViewModels(
     listRecentAuditEvents(limit),
   ]);
 
-  return events.map((event) => toAuditEventViewModel(event, resourceMap, environmentMap));
+  return events.map((event) =>
+    toAuditEventViewModel(event, resourceMap, environmentMap),
+  );
 }
 
 export { getOverviewMetrics };
