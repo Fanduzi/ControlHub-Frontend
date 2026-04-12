@@ -1,21 +1,35 @@
-export type EnvironmentRecord = {
+export type Environment = {
   id: string;
   name: string;
-  code: string;
-  ownership_model: string;
+  slug: string;
+  description: string;
+  createdAt: string;
 };
 
-export type OwnerRecord = {
-  id: string;
-  name: string;
-  team: string;
-  slack_channel: string;
+export type EnvironmentListResponse = {
+  items: Environment[];
 };
 
-export type RoleRecord = {
+export type Owner = {
   id: string;
   name: string;
-  scope: string;
+  email: string;
+  createdAt: string;
+};
+
+export type OwnerListResponse = {
+  items: Owner[];
+};
+
+export type Role = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+};
+
+export type RoleListResponse = {
+  items: Role[];
 };
 
 export type DictionaryRecord = {

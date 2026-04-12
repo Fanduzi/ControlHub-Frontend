@@ -1,56 +1,31 @@
+import { apiClient } from "@/services/api-client";
 import type {
   DictionaryRecord,
-  EnvironmentRecord,
-  OwnerRecord,
-  RoleRecord,
+  Environment,
+  EnvironmentListResponse,
+  Owner,
+  OwnerListResponse,
+  Role,
+  RoleListResponse,
 } from "@/types/settings";
 
-const environments: EnvironmentRecord[] = [
-  {
-    id: "env-prod",
-    name: "Production",
-    code: "production",
-    ownership_model: "Central approval required",
-  },
-  {
-    id: "env-staging",
-    name: "Staging",
-    code: "staging",
-    ownership_model: "Service owner managed",
-  },
-  {
-    id: "env-dev",
-    name: "Development",
-    code: "development",
-    ownership_model: "Team self-service",
-  },
-];
+export async function listEnvironments(): Promise<Environment[]> {
+  const response = await apiClient<EnvironmentListResponse>("/environments");
 
-const owners: OwnerRecord[] = [
-  {
-    id: "owner-dba",
-    name: "DBA Team",
-    team: "Database Engineering",
-    slack_channel: "#dba-team",
-  },
-  {
-    id: "owner-platform",
-    name: "Platform Ops",
-    team: "Platform Engineering",
-    slack_channel: "#platform-ops",
-  },
-  {
-    id: "owner-supply",
-    name: "Supply Chain Systems",
-    team: "Supply Platform",
-    slack_channel: "#supply-systems",
-  },
-];
+  return response.items;
+}
 
-const roles: RoleRecord[] = [
-  { id: "role-admin", name: "admin", scope: "Resource and dictionary management" },
-  { id: "role-editor", name: "editor", scope: "Read and update managed resources" },
-];
+export async function listOwners(): Promise<Owner[]> {
+  const response = await apiClient<OwnerListResponse>("/owners");
+
+  return response.items;
+}
+
+export async function listRoles(): Promise<Role[]> {
+  const response = await apiClient<RoleListResponse>("/roles");
+
+  return response.items;
+}
 
 const dictionaries: DictionaryRecord[] = [
   {
@@ -69,18 +44,6 @@ const dictionaries: DictionaryRecord[] = [
     values: ["healthy", "warning", "degraded", "critical"],
   },
 ];
-
-export async function listEnvironments() {
-  return environments;
-}
-
-export async function listOwners() {
-  return owners;
-}
-
-export async function listRoles() {
-  return roles;
-}
 
 export async function listDictionaries() {
   return dictionaries;

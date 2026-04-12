@@ -27,21 +27,40 @@ npm install
 npm run dev
 ```
 
-The current frontend uses mock services in `services/` that mirror the planned backend resource, audit, auth, and settings contracts until the REST API is wired in.
+The frontend connects to the ControlHub backend API. Set the environment variable to point to your backend:
+
+```bash
+# Required: backend API base URL
+export NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+If `NEXT_PUBLIC_API_BASE_URL` is not set, it defaults to `http://localhost:8080`.
+
+The backend must be running and serving the following endpoints:
+
+- `POST /auth/login` — authentication
+- `GET /resources` — resource list
+- `GET /resources/{id}` — resource detail
+- `GET /resources/{id}/relations` — resource relations
+- `GET /resources/{id}/audit-events` — resource audit events
+- `GET /audit-events` — global audit events
+- `GET /environments` — environment list
+- `GET /owners` — owner list
+- `GET /roles` — role list
+
+All endpoints use JSON with camelCase field names. See the OpenAPI spec at `internal/openapi/openapi.yaml` in the backend repository for the full contract.
 
 ## Verification
 
-Run the phase 1 frontend checks:
-
 ```bash
-npx vitest run tests/components/sidebar.test.tsx
-npx vitest run tests/components/resource-detail-sheet.test.tsx
 npx vitest run
-npm run dev
+npm run build
+npm run lint
 ```
 
 ## Contract assumptions
 
-- `resource_type`, `resource_subtype`, `lifecycle_status`, `health_status`, `relations`, and `audit_events` align with the phase 1 spec naming
-- `GET /resources`, `GET /resources/{id}`, and `GET /audit-events` will eventually back the existing service modules
-- Auth is still using demo credentials until the backend login contract is available
+- Wire types in `types/*.ts` align with the OpenAPI camelCase contract
+- View-model fields such as `environmentName`, `ownerName`, `actorLabel`, `targetResourceName`, `summary`, and `profile` are frontend-only presentation fields derived in `lib/view-models.ts`
+- The backend does not provide `actorName`, `targetResourceName`, `ownerName`, or `environmentName` in its endpoints
+- Supporting dictionaries (resourceType, lifecycleStatus, healthStatus values) are local static data in `services/settings.ts`

@@ -30,7 +30,7 @@ export default async function SettingsPage() {
               <div key={environment.id} className="rounded-lg border border-border bg-background px-3 py-3">
                 <p className="font-medium text-foreground">{environment.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {environment.code} · {environment.ownership_model}
+                  {environment.slug} · {environment.description}
                 </p>
               </div>
             ))}
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
               <div key={owner.id} className="rounded-lg border border-border bg-background px-3 py-3">
                 <p className="font-medium text-foreground">{owner.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {owner.team} · {owner.slack_channel}
+                  {owner.email}
                 </p>
               </div>
             ))}
@@ -55,7 +55,7 @@ export default async function SettingsPage() {
             {roles.map((role) => (
               <div key={role.id} className="rounded-lg border border-border bg-background px-3 py-3">
                 <p className="font-medium text-foreground">{role.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{role.scope}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{role.description}</p>
               </div>
             ))}
           </div>

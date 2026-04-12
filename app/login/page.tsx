@@ -10,7 +10,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { demoCredentials, login } from "@/services/auth";
+import { login } from "@/services/auth";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -25,8 +25,8 @@ export default function LoginPage() {
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: demoCredentials.admin.email,
-      password: demoCredentials.admin.password,
+      email: "",
+      password: "",
     },
   });
 
@@ -58,9 +58,9 @@ export default function LoginPage() {
             Unified resource visibility for platform operations.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-            Phase 1 focuses on manual registration, owner alignment, environment context,
-            and baseline auditability across hosts, services, clusters, and database
-            instances.
+            Phase 1 focuses on manual registration, owner alignment, environment
+            context, and baseline auditability across hosts, services, clusters,
+            and database instances.
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-3">
@@ -95,16 +95,16 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Demo users: <span className="font-medium text-foreground">admin@example.com</span>{" "}
-              or <span className="font-medium text-foreground">editor@example.com</span>,
-              both with password{" "}
-              <span className="font-medium text-foreground">secret123</span>
+              Connect to the ControlHub backend to manage resources and audits.
             </p>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="email">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor="email"
+                >
                   Email
                 </label>
                 <Input id="email" type="email" {...form.register("email")} />
@@ -122,7 +122,11 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <Input id="password" type="password" {...form.register("password")} />
+                <Input
+                  id="password"
+                  type="password"
+                  {...form.register("password")}
+                />
                 {form.formState.errors.password ? (
                   <p className="text-sm text-rose-700">
                     {form.formState.errors.password.message}
@@ -132,7 +136,11 @@ export default function LoginPage() {
 
               {error ? <p className="text-sm text-rose-700">{error}</p> : null}
 
-              <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                className="w-full"
+                type="submit"
+                disabled={form.formState.isSubmitting}
+              >
                 Enter console
               </Button>
             </form>
