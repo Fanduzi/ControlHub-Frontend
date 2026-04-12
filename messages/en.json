@@ -119,6 +119,16 @@
         "zh-CN": "Chinese",
         "en": "English"
       }
+    },
+    "accent": {
+      "label": "Accent color",
+      "description": "Product emphasis only. Status semantics stay fixed.",
+      "options": {
+        "blue": "Blue",
+        "purple": "Purple",
+        "emerald": "Emerald",
+        "amber": "Amber"
+      }
     }
   },
   "login": {
@@ -252,6 +262,16 @@
       "eyebrow": "Settings",
       "title": "Reference dictionaries and access baseline",
       "description": "Settings cover environments, owners, users, roles, and supporting dictionaries for resource maintenance.",
+      "appearance": {
+        "title": "Appearance",
+        "description": "Fallback controls for locale, theme, and accent without changing console semantics.",
+        "languageTitle": "Language",
+        "languageDescription": "Use the direct Chinese and English switch used in the topbar.",
+        "themeTitle": "Theme",
+        "themeDescription": "Cycle light, dark, and system from the same compact control.",
+        "accentTitle": "Accent color",
+        "accentDescription": "Accent affects product emphasis only. Health and audit semantics stay fixed."
+      },
       "environments": {
         "title": "Environments",
         "description": "Environment catalog for asset registration and filtering.",

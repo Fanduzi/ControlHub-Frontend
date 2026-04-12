@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { AccentSwitcher } from "@/components/settings/accent-switcher";
 import { LanguageSwitcher } from "@/components/settings/language-switcher";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
 import {
@@ -71,6 +72,7 @@ export function Topbar({ pathname }: TopbarProps) {
 
         <LanguageSwitcher />
         <ThemeToggle />
+        <AccentSwitcher />
 
         <Button variant="outline" size="sm" className="gap-2">
           <Plus className="size-4" />
@@ -82,16 +84,16 @@ export function Topbar({ pathname }: TopbarProps) {
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="outline" className="h-9 gap-2 px-2.5" size="sm" />
-            }
-          >
-            <Avatar className="size-6 rounded-md border border-border">
-              <AvatarFallback className="rounded-md bg-sky-500/10 text-[11px] font-semibold text-sky-700">
-                CH
-              </AvatarFallback>
-            </Avatar>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="outline" className="h-9 gap-2 px-2.5" size="sm" />
+          }
+        >
+          <Avatar className="size-6 rounded-md border border-border">
+            <AvatarFallback className="rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
+              CH
+            </AvatarFallback>
+          </Avatar>
             <div className="hidden text-left sm:block">
               <p className="text-xs font-medium text-foreground">{t("shell.userName")}</p>
               <p className="text-[11px] text-muted-foreground">{t("shell.role")}</p>

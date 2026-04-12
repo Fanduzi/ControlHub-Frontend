@@ -119,6 +119,16 @@
         "zh-CN": "中文",
         "en": "English"
       }
+    },
+    "accent": {
+      "label": "强调色",
+      "description": "仅影响产品强调，不改变状态语义。",
+      "options": {
+        "blue": "蓝",
+        "purple": "紫",
+        "emerald": "翠绿",
+        "amber": "琥珀"
+      }
     }
   },
   "login": {
@@ -252,6 +262,16 @@
       "eyebrow": "设置",
       "title": "基础字典与访问基线",
       "description": "设置覆盖环境、负责人、用户、角色和支撑资源维护的基础字典。",
+      "appearance": {
+        "title": "外观",
+        "description": "为语言、主题和强调色提供回退控制，同时不改变控制台语义。",
+        "languageTitle": "语言",
+        "languageDescription": "使用与顶栏一致的中英文直接切换。",
+        "themeTitle": "主题",
+        "themeDescription": "通过同一个紧凑按钮循环浅色、深色与跟随系统。",
+        "accentTitle": "强调色",
+        "accentDescription": "强调色只影响产品强调，不改变健康或审计语义。"
+      },
       "environments": {
         "title": "环境",
         "description": "用于资产登记和过滤的环境目录。",

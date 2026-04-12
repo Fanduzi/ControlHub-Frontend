@@ -117,6 +117,72 @@
   --sidebar-ring: oklch(0.65 0.1 241.34);
 }
 
+:root[data-accent="purple"] {
+  --primary: oklch(0.58 0.17 300.43);
+  --primary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.95 0.025 304.12);
+  --accent-foreground: oklch(0.32 0.05 297.58);
+  --ring: oklch(0.58 0.17 300.43);
+  --sidebar-primary: oklch(0.58 0.17 300.43);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.58 0.17 300.43);
+}
+
+:root[data-accent="emerald"] {
+  --primary: oklch(0.62 0.14 166.84);
+  --primary-foreground: oklch(0.18 0.01 257.42);
+  --accent: oklch(0.96 0.018 170.35);
+  --accent-foreground: oklch(0.3 0.04 173.82);
+  --ring: oklch(0.62 0.14 166.84);
+  --sidebar-primary: oklch(0.62 0.14 166.84);
+  --sidebar-primary-foreground: oklch(0.18 0.01 257.42);
+  --sidebar-ring: oklch(0.62 0.14 166.84);
+}
+
+:root[data-accent="amber"] {
+  --primary: oklch(0.71 0.15 74.83);
+  --primary-foreground: oklch(0.22 0.017 262.17);
+  --accent: oklch(0.97 0.018 83.12);
+  --accent-foreground: oklch(0.39 0.06 69.87);
+  --ring: oklch(0.71 0.15 74.83);
+  --sidebar-primary: oklch(0.71 0.15 74.83);
+  --sidebar-primary-foreground: oklch(0.22 0.017 262.17);
+  --sidebar-ring: oklch(0.71 0.15 74.83);
+}
+
+.dark[data-accent="purple"] {
+  --primary: oklch(0.72 0.16 301.21);
+  --primary-foreground: oklch(0.19 0.01 257.42);
+  --accent: oklch(0.33 0.04 299.88);
+  --accent-foreground: oklch(0.95 0.004 247.86);
+  --ring: oklch(0.72 0.16 301.21);
+  --sidebar-primary: oklch(0.72 0.16 301.21);
+  --sidebar-primary-foreground: oklch(0.19 0.01 257.42);
+  --sidebar-ring: oklch(0.72 0.16 301.21);
+}
+
+.dark[data-accent="emerald"] {
+  --primary: oklch(0.73 0.14 167.16);
+  --primary-foreground: oklch(0.18 0.01 257.42);
+  --accent: oklch(0.31 0.03 170.11);
+  --accent-foreground: oklch(0.95 0.004 247.86);
+  --ring: oklch(0.73 0.14 167.16);
+  --sidebar-primary: oklch(0.73 0.14 167.16);
+  --sidebar-primary-foreground: oklch(0.18 0.01 257.42);
+  --sidebar-ring: oklch(0.73 0.14 167.16);
+}
+
+.dark[data-accent="amber"] {
+  --primary: oklch(0.79 0.13 76.91);
+  --primary-foreground: oklch(0.19 0.01 257.42);
+  --accent: oklch(0.33 0.03 75.28);
+  --accent-foreground: oklch(0.95 0.004 247.86);
+  --ring: oklch(0.79 0.13 76.91);
+  --sidebar-primary: oklch(0.79 0.13 76.91);
+  --sidebar-primary-foreground: oklch(0.19 0.01 257.42);
+  --sidebar-ring: oklch(0.79 0.13 76.91);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
