@@ -24,7 +24,6 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 
 ```bash
 npm install
-npm run dev
 ```
 
 The frontend connects to the ControlHub backend API. Set the environment variable to point to your backend:
@@ -35,6 +34,24 @@ export NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 ```
 
 If `NEXT_PUBLIC_API_BASE_URL` is not set, it defaults to `http://localhost:8080`.
+
+### Running with the backend
+
+1. Start the backend at `http://localhost:8080` (see the backend repository for instructions)
+2. `npm run dev`
+3. Smoke-test these pages:
+   - `/login` — sign in with backend credentials
+   - `/overview` — attention queue, posture metrics, environment lanes, recent audits
+   - `/resources` — resource table with search/filter and detail sheet
+   - `/resources/[id]` — full detail page for a known resource ID
+   - `/cmdb` — configuration maintenance table
+   - `/databases` — database instance and cluster view
+   - `/audits` — audit event table and recent timeline
+   - `/settings` — environments, owners, roles, and dictionaries
+
+### When the backend is unavailable
+
+All console pages show a readable error state with a retry button instead of crashing with a stack trace. The login page displays a clear message when the backend cannot be reached.
 
 The backend must be running and serving the following endpoints:
 

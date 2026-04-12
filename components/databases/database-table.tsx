@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
+import { EmptyState } from "@/components/blocks/empty-state";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import {
   Table,
@@ -37,7 +38,8 @@ const columns = [
       <div className="space-y-1">
         <p className="font-medium text-foreground">{info.getValue()}</p>
         <p className="text-xs text-muted-foreground">
-          {info.row.original.profile.endpoint ?? info.row.original.profile.engine}
+          {info.row.original.profile.endpoint ??
+            info.row.original.profile.engine}
         </p>
       </div>
     ),
@@ -51,13 +53,17 @@ const columns = [
   columnHelper.accessor("resourceSubtype", {
     header: "Engine",
     cell: (info) => (
-      <span className="text-sm text-foreground">{info.row.original.profile.engine}</span>
+      <span className="text-sm text-foreground">
+        {info.row.original.profile.engine}
+      </span>
     ),
   }),
   columnHelper.display({
     id: "status",
     header: "Health",
-    cell: ({ row }) => <StatusBadge status={row.original.healthStatus} tone="health" />,
+    cell: ({ row }) => (
+      <StatusBadge status={row.original.healthStatus} tone="health" />
+    ),
   }),
   columnHelper.accessor("updatedAt", {
     header: "Updated",
@@ -66,7 +72,8 @@ const columns = [
 ];
 
 export function DatabaseTable({ resources }: DatabaseTableProps) {
-  const [selectedResource, setSelectedResource] = useState<ResourceViewModel | null>(null);
+  const [selectedResource, setSelectedResource] =
+    useState<ResourceViewModel | null>(null);
 
   const table = useReactTable({
     data: resources,
@@ -83,7 +90,10 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-muted/20 hover:bg-muted/20">
+              <TableRow
+                key={headerGroup.id}
+                className="bg-muted/20 hover:bg-muted/20"
+              >
                 {headerGroup.headers.map((header) => (
                   <TableHead key={header.id}>
                     {header.isPlaceholder
@@ -98,19 +108,33 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedResource(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="py-6">
+                  <EmptyState
+                    title="No database resources"
+                    description="No database instances or clusters have been registered yet."
+                  />
+                </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedResource(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </DataTableShell>

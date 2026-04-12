@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
+import { EmptyState } from "@/components/blocks/empty-state";
 import {
   Table,
   TableBody,
@@ -80,27 +81,44 @@ export function AuditTable({ events }: AuditTableProps) {
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="bg-muted/20 hover:bg-muted/20">
+            <TableRow
+              key={headerGroup.id}
+              className="bg-muted/20 hover:bg-muted/20"
+            >
               {headerGroup.headers.map((header) => (
                 <TableHead key={header.id}>
                   {header.isPlaceholder
                     ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
                 </TableHead>
               ))}
             </TableRow>
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
+          {table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="py-6">
+                <EmptyState
+                  title="No audit events"
+                  description="Audit records will appear here once resource changes are captured."
+                />
+              </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </DataTableShell>

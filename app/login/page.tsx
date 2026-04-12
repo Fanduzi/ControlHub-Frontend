@@ -39,11 +39,22 @@ export default function LoginPage() {
       window.sessionStorage.setItem("controlhub.role", result.role);
       router.push("/overview");
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Unable to sign in with the provided credentials",
-      );
+      const message =
+        submitError instanceof Error ? submitError.message : "Unknown error";
+
+      if (
+        message.includes("fetch") ||
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError")
+      ) {
+        setError(
+          "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
+        );
+      } else if (message.includes("401")) {
+        setError("Invalid email or password.");
+      } else {
+        setError(message);
+      }
     }
   }
 

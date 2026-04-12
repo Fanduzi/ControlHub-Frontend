@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
+import { EmptyState } from "@/components/blocks/empty-state";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,7 +44,9 @@ const columns = [
     header: "Resource",
     cell: ({ row }) => (
       <div className="space-y-1">
-        <p className="font-medium text-foreground">{row.original.displayName}</p>
+        <p className="font-medium text-foreground">
+          {row.original.displayName}
+        </p>
         <p className="text-xs text-muted-foreground">
           {row.original.externalId || row.original.id}
         </p>
@@ -71,7 +74,9 @@ const columns = [
   }),
   columnHelper.accessor("ownerName", {
     header: "Owner",
-    cell: (info) => <span className="text-sm text-foreground">{info.getValue()}</span>,
+    cell: (info) => (
+      <span className="text-sm text-foreground">{info.getValue()}</span>
+    ),
   }),
   columnHelper.display({
     id: "status",
@@ -96,7 +101,8 @@ const columns = [
 export function ResourceTable({ resources }: ResourceTableProps) {
   const [search, setSearch] = useState("");
   const [resourceType, setResourceType] = useState("all");
-  const [selectedResource, setSelectedResource] = useState<ResourceViewModel | null>(null);
+  const [selectedResource, setSelectedResource] =
+    useState<ResourceViewModel | null>(null);
 
   const filteredResources = resources.filter((resource) => {
     const matchesSearch =
@@ -139,8 +145,12 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="host">Host</SelectItem>
-                <SelectItem value="database_instance">Database Instance</SelectItem>
-                <SelectItem value="database_cluster">Database Cluster</SelectItem>
+                <SelectItem value="database_instance">
+                  Database Instance
+                </SelectItem>
+                <SelectItem value="database_cluster">
+                  Database Cluster
+                </SelectItem>
                 <SelectItem value="service">Service</SelectItem>
               </SelectContent>
             </Select>
@@ -150,7 +160,10 @@ export function ResourceTable({ resources }: ResourceTableProps) {
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-muted/20 hover:bg-muted/20">
+              <TableRow
+                key={headerGroup.id}
+                className="bg-muted/20 hover:bg-muted/20"
+              >
                 {headerGroup.headers.map((header) => (
                   <TableHead key={header.id}>
                     {header.isPlaceholder
@@ -165,19 +178,33 @@ export function ResourceTable({ resources }: ResourceTableProps) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedResource(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="py-6">
+                  <EmptyState
+                    title="No resources found"
+                    description="No resources match the current filters, or no resources have been registered yet."
+                  />
+                </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedResource(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </DataTableShell>

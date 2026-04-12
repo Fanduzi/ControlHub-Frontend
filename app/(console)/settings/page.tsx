@@ -1,4 +1,5 @@
 import { DetailPanel } from "@/components/blocks/detail-panel";
+import { EmptyState } from "@/components/blocks/empty-state";
 import { PageHeader } from "@/components/blocks/page-header";
 import {
   listDictionaries,
@@ -24,41 +25,84 @@ export default async function SettingsPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <DetailPanel title="Environments" description="Environment catalog for asset registration and filtering.">
-          <div className="space-y-3">
-            {environments.map((environment) => (
-              <div key={environment.id} className="rounded-lg border border-border bg-background px-3 py-3">
-                <p className="font-medium text-foreground">{environment.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {environment.slug} · {environment.description}
-                </p>
-              </div>
-            ))}
-          </div>
+        <DetailPanel
+          title="Environments"
+          description="Environment catalog for asset registration and filtering."
+        >
+          {environments.length === 0 ? (
+            <EmptyState
+              title="No environments"
+              description="Environments will appear here once they are created in the backend."
+            />
+          ) : (
+            <div className="space-y-3">
+              {environments.map((environment) => (
+                <div
+                  key={environment.id}
+                  className="rounded-lg border border-border bg-background px-3 py-3"
+                >
+                  <p className="font-medium text-foreground">
+                    {environment.name}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {environment.slug} · {environment.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </DetailPanel>
 
-        <DetailPanel title="Owners" description="Current owner groups attached to phase 1 resources.">
-          <div className="space-y-3">
-            {owners.map((owner) => (
-              <div key={owner.id} className="rounded-lg border border-border bg-background px-3 py-3">
-                <p className="font-medium text-foreground">{owner.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {owner.email}
-                </p>
-              </div>
-            ))}
-          </div>
+        <DetailPanel
+          title="Owners"
+          description="Current owner groups attached to phase 1 resources."
+        >
+          {owners.length === 0 ? (
+            <EmptyState
+              title="No owners"
+              description="Owner groups will appear here once they are created in the backend."
+            />
+          ) : (
+            <div className="space-y-3">
+              {owners.map((owner) => (
+                <div
+                  key={owner.id}
+                  className="rounded-lg border border-border bg-background px-3 py-3"
+                >
+                  <p className="font-medium text-foreground">{owner.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {owner.email}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </DetailPanel>
 
-        <DetailPanel title="Roles" description="Basic phase 1 role distinction before fine-grained permissions.">
-          <div className="space-y-3">
-            {roles.map((role) => (
-              <div key={role.id} className="rounded-lg border border-border bg-background px-3 py-3">
-                <p className="font-medium text-foreground">{role.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{role.description}</p>
-              </div>
-            ))}
-          </div>
+        <DetailPanel
+          title="Roles"
+          description="Basic phase 1 role distinction before fine-grained permissions."
+        >
+          {roles.length === 0 ? (
+            <EmptyState
+              title="No roles"
+              description="Roles will appear here once they are created in the backend."
+            />
+          ) : (
+            <div className="space-y-3">
+              {roles.map((role) => (
+                <div
+                  key={role.id}
+                  className="rounded-lg border border-border bg-background px-3 py-3"
+                >
+                  <p className="font-medium text-foreground">{role.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {role.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </DetailPanel>
       </div>
 
@@ -68,7 +112,10 @@ export default async function SettingsPage() {
       >
         <div className="grid gap-3 md:grid-cols-3">
           {dictionaries.map((dictionary) => (
-            <div key={dictionary.key} className="rounded-lg border border-border bg-background px-4 py-4">
+            <div
+              key={dictionary.key}
+              className="rounded-lg border border-border bg-background px-4 py-4"
+            >
               <p className="font-medium text-foreground">{dictionary.key}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {dictionary.description}
