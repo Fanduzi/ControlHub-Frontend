@@ -1,29 +1,32 @@
+import { getTranslations } from "next-intl/server";
+
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { DatabaseTable } from "@/components/databases/database-table";
 import { listDatabaseResourceViewModels } from "@/lib/view-models";
 
 export default async function DatabasesPage() {
+  const t = await getTranslations();
   const databaseResources = await listDatabaseResourceViewModels();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Databases"
-        title="Database clusters and instances"
-        description="Clusters and instances are first-class resources from phase 1, with shared ownership and audit flows."
+        eyebrow={t("pages.databases.eyebrow")}
+        title={t("pages.databases.title")}
+        description={t("pages.databases.description")}
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
         <DatabaseTable resources={databaseResources} />
         <DetailPanel
-          title="Database posture"
-          description="The console keeps clusters visible as logical containers without forcing heavy topology views."
+          title={t("pages.databases.posture.title")}
+          description={t("pages.databases.posture.description")}
         >
           <div className="space-y-3">
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Cluster records
+                {t("pages.databases.posture.clusters")}
               </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
                 {
@@ -35,7 +38,7 @@ export default async function DatabasesPage() {
             </div>
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Instance records
+                {t("pages.databases.posture.instances")}
               </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
                 {

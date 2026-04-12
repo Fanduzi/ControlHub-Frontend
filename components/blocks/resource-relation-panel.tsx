@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import type { ResourceRelationViewModel } from "@/types/view-models";
 
 import { EmptyState } from "@/components/blocks/empty-state";
@@ -11,14 +15,16 @@ type ResourceRelationPanelProps = {
 
 export function ResourceRelationPanel({
   relations,
-  emptyTitle = "No linked resources",
-  emptyDescription = "Use relations to capture containment, ownership, and service dependency context.",
+  emptyTitle,
+  emptyDescription,
 }: ResourceRelationPanelProps) {
+  const t = useTranslations("relations");
+
   if (!relations.length) {
     return (
       <EmptyState
-        title={emptyTitle}
-        description={emptyDescription}
+        title={emptyTitle ?? t("emptyTitle")}
+        description={emptyDescription ?? t("emptyDescription")}
       />
     );
   }

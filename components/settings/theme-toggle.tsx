@@ -6,11 +6,6 @@ import { useTheme } from "next-themes";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 const cycle = ["light", "dark", "system"] as const;
 
@@ -48,16 +43,14 @@ export function ThemeToggle() {
   }, [current, setTheme]);
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="outline" size="icon-sm" aria-label={t("label")} />
-        }
-        onClick={handleToggle}
-      >
-        <Icon className="size-4" />
-      </TooltipTrigger>
-      <TooltipContent>{t(`options.${current}`)}</TooltipContent>
-    </Tooltip>
+    <Button
+      variant="outline"
+      size="icon-sm"
+      aria-label={`${t("label")}: ${t(`options.${current}`)}`}
+      title={`${t("label")}: ${t(`options.${current}`)}`}
+      onClick={handleToggle}
+    >
+      <Icon className="size-4" />
+    </Button>
   );
 }

@@ -1,41 +1,49 @@
+import { getLocale, getTranslations } from "next-intl/server";
+
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { PageHeader } from "@/components/blocks/page-header";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime } from "@/lib/format";
 import { listResourceViewModels } from "@/lib/view-models";
 
 export default async function CmdbPage() {
+  const [localeValue, t] = await Promise.all([
+    getLocale(),
+    getTranslations(),
+  ]);
+  const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
   const resources = await listResourceViewModels();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="CMDB"
-        title="Configuration maintenance view"
-        description="The CMDB page reuses the shared resource foundation but emphasizes maintenance ownership, source quality, and update cadence."
+        eyebrow={t("pages.cmdb.eyebrow")}
+        title={t("pages.cmdb.title")}
+        description={t("pages.cmdb.description")}
       />
 
       <DetailPanel
-        title="Configuration records"
-        description="High-signal configuration fields aligned with the phase 1 resource model."
+        title={t("pages.cmdb.records.title")}
+        description={t("pages.cmdb.records.description")}
       >
         {resources.length === 0 ? (
           <EmptyState
-            title="No configuration records"
-            description="Resources will appear here once they are registered through the resource inventory."
+            title={t("pages.cmdb.records.emptyTitle")}
+            description={t("pages.cmdb.records.emptyDescription")}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-muted-foreground">
                 <tr>
-                  <th className="py-3 pr-4 font-medium">Resource</th>
-                  <th className="py-3 pr-4 font-medium">Owner</th>
-                  <th className="py-3 pr-4 font-medium">Environment</th>
-                  <th className="py-3 pr-4 font-medium">Source</th>
-                  <th className="py-3 pr-4 font-medium">Lifecycle</th>
-                  <th className="py-3 font-medium">Updated</th>
+                  <th className="py-3 pr-4 font-medium">{t("common.fields.resource")}</th>
+                  <th className="py-3 pr-4 font-medium">{t("common.fields.owner")}</th>
+                  <th className="py-3 pr-4 font-medium">{t("common.fields.environment")}</th>
+                  <th className="py-3 pr-4 font-medium">{t("common.fields.source")}</th>
+                  <th className="py-3 pr-4 font-medium">{t("common.fields.lifecycle")}</th>
+                  <th className="py-3 font-medium">{t("common.fields.updated")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -68,7 +76,7 @@ export default async function CmdbPage() {
                       />
                     </td>
                     <td className="py-3 text-muted-foreground">
-                      {formatDateTime(resource.updatedAt)}
+                      {formatDateTime(resource.updatedAt, locale)}
                     </td>
                   </tr>
                 ))}

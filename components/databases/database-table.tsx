@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -31,49 +32,50 @@ type DatabaseTableProps = {
 
 const columnHelper = createColumnHelper<ResourceViewModel>();
 
-const columns = [
-  columnHelper.accessor("displayName", {
-    header: "Database Asset",
-    cell: (info) => (
-      <div className="space-y-1">
-        <p className="font-medium text-foreground">{info.getValue()}</p>
-        <p className="text-xs text-muted-foreground">
-          {info.row.original.profile.endpoint ??
-            info.row.original.profile.engine}
-        </p>
-      </div>
-    ),
-  }),
-  columnHelper.accessor("environmentName", {
-    header: "Environment",
-  }),
-  columnHelper.accessor("ownerName", {
-    header: "Owner",
-  }),
-  columnHelper.accessor("resourceSubtype", {
-    header: "Engine",
-    cell: (info) => (
-      <span className="text-sm text-foreground">
-        {info.row.original.profile.engine}
-      </span>
-    ),
-  }),
-  columnHelper.display({
-    id: "status",
-    header: "Health",
-    cell: ({ row }) => (
-      <StatusBadge status={row.original.healthStatus} tone="health" />
-    ),
-  }),
-  columnHelper.accessor("updatedAt", {
-    header: "Updated",
-    cell: (info) => formatDateTime(info.getValue()),
-  }),
-];
-
 export function DatabaseTable({ resources }: DatabaseTableProps) {
+  const t = useTranslations();
   const [selectedResource, setSelectedResource] =
     useState<ResourceViewModel | null>(null);
+
+  const columns = [
+    columnHelper.accessor("displayName", {
+      header: t("common.fields.resource"),
+      cell: (info) => (
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">{info.getValue()}</p>
+          <p className="text-xs text-muted-foreground">
+            {info.row.original.profile.endpoint ??
+              info.row.original.profile.engine}
+          </p>
+        </div>
+      ),
+    }),
+    columnHelper.accessor("environmentName", {
+      header: t("common.fields.environment"),
+    }),
+    columnHelper.accessor("ownerName", {
+      header: t("common.fields.owner"),
+    }),
+    columnHelper.accessor("resourceSubtype", {
+      header: t("common.fields.engine"),
+      cell: (info) => (
+        <span className="text-sm text-foreground">
+          {info.row.original.profile.engine}
+        </span>
+      ),
+    }),
+    columnHelper.display({
+      id: "status",
+      header: t("common.fields.health"),
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.healthStatus} tone="health" />
+      ),
+    }),
+    columnHelper.accessor("updatedAt", {
+      header: t("common.fields.updated"),
+      cell: (info) => formatDateTime(info.getValue()),
+    }),
+  ];
 
   const table = useReactTable({
     data: resources,
@@ -84,8 +86,8 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
   return (
     <>
       <DataTableShell
-        title="Database resources"
-        description="Cluster and instance records share the same resource backbone with database-specific emphasis."
+        title={t("tables.databases.title")}
+        description={t("tables.databases.description")}
       >
         <Table>
           <TableHeader>
@@ -112,8 +114,8 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
               <TableRow>
                 <TableCell colSpan={columns.length} className="py-6">
                   <EmptyState
-                    title="No database resources"
-                    description="No database instances or clusters have been registered yet."
+                    title={t("tables.databases.emptyTitle")}
+                    description={t("tables.databases.emptyDescription")}
                   />
                 </TableCell>
               </TableRow>

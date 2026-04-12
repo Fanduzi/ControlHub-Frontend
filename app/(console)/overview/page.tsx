@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { EmptyState } from "@/components/blocks/empty-state";
@@ -11,6 +13,7 @@ import {
 } from "@/lib/view-models";
 
 export default async function OverviewPage() {
+  const t = await getTranslations("pages.overview");
   const [metrics, attentionResources, resources, recentAudits] =
     await Promise.all([
       getOverviewMetrics(),
@@ -22,20 +25,20 @@ export default async function OverviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Overview"
-        title="Operational posture across shared resources"
-        description="Overview stays close to the work: attention queues, environment posture, asset ownership, and recent changes instead of a generic dashboard."
+        eyebrow={t("eyebrow")}
+        title={t("title")}
+        description={t("description")}
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <DetailPanel
-          title="Attention queue"
-          description="Resources needing immediate operator context or ownership follow-up."
+          title={t("attention.title")}
+          description={t("attention.description")}
         >
           {attentionResources.length === 0 ? (
             <EmptyState
-              title="No attention items"
-              description="All resources are healthy and running."
+              title={t("attention.emptyTitle")}
+              description={t("attention.emptyDescription")}
             />
           ) : (
             <div className="space-y-3">
@@ -69,13 +72,13 @@ export default async function OverviewPage() {
         </DetailPanel>
 
         <DetailPanel
-          title="Resource posture"
-          description="Counts emphasize actionability rather than vanity totals."
+          title={t("posture.title")}
+          description={t("posture.description")}
         >
           <div className="space-y-3">
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Total managed assets
+                {t("posture.total")}
               </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
                 {metrics.total}
@@ -84,7 +87,7 @@ export default async function OverviewPage() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-border bg-background px-4 py-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Degraded
+                  {t("posture.degraded")}
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-rose-700">
                   {metrics.degraded}
@@ -92,7 +95,7 @@ export default async function OverviewPage() {
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Warning
+                  {t("posture.warning")}
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-amber-700">
                   {metrics.warning}
@@ -100,7 +103,7 @@ export default async function OverviewPage() {
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Pending
+                  {t("posture.pending")}
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-sky-700">
                   {metrics.pending}
@@ -113,8 +116,8 @@ export default async function OverviewPage() {
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <DetailPanel
-          title="Environment lanes"
-          description="Each lane compresses health, ownership, and scope by environment."
+          title={t("lanes.title")}
+          description={t("lanes.description")}
         >
           <div className="grid gap-3 md:grid-cols-3">
             {["production", "staging", "development"].map((environment) => {
@@ -157,8 +160,8 @@ export default async function OverviewPage() {
         </DetailPanel>
 
         <DetailPanel
-          title="Recent audit events"
-          description="Latest changes to the shared resource baseline."
+          title={t("recentAudits.title")}
+          description={t("recentAudits.description")}
         >
           <ActivityTimeline events={recentAudits} />
         </DetailPanel>

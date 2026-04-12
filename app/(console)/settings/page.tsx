@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { PageHeader } from "@/components/blocks/page-header";
@@ -9,6 +11,7 @@ import {
 } from "@/services/settings";
 
 export default async function SettingsPage() {
+  const t = await getTranslations();
   const [environments, owners, roles, dictionaries] = await Promise.all([
     listEnvironments(),
     listOwners(),
@@ -19,20 +22,20 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Settings"
-        title="Reference dictionaries and access baseline"
-        description="Phase 1 settings cover environments, owners, users, roles, and supporting dictionaries for resource maintenance."
+        eyebrow={t("pages.settings.eyebrow")}
+        title={t("pages.settings.title")}
+        description={t("pages.settings.description")}
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
         <DetailPanel
-          title="Environments"
-          description="Environment catalog for asset registration and filtering."
+          title={t("pages.settings.environments.title")}
+          description={t("pages.settings.environments.description")}
         >
           {environments.length === 0 ? (
             <EmptyState
-              title="No environments"
-              description="Environments will appear here once they are created in the backend."
+              title={t("pages.settings.environments.emptyTitle")}
+              description={t("pages.settings.environments.emptyDescription")}
             />
           ) : (
             <div className="space-y-3">
@@ -54,13 +57,13 @@ export default async function SettingsPage() {
         </DetailPanel>
 
         <DetailPanel
-          title="Owners"
-          description="Current owner groups attached to phase 1 resources."
+          title={t("pages.settings.owners.title")}
+          description={t("pages.settings.owners.description")}
         >
           {owners.length === 0 ? (
             <EmptyState
-              title="No owners"
-              description="Owner groups will appear here once they are created in the backend."
+              title={t("pages.settings.owners.emptyTitle")}
+              description={t("pages.settings.owners.emptyDescription")}
             />
           ) : (
             <div className="space-y-3">
@@ -80,13 +83,13 @@ export default async function SettingsPage() {
         </DetailPanel>
 
         <DetailPanel
-          title="Roles"
-          description="Basic phase 1 role distinction before fine-grained permissions."
+          title={t("pages.settings.roles.title")}
+          description={t("pages.settings.roles.description")}
         >
           {roles.length === 0 ? (
             <EmptyState
-              title="No roles"
-              description="Roles will appear here once they are created in the backend."
+              title={t("pages.settings.roles.emptyTitle")}
+              description={t("pages.settings.roles.emptyDescription")}
             />
           ) : (
             <div className="space-y-3">
@@ -107,8 +110,8 @@ export default async function SettingsPage() {
       </div>
 
       <DetailPanel
-        title="Supporting dictionaries"
-        description="Small but explicit dictionary management keeps phase 1 contracts readable."
+        title={t("pages.settings.dictionaries.title")}
+        description={t("pages.settings.dictionaries.description")}
       >
         <div className="grid gap-3 md:grid-cols-3">
           {dictionaries.map((dictionary) => (

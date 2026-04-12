@@ -29,6 +29,34 @@
       "engine": "引擎"
     }
   },
+  "statusValues": {
+    "healthy": "健康",
+    "warning": "告警",
+    "critical": "严重",
+    "running": "运行中",
+    "active": "启用",
+    "provisioning": "创建中",
+    "retired": "已退役"
+  },
+  "activityTimeline": {
+    "summary": "{eventType}已完成，结果为{result}。",
+    "eventTypes": {
+      "resource_created": "资源创建",
+      "relation_created": "关系创建",
+      "resource_updated": "资源更新"
+    },
+    "results": {
+      "success": "成功",
+      "warning": "告警",
+      "error": "失败"
+    }
+  },
+  "resourceSummaries": {
+    "orderMysqlClusterProd": "订单域的逻辑 MySQL 集群边界，用来归拢生产数据面中的写库与副本资源。",
+    "orderMysqlPrimaryProd": "承担下单、支付完成和高写入结算链路的主事务数据库实例。",
+    "orderApiProd": "面向客户的订单服务，直接依赖 MySQL 数据平面来处理订单生命周期。",
+    "prodDbHost01": "为 MySQL 主实例提供计算与存储承载的生产数据库主机。"
+  },
   "navigation": {
     "overview": {
       "title": "概览",

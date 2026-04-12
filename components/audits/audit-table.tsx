@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatLabel } from "@/lib/format";
 import type { AuditEventViewModel } from "@/types/view-models";
 
 type AuditTableProps = {
@@ -28,45 +29,65 @@ type AuditTableProps = {
 
 const columnHelper = createColumnHelper<AuditEventViewModel>();
 
-const columns = [
-  columnHelper.accessor("eventType", {
-    header: "Action",
-  }),
-  columnHelper.accessor("targetResourceName", {
-    header: "Resource",
-    cell: (info) =>
-      info.row.original.targetResourceId ? (
-        <Link
-          href={`/resources/${info.row.original.targetResourceId}`}
-          className="font-medium text-foreground hover:text-sky-700"
-        >
-          {info.getValue()}
-        </Link>
-      ) : (
-        <span className="text-sm text-foreground">{info.getValue()}</span>
-      ),
-  }),
-  columnHelper.accessor("actorLabel", {
-    header: "Actor",
-  }),
-  columnHelper.accessor("environmentLabel", {
-    header: "Environment",
-  }),
-  columnHelper.accessor("summary", {
-    header: "Change Summary",
-    cell: (info) => (
-      <span className="block max-w-xl text-sm text-muted-foreground">
-        {info.getValue()}
-      </span>
-    ),
-  }),
-  columnHelper.accessor("createdAt", {
-    header: "Timestamp",
-    cell: (info) => formatDateTime(info.getValue()),
-  }),
-];
-
 export function AuditTable({ events }: AuditTableProps) {
+  const t = useTranslations();
+
+  function getEventTypeLabel(eventType: string) {
+    const key = eventType.replaceAll(".", "_");
+
+    return t.has(`activityTimeline.eventTypes.${key}`)
+      ? t(`activityTimeline.eventTypes.${key}`)
+      : formatLabel(eventType);
+  }
+
+  function getResultLabel(result: string) {
+    return t.has(`activityTimeline.results.${result}`)
+      ? t(`activityTimeline.results.${result}`)
+      : formatLabel(result);
+  }
+
+  const columns = [
+    columnHelper.accessor("eventType", {
+      header: t("common.fields.action"),
+      cell: (info) => getEventTypeLabel(info.getValue()),
+    }),
+    columnHelper.accessor("targetResourceName", {
+      header: t("common.fields.resource"),
+      cell: (info) =>
+        info.row.original.targetResourceId ? (
+          <Link
+            href={`/resources/${info.row.original.targetResourceId}`}
+            className="font-medium text-foreground hover:text-sky-700"
+          >
+            {info.getValue()}
+          </Link>
+        ) : (
+          <span className="text-sm text-foreground">{info.getValue()}</span>
+        ),
+    }),
+    columnHelper.accessor("actorLabel", {
+      header: t("common.fields.actor"),
+    }),
+    columnHelper.accessor("environmentLabel", {
+      header: t("common.fields.environment"),
+    }),
+    columnHelper.accessor("summary", {
+      header: t("common.fields.changeSummary"),
+      cell: ({ row }) => (
+        <span className="block max-w-xl text-sm text-muted-foreground">
+          {t("activityTimeline.summary", {
+            eventType: getEventTypeLabel(row.original.eventType),
+            result: getResultLabel(row.original.result),
+          })}
+        </span>
+      ),
+    }),
+    columnHelper.accessor("createdAt", {
+      header: t("common.fields.timestamp"),
+      cell: (info) => formatDateTime(info.getValue()),
+    }),
+  ];
+
   const table = useReactTable({
     data: events,
     columns,
@@ -75,8 +96,8 @@ export function AuditTable({ events }: AuditTableProps) {
 
   return (
     <DataTableShell
-      title="Audit feed"
-      description="Baseline asset mutations are captured as append-only operational history."
+      title={t("tables.audits.title")}
+      description={t("tables.audits.description")}
     >
       <Table>
         <TableHeader>
@@ -102,11 +123,11 @@ export function AuditTable({ events }: AuditTableProps) {
           {table.getRowModel().rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="py-6">
-                <EmptyState
-                  title="No audit events"
-                  description="Audit records will appear here once resource changes are captured."
-                />
-              </TableCell>
+                  <EmptyState
+                    title={t("tables.audits.emptyTitle")}
+                    description={t("tables.audits.emptyDescription")}
+                  />
+                </TableCell>
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (

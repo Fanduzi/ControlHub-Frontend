@@ -29,6 +29,34 @@
       "engine": "Engine"
     }
   },
+  "statusValues": {
+    "healthy": "Healthy",
+    "warning": "Warning",
+    "critical": "Critical",
+    "running": "Running",
+    "active": "Active",
+    "provisioning": "Provisioning",
+    "retired": "Retired"
+  },
+  "activityTimeline": {
+    "summary": "{eventType} completed with {result} result.",
+    "eventTypes": {
+      "resource_created": "Resource created",
+      "relation_created": "Relation created",
+      "resource_updated": "Resource updated"
+    },
+    "results": {
+      "success": "success",
+      "warning": "warning",
+      "error": "error"
+    }
+  },
+  "resourceSummaries": {
+    "orderMysqlClusterProd": "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
+    "orderMysqlPrimaryProd": "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
+    "orderApiProd": "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
+    "prodDbHost01": "Production database host providing compute and storage for the MySQL primary instance."
+  },
   "navigation": {
     "overview": {
       "title": "Overview",

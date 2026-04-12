@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
@@ -15,6 +16,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import { getResourceSummaryKey } from "@/lib/resource-copy";
 import type { ResourceViewModel } from "@/types/view-models";
 
 type ResourceDetailSheetProps = {
@@ -28,9 +30,18 @@ export function ResourceDetailSheet({
   onOpenChange,
   resource,
 }: ResourceDetailSheetProps) {
+  const t = useTranslations();
+  const locale = useLocale();
+
   if (!resource) {
     return null;
   }
+
+  const summaryKey = getResourceSummaryKey(resource.id);
+  const summary =
+    summaryKey && t.has(`resourceSummaries.${summaryKey}`)
+      ? t(`resourceSummaries.${summaryKey}`)
+      : resource.summary;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -51,11 +62,11 @@ export function ResourceDetailSheet({
         </SheetHeader>
 
         <div className="space-y-4 px-6 py-5">
-          <DetailPanel title="Summary" description={resource.summary}>
+          <DetailPanel title={t("detailSheet.summary")} description={summary}>
             <dl className="grid gap-3 text-sm md:grid-cols-2">
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Environment
+                  {t("common.fields.environment")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">
                   {resource.environmentName}
@@ -63,7 +74,7 @@ export function ResourceDetailSheet({
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Owner
+                  {t("common.fields.owner")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">
                   {resource.ownerName}
@@ -71,24 +82,24 @@ export function ResourceDetailSheet({
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Source
+                  {t("common.fields.source")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">{resource.source}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Updated
+                  {t("common.fields.updated")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">
-                  {formatDateTime(resource.updatedAt)}
+                  {formatDateTime(resource.updatedAt, locale as never)}
                 </dd>
               </div>
             </dl>
           </DetailPanel>
 
           <DetailPanel
-            title="Operational Profile"
-            description="High-frequency fields stay explicit; vendor detail remains supplemental."
+            title={t("detailSheet.profile")}
+            description={t("detailSheet.profileDescription")}
           >
             <dl className="grid gap-3 md:grid-cols-2">
               {Object.entries(resource.profile).map(([key, value]) => (
@@ -103,35 +114,35 @@ export function ResourceDetailSheet({
           </DetailPanel>
 
           <DetailPanel
-            title="Relations"
-            description="List-row context should immediately expose upstream and downstream dependencies."
+            title={t("pages.resourceDetail.relations.title")}
+            description={t("detailSheet.relationsDescription")}
           >
             <ResourceRelationPanel relations={resource.relations} />
           </DetailPanel>
 
           <DetailPanel
-            title="Audit Activity"
-            description="Baseline changes captured for ownership and asset maintenance."
+            title={t("detailSheet.audit")}
+            description={t("detailSheet.auditDescription")}
           >
             <ActivityTimeline
               events={resource.auditEvents}
-              emptyTitle="No audit activity yet"
-              emptyDescription="Audit signals will show up here once the backend event feed is available."
+              emptyTitle={t("detailSheet.emptyAuditTitle")}
+              emptyDescription={t("detailSheet.emptyAuditDescription")}
             />
           </DetailPanel>
 
           <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4">
             <div>
-              <p className="text-sm font-medium text-foreground">Need deeper inspection?</p>
+              <p className="text-sm font-medium text-foreground">{t("detailSheet.inspectionTitle")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Open the dedicated detail page for the full resource record.
+                {t("detailSheet.inspectionDescription")}
               </p>
             </div>
             <Link
               href={`/resources/${resource.id}`}
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              Open full detail
+              {t("common.actions.openFullDetail")}
             </Link>
           </div>
         </div>

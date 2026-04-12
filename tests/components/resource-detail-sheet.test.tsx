@@ -1,6 +1,8 @@
+import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
+import messages from "@/messages/en.json";
 
 const resource = {
   id: "res-db-primary",
@@ -63,11 +65,13 @@ describe("ResourceDetailSheet", () => {
       .mockImplementation(() => undefined);
 
     render(
-      <ResourceDetailSheet
-        open
-        onOpenChange={() => undefined}
-        resource={resource}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
     );
 
     expect(screen.getByText("Orders DB Primary")).toBeInTheDocument();
@@ -85,15 +89,17 @@ describe("ResourceDetailSheet", () => {
 
   it("shows empty states when no relations or audit events are present", () => {
     render(
-      <ResourceDetailSheet
-        open
-        onOpenChange={() => undefined}
-        resource={{
-          ...resource,
-          relations: [],
-          auditEvents: [],
-        }}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={{
+            ...resource,
+            relations: [],
+            auditEvents: [],
+          }}
+        />
+      </NextIntlClientProvider>,
     );
 
     expect(screen.getByText("No linked resources")).toBeInTheDocument();

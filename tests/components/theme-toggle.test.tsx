@@ -23,7 +23,9 @@ describe("ThemeToggle", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Theme" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Theme: System" }),
+    ).toBeInTheDocument();
   });
 
   it("cycles to next theme on click", async () => {
@@ -35,7 +37,7 @@ describe("ThemeToggle", () => {
       </NextIntlClientProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Theme" }));
+    await user.click(screen.getByRole("button", { name: "Theme: System" }));
     expect(setTheme).toHaveBeenCalledWith("light");
   });
 });

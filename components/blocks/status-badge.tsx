@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -20,13 +24,15 @@ export function StatusBadge({
   tone = "neutral",
   className,
 }: StatusBadgeProps) {
+  const t = useTranslations("statusValues");
+
   return (
     <Badge
       data-status={status}
       variant="outline"
       className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", toneClasses[tone], className)}
     >
-      {status.replaceAll("_", " ")}
+      {t.has(status) ? t(status) : status.replaceAll("_", " ")}
     </Badge>
   );
 }

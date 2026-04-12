@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -39,66 +40,8 @@ type ResourceTableProps = {
 
 const columnHelper = createColumnHelper<ResourceViewModel>();
 
-const columns = [
-  columnHelper.accessor("displayName", {
-    header: "Resource",
-    cell: ({ row }) => (
-      <div className="space-y-1">
-        <p className="font-medium text-foreground">
-          {row.original.displayName}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {row.original.externalId || row.original.id}
-        </p>
-      </div>
-    ),
-  }),
-  columnHelper.accessor("resourceType", {
-    header: "Type",
-    cell: (info) => (
-      <div className="space-y-1">
-        <p className="font-medium text-foreground">
-          {formatLabel(info.getValue())}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {formatLabel(info.row.original.resourceSubtype)}
-        </p>
-      </div>
-    ),
-  }),
-  columnHelper.accessor("environmentName", {
-    header: "Environment",
-    cell: (info) => (
-      <span className="text-sm text-foreground">{info.getValue()}</span>
-    ),
-  }),
-  columnHelper.accessor("ownerName", {
-    header: "Owner",
-    cell: (info) => (
-      <span className="text-sm text-foreground">{info.getValue()}</span>
-    ),
-  }),
-  columnHelper.display({
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <div className="flex flex-wrap gap-2">
-        <StatusBadge status={row.original.healthStatus} tone="health" />
-        <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
-      </div>
-    ),
-  }),
-  columnHelper.accessor("updatedAt", {
-    header: "Updated",
-    cell: (info) => (
-      <span className="text-sm text-muted-foreground">
-        {formatDateTime(info.getValue())}
-      </span>
-    ),
-  }),
-];
-
 export function ResourceTable({ resources }: ResourceTableProps) {
+  const t = useTranslations();
   const [search, setSearch] = useState("");
   const [resourceType, setResourceType] = useState("all");
   const [selectedResource, setSelectedResource] =
@@ -116,6 +59,65 @@ export function ResourceTable({ resources }: ResourceTableProps) {
     return matchesSearch && matchesType;
   });
 
+  const columns = [
+    columnHelper.accessor("displayName", {
+      header: t("common.fields.resource"),
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">
+            {row.original.displayName}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {row.original.externalId || row.original.id}
+          </p>
+        </div>
+      ),
+    }),
+    columnHelper.accessor("resourceType", {
+      header: t("common.fields.resourceType"),
+      cell: (info) => (
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">
+            {formatLabel(info.getValue())}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatLabel(info.row.original.resourceSubtype)}
+          </p>
+        </div>
+      ),
+    }),
+    columnHelper.accessor("environmentName", {
+      header: t("common.fields.environment"),
+      cell: (info) => (
+        <span className="text-sm text-foreground">{info.getValue()}</span>
+      ),
+    }),
+    columnHelper.accessor("ownerName", {
+      header: t("common.fields.owner"),
+      cell: (info) => (
+        <span className="text-sm text-foreground">{info.getValue()}</span>
+      ),
+    }),
+    columnHelper.display({
+      id: "status",
+      header: t("common.fields.status"),
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge status={row.original.healthStatus} tone="health" />
+          <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+        </div>
+      ),
+    }),
+    columnHelper.accessor("updatedAt", {
+      header: t("common.fields.updated"),
+      cell: (info) => (
+        <span className="text-sm text-muted-foreground">
+          {formatDateTime(info.getValue())}
+        </span>
+      ),
+    }),
+  ];
+
   const table = useReactTable({
     data: filteredResources,
     columns,
@@ -125,14 +127,14 @@ export function ResourceTable({ resources }: ResourceTableProps) {
   return (
     <>
       <DataTableShell
-        title="Unified inventory"
-        description="List-first browsing with a right-side detail sheet for day-to-day inspection."
+        title={t("tables.resources.title")}
+        description={t("tables.resources.description")}
         controls={
           <>
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search resource, owner, or ID"
+              placeholder={t("tables.resources.searchPlaceholder")}
               className="h-9 w-[240px] border-border bg-background"
             />
             <Select
@@ -140,18 +142,18 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               onValueChange={(value) => setResourceType(value ?? "all")}
             >
               <SelectTrigger className="h-9 w-[180px] border-border bg-background">
-                <SelectValue placeholder="Filter type" />
+                <SelectValue placeholder={t("tables.resources.filterType")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="host">Host</SelectItem>
+                <SelectItem value="all">{t("tables.resources.allTypes")}</SelectItem>
+                <SelectItem value="host">{t("tables.resources.host")}</SelectItem>
                 <SelectItem value="database_instance">
-                  Database Instance
+                  {t("tables.resources.databaseInstance")}
                 </SelectItem>
                 <SelectItem value="database_cluster">
-                  Database Cluster
+                  {t("tables.resources.databaseCluster")}
                 </SelectItem>
-                <SelectItem value="service">Service</SelectItem>
+                <SelectItem value="service">{t("tables.resources.service")}</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -182,8 +184,8 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               <TableRow>
                 <TableCell colSpan={columns.length} className="py-6">
                   <EmptyState
-                    title="No resources found"
-                    description="No resources match the current filters, or no resources have been registered yet."
+                    title={t("tables.resources.emptyTitle")}
+                    description={t("tables.resources.emptyDescription")}
                   />
                 </TableCell>
               </TableRow>
