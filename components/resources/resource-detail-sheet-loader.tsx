@@ -23,7 +23,7 @@ export function ResourceDetailSheetLoader({
 }: ResourceDetailSheetLoaderProps) {
   const [detailResource, setDetailResource] =
     useState<ResourceDetailViewModel | null>(null);
-  const requestedResourceId = open ? resource?.id ?? null : null;
+  const requestedResourceId = open ? (resource?.id ?? null) : null;
   const loading =
     requestedResourceId !== null && detailResource?.id !== requestedResourceId;
 
@@ -44,7 +44,7 @@ export function ResourceDetailSheetLoader({
         if (!cancelled) {
           setDetailResource(null);
         }
-      })
+      });
     return () => {
       cancelled = true;
     };

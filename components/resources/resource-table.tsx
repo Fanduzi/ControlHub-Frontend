@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -48,17 +48,21 @@ export function ResourceTable({ resources }: ResourceTableProps) {
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
 
-  const filteredResources = resources.filter((resource) => {
-    const matchesSearch =
-      !search ||
-      resource.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      resource.name.toLowerCase().includes(search.toLowerCase()) ||
-      resource.ownerName.toLowerCase().includes(search.toLowerCase());
-    const matchesType =
-      resourceType === "all" || resource.resourceType === resourceType;
+  const filteredResources = useMemo(
+    () =>
+      resources.filter((resource) => {
+        const matchesSearch =
+          !search ||
+          resource.displayName.toLowerCase().includes(search.toLowerCase()) ||
+          resource.name.toLowerCase().includes(search.toLowerCase()) ||
+          resource.ownerName.toLowerCase().includes(search.toLowerCase());
+        const matchesType =
+          resourceType === "all" || resource.resourceType === resourceType;
 
-    return matchesSearch && matchesType;
-  });
+        return matchesSearch && matchesType;
+      }),
+    [resources, search, resourceType],
+  );
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -143,6 +147,12 @@ export function ResourceTable({ resources }: ResourceTableProps) {
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  const handleSheetOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setSelectedResource(null);
+    }
+  }, []);
 
   return (
     <>
@@ -233,11 +243,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
 
       <ResourceDetailSheetLoader
         open={Boolean(selectedResource)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedResource(null);
-          }
-        }}
+        onOpenChange={handleSheetOpenChange}
         resource={selectedResource}
       />
     </>
