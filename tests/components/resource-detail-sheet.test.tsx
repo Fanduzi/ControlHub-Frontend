@@ -87,7 +87,7 @@ describe("ResourceDetailSheet", () => {
     consoleError.mockRestore();
   });
 
-  it("shows empty states when no relations or audit events are present", () => {
+  it("shows empty states when profile, relations, or audit events are absent", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceDetailSheet
@@ -95,6 +95,7 @@ describe("ResourceDetailSheet", () => {
           onOpenChange={() => undefined}
           resource={{
             ...resource,
+            profile: {},
             relations: [],
             auditEvents: [],
           }}
@@ -102,6 +103,7 @@ describe("ResourceDetailSheet", () => {
       </NextIntlClientProvider>,
     );
 
+    expect(screen.getByText("Not set")).toBeInTheDocument();
     expect(screen.getByText("No linked resources")).toBeInTheDocument();
     expect(screen.getByText("No audit activity yet")).toBeInTheDocument();
   });

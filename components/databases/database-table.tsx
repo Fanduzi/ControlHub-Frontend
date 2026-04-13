@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatLabel } from "@/lib/format";
 import type { ResourceViewModel } from "@/types/view-models";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
@@ -44,8 +44,10 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
         <div className="space-y-1">
           <p className="font-medium text-foreground">{info.getValue()}</p>
           <p className="text-xs text-muted-foreground">
-            {info.row.original.profile.endpoint ??
-              info.row.original.profile.engine}
+            {info.row.original.profile.primaryEndpoint ??
+              info.row.original.profile.endpoint ??
+              info.row.original.profile.engine ??
+              t("common.notSet")}
           </p>
         </div>
       ),
@@ -60,7 +62,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
       header: t("common.fields.engine"),
       cell: (info) => (
         <span className="text-sm text-foreground">
-          {info.row.original.profile.engine}
+          {info.row.original.profile.engine ?? formatLabel(info.getValue())}
         </span>
       ),
     }),

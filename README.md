@@ -58,6 +58,7 @@ The backend must be running and serving the following endpoints:
 - `POST /auth/login` — authentication
 - `GET /resources` — resource list
 - `GET /resources/{id}` — resource detail
+- `GET /resources/{id}/profile` — typed resource profile projection
 - `GET /resources/{id}/relations` — resource relations
 - `GET /resources/{id}/audit-events` — resource audit events
 - `GET /audit-events` — global audit events
@@ -78,6 +79,7 @@ npm run lint
 ## Contract assumptions
 
 - Wire types in `types/*.ts` align with the OpenAPI camelCase contract
-- View-model fields such as `environmentName`, `ownerName`, `actorLabel`, `targetResourceName`, `summary`, and `profile` are frontend-only presentation fields derived in `lib/view-models.ts`
+- View-model fields such as `environmentName`, `ownerName`, `actorLabel`, `targetResourceName`, and `summary` are frontend-only presentation fields derived in `lib/view-models.ts`
+- Resource `profile` content is fetched from `GET /resources/{id}/profile` and normalized into frontend-friendly string values in `lib/view-models.ts`
 - The backend does not provide `actorName`, `targetResourceName`, `ownerName`, or `environmentName` in its endpoints
 - Supporting dictionaries (resourceType, lifecycleStatus, healthStatus values) are local static data in `services/settings.ts`

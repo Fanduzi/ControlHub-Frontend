@@ -42,6 +42,7 @@ export function ResourceDetailSheet({
     summaryKey && t.has(`resourceSummaries.${summaryKey}`)
       ? t(`resourceSummaries.${summaryKey}`)
       : resource.summary;
+  const profileEntries = Object.entries(resource.profile);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -101,16 +102,20 @@ export function ResourceDetailSheet({
             title={t("detailSheet.profile")}
             description={t("detailSheet.profileDescription")}
           >
-            <dl className="grid gap-3 md:grid-cols-2">
-              {Object.entries(resource.profile).map(([key, value]) => (
-                <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
-                  <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                    {formatLabel(key)}
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            {profileEntries.length ? (
+              <dl className="grid gap-3 md:grid-cols-2">
+                {profileEntries.map(([key, value]) => (
+                  <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {formatLabel(key)}
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+            )}
           </DetailPanel>
 
           <DetailPanel

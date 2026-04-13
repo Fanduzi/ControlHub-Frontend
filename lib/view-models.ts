@@ -8,67 +8,33 @@ import { listEnvironments, listOwners } from "@/services/settings";
 import {
   getOverviewMetrics,
   getResourceById,
+  getResourceProfileById,
   listAttentionResources,
   listDatabaseResources,
   listResourceRelations,
   listResources,
 } from "@/services/resources";
 import type { AuditEvent } from "@/types/audit";
-import type { Resource, ResourceRelation } from "@/types/resource";
+import type {
+  Resource,
+  ResourceProfileResponse,
+  ResourceRelation,
+} from "@/types/resource";
 import type {
   AuditEventViewModel,
   ResourceRelationViewModel,
   ResourceViewModel,
 } from "@/types/view-models";
 
-const resourceDetails: Record<
-  string,
-  {
-    summary: string;
-    profile: Record<string, string>;
-  }
-> = {
-  "40000000-0000-0000-0000-000000000001": {
-    summary:
-      "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
-    profile: {
-      engine: "mysql",
-      topology: "primary-replica",
-      endpoint: "order-mysql-cluster-prod.internal:3306",
-      replicas: "2",
-    },
-  },
-  "40000000-0000-0000-0000-000000000002": {
-    summary:
-      "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
-    profile: {
-      engine: "mysql",
-      version: "8.0.36",
-      host: "prod-db-host-01.internal",
-      port: "3306",
-      role: "primary",
-    },
-  },
-  "40000000-0000-0000-0000-000000000003": {
-    summary:
-      "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
-    profile: {
-      system: "order-api",
-      repository: "https://example.com/repos/order-api",
-      runtime: "kubernetes",
-      language: "go",
-    },
-  },
-  "40000000-0000-0000-0000-000000000004": {
-    summary:
-      "Production database host providing compute and storage for the MySQL primary instance.",
-    profile: {
-      hostname: "prod-db-host-01.internal",
-      ip: "10.0.10.21",
-      os: "Ubuntu 24.04",
-      provider: "vmware",
-    },
-  },
+const resourceSummaries: Record<string, string> = {
+  "40000000-0000-0000-0000-000000000001":
+    "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
+  "40000000-0000-0000-0000-000000000002":
+    "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
+  "40000000-0000-0000-0000-000000000003":
+    "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
+  "40000000-0000-0000-0000-000000000004":
+    "Production database host providing compute and storage for the MySQL primary instance.",
 };
 
 const actorLabels: Record<string, string> = {
@@ -142,14 +108,33 @@ function toAuditEventViewModel(
   };
 }
 
+function normalizeResourceProfile(
+  profile: ResourceProfileResponse["profile"] | undefined,
+): Record<string, string> {
+  if (!profile) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(profile)
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => [key, String(value)]),
+  );
+}
+
 async function toResourceViewModel(
   resource: Resource,
 ): Promise<ResourceViewModel> {
-  const [{ resourceMap, environmentMap, ownerMap }, relations, auditEvents] =
-    await Promise.all([
+  const [
+    { resourceMap, environmentMap, ownerMap },
+    relations,
+    auditEvents,
+    profileResponse,
+  ] = await Promise.all([
       buildLookupMaps(),
       listResourceRelations(resource.id),
       listResourceAuditEvents(resource.id),
+      getResourceProfileById(resource.id),
     ]);
 
   return {
@@ -158,9 +143,9 @@ async function toResourceViewModel(
       environmentMap.get(resource.environmentId) ?? resource.environmentId,
     ownerName: ownerMap.get(resource.ownerId) ?? resource.ownerId,
     summary:
-      resourceDetails[resource.id]?.summary ??
+      resourceSummaries[resource.id] ??
       "No supplemental resource summary has been defined yet.",
-    profile: resourceDetails[resource.id]?.profile ?? {},
+    profile: normalizeResourceProfile(profileResponse?.profile),
     relations: relations.map((relation) =>
       toRelationViewModel(relation, resource.id, resourceMap),
     ),

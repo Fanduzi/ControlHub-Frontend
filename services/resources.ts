@@ -2,6 +2,7 @@ import { apiClient } from "@/services/api-client";
 import type {
   Resource,
   ResourceListResponse,
+  ResourceProfileResponse,
   ResourceRelation,
   ResourceRelationListResponse,
 } from "@/types/resource";
@@ -15,6 +16,22 @@ export async function listResources(): Promise<Resource[]> {
 export async function getResourceById(id: string): Promise<Resource | null> {
   try {
     return await apiClient<Resource>(`/resources/${encodeURIComponent(id)}`);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function getResourceProfileById(
+  id: string,
+): Promise<ResourceProfileResponse | null> {
+  try {
+    return await apiClient<ResourceProfileResponse>(
+      `/resources/${encodeURIComponent(id)}/profile`,
+    );
   } catch (error) {
     if (error instanceof Error && error.message.includes("404")) {
       return null;

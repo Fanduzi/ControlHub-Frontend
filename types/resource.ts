@@ -25,6 +25,15 @@ export type ResourceListResponse = {
   items: Resource[];
 };
 
+export type ResourceProfileValue = string | number | boolean | null;
+
+export type ResourceProfileResponse = {
+  resourceId: string;
+  resourceType: ResourceType;
+  resourceSubtype: string;
+  profile: Record<string, ResourceProfileValue>;
+};
+
 export type ResourceRelation = {
   id: string;
   fromResourceId: string;
