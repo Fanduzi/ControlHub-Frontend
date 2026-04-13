@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/settings/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -38,17 +39,17 @@ export function Topbar({ pathname }: TopbarProps) {
     : t("common.brand");
 
   return (
-    <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background px-5">
-      <div className="min-w-0">
+    <header className="flex min-h-16 flex-col gap-3 border-b border-border bg-background px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:px-5 xl:py-0">
+      <div className="min-w-0 xl:flex-1">
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {sectionTitle}
         </p>
-        <p className="mt-1 text-sm text-foreground">
+        <p className="mt-1 hidden max-w-2xl truncate text-sm text-foreground lg:block">
           {t("shell.subtitle")}
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
         <label className="relative hidden min-[980px]:block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -101,11 +102,13 @@ export function Topbar({ pathname }: TopbarProps) {
             <ChevronsUpDown className="size-4 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>{t("shell.workspace")}</DropdownMenuLabel>
-            <DropdownMenuItem>
-              <Command className="size-4" />
-              {t("shell.openCommandPalette")}
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{t("shell.workspace")}</DropdownMenuLabel>
+              <DropdownMenuItem>
+                <Command className="size-4" />
+                {t("shell.openCommandPalette")}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem>{t("shell.profile")}</DropdownMenuItem>
             <DropdownMenuItem>{t("shell.signOut")}</DropdownMenuItem>

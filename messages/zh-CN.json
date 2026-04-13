@@ -7,7 +7,8 @@
     "actions": {
       "tryAgain": "重试",
       "registerResource": "登记资源",
-      "openFullDetail": "打开完整详情"
+      "openFullDetail": "打开完整详情",
+      "inspect": "查看"
     },
     "fields": {
       "resource": "资源",

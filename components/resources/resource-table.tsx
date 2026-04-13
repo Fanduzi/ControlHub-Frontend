@@ -13,6 +13,7 @@ import {
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -114,6 +115,24 @@ export function ResourceTable({ resources }: ResourceTableProps) {
         <span className="text-sm text-muted-foreground">
           {formatDateTime(info.getValue())}
         </span>
+      ),
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedResource(row.original);
+            }}
+          >
+            {t("common.actions.inspect")}
+          </Button>
+        </div>
       ),
     }),
   ];

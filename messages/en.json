@@ -7,7 +7,8 @@
     "actions": {
       "tryAgain": "Try again",
       "registerResource": "Register resource",
-      "openFullDetail": "Open full detail"
+      "openFullDetail": "Open full detail",
+      "inspect": "Inspect"
     },
     "fields": {
       "resource": "Resource",
