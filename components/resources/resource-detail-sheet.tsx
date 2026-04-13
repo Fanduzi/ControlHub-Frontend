@@ -34,7 +34,9 @@ function hasDetailData(
   resource: ResourceListViewModel | ResourceDetailViewModel,
 ): resource is ResourceDetailViewModel {
   return (
-    "profile" in resource && "relations" in resource && "auditEvents" in resource
+    "profile" in resource &&
+    "relations" in resource &&
+    "auditEvents" in resource
   );
 }
 
@@ -65,7 +67,7 @@ export function ResourceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto border-l border-border bg-background sm:max-w-2xl">
+      <SheetContent className="overflow-y-auto border-l border-border bg-background">
         <SheetHeader className="border-b border-border px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -104,7 +106,9 @@ export function ResourceDetailSheet({
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.source")}
                 </dt>
-                <dd className="mt-1 font-medium text-foreground">{resource.source}</dd>
+                <dd className="mt-1 font-medium text-foreground">
+                  {resource.source}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -136,16 +140,23 @@ export function ResourceDetailSheet({
             ) : profileEntries.length ? (
               <dl className="grid gap-3 md:grid-cols-2">
                 {profileEntries.map(([key, value]) => (
-                  <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                  <div
+                    key={key}
+                    className="rounded-lg border border-border bg-background px-3 py-3"
+                  >
                     <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                       {formatLabel(key)}
                     </dt>
-                    <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                    <dd className="mt-1 text-sm font-medium text-foreground">
+                      {value}
+                    </dd>
                   </div>
                 ))}
               </dl>
             ) : (
-              <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("common.notSet")}
+              </p>
             )}
           </DetailPanel>
 
@@ -183,7 +194,9 @@ export function ResourceDetailSheet({
 
           <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4">
             <div>
-              <p className="text-sm font-medium text-foreground">{t("detailSheet.inspectionTitle")}</p>
+              <p className="text-sm font-medium text-foreground">
+                {t("detailSheet.inspectionTitle")}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t("detailSheet.inspectionDescription")}
               </p>

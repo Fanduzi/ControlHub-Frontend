@@ -13,7 +13,6 @@ import {
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { StatusBadge } from "@/components/blocks/status-badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -121,24 +120,6 @@ export function ResourceTable({ resources }: ResourceTableProps) {
         </span>
       ),
     }),
-    columnHelper.display({
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(event) => {
-              event.stopPropagation();
-              setSelectedResource(row.original);
-            }}
-          >
-            {t("common.actions.inspect")}
-          </Button>
-        </div>
-      ),
-    }),
   ];
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -165,7 +146,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("tables.resources.searchPlaceholder")}
-              className="h-9 w-[240px] border-border bg-background"
+              className="h-9 w-[240px] border-border bg-background py-2"
             />
             <Select
               value={resourceType}
@@ -175,15 +156,21 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                 <SelectValue placeholder={t("tables.resources.filterType")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("tables.resources.allTypes")}</SelectItem>
-                <SelectItem value="host">{t("tables.resources.host")}</SelectItem>
+                <SelectItem value="all">
+                  {t("tables.resources.allTypes")}
+                </SelectItem>
+                <SelectItem value="host">
+                  {t("tables.resources.host")}
+                </SelectItem>
                 <SelectItem value="database_instance">
                   {t("tables.resources.databaseInstance")}
                 </SelectItem>
                 <SelectItem value="database_cluster">
                   {t("tables.resources.databaseCluster")}
                 </SelectItem>
-                <SelectItem value="service">{t("tables.resources.service")}</SelectItem>
+                <SelectItem value="service">
+                  {t("tables.resources.service")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
