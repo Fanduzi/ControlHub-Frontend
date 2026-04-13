@@ -15,20 +15,34 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import { getResourceSummaryKey } from "@/lib/resource-copy";
-import type { ResourceViewModel } from "@/types/view-models";
+import type {
+  ResourceDetailViewModel,
+  ResourceListViewModel,
+} from "@/types/view-models";
 
 type ResourceDetailSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  resource: ResourceViewModel | null;
+  resource: ResourceListViewModel | ResourceDetailViewModel | null;
+  loading?: boolean;
 };
+
+function hasDetailData(
+  resource: ResourceListViewModel | ResourceDetailViewModel,
+): resource is ResourceDetailViewModel {
+  return (
+    "profile" in resource && "relations" in resource && "auditEvents" in resource
+  );
+}
 
 export function ResourceDetailSheet({
   open,
   onOpenChange,
   resource,
+  loading = false,
 }: ResourceDetailSheetProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -42,7 +56,12 @@ export function ResourceDetailSheet({
     summaryKey && t.has(`resourceSummaries.${summaryKey}`)
       ? t(`resourceSummaries.${summaryKey}`)
       : resource.summary;
-  const profileEntries = Object.entries(resource.profile);
+  const detailResource = hasDetailData(resource) ? resource : null;
+  const profileEntries = detailResource
+    ? Object.entries(detailResource.profile)
+    : [];
+  const relations = detailResource?.relations ?? [];
+  const auditEvents = detailResource?.auditEvents ?? [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -102,7 +121,19 @@ export function ResourceDetailSheet({
             title={t("detailSheet.profile")}
             description={t("detailSheet.profileDescription")}
           >
-            {profileEntries.length ? (
+            {loading ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div
+                    key={`profile-skeleton-${index}`}
+                    className="rounded-lg border border-border bg-background px-3 py-3"
+                  >
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="mt-3 h-4 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : profileEntries.length ? (
               <dl className="grid gap-3 md:grid-cols-2">
                 {profileEntries.map(([key, value]) => (
                   <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
@@ -122,18 +153,32 @@ export function ResourceDetailSheet({
             title={t("pages.resourceDetail.relations.title")}
             description={t("detailSheet.relationsDescription")}
           >
-            <ResourceRelationPanel relations={resource.relations} />
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : (
+              <ResourceRelationPanel relations={relations} />
+            )}
           </DetailPanel>
 
           <DetailPanel
             title={t("detailSheet.audit")}
             description={t("detailSheet.auditDescription")}
           >
-            <ActivityTimeline
-              events={resource.auditEvents}
-              emptyTitle={t("detailSheet.emptyAuditTitle")}
-              emptyDescription={t("detailSheet.emptyAuditDescription")}
-            />
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : (
+              <ActivityTimeline
+                events={auditEvents}
+                emptyTitle={t("detailSheet.emptyAuditTitle")}
+                emptyDescription={t("detailSheet.emptyAuditDescription")}
+              />
+            )}
           </DetailPanel>
 
           <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4">

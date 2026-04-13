@@ -88,6 +88,7 @@ export function AuditTable({ events }: AuditTableProps) {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: events,
     columns,

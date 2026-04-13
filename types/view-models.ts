@@ -14,10 +14,13 @@ export type ResourceRelationViewModel = ResourceRelation & {
   direction: "incoming" | "outgoing";
 };
 
-export type ResourceViewModel = Resource & {
+export type ResourceListViewModel = Resource & {
   environmentName: string;
   ownerName: string;
   summary: string;
+};
+
+export type ResourceDetailViewModel = ResourceListViewModel & {
   profile: Record<string, string>;
   relations: ResourceRelationViewModel[];
   auditEvents: AuditEventViewModel[];

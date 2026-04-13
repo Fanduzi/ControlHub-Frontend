@@ -23,7 +23,8 @@ import type {
 import type {
   AuditEventViewModel,
   ResourceRelationViewModel,
-  ResourceViewModel,
+  ResourceDetailViewModel,
+  ResourceListViewModel,
 } from "@/types/view-models";
 
 const resourceSummaries: Record<string, string> = {
@@ -63,6 +64,20 @@ async function buildLookupMaps() {
 
   return {
     resourceMap: new Map(resources.map((resource) => [resource.id, resource])),
+    environmentMap: new Map(
+      environments.map((environment) => [environment.id, environment.name]),
+    ),
+    ownerMap: new Map(owners.map((owner) => [owner.id, owner.name])),
+  };
+}
+
+async function buildListLookupMaps() {
+  const [environments, owners] = await Promise.all([
+    listEnvironments(),
+    listOwners(),
+  ]);
+
+  return {
     environmentMap: new Map(
       environments.map((environment) => [environment.id, environment.name]),
     ),
@@ -122,21 +137,13 @@ function normalizeResourceProfile(
   );
 }
 
-async function toResourceViewModel(
+function toResourceListViewModel(
   resource: Resource,
-): Promise<ResourceViewModel> {
-  const [
-    { resourceMap, environmentMap, ownerMap },
-    relations,
-    auditEvents,
-    profileResponse,
-  ] = await Promise.all([
-      buildLookupMaps(),
-      listResourceRelations(resource.id),
-      listResourceAuditEvents(resource.id),
-      getResourceProfileById(resource.id),
-    ]);
-
+  {
+    environmentMap,
+    ownerMap,
+  }: Awaited<ReturnType<typeof buildListLookupMaps>>,
+): ResourceListViewModel {
   return {
     ...resource,
     environmentName:
@@ -145,6 +152,26 @@ async function toResourceViewModel(
     summary:
       resourceSummaries[resource.id] ??
       "No supplemental resource summary has been defined yet.",
+  };
+}
+
+async function toResourceDetailViewModel(
+  resource: Resource,
+): Promise<ResourceDetailViewModel> {
+  const [
+    { resourceMap, environmentMap, ownerMap },
+    relations,
+    auditEvents,
+    profileResponse,
+  ] = await Promise.all([
+    buildLookupMaps(),
+    listResourceRelations(resource.id),
+    listResourceAuditEvents(resource.id),
+    getResourceProfileById(resource.id),
+  ]);
+
+  return {
+    ...toResourceListViewModel(resource, { environmentMap, ownerMap }),
     profile: normalizeResourceProfile(profileResponse?.profile),
     relations: relations.map((relation) =>
       toRelationViewModel(relation, resource.id, resourceMap),
@@ -155,44 +182,46 @@ async function toResourceViewModel(
   };
 }
 
-export async function listResourceViewModels(): Promise<ResourceViewModel[]> {
+async function listResourceListViewModels(
+  resources: Resource[],
+): Promise<ResourceListViewModel[]> {
+  const lookupMaps = await buildListLookupMaps();
+
+  return resources.map((resource) => toResourceListViewModel(resource, lookupMaps));
+}
+
+export async function listResourceViewModels(): Promise<ResourceListViewModel[]> {
   const resources = await listResources();
 
-  return Promise.all(
-    resources.map((resource) => toResourceViewModel(resource)),
-  );
+  return listResourceListViewModels(resources);
 }
 
 export async function listDatabaseResourceViewModels(): Promise<
-  ResourceViewModel[]
+  ResourceListViewModel[]
 > {
   const resources = await listDatabaseResources();
 
-  return Promise.all(
-    resources.map((resource) => toResourceViewModel(resource)),
-  );
+  return listResourceListViewModels(resources);
 }
 
 export async function listAttentionResourceViewModels(): Promise<
-  ResourceViewModel[]
+  ResourceListViewModel[]
 > {
   const resources = await listAttentionResources();
 
-  return Promise.all(
-    resources.map((resource) => toResourceViewModel(resource)),
-  );
+  return listResourceListViewModels(resources);
 }
 
 export async function getResourceViewModel(
   resourceId: string,
-): Promise<ResourceViewModel | null> {
+): Promise<ResourceDetailViewModel | null> {
   const resource = await getResourceById(resourceId);
 
   if (!resource) {
     return null;
   }
 
-  return toResourceViewModel(resource);
+  return toResourceDetailViewModel(resource);
 }
 
 export async function listAuditEventViewModels(): Promise<

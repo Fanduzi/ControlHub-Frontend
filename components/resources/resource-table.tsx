@@ -30,22 +30,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
-import type { ResourceViewModel } from "@/types/view-models";
+import type { ResourceListViewModel } from "@/types/view-models";
 
-import { ResourceDetailSheet } from "./resource-detail-sheet";
+import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 
 type ResourceTableProps = {
-  resources: ResourceViewModel[];
+  resources: ResourceListViewModel[];
 };
 
-const columnHelper = createColumnHelper<ResourceViewModel>();
+const columnHelper = createColumnHelper<ResourceListViewModel>();
 
 export function ResourceTable({ resources }: ResourceTableProps) {
   const t = useTranslations();
   const [search, setSearch] = useState("");
   const [resourceType, setResourceType] = useState("all");
   const [selectedResource, setSelectedResource] =
-    useState<ResourceViewModel | null>(null);
+    useState<ResourceListViewModel | null>(null);
 
   const filteredResources = resources.filter((resource) => {
     const matchesSearch =
@@ -118,6 +118,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: filteredResources,
     columns,
@@ -211,7 +212,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
         </Table>
       </DataTableShell>
 
-      <ResourceDetailSheet
+      <ResourceDetailSheetLoader
         open={Boolean(selectedResource)}
         onOpenChange={(open) => {
           if (!open) {

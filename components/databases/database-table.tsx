@@ -22,20 +22,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
-import type { ResourceViewModel } from "@/types/view-models";
+import type { ResourceListViewModel } from "@/types/view-models";
 
-import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
+import { ResourceDetailSheetLoader } from "@/components/resources/resource-detail-sheet-loader";
 
 type DatabaseTableProps = {
-  resources: ResourceViewModel[];
+  resources: ResourceListViewModel[];
 };
 
-const columnHelper = createColumnHelper<ResourceViewModel>();
+const columnHelper = createColumnHelper<ResourceListViewModel>();
 
 export function DatabaseTable({ resources }: DatabaseTableProps) {
   const t = useTranslations();
   const [selectedResource, setSelectedResource] =
-    useState<ResourceViewModel | null>(null);
+    useState<ResourceListViewModel | null>(null);
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -44,9 +44,8 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
         <div className="space-y-1">
           <p className="font-medium text-foreground">{info.getValue()}</p>
           <p className="text-xs text-muted-foreground">
-            {info.row.original.profile.primaryEndpoint ??
-              info.row.original.profile.endpoint ??
-              info.row.original.profile.engine ??
+            {info.row.original.externalId ||
+              formatLabel(info.row.original.resourceSubtype) ||
               t("common.notSet")}
           </p>
         </div>
@@ -62,7 +61,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
       header: t("common.fields.engine"),
       cell: (info) => (
         <span className="text-sm text-foreground">
-          {info.row.original.profile.engine ?? formatLabel(info.getValue())}
+          {formatLabel(info.getValue())}
         </span>
       ),
     }),
@@ -79,6 +78,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: resources,
     columns,
@@ -143,7 +143,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
         </Table>
       </DataTableShell>
 
-      <ResourceDetailSheet
+      <ResourceDetailSheetLoader
         open={Boolean(selectedResource)}
         onOpenChange={(open) => {
           if (!open) {

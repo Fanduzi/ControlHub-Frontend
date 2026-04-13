@@ -1,4 +1,8 @@
-import { getResourceViewModel } from "@/lib/view-models";
+import {
+  getResourceViewModel,
+  listDatabaseResourceViewModels,
+  listResourceViewModels,
+} from "@/lib/view-models";
 import {
   getResourceById,
   getResourceProfileById,
@@ -133,5 +137,41 @@ describe("getResourceViewModel", () => {
     const viewModel = await getResourceViewModel(resource.id);
 
     expect(viewModel?.profile).toEqual({});
+  });
+
+  it("builds list view models without issuing per-resource profile fetches", async () => {
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: resource.id,
+      resourceType: resource.resourceType,
+      resourceSubtype: resource.resourceSubtype,
+      profile: {
+        engine: "postgres",
+      },
+    });
+
+    const viewModels = await listResourceViewModels();
+
+    expect(mockedGetResourceProfileById).not.toHaveBeenCalled();
+    expect(viewModels).toHaveLength(1);
+    expect(viewModels[0]).not.toHaveProperty("profile");
+  });
+
+  it("keeps database list fallbacks without issuing profile fetches", async () => {
+    vi.mocked(listDatabaseResources).mockResolvedValue([resource]);
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: resource.id,
+      resourceType: resource.resourceType,
+      resourceSubtype: resource.resourceSubtype,
+      profile: {
+        engine: "postgres",
+        primaryEndpoint: "orders-db.internal:5432",
+      },
+    });
+
+    const viewModels = await listDatabaseResourceViewModels();
+
+    expect(mockedGetResourceProfileById).not.toHaveBeenCalled();
+    expect(viewModels).toHaveLength(1);
+    expect(viewModels[0]).not.toHaveProperty("profile");
   });
 });
