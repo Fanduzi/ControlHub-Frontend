@@ -31,17 +31,22 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import type { ResourceListViewModel } from "@/types/view-models";
+import type { ResourceTypeDefinition } from "@/types/settings";
 import { useEnvironment } from "@/components/providers/environment-provider";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
+  resourceTypes: ResourceTypeDefinition[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
-export function ResourceTable({ resources }: ResourceTableProps) {
+export function ResourceTable({
+  resources,
+  resourceTypes,
+}: ResourceTableProps) {
   const t = useTranslations();
   const [search, setSearch] = useState("");
   const [resourceType, setResourceType] = useState("all");
@@ -164,18 +169,11 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                 <SelectItem value="all">
                   {t("tables.resources.allTypes")}
                 </SelectItem>
-                <SelectItem value="host">
-                  {t("tables.resources.host")}
-                </SelectItem>
-                <SelectItem value="database_instance">
-                  {t("tables.resources.databaseInstance")}
-                </SelectItem>
-                <SelectItem value="database_cluster">
-                  {t("tables.resources.databaseCluster")}
-                </SelectItem>
-                <SelectItem value="service">
-                  {t("tables.resources.service")}
-                </SelectItem>
+                {resourceTypes.map((rt) => (
+                  <SelectItem key={rt.key} value={rt.key}>
+                    {rt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </>

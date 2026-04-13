@@ -2,7 +2,11 @@ export type ResourceType =
   | "host"
   | "database_instance"
   | "database_cluster"
-  | "service";
+  | "service"
+  | "domain_name"
+  | "virtual_ip"
+  | "database_proxy"
+  | "control_plane_component";
 
 export type Resource = {
   id: string;

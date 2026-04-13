@@ -37,3 +37,23 @@ export type DictionaryRecord = {
   description: string;
   values: string[];
 };
+
+export type ResourceTypeDefinition = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type ResourceTypeListResponse = {
+  items: ResourceTypeDefinition[];
+};
+
+export type RelationTypeDefinition = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type RelationTypeListResponse = {
+  items: RelationTypeDefinition[];
+};
