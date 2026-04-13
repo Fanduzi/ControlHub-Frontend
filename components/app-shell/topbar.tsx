@@ -22,9 +22,9 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
-import { environmentOptions, getConsoleSectionId } from "@/lib/navigation";
+import { useEnvironment } from "@/components/providers/environment-provider";
+import { getConsoleSectionId } from "@/lib/navigation";
 
 type TopbarProps = {
   pathname: string;
@@ -36,6 +36,8 @@ export function Topbar({ pathname }: TopbarProps) {
   const sectionTitle = sectionId
     ? t(`navigation.${sectionId}.title`)
     : t("common.brand");
+  const { environments, currentEnvironmentId, setEnvironmentId } =
+    useEnvironment();
 
   return (
     <header className="flex min-h-16 flex-col gap-3 border-b border-border bg-background px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:px-5 xl:py-0">
@@ -49,14 +51,21 @@ export function Topbar({ pathname }: TopbarProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-        <Select defaultValue="production">
-          <SelectTrigger className="h-9 w-[148px] border-border bg-card text-sm">
-            <SelectValue placeholder={t("shell.environmentPlaceholder")} />
+        <Select
+          value={currentEnvironmentId || "all"}
+          onValueChange={(v) => setEnvironmentId(v === "all" ? "" : (v ?? ""))}
+        >
+          <SelectTrigger className="h-8 min-w-28 border-border text-xs">
+            {currentEnvironmentId
+              ? (environments.find((e) => e.id === currentEnvironmentId)
+                  ?.name ?? currentEnvironmentId)
+              : t("environments.all")}
           </SelectTrigger>
           <SelectContent>
-            {environmentOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {t(`environments.${option.value}`)}
+            <SelectItem value="all">{t("environments.all")}</SelectItem>
+            {environments.map((env) => (
+              <SelectItem key={env.id} value={env.id}>
+                {env.name}
               </SelectItem>
             ))}
           </SelectContent>

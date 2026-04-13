@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 
 import { AccentProvider } from "@/components/providers/accent-provider";
+import { EnvironmentProvider } from "@/components/providers/environment-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AppLocale } from "@/i18n/locales";
@@ -35,7 +36,9 @@ export function AppProviders({
         storageKey="controlhub.theme"
       >
         <AccentProvider>
-          <TooltipProvider delay={300}>{children}</TooltipProvider>
+          <EnvironmentProvider>
+            <TooltipProvider delay={300}>{children}</TooltipProvider>
+          </EnvironmentProvider>
         </AccentProvider>
       </ThemeProvider>
     </NextIntlClientProvider>

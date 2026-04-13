@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import type { ResourceListViewModel } from "@/types/view-models";
+import { useEnvironment } from "@/components/providers/environment-provider";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 
@@ -46,10 +47,14 @@ export function ResourceTable({ resources }: ResourceTableProps) {
   const [resourceType, setResourceType] = useState("all");
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
+  const { currentEnvironmentId } = useEnvironment();
 
   const filteredResources = useMemo(
     () =>
       resources.filter((resource) => {
+        const matchesEnv =
+          !currentEnvironmentId ||
+          resource.environmentId === currentEnvironmentId;
         const matchesSearch =
           !search ||
           resource.displayName.toLowerCase().includes(search.toLowerCase()) ||
@@ -58,9 +63,9 @@ export function ResourceTable({ resources }: ResourceTableProps) {
         const matchesType =
           resourceType === "all" || resource.resourceType === resourceType;
 
-        return matchesSearch && matchesType;
+        return matchesEnv && matchesSearch && matchesType;
       }),
-    [resources, search, resourceType],
+    [resources, currentEnvironmentId, search, resourceType],
   );
 
   const columns = [

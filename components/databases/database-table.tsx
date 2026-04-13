@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import type { ResourceListViewModel } from "@/types/view-models";
+import { useEnvironment } from "@/components/providers/environment-provider";
 
 import { ResourceDetailSheetLoader } from "@/components/resources/resource-detail-sheet-loader";
 
@@ -36,6 +37,15 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
   const t = useTranslations();
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
+  const { currentEnvironmentId } = useEnvironment();
+
+  const filteredResources = useMemo(
+    () =>
+      currentEnvironmentId
+        ? resources.filter((r) => r.environmentId === currentEnvironmentId)
+        : resources,
+    [resources, currentEnvironmentId],
+  );
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -80,7 +90,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: resources,
+    data: filteredResources,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });

@@ -24,3 +24,28 @@ export function applyAccentToDocument(accent: AccentName) {
 
   document.documentElement.dataset.accent = accent;
 }
+
+/* ─── Environment context preference ─── */
+
+export const ENVIRONMENT_STORAGE_KEY = "controlhub.environmentId";
+
+/** Empty string = "all environments" (no filter). */
+export function readStoredEnvironmentId(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY) ?? "";
+}
+
+export function persistEnvironmentId(id: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (id) {
+    window.localStorage.setItem(ENVIRONMENT_STORAGE_KEY, id);
+  } else {
+    window.localStorage.removeItem(ENVIRONMENT_STORAGE_KEY);
+  }
+}

@@ -101,6 +101,7 @@
     "userName": "Chen Hao"
   },
   "environments": {
+    "all": "All",
     "production": "Production",
     "staging": "Staging",
     "development": "Development"

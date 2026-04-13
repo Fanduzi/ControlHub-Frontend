@@ -101,6 +101,7 @@
     "userName": "陈皓"
   },
   "environments": {
+    "all": "全部",
     "production": "生产",
     "staging": "预发",
     "development": "开发"
