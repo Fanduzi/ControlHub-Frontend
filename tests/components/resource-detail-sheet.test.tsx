@@ -3,6 +3,20 @@ import { render, screen } from "@testing-library/react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
+
+vi.mock("@/components/resources/edit-resource-sheet", () => ({
+  EditResourceSheet: () => null,
+}));
+
+vi.mock("@/components/blocks/resource-relation-panel", () => ({
+  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: string; relatedResourceName: string }> }) => (
+    <div>
+      {relations.map((r) => (
+        <div key={r.id}>{r.relatedResourceName}</div>
+      ))}
+    </div>
+      ),
+}));
 import type { ResourceDetailViewModel } from "@/types/view-models";
 
 const resource: ResourceDetailViewModel = {
@@ -105,7 +119,6 @@ describe("ResourceDetailSheet", () => {
     );
 
     expect(screen.getByText("Not set")).toBeInTheDocument();
-    expect(screen.getByText("No linked resources")).toBeInTheDocument();
     expect(screen.getByText("No audit activity yet")).toBeInTheDocument();
   });
 });

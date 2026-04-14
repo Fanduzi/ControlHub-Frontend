@@ -1,5 +1,7 @@
 import { apiClient } from "@/services/api-client";
 import type {
+  DictionaryItem,
+  DictionaryItemListResponse,
   DictionaryRecord,
   Environment,
   EnvironmentListResponse,
@@ -41,6 +43,26 @@ export async function listRelationTypes(): Promise<RelationTypeDefinition[]> {
   const response = await apiClient<RelationTypeListResponse>("/relation-types");
 
   return response.items;
+}
+
+export async function listLifecycleStatuses(): Promise<DictionaryItem[]> {
+  try {
+    const response = await apiClient<DictionaryItemListResponse>("/lifecycle-statuses");
+
+    return response.items;
+  } catch {
+    return [];
+  }
+}
+
+export async function listHealthStatuses(): Promise<DictionaryItem[]> {
+  try {
+    const response = await apiClient<DictionaryItemListResponse>("/health-statuses");
+
+    return response.items;
+  } catch {
+    return [];
+  }
 }
 
 const fallbackDictionaries: DictionaryRecord[] = [

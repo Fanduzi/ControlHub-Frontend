@@ -57,3 +57,13 @@ export type RelationTypeDefinition = {
 export type RelationTypeListResponse = {
   items: RelationTypeDefinition[];
 };
+
+export type DictionaryItem = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type DictionaryItemListResponse = {
+  items: DictionaryItem[];
+};

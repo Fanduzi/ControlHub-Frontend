@@ -8,7 +8,15 @@
       "tryAgain": "重试",
       "registerResource": "登记资源",
       "openFullDetail": "打开完整详情",
-      "inspect": "查看"
+      "inspect": "查看",
+      "createResource": "新建资源",
+      "editResource": "编辑",
+      "save": "保存",
+      "cancel": "取消",
+      "addRelation": "添加关系",
+      "removeRelation": "移除",
+      "delete": "删除",
+      "confirm": "确认"
     },
     "fields": {
       "resource": "资源",
@@ -20,6 +28,11 @@
       "externalId": "外部 ID",
       "lastUpdated": "最后更新",
       "updated": "更新于",
+      "name": "名称",
+      "displayName": "显示名称",
+      "labels": "标签",
+      "lifecycleStatus": "生命周期状态",
+      "healthStatus": "健康状态",
       "lifecycle": "生命周期",
       "status": "状态",
       "health": "健康",
@@ -348,7 +361,8 @@
   },
   "relations": {
     "emptyTitle": "暂无关联资源",
-    "emptyDescription": "使用关系来捕获包含、负责人和服务依赖上下文。"
+    "emptyDescription": "使用关系来捕获包含、负责人和服务依赖上下文。",
+    "cancelAdd": "取消"
   },
   "timeline": {
     "emptyTitle": "暂无审计活动",
@@ -362,5 +376,49 @@
     "page": "第 {page} 页",
     "pageSize": "每页行数",
     "pageSizeOption": "每页 {pageSize} 条"
+  },
+  "mutations": {
+    "create": {
+      "title": "创建资源",
+      "description": "登记一个手动维护的新资产。",
+      "sections": {
+        "identity": "身份",
+        "ownership": "负责人与环境",
+        "status": "状态",
+        "labels": "标签"
+      },
+      "success": "资源创建成功。",
+      "submitting": "创建中..."
+    },
+    "edit": {
+      "title": "编辑资源",
+      "description": "更新此资源的可变元数据。",
+      "success": "资源更新成功。",
+      "submitting": "保存中...",
+      "immutable": "此字段创建后不可更改。"
+    },
+    "relation": {
+      "addTitle": "添加关系",
+      "addDescription": "将此资源关联到另一个资产。",
+      "targetLabel": "目标资源",
+      "targetPlaceholder": "按名称或 ID 搜索",
+      "typeLabel": "关系类型",
+      "typePlaceholder": "选择关系类型",
+      "confirmDelete": "确定移除此关系？",
+      "success": "关系添加成功。",
+      "deleteSuccess": "关系已移除。",
+      "submitting": "添加中...",
+      "deleting": "移除中..."
+    },
+    "errors": {
+      "backend": "后端服务不可用，请稍后重试。",
+      "validation": "校验失败，请检查表单字段。",
+      "conflict": "此环境下已存在同名资源。",
+      "relationConflict": "此关系已存在。",
+      "notFound": "目标资源未找到。",
+      "unauthorized": "会话已过期，请重新登录。",
+      "unknown": "发生未知错误。",
+      "capabilityUnavailable": "后端暂不支持此操作。"
+    }
   }
 }

@@ -1,11 +1,14 @@
 import { apiClient } from "@/services/api-client";
 import type {
+  CreateResourceInput,
+  CreateResourceRelationInput,
   Resource,
   ResourceListParams,
   ResourceListResponse,
   ResourceProfileResponse,
   ResourceRelation,
   ResourceRelationListResponse,
+  UpdateResourceInput,
 } from "@/types/resource";
 
 function buildResourceListPath(params: ResourceListParams = {}) {
@@ -135,4 +138,44 @@ export async function getOverviewMetrics() {
     warning,
     pending,
   };
+}
+
+export async function createResource(
+  input: CreateResourceInput,
+): Promise<Resource> {
+  return apiClient<Resource>("/resources", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateResource(
+  id: string,
+  input: UpdateResourceInput,
+): Promise<Resource> {
+  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function createResourceRelation(
+  resourceId: string,
+  input: CreateResourceRelationInput,
+): Promise<ResourceRelation> {
+  return apiClient<ResourceRelation>(
+    `/resources/${encodeURIComponent(resourceId)}/relations`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function deleteResourceRelation(
+  relationId: string,
+): Promise<void> {
+  await apiClient<void>(`/resource-relations/${encodeURIComponent(relationId)}`, {
+    method: "DELETE",
+  });
 }

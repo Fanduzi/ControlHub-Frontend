@@ -6,6 +6,7 @@ import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import { getResourceSummaryKey } from "@/lib/resource-copy";
@@ -47,6 +48,7 @@ export default async function ResourceDetailPage({
         description={summary}
         actions={
           <>
+            <ResourceDetailEditButton resource={resource} />
             <StatusBadge status={resource.healthStatus} tone="health" />
             <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
           </>
@@ -160,7 +162,7 @@ export default async function ResourceDetailPage({
           title={t("pages.resourceDetail.relations.title")}
           description={t("pages.resourceDetail.relations.description")}
         >
-          <ResourceRelationPanel relations={resource.relations} />
+          <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
         </DetailPanel>
       </div>
 

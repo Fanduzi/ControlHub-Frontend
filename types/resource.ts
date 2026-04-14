@@ -67,3 +67,34 @@ export type ResourceRelation = {
 export type ResourceRelationListResponse = {
   items: ResourceRelation[];
 };
+
+export type CreateResourceInput = {
+  resourceType: string;
+  resourceSubtype?: string;
+  name: string;
+  displayName: string;
+  environmentId: string;
+  ownerId: string;
+  lifecycleStatus: string;
+  healthStatus: string;
+  source: string;
+  externalId?: string;
+  labels?: Record<string, string>;
+};
+
+export type UpdateResourceInput = {
+  resourceSubtype?: string;
+  displayName?: string;
+  environmentId?: string;
+  ownerId?: string;
+  lifecycleStatus?: string;
+  healthStatus?: string;
+  source?: string;
+  externalId?: string;
+  labels?: Record<string, string>;
+};
+
+export type CreateResourceRelationInput = {
+  toResourceId: string;
+  relationType: string;
+};

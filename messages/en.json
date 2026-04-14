@@ -8,7 +8,15 @@
       "tryAgain": "Try again",
       "registerResource": "Register resource",
       "openFullDetail": "Open full detail",
-      "inspect": "Inspect"
+      "inspect": "Inspect",
+      "createResource": "New resource",
+      "editResource": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "addRelation": "Add relation",
+      "removeRelation": "Remove",
+      "delete": "Delete",
+      "confirm": "Confirm"
     },
     "fields": {
       "resource": "Resource",
@@ -20,6 +28,11 @@
       "externalId": "External ID",
       "lastUpdated": "Last updated",
       "updated": "Updated",
+      "name": "Name",
+      "displayName": "Display name",
+      "labels": "Labels",
+      "lifecycleStatus": "Lifecycle status",
+      "healthStatus": "Health status",
       "lifecycle": "Lifecycle",
       "status": "Status",
       "health": "Health",
@@ -348,7 +361,8 @@
   },
   "relations": {
     "emptyTitle": "No linked resources",
-    "emptyDescription": "Use relations to capture containment, ownership, and service dependency context."
+    "emptyDescription": "Use relations to capture containment, ownership, and service dependency context.",
+    "cancelAdd": "Cancel"
   },
   "timeline": {
     "emptyTitle": "No audit activity yet",
@@ -362,5 +376,49 @@
     "page": "Page {page}",
     "pageSize": "Rows per page",
     "pageSizeOption": "{pageSize} / page"
+  },
+  "mutations": {
+    "create": {
+      "title": "Create resource",
+      "description": "Register a new manually maintained asset.",
+      "sections": {
+        "identity": "Identity",
+        "ownership": "Ownership & environment",
+        "status": "Status",
+        "labels": "Labels"
+      },
+      "success": "Resource created successfully.",
+      "submitting": "Creating..."
+    },
+    "edit": {
+      "title": "Edit resource",
+      "description": "Update mutable metadata for this resource.",
+      "success": "Resource updated successfully.",
+      "submitting": "Saving...",
+      "immutable": "This field cannot be changed after creation."
+    },
+    "relation": {
+      "addTitle": "Add relation",
+      "addDescription": "Link this resource to another asset.",
+      "targetLabel": "Target resource",
+      "targetPlaceholder": "Search by name or ID",
+      "typeLabel": "Relation type",
+      "typePlaceholder": "Select relation type",
+      "confirmDelete": "Remove this relation?",
+      "success": "Relation added successfully.",
+      "deleteSuccess": "Relation removed.",
+      "submitting": "Adding...",
+      "deleting": "Removing..."
+    },
+    "errors": {
+      "backend": "The backend service is not available. Please try again later.",
+      "validation": "Validation failed. Please check the form fields.",
+      "conflict": "A resource with this name already exists in this environment.",
+      "relationConflict": "This relation already exists.",
+      "notFound": "The target resource was not found.",
+      "unauthorized": "Your session has expired. Please sign in again.",
+      "unknown": "An unexpected error occurred.",
+      "capabilityUnavailable": "This operation is not yet supported by the backend."
+    }
   }
 }

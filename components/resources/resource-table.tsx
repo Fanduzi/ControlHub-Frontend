@@ -15,6 +15,7 @@ import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,6 +39,7 @@ import type { ResourceListViewModel } from "@/types/view-models";
 import type { ResourceTypeDefinition } from "@/types/settings";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
+import { CreateResourceSheet } from "./create-resource-sheet";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
@@ -63,6 +65,7 @@ export function ResourceTable({
   const searchParams = useSearchParams();
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const search = searchParams.get("q") ?? "";
   const resourceType = searchParams.get("resourceType") ?? "all";
@@ -172,6 +175,12 @@ export function ResourceTable({
         description={t("tables.resources.description")}
         controls={
           <>
+            <Button
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+            >
+              {t("common.actions.createResource")}
+            </Button>
             <Input
               value={searchDraft}
               onChange={(event) => {
@@ -322,6 +331,11 @@ export function ResourceTable({
         open={Boolean(selectedResource)}
         onOpenChange={handleSheetOpenChange}
         resource={selectedResource}
+      />
+
+      <CreateResourceSheet
+        open={createOpen}
+        onOpenChange={setCreateOpen}
       />
     </>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -7,6 +8,7 @@ import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -22,6 +24,8 @@ import type {
   ResourceDetailViewModel,
   ResourceListViewModel,
 } from "@/types/view-models";
+
+import { EditResourceSheet } from "./edit-resource-sheet";
 
 type ResourceDetailSheetProps = {
   open: boolean;
@@ -48,6 +52,7 @@ export function ResourceDetailSheet({
 }: ResourceDetailSheetProps) {
   const t = useTranslations();
   const locale = useLocale();
+  const [editOpen, setEditOpen] = useState(false);
 
   if (!resource) {
     return null;
@@ -77,6 +82,13 @@ export function ResourceDetailSheet({
               </SheetDescription>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setEditOpen(true)}
+              >
+                {t("common.actions.editResource")}
+              </Button>
               <StatusBadge status={resource.healthStatus} tone="health" />
               <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
             </div>
@@ -210,6 +222,12 @@ export function ResourceDetailSheet({
           </div>
         </div>
       </SheetContent>
+
+      <EditResourceSheet
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        resource={detailResource}
+      />
     </Sheet>
   );
 }

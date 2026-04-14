@@ -9,6 +9,20 @@ vi.mock("@/lib/view-models", () => ({
   getResourceViewModel: vi.fn(),
 }));
 
+vi.mock("@/components/resources/edit-resource-sheet", () => ({
+  EditResourceSheet: () => null,
+}));
+
+vi.mock("@/components/blocks/resource-relation-panel", () => ({
+  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: string; relatedResourceName: string }> }) => (
+    <div>
+      {relations.map((r) => (
+        <div key={r.id}>{r.relatedResourceName}</div>
+      ))}
+    </div>
+      ),
+}));
+
 const mockedGetResourceViewModel = vi.mocked(getResourceViewModel);
 
 const resource = {
