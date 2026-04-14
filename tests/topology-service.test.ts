@@ -5,7 +5,7 @@ vi.mock("@/services/api-client", () => ({
 }));
 
 import { apiClient } from "@/services/api-client";
-import { getResourceTopology } from "@/services/topology";
+import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import type { TopologyResponse } from "@/types/resource";
 
 const mockApiClient = vi.mocked(apiClient);
@@ -36,6 +36,7 @@ describe("getResourceTopology", () => {
         },
       ],
       edges: [],
+      groups: [],
     };
 
     mockApiClient.mockResolvedValueOnce(mockResponse);
@@ -56,6 +57,7 @@ describe("getResourceTopology", () => {
       direction: "both",
       nodes: [],
       edges: [],
+      groups: [],
     });
 
     await getResourceTopology("res-1", { depth: 2 });
@@ -72,6 +74,7 @@ describe("getResourceTopology", () => {
       direction: "upstream",
       nodes: [],
       edges: [],
+      groups: [],
     });
 
     await getResourceTopology("res-1", { direction: "upstream" });
@@ -88,6 +91,7 @@ describe("getResourceTopology", () => {
       direction: "both",
       nodes: [],
       edges: [],
+      groups: [],
     });
 
     await getResourceTopology("res-1", { relationType: "member_of" });
@@ -104,6 +108,7 @@ describe("getResourceTopology", () => {
       direction: "downstream",
       nodes: [],
       edges: [],
+      groups: [],
     });
 
     await getResourceTopology("res-1", {
@@ -117,25 +122,27 @@ describe("getResourceTopology", () => {
     );
   });
 
-  it("returns null on 404 response", async () => {
+  it("propagates 404 as error (resource not found)", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("404"));
 
-    const result = await getResourceTopology("nonexistent");
-
-    expect(result).toBeNull();
+    await expect(getResourceTopology("nonexistent")).rejects.toThrow("404");
   });
 
-  it("propagates non-404 errors", async () => {
+  it("propagates non-404/501 errors", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("500"));
 
     await expect(getResourceTopology("res-1")).rejects.toThrow("500");
   });
 
-  it("returns null on 501 (endpoint not implemented)", async () => {
+  it("throws TopologyNotAvailableError on 501 (endpoint not implemented)", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("501"));
 
-    const result = await getResourceTopology("res-1");
+    await expect(getResourceTopology("res-1")).rejects.toThrow(TopologyNotAvailableError);
+  });
 
-    expect(result).toBeNull();
+  it("TopologyNotAvailableError has correct name", () => {
+    const error = new TopologyNotAvailableError();
+    expect(error.name).toBe("TopologyNotAvailableError");
+    expect(error.message).toBe("Topology endpoint not available");
   });
 });

@@ -32,9 +32,12 @@ vi.mock("@xyflow/react", () => ({
 
 vi.mock("@/services/topology", () => ({
   getResourceTopology: vi.fn(),
+  TopologyNotAvailableError: class extends Error {
+    constructor() { super("Topology endpoint not available"); this.name = "TopologyNotAvailableError"; }
+  },
 }));
 
-import { getResourceTopology } from "@/services/topology";
+import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import type { TopologyResponse } from "@/types/resource";
 
@@ -88,6 +91,7 @@ const mockTopologyResponse: TopologyResponse = {
       relationType: "member_of",
     },
   ],
+  groups: [],
 };
 
 describe("TopologyPanel", () => {
@@ -110,6 +114,7 @@ describe("TopologyPanel", () => {
       direction: "both",
       nodes: [mockTopologyResponse.nodes[0]],
       edges: [],
+      groups: [],
     });
 
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
@@ -130,7 +135,7 @@ describe("TopologyPanel", () => {
   });
 
   it("renders unavailable state when endpoint not implemented", async () => {
-    mockGetTopology.mockResolvedValueOnce(null);
+    mockGetTopology.mockRejectedValueOnce(new TopologyNotAvailableError());
 
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
 

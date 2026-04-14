@@ -19,6 +19,13 @@ function buildTopologyPath(resourceId: string, params: TopologyParams = {}) {
   return query ? `/resources/${encodedId}/topology?${query}` : `/resources/${encodedId}/topology`;
 }
 
+export class TopologyNotAvailableError extends Error {
+  constructor() {
+    super("Topology endpoint not available");
+    this.name = "TopologyNotAvailableError";
+  }
+}
+
 export async function getResourceTopology(
   resourceId: string,
   params?: TopologyParams,
@@ -26,10 +33,12 @@ export async function getResourceTopology(
   try {
     return await apiClient<TopologyResponse>(buildTopologyPath(resourceId, params));
   } catch (error) {
-    if (error instanceof Error && /\b(404|501)\b/.test(error.message)) {
-      return null;
+    // 501 = endpoint not implemented → signal unavailable state
+    if (error instanceof Error && /\b501\b/.test(error.message)) {
+      throw new TopologyNotAvailableError();
     }
 
+    // All other errors (including 404 = resource not found) propagate
     throw error;
   }
 }

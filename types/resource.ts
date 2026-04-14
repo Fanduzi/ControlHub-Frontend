@@ -134,7 +134,7 @@ export type TopologyResponse = {
   direction: string;
   nodes: TopologyNode[];
   edges: TopologyEdge[];
-  groups?: TopologyGroup[];
+  groups: TopologyGroup[];
 };
 
 export type TopologyParams = {

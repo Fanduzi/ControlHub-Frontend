@@ -40,6 +40,9 @@ yarn-error.log*
 # IDE
 .idea/
 
+# Git worktrees
+/.worktrees/
+
 # Playwright MCP
 .playwright-mcp/
 

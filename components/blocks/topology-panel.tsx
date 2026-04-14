@@ -24,7 +24,7 @@ import {
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData } from "@/lib/topology-mapper";
-import { getResourceTopology } from "@/services/topology";
+import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
@@ -63,15 +63,15 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
 
     try {
       const result = await getResourceTopology(resourceId, queryParams);
-      if (result === null) {
+      setTopology(result);
+    } catch (error) {
+      if (error instanceof TopologyNotAvailableError) {
         setUnavailable(true);
         setTopology(null);
       } else {
-        setTopology(result);
+        setError(t("topology.errorTitle"));
+        setTopology(null);
       }
-    } catch {
-      setError(t("topology.errorTitle"));
-      setTopology(null);
     } finally {
       setLoading(false);
     }

@@ -40,6 +40,7 @@ describe("mapTopologyToFlow", () => {
         makeNode({ id: "node-2", name: "instance-1", displayName: "Instance 1", distance: 1 }),
       ],
       edges: [],
+      groups: [],
     };
 
     const { nodes } = mapTopologyToFlow(response);
@@ -56,6 +57,7 @@ describe("mapTopologyToFlow", () => {
       direction: "both",
       nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
       edges: [],
+      groups: [],
     };
 
     const { nodes } = mapTopologyToFlow(response);
@@ -75,6 +77,7 @@ describe("mapTopologyToFlow", () => {
       edges: [
         makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "member_of" }),
       ],
+      groups: [],
     };
 
     const { edges } = mapTopologyToFlow(response);
@@ -97,6 +100,7 @@ describe("mapTopologyToFlow", () => {
         makeNode({ id: "node-2", name: "a-instance", resourceType: "database_instance", distance: 1 }),
       ],
       edges: [],
+      groups: [],
     };
 
     const { nodes } = mapTopologyToFlow(response);
@@ -122,6 +126,7 @@ describe("mapTopologyToFlow", () => {
         makeEdge({ id: "edge-2", fromResourceId: "node-3", toResourceId: "node-1", relationType: "runs_on" }),
         makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "member_of" }),
       ],
+      groups: [],
     };
 
     const { edges } = mapTopologyToFlow(response);
@@ -149,6 +154,7 @@ describe("mapTopologyToFlow", () => {
         }),
       ],
       edges: [],
+      groups: [],
     };
 
     const { nodes } = mapTopologyToFlow(response);
@@ -171,6 +177,7 @@ describe("mapTopologyToFlow", () => {
       direction: "both",
       nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
       edges: [],
+      groups: [],
     };
 
     const { nodes, edges } = mapTopologyToFlow(response);
@@ -186,6 +193,7 @@ describe("mapTopologyToFlow", () => {
       direction: "both",
       nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
       edges: [],
+      groups: [],
     };
 
     const result1 = mapTopologyToFlow(response);
@@ -193,5 +201,101 @@ describe("mapTopologyToFlow", () => {
 
     expect(result1.nodes).not.toBe(result2.nodes);
     expect(result1.edges).not.toBe(result2.edges);
+  });
+
+  it("assigns different positions to nodes at different distances", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "node-1",
+      depth: 1,
+      direction: "both",
+      nodes: [
+        makeNode({ id: "node-1", isRoot: true, distance: 0 }),
+        makeNode({ id: "node-2", distance: 1, name: "inst-1", resourceType: "database_instance" }),
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    const pos0 = nodes.find((n) => n.id === "node-1")!.position;
+    const pos1 = nodes.find((n) => n.id === "node-2")!.position;
+
+    // Distance 0 should be at x=0, distance 1 at x=280
+    expect(pos0.x).toBe(0);
+    expect(pos1.x).toBe(280);
+    // Both at same y since they're the only node in their column
+    expect(pos0.y).toBe(pos1.y);
+  });
+
+  it("stacks same-distance nodes vertically", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root",
+      depth: 1,
+      direction: "both",
+      nodes: [
+        makeNode({ id: "root", isRoot: true, distance: 0, name: "root" }),
+        makeNode({ id: "a", distance: 1, name: "a", resourceType: "database_cluster" }),
+        makeNode({ id: "b", distance: 1, name: "b", resourceType: "database_instance" }),
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    const posA = nodes.find((n) => n.id === "a")!.position;
+    const posB = nodes.find((n) => n.id === "b")!.position;
+
+    // Same column (distance 1)
+    expect(posA.x).toBe(posB.x);
+    // Different rows
+    expect(posA.y).not.toBe(posB.y);
+    expect(Math.abs(posB.y - posA.y)).toBe(120);
+  });
+
+  it("produces deterministic layout (same input = same output)", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root",
+      depth: 2,
+      direction: "both",
+      nodes: [
+        makeNode({ id: "root", isRoot: true, distance: 0 }),
+        makeNode({ id: "n-2", distance: 1, name: "a", resourceType: "database_cluster" }),
+        makeNode({ id: "n-3", distance: 2, name: "b", resourceType: "database_instance" }),
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const r1 = mapTopologyToFlow(response);
+    const r2 = mapTopologyToFlow(response);
+
+    for (let i = 0; i < r1.nodes.length; i++) {
+      expect(r1.nodes[i].position).toEqual(r2.nodes[i].position);
+    }
+  });
+
+  it("does not produce overlapping positions for any two nodes", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root",
+      depth: 2,
+      direction: "both",
+      nodes: [
+        makeNode({ id: "root", isRoot: true, distance: 0 }),
+        makeNode({ id: "n-2", distance: 1, name: "alpha", resourceType: "database_cluster" }),
+        makeNode({ id: "n-3", distance: 1, name: "beta", resourceType: "database_instance" }),
+        makeNode({ id: "n-4", distance: 2, name: "gamma", resourceType: "host" }),
+        makeNode({ id: "n-5", distance: 2, name: "delta", resourceType: "service" }),
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { nodes } = mapTopologyToFlow(response);
+    const positions = nodes.map((n) => `${n.position.x},${n.position.y}`);
+
+    // All positions should be unique
+    expect(new Set(positions).size).toBe(positions.length);
   });
 });
