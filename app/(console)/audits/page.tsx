@@ -4,15 +4,21 @@ import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { AuditTable } from "@/components/audits/audit-table";
+import { parseAuditListSearchParams } from "@/lib/list-page-search-params";
 import {
   listAuditEventViewModels,
   listRecentAuditEventViewModels,
 } from "@/lib/view-models";
 
-export default async function AuditsPage() {
+export default async function AuditsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations();
-  const [events, recentEvents] = await Promise.all([
-    listAuditEventViewModels(),
+  const params = await parseAuditListSearchParams(searchParams);
+  const [{ items: events, pageInfo }, recentEvents] = await Promise.all([
+    listAuditEventViewModels(params),
     listRecentAuditEventViewModels(4),
   ]);
 
@@ -25,7 +31,7 @@ export default async function AuditsPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <AuditTable events={events} />
+        <AuditTable events={events} pageInfo={pageInfo} />
         <DetailPanel
           title={t("pages.audits.latest.title")}
           description={t("pages.audits.latest.description")}

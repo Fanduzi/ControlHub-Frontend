@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { useEnvironment } from "@/components/providers/environment-provider";
 import { consoleNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +14,9 @@ type SidebarProps = {
 
 export function Sidebar({ pathname }: SidebarProps) {
   const t = useTranslations();
+  const searchParams = useSearchParams();
+  const { currentEnvironmentId } = useEnvironment();
+  const environmentId = searchParams.get("environmentId") ?? currentEnvironmentId;
 
   return (
     <aside className="flex h-full flex-col border-r border-border bg-[var(--sidebar)]">
@@ -33,10 +40,14 @@ export function Sidebar({ pathname }: SidebarProps) {
             const Icon = item.icon;
             const title = t(`navigation.${item.id}.title`);
 
+            const href = environmentId && item.supportsEnvironment
+              ? `${item.href}?environmentId=${environmentId}`
+              : item.href;
+
             return (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  href={href}
                   aria-label={title}
                   aria-current={active ? "page" : undefined}
                   className={cn(

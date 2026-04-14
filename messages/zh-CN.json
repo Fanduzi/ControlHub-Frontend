@@ -304,7 +304,11 @@
       "description": "以列表为先的浏览方式，右侧详情面板用于日常检查。",
       "searchPlaceholder": "搜索资源、负责人或 ID",
       "filterType": "过滤类型",
+      "filterLifecycle": "生命周期状态",
+      "filterHealth": "健康状态",
       "allTypes": "全部类型",
+      "allLifecycle": "全部生命周期状态",
+      "allHealth": "全部健康状态",
       "host": "主机",
       "databaseInstance": "数据库实例",
       "databaseCluster": "数据库集群",
@@ -322,6 +326,10 @@
     "audits": {
       "title": "审计流",
       "description": "基线资产变更以追加式运行历史记录。",
+      "filterEventType": "事件类型",
+      "filterResult": "结果",
+      "allEventTypes": "全部事件类型",
+      "allResults": "全部结果",
       "emptyTitle": "暂无审计事件",
       "emptyDescription": "资源变更被捕获后，审计记录会显示在这里。"
     }
@@ -345,5 +353,14 @@
   "timeline": {
     "emptyTitle": "暂无审计活动",
     "emptyDescription": "后端审计流接入后，最近资源变更会显示在这里。"
+  },
+  "pagination": {
+    "previous": "上一页",
+    "previousShort": "上一页",
+    "next": "下一页",
+    "nextShort": "下一页",
+    "page": "第 {page} 页",
+    "pageSize": "每页行数",
+    "pageSizeOption": "每页 {pageSize} 条"
   }
 }

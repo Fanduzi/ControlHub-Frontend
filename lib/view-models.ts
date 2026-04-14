@@ -14,17 +14,26 @@ import {
   listResourceRelations,
   listResources,
 } from "@/services/resources";
-import type { AuditEvent } from "@/types/audit";
+import type {
+  AuditEvent,
+  AuditEventListParams,
+  AuditEventListResponse,
+} from "@/types/audit";
 import type {
   Resource,
+  ResourceListParams,
+  ResourceListResponse,
   ResourceProfileResponse,
   ResourceRelation,
+  ResourceType,
 } from "@/types/resource";
 import type {
   AuditEventViewModel,
+  AuditEventViewModelListResponse,
   ResourceRelationViewModel,
   ResourceDetailViewModel,
   ResourceListViewModel,
+  ResourceListViewModelResponse,
 } from "@/types/view-models";
 
 const resourceSummaries: Record<string, string> = {
@@ -56,11 +65,12 @@ function buildAuditSummary(event: AuditEvent) {
 }
 
 async function buildLookupMaps() {
-  const [resources, environments, owners] = await Promise.all([
-    listResources(),
+  const [resourceResponse, environments, owners] = await Promise.all([
+    listResources() as Promise<ResourceListResult>,
     listEnvironments(),
     listOwners(),
   ]);
+  const resources = toResourceItems(resourceResponse);
 
   return {
     resourceMap: new Map(resources.map((resource) => [resource.id, resource])),
@@ -120,6 +130,147 @@ function toAuditEventViewModel(
       ? (environmentMap.get(target.environmentId) ?? target.environmentId)
       : "Unknown",
     summary: buildAuditSummary(event),
+  };
+}
+
+type ResourceListResult = Resource[] | ResourceListResponse;
+type AuditEventListResult = AuditEvent[] | AuditEventListResponse;
+
+function fallbackPageInfo(totalItems: number) {
+  return {
+    page: 1,
+    pageSize: totalItems,
+    totalItems,
+    totalPages: totalItems > 0 ? 1 : 0,
+  };
+}
+
+function toResourceItems(response: ResourceListResult): Resource[] {
+  return Array.isArray(response) ? response : response.items;
+}
+
+function toAuditEventItems(response: AuditEventListResult): AuditEvent[] {
+  return Array.isArray(response) ? response : response.items;
+}
+
+function toResourcePageInfo(response: ResourceListResult) {
+  return Array.isArray(response)
+    ? fallbackPageInfo(response.length)
+    : response.pageInfo;
+}
+
+function toAuditEventPageInfo(response: AuditEventListResult) {
+  return Array.isArray(response)
+    ? fallbackPageInfo(response.length)
+    : response.pageInfo;
+}
+
+function toAuditEventViewModels(
+  events: AuditEvent[],
+  resourceMap: Map<string, Resource>,
+  environmentMap: Map<string, string>,
+): AuditEventViewModel[] {
+  return events.map((event) =>
+    toAuditEventViewModel(event, resourceMap, environmentMap),
+  );
+}
+
+function compareResourcesForList(left: Resource, right: Resource) {
+  return left.name.localeCompare(right.name);
+}
+
+export async function getDatabasePostureCounts(
+  params: ResourceListParams = {},
+): Promise<{ clusters: number; instances: number }> {
+  const baseParams = {
+    ...params,
+    page: 1,
+    pageSize: 1,
+  };
+
+  const [instanceResponse, clusterResponse] = await Promise.all([
+    listResources({
+      ...baseParams,
+      resourceType: "database_instance",
+    }) as Promise<ResourceListResult>,
+    listResources({
+      ...baseParams,
+      resourceType: "database_cluster",
+    }) as Promise<ResourceListResult>,
+  ]);
+
+  return {
+    instances: toResourcePageInfo(instanceResponse).totalItems,
+    clusters: toResourcePageInfo(clusterResponse).totalItems,
+  };
+}
+
+async function listPaginatedResourcesByTypes(
+  params: ResourceListParams,
+  resourceTypes: ResourceType[],
+): Promise<ResourceListViewModelResponse> {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 20;
+  const offset = (page - 1) * pageSize;
+  const fetchSize = page * pageSize;
+
+  const responses = await Promise.all(
+    resourceTypes.map((resourceType) =>
+      listResources({
+        ...params,
+        page: 1,
+        pageSize: fetchSize,
+        resourceType,
+      }) as Promise<ResourceListResult>,
+    ),
+  );
+
+  const mergedItems = responses
+    .flatMap((response) => toResourceItems(response))
+    .sort(compareResourcesForList);
+
+  return {
+    items: await listResourceListViewModels(
+      mergedItems.slice(offset, offset + pageSize),
+    ),
+    pageInfo: {
+      page,
+      pageSize,
+      totalItems: responses.reduce(
+        (total, response) => total + toResourcePageInfo(response).totalItems,
+        0,
+      ),
+      totalPages: Math.ceil(
+        responses.reduce(
+          (total, response) => total + toResourcePageInfo(response).totalItems,
+          0,
+        ) / pageSize,
+      ),
+    },
+  };
+}
+
+async function toResourceListViewModelResponse(
+  response: ResourceListResult,
+): Promise<ResourceListViewModelResponse> {
+  return {
+    items: await listResourceListViewModels(toResourceItems(response)),
+    pageInfo: toResourcePageInfo(response),
+  };
+}
+
+function toAuditEventViewModelListResponse(
+  response: AuditEventListResult,
+  resourceMap: Map<string, Resource>,
+  environmentMap: Map<string, string>,
+): AuditEventViewModelListResponse {
+  return {
+    items: toAuditEventViewModels(
+      toAuditEventItems(response),
+      resourceMap,
+      environmentMap,
+    ),
+    pageInfo: toAuditEventPageInfo(response),
   };
 }
 
@@ -190,18 +341,42 @@ async function listResourceListViewModels(
   return resources.map((resource) => toResourceListViewModel(resource, lookupMaps));
 }
 
-export async function listResourceViewModels(): Promise<ResourceListViewModel[]> {
-  const resources = await listResources();
+export async function listResourceViewModels(): Promise<ResourceListViewModel[]>;
+export async function listResourceViewModels(
+  params: ResourceListParams,
+): Promise<ResourceListViewModelResponse>;
+export async function listResourceViewModels(
+  params?: ResourceListParams,
+): Promise<ResourceListViewModel[] | ResourceListViewModelResponse> {
+  const response = (await listResources(params ?? {})) as ResourceListResult;
+  const items = toResourceItems(response);
 
-  return listResourceListViewModels(resources);
+  if (params === undefined) {
+    return listResourceListViewModels(items);
+  }
+
+  return toResourceListViewModelResponse(response);
 }
 
 export async function listDatabaseResourceViewModels(): Promise<
   ResourceListViewModel[]
-> {
-  const resources = await listDatabaseResources();
+>;
+export async function listDatabaseResourceViewModels(
+  params: ResourceListParams,
+): Promise<ResourceListViewModelResponse>;
+export async function listDatabaseResourceViewModels(
+  params?: ResourceListParams,
+): Promise<ResourceListViewModel[] | ResourceListViewModelResponse> {
+  if (params === undefined) {
+    const resources = await listDatabaseResources();
 
-  return listResourceListViewModels(resources);
+    return listResourceListViewModels(resources);
+  }
+
+  return listPaginatedResourcesByTypes(params, [
+    "database_instance",
+    "database_cluster",
+  ]);
 }
 
 export async function listAttentionResourceViewModels(): Promise<
@@ -224,16 +399,30 @@ export async function getResourceViewModel(
   return toResourceDetailViewModel(resource);
 }
 
-export async function listAuditEventViewModels(): Promise<
-  AuditEventViewModel[]
-> {
-  const [{ resourceMap, environmentMap }, events] = await Promise.all([
+export async function listAuditEventViewModels(): Promise<AuditEventViewModel[]>;
+export async function listAuditEventViewModels(
+  params: AuditEventListParams,
+): Promise<AuditEventViewModelListResponse>;
+export async function listAuditEventViewModels(
+  params?: AuditEventListParams,
+): Promise<AuditEventViewModel[] | AuditEventViewModelListResponse> {
+  const [{ resourceMap, environmentMap }, response] = await Promise.all([
     buildLookupMaps(),
-    listAuditEvents(),
+    listAuditEvents(params ?? {}) as Promise<AuditEventListResult>,
   ]);
 
-  return events.map((event) =>
-    toAuditEventViewModel(event, resourceMap, environmentMap),
+  if (params === undefined) {
+    return toAuditEventViewModels(
+      toAuditEventItems(response),
+      resourceMap,
+      environmentMap,
+    );
+  }
+
+  return toAuditEventViewModelListResponse(
+    response,
+    resourceMap,
+    environmentMap,
   );
 }
 
@@ -245,9 +434,7 @@ export async function listRecentAuditEventViewModels(
     listRecentAuditEvents(limit),
   ]);
 
-  return events.map((event) =>
-    toAuditEventViewModel(event, resourceMap, environmentMap),
-  );
+  return toAuditEventViewModels(events, resourceMap, environmentMap);
 }
 
 export { getOverviewMetrics };

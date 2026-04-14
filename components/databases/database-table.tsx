@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -12,7 +12,9 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import {
   Table,
   TableBody,
@@ -22,30 +24,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
-import { useEnvironment } from "@/components/providers/environment-provider";
 
 import { ResourceDetailSheetLoader } from "@/components/resources/resource-detail-sheet-loader";
 
 type DatabaseTableProps = {
   resources: ResourceListViewModel[];
+  pageInfo: PageInfo;
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
-export function DatabaseTable({ resources }: DatabaseTableProps) {
+export function DatabaseTable({
+  resources,
+  pageInfo,
+}: DatabaseTableProps) {
   const t = useTranslations();
+  const localeValue = useLocale();
+  const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
-  const { currentEnvironmentId } = useEnvironment();
-
-  const filteredResources = useMemo(
-    () =>
-      currentEnvironmentId
-        ? resources.filter((r) => r.environmentId === currentEnvironmentId)
-        : resources,
-    [resources, currentEnvironmentId],
-  );
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -84,13 +83,13 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
     }),
     columnHelper.accessor("updatedAt", {
       header: t("common.fields.updated"),
-      cell: (info) => formatDateTime(info.getValue()),
+      cell: (info) => formatDateTime(info.getValue(), locale),
     }),
   ];
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: filteredResources,
+    data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -100,6 +99,7 @@ export function DatabaseTable({ resources }: DatabaseTableProps) {
       <DataTableShell
         title={t("tables.databases.title")}
         description={t("tables.databases.description")}
+        pagination={<PaginationControls pageInfo={pageInfo} />}
       >
         <Table>
           <TableHeader>

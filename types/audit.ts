@@ -1,3 +1,5 @@
+import type { PageInfo } from "@/types/resource";
+
 export type AuditEvent = {
   id: string;
   actorUserId: string;
@@ -7,6 +9,15 @@ export type AuditEvent = {
   createdAt: string;
 };
 
+export type AuditEventListParams = {
+  targetResourceId?: string;
+  eventType?: string;
+  result?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type AuditEventListResponse = {
   items: AuditEvent[];
+  pageInfo: PageInfo;
 };

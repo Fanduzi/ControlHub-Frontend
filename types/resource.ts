@@ -25,8 +25,26 @@ export type Resource = {
   updatedAt: string;
 };
 
+export type PageInfo = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export type ResourceListParams = {
+  resourceType?: string;
+  environmentId?: string;
+  lifecycleStatus?: string;
+  healthStatus?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type ResourceListResponse = {
   items: Resource[];
+  pageInfo: PageInfo;
 };
 
 export type ResourceProfileValue = string | number | boolean | null;

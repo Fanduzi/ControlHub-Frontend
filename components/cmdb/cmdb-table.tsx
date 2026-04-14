@@ -1,40 +1,32 @@
 "use client";
 
-import { useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
-import { useEnvironment } from "@/components/providers/environment-provider";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime } from "@/lib/format";
+import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 type CmdbTableProps = {
   resources: ResourceListViewModel[];
+  pageInfo: PageInfo;
 };
 
-export function CmdbTable({ resources }: CmdbTableProps) {
+export function CmdbTable({ resources, pageInfo }: CmdbTableProps) {
   const t = useTranslations();
   const localeValue = useLocale();
   const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
-  const { currentEnvironmentId } = useEnvironment();
-
-  const filteredResources = useMemo(
-    () =>
-      currentEnvironmentId
-        ? resources.filter((r) => r.environmentId === currentEnvironmentId)
-        : resources,
-    [resources, currentEnvironmentId],
-  );
 
   return (
     <DetailPanel
       title={t("pages.cmdb.records.title")}
       description={t("pages.cmdb.records.description")}
     >
-      {filteredResources.length === 0 ? (
+      {resources.length === 0 ? (
         <EmptyState
           title={t("pages.cmdb.records.emptyTitle")}
           description={t("pages.cmdb.records.emptyDescription")}
@@ -65,7 +57,7 @@ export function CmdbTable({ resources }: CmdbTableProps) {
               </tr>
             </thead>
             <tbody>
-              {filteredResources.map((resource) => (
+              {resources.map((resource) => (
                 <tr
                   key={resource.id}
                   className="border-b border-border last:border-b-0"
@@ -102,6 +94,9 @@ export function CmdbTable({ resources }: CmdbTableProps) {
           </table>
         </div>
       )}
+      <div className="mt-4">
+        <PaginationControls pageInfo={pageInfo} />
+      </div>
     </DetailPanel>
   );
 }

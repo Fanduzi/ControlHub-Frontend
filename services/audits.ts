@@ -1,12 +1,54 @@
 import { apiClient } from "@/services/api-client";
-import type { AuditEvent, AuditEventListResponse } from "@/types/audit";
+import type {
+  AuditEvent,
+  AuditEventListParams,
+  AuditEventListResponse,
+} from "@/types/audit";
 
-export async function listAuditEvents(): Promise<AuditEvent[]> {
-  const response = await apiClient<AuditEventListResponse>("/audit-events");
+function buildAuditListPath(params: AuditEventListParams = {}) {
+  const searchParams = new URLSearchParams();
 
-  return [...response.items].sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt),
-  );
+  if (params.page) {
+    searchParams.set("page", String(params.page));
+  }
+  if (params.pageSize) {
+    searchParams.set("pageSize", String(params.pageSize));
+  }
+  if (params.targetResourceId) {
+    searchParams.set("targetResourceId", params.targetResourceId);
+  }
+  if (params.eventType) {
+    searchParams.set("eventType", params.eventType);
+  }
+  if (params.result) {
+    searchParams.set("result", params.result);
+  }
+
+  const query = searchParams.toString();
+  return query ? `/audit-events?${query}` : "/audit-events";
+}
+
+export async function listAuditEvents(
+  params: AuditEventListParams = {},
+): Promise<AuditEventListResponse> {
+  return apiClient<AuditEventListResponse>(buildAuditListPath(params));
+}
+
+async function listAllAuditEvents(params: AuditEventListParams = {}): Promise<AuditEvent[]> {
+  const firstPage = await listAuditEvents(params);
+  const allItems = [...firstPage.items];
+
+  for (let page = 2; page <= firstPage.pageInfo.totalPages; page += 1) {
+    const response = await listAuditEvents({
+      ...params,
+      page,
+      pageSize: firstPage.pageInfo.pageSize,
+    });
+
+    allItems.push(...response.items);
+  }
+
+  return allItems;
 }
 
 export async function listResourceAuditEvents(
@@ -22,7 +64,9 @@ export async function listResourceAuditEvents(
 }
 
 export async function listRecentAuditEvents(limit = 5): Promise<AuditEvent[]> {
-  const events = await listAuditEvents();
+  const items = await listAllAuditEvents();
 
-  return events.slice(0, limit);
+  return [...items]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, limit);
 }

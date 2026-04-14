@@ -304,7 +304,11 @@
       "description": "List-first browsing with a right-side detail sheet for day-to-day inspection.",
       "searchPlaceholder": "Search resource, owner, or ID",
       "filterType": "Filter type",
+      "filterLifecycle": "Lifecycle status",
+      "filterHealth": "Health status",
       "allTypes": "All types",
+      "allLifecycle": "All lifecycle states",
+      "allHealth": "All health states",
       "host": "Host",
       "databaseInstance": "Database instance",
       "databaseCluster": "Database cluster",
@@ -322,6 +326,10 @@
     "audits": {
       "title": "Audit feed",
       "description": "Baseline asset mutations are captured as append-only operational history.",
+      "filterEventType": "Event type",
+      "filterResult": "Result",
+      "allEventTypes": "All event types",
+      "allResults": "All results",
       "emptyTitle": "No audit events",
       "emptyDescription": "Audit records will appear here once resource changes are captured."
     }
@@ -345,5 +353,14 @@
   "timeline": {
     "emptyTitle": "No audit activity yet",
     "emptyDescription": "Recent resource changes will appear here once the backend audit feed is connected."
+  },
+  "pagination": {
+    "previous": "Previous page",
+    "previousShort": "Prev",
+    "next": "Next page",
+    "nextShort": "Next",
+    "page": "Page {page}",
+    "pageSize": "Rows per page",
+    "pageSizeOption": "{pageSize} / page"
   }
 }

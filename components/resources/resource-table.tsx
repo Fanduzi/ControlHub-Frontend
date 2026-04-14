@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -12,6 +13,7 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,49 +31,48 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { ResourceTypeDefinition } from "@/types/settings";
-import { useEnvironment } from "@/components/providers/environment-provider";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
+  pageInfo: PageInfo;
   resourceTypes: ResourceTypeDefinition[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
+const LIFECYCLE_OPTIONS = ["running", "active", "provisioning", "retired"] as const;
+const HEALTH_OPTIONS = ["healthy", "warning", "critical"] as const;
+
 export function ResourceTable({
   resources,
+  pageInfo,
   resourceTypes,
 }: ResourceTableProps) {
   const t = useTranslations();
-  const [search, setSearch] = useState("");
-  const [resourceType, setResourceType] = useState("all");
+  const localeValue = useLocale();
+  const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
-  const { currentEnvironmentId } = useEnvironment();
 
-  const filteredResources = useMemo(
-    () =>
-      resources.filter((resource) => {
-        const matchesEnv =
-          !currentEnvironmentId ||
-          resource.environmentId === currentEnvironmentId;
-        const matchesSearch =
-          !search ||
-          resource.displayName.toLowerCase().includes(search.toLowerCase()) ||
-          resource.name.toLowerCase().includes(search.toLowerCase()) ||
-          resource.ownerName.toLowerCase().includes(search.toLowerCase());
-        const matchesType =
-          resourceType === "all" || resource.resourceType === resourceType;
+  const search = searchParams.get("q") ?? "";
+  const resourceType = searchParams.get("resourceType") ?? "all";
+  const lifecycleStatus = searchParams.get("lifecycleStatus") ?? "all";
+  const healthStatus = searchParams.get("healthStatus") ?? "all";
+  const [searchDraft, setSearchDraft] = useState(search);
 
-        return matchesEnv && matchesSearch && matchesType;
-      }),
-    [resources, currentEnvironmentId, search, resourceType],
-  );
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -126,7 +127,7 @@ export function ResourceTable({
       header: t("common.fields.updated"),
       cell: (info) => (
         <span className="text-sm text-muted-foreground">
-          {formatDateTime(info.getValue())}
+          {formatDateTime(info.getValue(), locale)}
         </span>
       ),
     }),
@@ -134,7 +135,7 @@ export function ResourceTable({
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: filteredResources,
+    data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -145,6 +146,25 @@ export function ResourceTable({
     }
   }, []);
 
+  const replaceSearchParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null) {
+          params.delete(key);
+          return;
+        }
+
+        params.set(key, value);
+      });
+
+      params.set("page", "1");
+      router.replace(`${pathname}?${params.toString()}`);
+    },
+    [pathname, router, searchParams],
+  );
+
   return (
     <>
       <DataTableShell
@@ -153,16 +173,30 @@ export function ResourceTable({
         controls={
           <>
             <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={searchDraft}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setSearchDraft(nextValue);
+                replaceSearchParams({
+                  q: nextValue.trim() ? nextValue.trim() : null,
+                });
+              }}
               placeholder={t("tables.resources.searchPlaceholder")}
               className="h-9 w-[240px] border-border bg-background py-2"
             />
             <Select
               value={resourceType}
-              onValueChange={(value) => setResourceType(value ?? "all")}
+              onValueChange={(value) =>
+                replaceSearchParams({
+                  resourceType:
+                    !value || value === "all" ? null : value,
+                })
+              }
             >
-              <SelectTrigger className="h-9 w-[180px] border-border bg-background">
+              <SelectTrigger
+                aria-label={t("tables.resources.filterType")}
+                className="h-9 w-[180px] border-border bg-background"
+              >
                 <SelectValue placeholder={t("tables.resources.filterType")} />
               </SelectTrigger>
               <SelectContent>
@@ -176,8 +210,61 @@ export function ResourceTable({
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={lifecycleStatus}
+              onValueChange={(value) =>
+                replaceSearchParams({
+                  lifecycleStatus:
+                    !value || value === "all" ? null : value,
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label={t("tables.resources.filterLifecycle")}
+                className="h-9 w-[180px] border-border bg-background"
+              >
+                <SelectValue placeholder={t("tables.resources.filterLifecycle")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("tables.resources.allLifecycle")}
+                </SelectItem>
+                {LIFECYCLE_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {t(`statusValues.${status}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={healthStatus}
+              onValueChange={(value) =>
+                replaceSearchParams({
+                  healthStatus:
+                    !value || value === "all" ? null : value,
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label={t("tables.resources.filterHealth")}
+                className="h-9 w-[180px] border-border bg-background"
+              >
+                <SelectValue placeholder={t("tables.resources.filterHealth")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("tables.resources.allHealth")}
+                </SelectItem>
+                {HEALTH_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {t(`statusValues.${status}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </>
         }
+        pagination={<PaginationControls pageInfo={pageInfo} />}
       >
         <Table>
           <TableHeader>

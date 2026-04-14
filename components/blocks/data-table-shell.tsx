@@ -4,6 +4,7 @@ type DataTableShellProps = {
   title: string;
   description: string;
   controls?: ReactNode;
+  pagination?: ReactNode;
   children: ReactNode;
 };
 
@@ -11,6 +12,7 @@ export function DataTableShell({
   title,
   description,
   controls,
+  pagination,
   children,
 }: DataTableShellProps) {
   return (
@@ -23,6 +25,9 @@ export function DataTableShell({
         {controls ? <div className="flex flex-wrap items-center gap-2">{controls}</div> : null}
       </div>
       <div>{children}</div>
+      {pagination ? (
+        <div className="border-t border-border px-4 py-3">{pagination}</div>
+      ) : null}
     </section>
   );
 }

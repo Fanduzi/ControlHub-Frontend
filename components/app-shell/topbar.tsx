@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { Bell, ChevronsUpDown, Command, Plus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -24,7 +26,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { useEnvironment } from "@/components/providers/environment-provider";
-import { getConsoleSectionId } from "@/lib/navigation";
+import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
 
 type TopbarProps = {
   pathname: string;
@@ -32,12 +34,55 @@ type TopbarProps = {
 
 export function Topbar({ pathname }: TopbarProps) {
   const t = useTranslations();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const sectionId = getConsoleSectionId(pathname);
   const sectionTitle = sectionId
     ? t(`navigation.${sectionId}.title`)
     : t("common.brand");
+  const section = consoleNavigation.find((item) => item.id === sectionId);
+  const supportsEnvironment = section?.supportsEnvironment ?? false;
   const { environments, currentEnvironmentId, setEnvironmentId } =
     useEnvironment();
+  const urlEnvironmentId = searchParams.get("environmentId");
+  const selectedEnvironmentId = supportsEnvironment
+    ? (urlEnvironmentId ?? "")
+    : currentEnvironmentId;
+
+  useEffect(() => {
+    if (
+      supportsEnvironment &&
+      urlEnvironmentId !== null &&
+      urlEnvironmentId !== currentEnvironmentId
+    ) {
+      setEnvironmentId(urlEnvironmentId);
+    }
+  }, [currentEnvironmentId, setEnvironmentId, supportsEnvironment, urlEnvironmentId]);
+
+  function handleEnvironmentChange(value: string | null) {
+    const nextEnvironmentId = value === "all" ? "" : (value ?? "");
+    const params = new URLSearchParams(searchParams.toString());
+
+    setEnvironmentId(nextEnvironmentId);
+
+    if (!supportsEnvironment) {
+      params.delete("environmentId");
+      params.set("page", "1");
+      const query = params.toString();
+
+      router.replace(query ? `${pathname}?${query}` : pathname);
+      return;
+    }
+
+    if (nextEnvironmentId) {
+      params.set("environmentId", nextEnvironmentId);
+    } else {
+      params.delete("environmentId");
+    }
+
+    params.set("page", "1");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
 
   return (
     <header className="flex min-h-16 flex-col gap-3 border-b border-border bg-background px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:px-5 xl:py-0">
@@ -52,13 +97,13 @@ export function Topbar({ pathname }: TopbarProps) {
 
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
         <Select
-          value={currentEnvironmentId || "all"}
-          onValueChange={(v) => setEnvironmentId(v === "all" ? "" : (v ?? ""))}
+          value={selectedEnvironmentId || "all"}
+          onValueChange={handleEnvironmentChange}
         >
           <SelectTrigger className="h-8 min-w-28 border-border text-xs">
-            {currentEnvironmentId
-              ? (environments.find((e) => e.id === currentEnvironmentId)
-                  ?.name ?? currentEnvironmentId)
+            {selectedEnvironmentId
+              ? (environments.find((e) => e.id === selectedEnvironmentId)
+                  ?.name ?? selectedEnvironmentId)
               : t("environments.all")}
           </SelectTrigger>
           <SelectContent>

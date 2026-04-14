@@ -12,31 +12,37 @@ export const consoleNavigation = [
     id: "overview",
     href: "/overview",
     icon: LayoutDashboard,
+    supportsEnvironment: true,
   },
   {
     id: "resources",
     href: "/resources",
     icon: ServerCog,
+    supportsEnvironment: true,
   },
   {
     id: "cmdb",
     href: "/cmdb",
     icon: FolderKanban,
+    supportsEnvironment: true,
   },
   {
     id: "databases",
     href: "/databases",
     icon: Database,
+    supportsEnvironment: true,
   },
   {
     id: "audits",
     href: "/audits",
     icon: Activity,
+    supportsEnvironment: false,
   },
   {
     id: "settings",
     href: "/settings",
     icon: Settings,
+    supportsEnvironment: false,
   },
 ] as const;
 

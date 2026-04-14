@@ -11,7 +11,6 @@ import {
 
 import type { Environment } from "@/types/settings";
 import { listEnvironments } from "@/services/settings";
-import { environmentOptions } from "@/lib/navigation";
 import {
   readStoredEnvironmentId,
   persistEnvironmentId,
@@ -27,18 +26,8 @@ type EnvironmentContextValue = {
 const EnvironmentContext = createContext<EnvironmentContextValue | null>(null);
 const emptySubscribe = () => () => {};
 
-const fallbackEnvironments: Environment[] = environmentOptions.map((opt) => ({
-  id: opt.value,
-  name: opt.value,
-  slug: opt.value,
-  description: "",
-  createdAt: "",
-}));
-
 export function EnvironmentProvider({ children }: { children: ReactNode }) {
-  const [environments, setEnvironments] = useState<Environment[]>(
-    fallbackEnvironments,
-  );
+  const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
   const [envId, setEnvIdState] = useState("");
 

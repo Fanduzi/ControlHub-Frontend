@@ -1,16 +1,63 @@
 import { apiClient } from "@/services/api-client";
 import type {
   Resource,
+  ResourceListParams,
   ResourceListResponse,
   ResourceProfileResponse,
   ResourceRelation,
   ResourceRelationListResponse,
 } from "@/types/resource";
 
-export async function listResources(): Promise<Resource[]> {
-  const response = await apiClient<ResourceListResponse>("/resources");
+function buildResourceListPath(params: ResourceListParams = {}) {
+  const searchParams = new URLSearchParams();
 
-  return response.items;
+  if (params.page) {
+    searchParams.set("page", String(params.page));
+  }
+  if (params.pageSize) {
+    searchParams.set("pageSize", String(params.pageSize));
+  }
+  if (params.resourceType) {
+    searchParams.set("resourceType", params.resourceType);
+  }
+  if (params.environmentId) {
+    searchParams.set("environmentId", params.environmentId);
+  }
+  if (params.lifecycleStatus) {
+    searchParams.set("lifecycleStatus", params.lifecycleStatus);
+  }
+  if (params.healthStatus) {
+    searchParams.set("healthStatus", params.healthStatus);
+  }
+  if (params.q) {
+    searchParams.set("q", params.q);
+  }
+
+  const query = searchParams.toString();
+  return query ? `/resources?${query}` : "/resources";
+}
+
+export async function listResources(
+  params: ResourceListParams = {},
+): Promise<ResourceListResponse> {
+  return apiClient<ResourceListResponse>(buildResourceListPath(params));
+}
+
+async function listAllResources(params: ResourceListParams = {}): Promise<Resource[]> {
+  const firstPage = await listResources(params);
+  const allItems = [...firstPage.items];
+
+  for (let page = 2; page <= firstPage.pageInfo.totalPages; page += 1) {
+    const response = await listResources({
+      ...params,
+      page,
+      pageSize: firstPage.pageInfo.pageSize,
+    });
+
+    allItems.push(...response.items);
+  }
+
+  return allItems;
 }
 
 export async function getResourceById(id: string): Promise<Resource | null> {
@@ -52,17 +99,17 @@ export async function listResourceRelations(
 }
 
 export async function listDatabaseResources(): Promise<Resource[]> {
-  const resources = await listResources();
+  const items = await listAllResources();
 
-  return resources.filter((resource) =>
+  return items.filter((resource) =>
     ["database_instance", "database_cluster"].includes(resource.resourceType),
   );
 }
 
 export async function listAttentionResources(): Promise<Resource[]> {
-  const resources = await listResources();
+  const items = await listAllResources();
 
-  return resources.filter(
+  return items.filter(
     (resource) =>
       resource.healthStatus !== "healthy" ||
       resource.lifecycleStatus !== "running",
@@ -70,15 +117,15 @@ export async function listAttentionResources(): Promise<Resource[]> {
 }
 
 export async function getOverviewMetrics() {
-  const resources = await listResources();
-  const total = resources.length;
-  const degraded = resources.filter(
+  const items = await listAllResources();
+  const total = items.length;
+  const degraded = items.filter(
     (resource) => resource.healthStatus === "degraded",
   ).length;
-  const warning = resources.filter(
+  const warning = items.filter(
     (resource) => resource.healthStatus === "warning",
   ).length;
-  const pending = resources.filter(
+  const pending = items.filter(
     (resource) => resource.lifecycleStatus !== "running",
   ).length;
 

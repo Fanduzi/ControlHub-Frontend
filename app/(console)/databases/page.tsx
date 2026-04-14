@@ -3,11 +3,26 @@ import { getTranslations } from "next-intl/server";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { DatabaseTable } from "@/components/databases/database-table";
-import { listDatabaseResourceViewModels } from "@/lib/view-models";
+import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
+import {
+  getDatabasePostureCounts,
+  listDatabaseResourceViewModels,
+} from "@/lib/view-models";
 
-export default async function DatabasesPage() {
+export default async function DatabasesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations();
-  const databaseResources = await listDatabaseResourceViewModels();
+  const params = await parseResourceListSearchParams(searchParams);
+  const [
+    { items: databaseResources, pageInfo },
+    { clusters, instances },
+  ] = await Promise.all([
+    listDatabaseResourceViewModels(params),
+    getDatabasePostureCounts(params),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -18,7 +33,7 @@ export default async function DatabasesPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <DatabaseTable resources={databaseResources} />
+        <DatabaseTable resources={databaseResources} pageInfo={pageInfo} />
         <DetailPanel
           title={t("pages.databases.posture.title")}
           description={t("pages.databases.posture.description")}
@@ -29,11 +44,7 @@ export default async function DatabasesPage() {
                 {t("pages.databases.posture.clusters")}
               </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {
-                  databaseResources.filter(
-                    (resource) => resource.resourceType === "database_cluster",
-                  ).length
-                }
+                {clusters}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background px-4 py-4">
@@ -41,11 +52,7 @@ export default async function DatabasesPage() {
                 {t("pages.databases.posture.instances")}
               </p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {
-                  databaseResources.filter(
-                    (resource) => resource.resourceType === "database_instance",
-                  ).length
-                }
+                {instances}
               </p>
             </div>
           </div>

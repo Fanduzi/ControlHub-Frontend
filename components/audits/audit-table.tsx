@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   createColumnHelper,
@@ -12,6 +13,14 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { PaginationControls } from "@/components/blocks/pagination-controls";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,17 +29,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import type { PageInfo } from "@/types/resource";
 import type { AuditEventViewModel } from "@/types/view-models";
 
 type AuditTableProps = {
   events: AuditEventViewModel[];
+  pageInfo: PageInfo;
 };
 
 const columnHelper = createColumnHelper<AuditEventViewModel>();
 
-export function AuditTable({ events }: AuditTableProps) {
+const KNOWN_AUDIT_EVENT_TYPES = [
+  "resource.created",
+  "relation.created",
+  "resource.updated",
+] as const;
+
+const KNOWN_AUDIT_RESULTS = ["success", "warning", "error"] as const;
+
+export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const t = useTranslations();
+  const localeValue = useLocale();
+  const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const eventType = searchParams.get("eventType") ?? "all";
+  const result = searchParams.get("result") ?? "all";
 
   function getEventTypeLabel(eventType: string) {
     const key = eventType.replaceAll(".", "_");
@@ -45,6 +72,32 @@ export function AuditTable({ events }: AuditTableProps) {
       ? t(`activityTimeline.results.${result}`)
       : formatLabel(result);
   }
+
+  function replaceSearchParams(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) {
+        params.delete(key);
+        return;
+      }
+
+      params.set(key, value);
+    });
+
+    params.set("page", "1");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  const eventTypes = Array.from(
+    new Set([
+      ...KNOWN_AUDIT_EVENT_TYPES,
+      ...events.map((event) => event.eventType),
+    ]),
+  ).sort();
+  const results = Array.from(
+    new Set([...KNOWN_AUDIT_RESULTS, ...events.map((event) => event.result)]),
+  ).sort();
 
   const columns = [
     columnHelper.accessor("eventType", {
@@ -84,7 +137,7 @@ export function AuditTable({ events }: AuditTableProps) {
     }),
     columnHelper.accessor("createdAt", {
       header: t("common.fields.timestamp"),
-      cell: (info) => formatDateTime(info.getValue()),
+      cell: (info) => formatDateTime(info.getValue(), locale),
     }),
   ];
 
@@ -99,6 +152,57 @@ export function AuditTable({ events }: AuditTableProps) {
     <DataTableShell
       title={t("tables.audits.title")}
       description={t("tables.audits.description")}
+      controls={
+        <>
+          <Select
+            value={eventType}
+            onValueChange={(value) =>
+              replaceSearchParams({
+                eventType: !value || value === "all" ? null : value,
+              })
+            }
+          >
+            <SelectTrigger
+              aria-label={t("tables.audits.filterEventType")}
+              className="h-9 w-[180px] border-border bg-background"
+            >
+              <SelectValue placeholder={t("tables.audits.filterEventType")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tables.audits.allEventTypes")}</SelectItem>
+              {eventTypes.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {getEventTypeLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={result}
+            onValueChange={(value) =>
+              replaceSearchParams({
+                result: !value || value === "all" ? null : value,
+              })
+            }
+          >
+            <SelectTrigger
+              aria-label={t("tables.audits.filterResult")}
+              className="h-9 w-[160px] border-border bg-background"
+            >
+              <SelectValue placeholder={t("tables.audits.filterResult")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tables.audits.allResults")}</SelectItem>
+              {results.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {getResultLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      }
+      pagination={<PaginationControls pageInfo={pageInfo} />}
     >
       <Table>
         <TableHeader>

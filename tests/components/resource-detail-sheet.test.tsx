@@ -3,8 +3,9 @@ import { render, screen } from "@testing-library/react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
+import type { ResourceDetailViewModel } from "@/types/view-models";
 
-const resource = {
+const resource: ResourceDetailViewModel = {
   id: "res-db-primary",
   resourceType: "database_instance",
   resourceSubtype: "mysql",

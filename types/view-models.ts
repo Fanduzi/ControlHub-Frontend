@@ -1,11 +1,16 @@
 import type { AuditEvent } from "@/types/audit";
-import type { Resource, ResourceRelation } from "@/types/resource";
+import type { PageInfo, Resource, ResourceRelation } from "@/types/resource";
 
 export type AuditEventViewModel = AuditEvent & {
   actorLabel: string;
   targetResourceName: string;
   environmentLabel: string;
   summary: string;
+};
+
+export type AuditEventViewModelListResponse = {
+  items: AuditEventViewModel[];
+  pageInfo: PageInfo;
 };
 
 export type ResourceRelationViewModel = ResourceRelation & {
@@ -18,6 +23,11 @@ export type ResourceListViewModel = Resource & {
   environmentName: string;
   ownerName: string;
   summary: string;
+};
+
+export type ResourceListViewModelResponse = {
+  items: ResourceListViewModel[];
+  pageInfo: PageInfo;
 };
 
 export type ResourceDetailViewModel = ResourceListViewModel & {
