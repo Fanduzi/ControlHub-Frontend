@@ -33,5 +33,9 @@ export async function apiClient<T>(
     throw new Error(`Request failed: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }

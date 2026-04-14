@@ -131,6 +131,35 @@ describe("ResourceRelationPanel", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("shows no error when delete succeeds (204)", async () => {
+    const user = userEvent.setup();
+    mockedDeleteRelation.mockResolvedValue(undefined);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel
+          relations={relations}
+          resourceId="res-1"
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Remove this relation/i }),
+    );
+
+    await waitFor(() => {
+      expect(mockedDeleteRelation).toHaveBeenCalledWith("rel-1");
+    });
+
+    expect(refresh).toHaveBeenCalledOnce();
+
+    // No error message should appear
+    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not found/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("shows not-found error when delete fails with 404", async () => {
     const user = userEvent.setup();
     mockedDeleteRelation.mockRejectedValue(
@@ -155,5 +184,34 @@ describe("ResourceRelationPanel", () => {
         screen.getByText("The target resource was not found."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows backend error and preserves relation when delete fails with 500", async () => {
+    const user = userEvent.setup();
+    mockedDeleteRelation.mockRejectedValue(
+      new Error("Request failed: 500"),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel
+          relations={relations}
+          resourceId="res-1"
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /Remove this relation/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("The backend service is not available. Please try again later."),
+      ).toBeInTheDocument();
+    });
+
+    // Relation should still be visible in the list
+    expect(screen.getByText("orders-cluster")).toBeInTheDocument();
   });
 });
