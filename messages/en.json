@@ -368,6 +368,21 @@
     "emptyTitle": "No audit activity yet",
     "emptyDescription": "Recent resource changes will appear here once the backend audit feed is connected."
   },
+  "topology": {
+    "title": "Resource topology",
+    "description": "Visualize related resources and their dependencies.",
+    "depthLabel": "Depth",
+    "directionLabel": "Direction",
+    "directionBoth": "Both",
+    "directionUpstream": "Upstream",
+    "directionDownstream": "Downstream",
+    "rootLabel": "Root",
+    "emptyTitle": "No relations to display",
+    "emptyDescription": "This resource has no linked resources to visualize.",
+    "errorTitle": "Failed to load topology",
+    "unavailableTitle": "Topology not available",
+    "unavailableDescription": "The backend topology endpoint is not yet available. Check back after the backend is updated."
+  },
   "pagination": {
     "previous": "Previous page",
     "previousShort": "Prev",

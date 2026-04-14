@@ -9,6 +9,16 @@ vi.mock("@/lib/view-models", () => ({
   getResourceViewModel: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("@/components/blocks/topology-panel", () => ({
+  TopologyPanel: ({ resourceId }: { resourceId: string }) => (
+    <div data-testid="topology-panel-mock">{resourceId}</div>
+  ),
+}));
+
 vi.mock("@/components/resources/edit-resource-sheet", () => ({
   EditResourceSheet: () => null,
 }));

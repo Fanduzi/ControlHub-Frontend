@@ -368,6 +368,21 @@
     "emptyTitle": "暂无审计活动",
     "emptyDescription": "后端审计流接入后，最近资源变更会显示在这里。"
   },
+  "topology": {
+    "title": "资源拓扑",
+    "description": "可视化相关资源及其依赖关系。",
+    "depthLabel": "深度",
+    "directionLabel": "方向",
+    "directionBoth": "双向",
+    "directionUpstream": "上游",
+    "directionDownstream": "下游",
+    "rootLabel": "根节点",
+    "emptyTitle": "暂无关联关系",
+    "emptyDescription": "此资源没有可可视化的关联资源。",
+    "errorTitle": "拓扑加载失败",
+    "unavailableTitle": "拓扑不可用",
+    "unavailableDescription": "后端拓扑接口尚未上线，请等待后端更新后重试。"
+  },
   "pagination": {
     "previous": "上一页",
     "previousShort": "上一页",

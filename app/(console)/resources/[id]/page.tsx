@@ -6,6 +6,7 @@ import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
@@ -165,6 +166,13 @@ export default async function ResourceDetailPage({
           <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
         </DetailPanel>
       </div>
+
+      <DetailPanel
+        title={t("topology.title")}
+        description={t("topology.description")}
+      >
+        <TopologyPanel resourceId={resource.id} />
+      </DetailPanel>
 
       <DetailPanel
         title={t("pages.resourceDetail.audit.title")}

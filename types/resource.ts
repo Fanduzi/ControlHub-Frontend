@@ -98,3 +98,47 @@ export type CreateResourceRelationInput = {
   toResourceId: string;
   relationType: string;
 };
+
+// Topology types — matches backend Phase 11 contract
+export type TopologyNode = {
+  id: string;
+  resourceType: string;
+  resourceSubtype: string;
+  name: string;
+  displayName: string;
+  environmentId: string;
+  ownerId: string;
+  lifecycleStatus: string;
+  healthStatus: string;
+  isRoot: boolean;
+  distance: number;
+};
+
+export type TopologyEdge = {
+  id: string;
+  fromResourceId: string;
+  toResourceId: string;
+  relationType: string;
+};
+
+export type TopologyGroup = {
+  id: string;
+  label: string;
+  resourceType: string;
+  nodeIds: string[];
+};
+
+export type TopologyResponse = {
+  rootResourceId: string;
+  depth: number;
+  direction: string;
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+  groups?: TopologyGroup[];
+};
+
+export type TopologyParams = {
+  depth?: 1 | 2;
+  direction?: "both" | "upstream" | "downstream";
+  relationType?: string;
+};

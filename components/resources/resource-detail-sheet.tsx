@@ -8,6 +8,7 @@ import { ActivityTimeline } from "@/components/blocks/activity-timeline";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -184,6 +185,13 @@ export function ResourceDetailSheet({
             ) : (
               <ResourceRelationPanel relations={relations} />
             )}
+          </DetailPanel>
+
+          <DetailPanel
+            title={t("topology.title")}
+            description={t("topology.description")}
+          >
+            <TopologyPanel resourceId={resource.id} compact />
           </DetailPanel>
 
           <DetailPanel

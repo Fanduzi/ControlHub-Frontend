@@ -4,6 +4,16 @@ import { render, screen } from "@testing-library/react";
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("@/components/blocks/topology-panel", () => ({
+  TopologyPanel: ({ resourceId }: { resourceId: string }) => (
+    <div data-testid="topology-panel-mock">{resourceId}</div>
+  ),
+}));
+
 vi.mock("@/components/resources/edit-resource-sheet", () => ({
   EditResourceSheet: () => null,
 }));
