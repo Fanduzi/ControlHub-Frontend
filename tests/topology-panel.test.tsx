@@ -26,6 +26,8 @@ vi.mock("@xyflow/react", () => ({
   },
   Background: () => null,
   Controls: () => null,
+  Handle: ({ type }: { type: string }) => <div data-testid={`handle-${type}`} />,
+  Position: { Left: "left", Right: "right", Top: "top", Bottom: "bottom" },
   useNodesState: (initial: unknown[]) => [initial ?? [], vi.fn(), vi.fn()],
   useEdgesState: (initial: unknown[]) => [initial ?? [], vi.fn(), vi.fn()],
 }));

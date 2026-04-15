@@ -7,6 +7,8 @@ import {
   ReactFlow,
   Background,
   Controls,
+  Handle,
+  Position,
   useNodesState,
   useEdgesState,
   type NodeMouseHandler,
@@ -120,6 +122,7 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
           HEALTH_COLORS[data.healthStatus] ?? "border-border bg-card",
         )}
       >
+        <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-muted-foreground/40 !border-0" />
         <div className="flex items-center gap-2">
           <span className="font-medium text-foreground">{data.displayName || data.name}</span>
           {data.isRoot && (
@@ -141,6 +144,7 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
           <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />
           <StatusBadge status={data.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
         </div>
+        <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-muted-foreground/40 !border-0" />
       </div>
     ),
   }), [t]);
