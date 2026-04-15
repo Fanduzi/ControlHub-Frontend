@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 
 import { loginViaApi } from "./auth.helpers";
 import {
+  archiveTestResource,
   createTestRelation,
   createTestResource,
-  decommissionTestResource,
   defaultResourceInput,
   deleteTestRelation,
   getAuthToken,
@@ -50,13 +50,12 @@ test.describe("Resource topology view", () => {
         // Best-effort cleanup
       }
     }
-    // Backend does not support hard-delete of resources.
-    // Decommission to harmless state instead.
+    // Archive test resources so they are excluded from default GET /resources.
     if (rootResourceId) {
-      await decommissionTestResource(token, rootResourceId);
+      await archiveTestResource(token, rootResourceId);
     }
     if (relatedResourceId) {
-      await decommissionTestResource(token, relatedResourceId);
+      await archiveTestResource(token, relatedResourceId);
     }
   });
 

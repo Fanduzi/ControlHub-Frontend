@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import { loginViaApi } from "./auth.helpers";
 import {
+  archiveTestResource,
   createTestResource,
-  decommissionTestResource,
   defaultResourceInput,
   getAuthToken,
   testResourceName as makeName,
@@ -27,7 +27,7 @@ test.describe("Resources detail sheet", () => {
 
   test.afterAll(async () => {
     if (resourceId) {
-      await decommissionTestResource(token, resourceId);
+      await archiveTestResource(token, resourceId);
     }
   });
 

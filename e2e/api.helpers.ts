@@ -169,26 +169,29 @@ export async function deleteTestRelation(
   });
 }
 
-// ── Decommission helper ─────────────────────────────────────────────
+// ── Archive helper ──────────────────────────────────────────────────
 
 /**
- * Patch a test-created resource to a harmless final state so it does not
- * clutter production views.  Backend has no hard-delete endpoint, so this
- * is the best available cleanup.
+ * Archive a test-created resource via POST /resources/{id}/archive.
+ *
+ * Backend Phase 12.1 provides archive semantics:
+ * - archived resources are excluded from default GET /resources
+ * - repeated archive is idempotent
+ * - archived resources remain fetchable by ID
  */
-export async function decommissionTestResource(
+export async function archiveTestResource(
   token: string,
   id: string,
-): Promise<void> {
-  try {
-    await updateTestResource(token, id, {
-      lifecycleStatus: "decommissioning",
-      healthStatus: "unknown",
-      labels: { test: "e2e", cleanup: "manual" },
-    });
-  } catch {
-    // Best-effort — resource may have been removed by another process.
-  }
+  reason = "e2e cleanup",
+): Promise<Resource> {
+  return apiFetch<Resource>(
+    `/resources/${encodeURIComponent(id)}/archive`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify({ reason }),
+    },
+  );
 }
 
 // ── Naming helpers ───────────────────────────────────────────────────
