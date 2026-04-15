@@ -1,6 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import { loginViaApi } from "./auth.helpers";
+
+async function expectSidebarCollapsed(sidebar: Locator) {
+  await expect
+    .poll(async () => {
+      const box = await sidebar.boundingBox();
+      return box?.width ?? 0;
+    })
+    .toBeLessThan(100);
+}
 
 test.describe("Sidebar collapse persistence", () => {
   test.beforeEach(async ({ page }) => {
@@ -19,18 +28,17 @@ test.describe("Sidebar collapse persistence", () => {
     if (await collapseButton.isVisible()) {
       await collapseButton.click();
 
-      // Sidebar should be narrower (collapsed state)
-      const sidebarBox = await sidebar.boundingBox();
-      expect(sidebarBox).not.toBeNull();
-      expect(sidebarBox!.width).toBeLessThan(100);
+      // Wait for the width transition and collapsed-state button swap.
+      await expect(sidebar.locator("button[aria-label*='Expand'], button[aria-label*='展开']")).toBeVisible();
+      await expectSidebarCollapsed(sidebar);
 
       // Navigate away and back - state should persist
       await page.goto("/databases");
       await page.waitForLoadState("networkidle");
 
-      const sidebarAfterNav = await sidebar.boundingBox();
-      expect(sidebarAfterNav).not.toBeNull();
-      expect(sidebarAfterNav!.width).toBeLessThan(100);
+      const sidebarAfterNav = page.locator("aside");
+      await expect(sidebarAfterNav.locator("button[aria-label*='Expand'], button[aria-label*='展开']")).toBeVisible();
+      await expectSidebarCollapsed(sidebarAfterNav);
     }
   });
 });
