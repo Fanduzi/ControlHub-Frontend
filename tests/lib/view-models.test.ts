@@ -67,6 +67,9 @@ const resource = {
   },
   createdAt: "2026-04-12T12:00:00Z",
   updatedAt: "2026-04-12T13:00:00Z",
+  archivedAt: null,
+  archivedBy: null,
+  archiveReason: null,
 };
 
 describe("getResourceViewModel", () => {

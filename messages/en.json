@@ -16,7 +16,10 @@
       "addRelation": "Add relation",
       "removeRelation": "Remove",
       "delete": "Delete",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "archiveResource": "Archive",
+      "unarchiveResource": "Restore",
+      "archived": "Archived"
     },
     "fields": {
       "resource": "Resource",
@@ -40,7 +43,10 @@
       "action": "Action",
       "timestamp": "Timestamp",
       "changeSummary": "Change summary",
-      "engine": "Engine"
+      "engine": "Engine",
+      "archivedAt": "Archived at",
+      "archivedBy": "Archived by",
+      "archiveReason": "Archive reason"
     }
   },
   "statusValues": {
@@ -327,7 +333,11 @@
       "databaseCluster": "Database cluster",
       "service": "Service",
       "emptyTitle": "No resources found",
-      "emptyDescription": "No resources match the current filters, or no resources have been registered yet."
+      "emptyDescription": "No resources match the current filters, or no resources have been registered yet.",
+      "filterArchive": "Archive state",
+      "allArchive": "Active only",
+      "includeArchived": "Include archived",
+      "archivedOnly": "Archived only"
     },
     "databases": {
       "title": "Database resources",
@@ -434,6 +444,27 @@
       "unauthorized": "Your session has expired. Please sign in again.",
       "unknown": "An unexpected error occurred.",
       "capabilityUnavailable": "This operation is not yet supported by the backend."
+    },
+    "archive": {
+      "title": "Archive resource",
+      "description": "Remove this resource from active lists. It remains inspectable by direct link.",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Optional reason for archiving",
+      "success": "Resource archived successfully.",
+      "submitting": "Archiving...",
+      "confirm": "Archive"
+    },
+    "unarchive": {
+      "title": "Restore resource",
+      "description": "Return this resource to active lists.",
+      "success": "Resource restored successfully.",
+      "submitting": "Restoring...",
+      "confirm": "Restore",
+      "capabilityNote": "Resource restore is not yet available. Awaiting backend update."
     }
+  },
+  "archive": {
+    "badge": "Archived",
+    "metadataTitle": "Archive information"
   }
 }

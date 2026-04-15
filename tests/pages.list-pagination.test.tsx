@@ -99,6 +99,10 @@ function buildResource(page = 1): ResourceListViewModelResponse {
       labels: {},
       createdAt: "2026-04-14T10:00:00Z",
       updatedAt: "2026-04-14T10:00:00Z",
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+      isArchived: false,
       summary: "Orders API summary",
     },
   ];

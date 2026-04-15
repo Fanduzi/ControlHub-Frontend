@@ -27,6 +27,7 @@ import type {
 } from "@/types/view-models";
 
 import { EditResourceSheet } from "./edit-resource-sheet";
+import { ResourceArchiveButton } from "./resource-archive-button";
 
 type ResourceDetailSheetProps = {
   open: boolean;
@@ -82,7 +83,8 @@ export function ResourceDetailSheet({
                 {resource.name} · {formatLabel(resource.resourceType)}
               </SheetDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ResourceArchiveButton resource={resource} compact />
               <Button
                 variant="outline"
                 size="xs"
@@ -90,6 +92,11 @@ export function ResourceDetailSheet({
               >
                 {t("common.actions.editResource")}
               </Button>
+              {resource.isArchived && (
+                <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  {t("common.actions.archived")}
+                </span>
+              )}
               <StatusBadge status={resource.healthStatus} tone="health" />
               <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
             </div>
@@ -133,6 +140,39 @@ export function ResourceDetailSheet({
               </div>
             </dl>
           </DetailPanel>
+
+          {resource.isArchived && (
+            <DetailPanel title={t("archive.metadataTitle")} description="">
+              <dl className="grid gap-3 text-sm md:grid-cols-3">
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    {t("common.fields.archivedAt")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {resource.archivedAt
+                      ? formatDateTime(resource.archivedAt, locale as never)
+                      : t("common.notSet")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    {t("common.fields.archivedBy")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {resource.archivedBy || t("common.notSet")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    {t("common.fields.archiveReason")}
+                  </dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {resource.archiveReason || t("common.notSet")}
+                  </dd>
+                </div>
+              </dl>
+            </DetailPanel>
+          )}
 
           <DetailPanel
             title={t("detailSheet.profile")}

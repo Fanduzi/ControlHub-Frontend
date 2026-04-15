@@ -56,6 +56,10 @@ const resource = {
     role: "primary",
   },
   summary: "Primary transactional database handling checkout and order writes.",
+  archivedAt: null,
+  archivedBy: null,
+  archiveReason: null,
+  isArchived: false,
 };
 
 describe("ResourceDetailSheetLoader", () => {

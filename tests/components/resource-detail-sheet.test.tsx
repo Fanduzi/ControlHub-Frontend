@@ -50,6 +50,10 @@ const resource: ResourceDetailViewModel = {
     role: "primary",
   },
   summary: "Primary transactional database handling checkout and order writes.",
+  archivedAt: null,
+  archivedBy: null,
+  archiveReason: null,
+  isArchived: false,
   profile: {
     engine: "MySQL 8.0",
     endpoint: "orders-primary.internal:3306",

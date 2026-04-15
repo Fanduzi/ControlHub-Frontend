@@ -303,6 +303,7 @@ function toResourceListViewModel(
     summary:
       resourceSummaries[resource.id] ??
       "No supplemental resource summary has been defined yet.",
+    isArchived: resource.archivedAt !== null && resource.archivedAt !== undefined,
   };
 }
 

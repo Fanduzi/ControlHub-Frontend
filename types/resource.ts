@@ -23,6 +23,9 @@ export type Resource = {
   labels: Record<string, string>;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
+  archivedBy: string | null;
+  archiveReason: string | null;
 };
 
 export type PageInfo = {
@@ -40,6 +43,7 @@ export type ResourceListParams = {
   q?: string;
   page?: number;
   pageSize?: number;
+  includeArchived?: boolean;
 };
 
 export type ResourceListResponse = {

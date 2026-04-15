@@ -16,7 +16,10 @@
       "addRelation": "添加关系",
       "removeRelation": "移除",
       "delete": "删除",
-      "confirm": "确认"
+      "confirm": "确认",
+      "archiveResource": "归档",
+      "unarchiveResource": "恢复",
+      "archived": "已归档"
     },
     "fields": {
       "resource": "资源",
@@ -40,7 +43,10 @@
       "action": "动作",
       "timestamp": "时间戳",
       "changeSummary": "变更摘要",
-      "engine": "引擎"
+      "engine": "引擎",
+      "archivedAt": "归档时间",
+      "archivedBy": "归档操作者",
+      "archiveReason": "归档原因"
     }
   },
   "statusValues": {
@@ -327,7 +333,11 @@
       "databaseCluster": "数据库集群",
       "service": "服务",
       "emptyTitle": "未找到资源",
-      "emptyDescription": "当前过滤条件没有匹配资源，或尚未登记任何资源。"
+      "emptyDescription": "当前过滤条件没有匹配资源，或尚未登记任何资源。",
+      "filterArchive": "归档状态",
+      "allArchive": "仅活跃",
+      "includeArchived": "包含已归档",
+      "archivedOnly": "仅已归档"
     },
     "databases": {
       "title": "数据库资源",
@@ -434,6 +444,27 @@
       "unauthorized": "会话已过期，请重新登录。",
       "unknown": "发生未知错误。",
       "capabilityUnavailable": "后端暂不支持此操作。"
+    },
+    "archive": {
+      "title": "归档资源",
+      "description": "将此资源从活跃列表中移除。资源仍可通过直接链接查看。",
+      "reasonLabel": "原因",
+      "reasonPlaceholder": "可选的归档原因",
+      "success": "资源已归档。",
+      "submitting": "归档中...",
+      "confirm": "归档"
+    },
+    "unarchive": {
+      "title": "恢复资源",
+      "description": "将此资源恢复到活跃列表。",
+      "success": "资源已恢复。",
+      "submitting": "恢复中...",
+      "confirm": "恢复",
+      "capabilityNote": "资源恢复功能尚未上线，请等待后端更新。"
     }
+  },
+  "archive": {
+    "badge": "已归档",
+    "metadataTitle": "归档信息"
   }
 }

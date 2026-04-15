@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  archiveResource,
   getOverviewMetrics,
   listAttentionResources,
   listDatabaseResources,
   listResources,
+  unarchiveResource,
 } from "@/services/resources";
 import {
   createResource,
@@ -50,6 +52,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
       ],
       pageInfo: {
@@ -97,6 +102,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
         {
           id: "res-2",
@@ -113,6 +121,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
       ],
       pageInfo: {
@@ -147,6 +158,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
         {
           id: "res-2",
@@ -163,6 +177,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
       ],
       pageInfo: {
@@ -197,6 +214,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
         {
           id: "res-2",
@@ -213,6 +233,9 @@ describe("listResources", () => {
           labels: {},
           createdAt: "2026-04-14T00:00:00Z",
           updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
         },
       ],
       pageInfo: {
@@ -252,6 +275,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -278,6 +304,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -304,6 +333,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -330,6 +362,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -356,6 +391,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -382,6 +420,9 @@ describe("listResources", () => {
             labels: {},
             createdAt: "2026-04-14T00:00:00Z",
             updatedAt: "2026-04-14T00:00:00Z",
+            archivedAt: null,
+            archivedBy: null,
+            archiveReason: null,
           },
         ],
         pageInfo: {
@@ -425,6 +466,9 @@ describe("createResource", () => {
     labels: { team: "order" },
     createdAt: "2026-04-14T12:00:00Z",
     updatedAt: "2026-04-14T12:00:00Z",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
   };
 
   it("sends POST /resources with correct payload", async () => {
@@ -513,6 +557,9 @@ describe("updateResource", () => {
     labels: { team: "order" },
     createdAt: "2026-04-14T00:00:00Z",
     updatedAt: "2026-04-14T12:00:00Z",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
   };
 
   it("sends PATCH /resources/{id} with partial payload", async () => {
@@ -633,6 +680,148 @@ describe("deleteResourceRelation", () => {
     );
 
     await expect(deleteResourceRelation("nonexistent")).rejects.toThrow(
+      "Request failed: 404",
+    );
+  });
+});
+
+describe("listResources with archive filters", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("forwards includeArchived param", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    await listResources({ includeArchived: true });
+
+    expect(apiClientMock).toHaveBeenCalledWith(
+      expect.stringContaining("includeArchived=true"),
+    );
+  });
+
+  it("omits includeArchived when not set", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    await listResources({ q: "test" });
+
+    const calledPath = apiClientMock.mock.calls[0][0] as string;
+    expect(calledPath).not.toContain("includeArchived");
+  });
+});
+
+describe("archiveResource", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  const archivedResource = {
+    id: "res-1",
+    resourceType: "database_instance" as const,
+    resourceSubtype: "mysql",
+    name: "orders-db-primary",
+    displayName: "Orders DB Primary",
+    environmentId: "env-prod",
+    ownerId: "owner-dba",
+    lifecycleStatus: "running",
+    healthStatus: "healthy",
+    source: "manual",
+    externalId: "mysql:prod:orders-primary",
+    labels: {},
+    createdAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-04-14T12:00:00Z",
+    archivedAt: "2026-04-14T12:00:00Z",
+    archivedBy: "admin",
+    archiveReason: "Retired from production",
+  };
+
+  it("sends POST /resources/{id}/archive with reason", async () => {
+    apiClientMock.mockResolvedValue(archivedResource);
+
+    const result = await archiveResource("res-1", "Retired from production");
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/archive", {
+      method: "POST",
+      body: JSON.stringify({ reason: "Retired from production" }),
+    });
+    expect(result.archivedAt).toBe("2026-04-14T12:00:00Z");
+    expect(result.archiveReason).toBe("Retired from production");
+  });
+
+  it("sends POST /resources/{id}/archive without reason", async () => {
+    apiClientMock.mockResolvedValue({ ...archivedResource, archiveReason: null });
+
+    await archiveResource("res-1");
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/archive", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  });
+
+  it("propagates 404 for unknown resource", async () => {
+    apiClientMock.mockRejectedValue(new Error("Request failed: 404"));
+
+    await expect(archiveResource("nonexistent")).rejects.toThrow(
+      "Request failed: 404",
+    );
+  });
+
+  it("propagates 409 for archived resource conflict", async () => {
+    apiClientMock.mockRejectedValue(new Error("Request failed: 409"));
+
+    await expect(archiveResource("res-1")).rejects.toThrow(
+      "Request failed: 409",
+    );
+  });
+});
+
+describe("unarchiveResource", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  const unarchivedResource = {
+    id: "res-1",
+    resourceType: "database_instance" as const,
+    resourceSubtype: "mysql",
+    name: "orders-db-primary",
+    displayName: "Orders DB Primary",
+    environmentId: "env-prod",
+    ownerId: "owner-dba",
+    lifecycleStatus: "running",
+    healthStatus: "healthy",
+    source: "manual",
+    externalId: "mysql:prod:orders-primary",
+    labels: {},
+    createdAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-04-14T13:00:00Z",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
+  };
+
+  it("sends POST /resources/{id}/unarchive", async () => {
+    apiClientMock.mockResolvedValue(unarchivedResource);
+
+    const result = await unarchiveResource("res-1");
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/unarchive", {
+      method: "POST",
+    });
+    expect(result.archivedAt).toBeNull();
+  });
+
+  it("propagates 404 for unknown resource", async () => {
+    apiClientMock.mockRejectedValue(new Error("Request failed: 404"));
+
+    await expect(unarchiveResource("nonexistent")).rejects.toThrow(
       "Request failed: 404",
     );
   });

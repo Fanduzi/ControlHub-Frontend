@@ -71,6 +71,7 @@ export function ResourceTable({
   const resourceType = searchParams.get("resourceType") ?? "all";
   const lifecycleStatus = searchParams.get("lifecycleStatus") ?? "all";
   const healthStatus = searchParams.get("healthStatus") ?? "all";
+  const archiveFilter = searchParams.get("includeArchived") ?? "all";
   const [searchDraft, setSearchDraft] = useState(search);
 
   useEffect(() => {
@@ -121,6 +122,11 @@ export function ResourceTable({
       header: t("common.fields.status"),
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-2">
+          {row.original.isArchived && (
+            <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {t("common.actions.archived")}
+            </span>
+          )}
           <StatusBadge status={row.original.healthStatus} tone="health" />
           <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
         </div>
@@ -271,6 +277,30 @@ export function ResourceTable({
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={archiveFilter}
+              onValueChange={(value) =>
+                replaceSearchParams({
+                  includeArchived:
+                    !value || value === "all" ? null : value,
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label={t("tables.resources.filterArchive")}
+                className="h-9 w-[160px] border-border bg-background"
+              >
+                <SelectValue placeholder={t("tables.resources.filterArchive")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("tables.resources.allArchive")}
+                </SelectItem>
+                <SelectItem value="true">
+                  {t("tables.resources.includeArchived")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </>
         }
         pagination={<PaginationControls pageInfo={pageInfo} />}
@@ -309,7 +339,7 @@ export function ResourceTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer"
+                  className={`cursor-pointer${row.original.isArchived ? " opacity-60" : ""}`}
                   onClick={() => setSelectedResource(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

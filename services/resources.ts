@@ -35,6 +35,9 @@ function buildResourceListPath(params: ResourceListParams = {}) {
   if (params.q) {
     searchParams.set("q", params.q);
   }
+  if (params.includeArchived) {
+    searchParams.set("includeArchived", "true");
+  }
 
   const query = searchParams.toString();
   return query ? `/resources?${query}` : "/resources";
@@ -177,5 +180,21 @@ export async function deleteResourceRelation(
 ): Promise<void> {
   await apiClient<void>(`/resource-relations/${encodeURIComponent(relationId)}`, {
     method: "DELETE",
+  });
+}
+
+export async function archiveResource(
+  id: string,
+  reason?: string,
+): Promise<Resource> {
+  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}/archive`, {
+    method: "POST",
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
+}
+
+export async function unarchiveResource(id: string): Promise<Resource> {
+  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}/unarchive`, {
+    method: "POST",
   });
 }

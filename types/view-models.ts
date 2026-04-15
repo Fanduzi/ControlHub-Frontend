@@ -23,6 +23,7 @@ export type ResourceListViewModel = Resource & {
   environmentName: string;
   ownerName: string;
   summary: string;
+  isArchived: boolean;
 };
 
 export type ResourceListViewModelResponse = {

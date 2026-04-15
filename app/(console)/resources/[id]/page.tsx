@@ -8,6 +8,7 @@ import { ResourceRelationPanel } from "@/components/blocks/resource-relation-pan
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
+import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import { getResourceSummaryKey } from "@/lib/resource-copy";
@@ -49,7 +50,13 @@ export default async function ResourceDetailPage({
         description={summary}
         actions={
           <>
+            <ResourceArchiveButton resource={resource} />
             <ResourceDetailEditButton resource={resource} />
+            {resource.isArchived && (
+              <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {t("common.actions.archived")}
+              </span>
+            )}
             <StatusBadge status={resource.healthStatus} tone="health" />
             <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
           </>
@@ -137,6 +144,40 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {resource.isArchived && (
+        <DetailPanel
+          title={t("archive.metadataTitle")}
+          description=""
+        >
+          <dl className="grid gap-3 text-sm md:grid-cols-3">
+            <div>
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {t("common.fields.archivedAt")}
+              </dt>
+              <dd className="mt-1 font-medium text-foreground">
+                {resource.archivedAt ? formatDateTime(resource.archivedAt, locale) : t("common.notSet")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {t("common.fields.archivedBy")}
+              </dt>
+              <dd className="mt-1 font-medium text-foreground">
+                {resource.archivedBy || t("common.notSet")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {t("common.fields.archiveReason")}
+              </dt>
+              <dd className="mt-1 font-medium text-foreground">
+                {resource.archiveReason || t("common.notSet")}
+              </dd>
+            </div>
+          </dl>
+        </DetailPanel>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
         <DetailPanel

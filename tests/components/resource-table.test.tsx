@@ -40,6 +40,10 @@ function renderTable() {
       labels: {},
       createdAt: "2026-04-14T10:00:00Z",
       updatedAt: "2026-04-14T10:00:00Z",
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+      isArchived: false,
       summary: "Orders API summary",
     },
   ];
@@ -133,5 +137,57 @@ describe("ResourceTable", () => {
     renderTable();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("updates includeArchived in the URL when archive filter changes", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.click(screen.getByRole("combobox", { name: "Archive state" }));
+    await user.click(await screen.findByRole("option", { name: "Include archived" }));
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/resources?environmentId=env-prod&page=1&includeArchived=true",
+    );
+  });
+
+  it("renders Archived badge for archived resources", () => {
+    const archivedResource: ResourceListViewModel = {
+      id: "resource-archived",
+      resourceType: "service",
+      resourceSubtype: "api",
+      name: "old-api",
+      displayName: "Old API",
+      environmentId: "env-prod",
+      ownerId: "owner-app",
+      ownerName: "Applications",
+      environmentName: "Production",
+      lifecycleStatus: "retired",
+      healthStatus: "healthy",
+      source: "manual",
+      externalId: "svc:old-api",
+      labels: {},
+      createdAt: "2026-04-14T10:00:00Z",
+      updatedAt: "2026-04-14T10:00:00Z",
+      archivedAt: "2026-04-14T12:00:00Z",
+      archivedBy: "admin",
+      archiveReason: "Retired",
+      isArchived: true,
+      summary: "Old API summary",
+    };
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceTable
+          resources={[archivedResource]}
+          pageInfo={{ page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }}
+          resourceTypes={[]}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const badges = screen.getAllByText("Archived");
+    expect(badges.length).toBeGreaterThanOrEqual(1);
   });
 });

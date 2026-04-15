@@ -17,6 +17,15 @@ function normalizeText(value: string | string[] | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+function normalizeBoolean(
+  value: string | string[] | undefined,
+): boolean | undefined {
+  const raw = readFirst(value)?.trim().toLowerCase();
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return undefined;
+}
+
 function normalizePositiveInt(
   value: string | string[] | undefined,
   fallback: number,
@@ -39,6 +48,7 @@ export async function parseResourceListSearchParams(
     lifecycleStatus: normalizeText(resolved.lifecycleStatus),
     healthStatus: normalizeText(resolved.healthStatus),
     q: normalizeText(resolved.q),
+    includeArchived: normalizeBoolean(resolved.includeArchived),
   };
 }
 
