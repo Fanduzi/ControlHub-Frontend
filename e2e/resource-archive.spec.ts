@@ -11,172 +11,156 @@ import {
 
 test.describe("Resource archive lifecycle", () => {
   let token: string;
-  let resourceName: string;
-  let resourceId: string;
+  let activeName: string;
+  let activeId: string;
+  let archivedName: string;
+  let archivedId: string;
 
   test.beforeAll(async () => {
     token = await getAuthToken();
-    resourceName = makeName("archive");
 
-    const resource = await createTestResource(
+    // Create one active resource
+    activeName = makeName("archive-active");
+    const active = await createTestResource(
       token,
-      defaultResourceInput({ name: resourceName }),
+      defaultResourceInput({ name: activeName }),
     );
-    resourceId = resource.id;
+    activeId = active.id;
+
+    // Create one resource and immediately archive it
+    archivedName = makeName("archive-archived");
+    const toArchive = await createTestResource(
+      token,
+      defaultResourceInput({ name: archivedName }),
+    );
+    archivedId = toArchive.id;
+    await archiveTestResource(token, archivedId);
   });
 
   test.afterAll(async () => {
-    if (resourceId) {
-      await archiveTestResource(token, resourceId).catch(() => {});
-    }
+    // Cleanup: archive any active resources created during tests
+    await archiveTestResource(token, activeId).catch(() => {});
+    // Archived resource is already archived — no extra cleanup needed
   });
 
   test.beforeEach(async ({ page }) => {
     await loginViaApi(page);
   });
 
-  test("archived resource is hidden from default list", async ({ page }) => {
-    // Archive the resource via API first
-    await archiveTestResource(token, resourceId);
-
+  test("default view shows active resources but not archived ones", async ({ page }) => {
     await page.goto("/resources");
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });
 
-    // Search for the archived resource
+    // The active resource should be findable by search
     await page
       .locator("main")
       .getByPlaceholder("Search resource, owner, or ID")
-      .fill(resourceName);
+      .fill(activeName);
 
-    // Default view (active only) should not show the archived resource
-    await expect(page.locator("table").first().locator("tbody tr").first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByText(activeName).first(),
+    ).toBeVisible({ timeout: 10_000 });
 
-    // Verify empty state or no matching row for our archived resource
-    const rows = page.locator("table").first().locator("tbody tr");
-    const rowTexts = await rows.allTextContents();
-    const hasResource = rowTexts.some((t) => t.includes(resourceName));
-    expect(hasResource).toBe(false);
+    // Now search for the archived resource — it should NOT appear
+    await page
+      .locator("main")
+      .getByPlaceholder("Search resource, owner, or ID")
+      .fill(archivedName);
+
+    // Wait for the table to settle (either empty state or non-matching rows)
+    await page.waitForTimeout(1000);
+
+    const bodyText = await page.locator("main").textContent();
+    expect(bodyText).not.toContain(archivedName);
   });
 
   test("include archived filter reveals archived resources", async ({ page }) => {
-    // Resource was archived in the previous test; ensure it's archived
-    await archiveTestResource(token, resourceId).catch(() => {});
+    // Navigate directly with the archive filter applied and search pre-filled
+    await page.goto(`/resources?archiveFilter=includeArchived&q=${archivedName}`);
+    await expect(page.locator("table").first()).toBeVisible({
+      timeout: 15_000,
+    });
 
+    // The archived resource should appear in the results
+    await expect(
+      page.getByText(archivedName).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("archived only filter shows exclusively archived resources", async ({ page }) => {
+    // Navigate directly with archivedOnly filter
+    await page.goto(`/resources?archiveFilter=archivedOnly`);
+    await expect(page.locator("table").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // The archived resource should be present
+    await expect(
+      page.getByText(archivedName).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // The active resource should NOT be present
+    const bodyText = await page.locator("main").textContent();
+    expect(bodyText).not.toContain(activeName);
+  });
+
+  test("detail sheet shows archive button for active resources", async ({ page }) => {
+    await page.goto(`/resources?q=${activeName}`);
+    await expect(page.locator("table").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Click the resource row to open the detail sheet
+    await page
+      .locator("table")
+      .first()
+      .locator("tbody tr")
+      .first()
+      .click();
+
+    const sheet = page.locator('[data-slot="sheet-content"]');
+    await expect(sheet).toBeVisible({ timeout: 10_000 });
+
+    // The Archive button should be present in the sheet header
+    await expect(
+      sheet.getByRole("button", { name: "Archive" }).first(),
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("selecting archive filter via UI updates the URL and re-fetches", async ({ page }) => {
     await page.goto("/resources");
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });
 
-    // Open the archive filter and select "Include archived"
+    // Open the archive filter and select "Include archived" via UI
     await page
       .locator("main")
       .getByRole("combobox", { name: "Archive state" })
       .click();
     await page.getByRole("option", { name: "Include archived" }).click();
 
-    // Search for the resource
+    // Wait for the URL to contain the archiveFilter param
+    await expect(page).toHaveURL(/archiveFilter=includeArchived/, {
+      timeout: 10_000,
+    });
+
+    // Wait for the table to re-render after server-side navigation
+    await expect(page.locator("table").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Now search for the archived resource
     await page
       .locator("main")
       .getByPlaceholder("Search resource, owner, or ID")
-      .fill(resourceName);
+      .fill(archivedName);
 
+    // The archived resource should now be visible
     await expect(
-      page.locator("table").first().locator("tbody tr").first(),
+      page.getByText(archivedName).first(),
     ).toBeVisible({ timeout: 10_000 });
-
-    // The archived resource row should now be visible
-    const rows = page.locator("table").first().locator("tbody tr");
-    const rowTexts = await rows.allTextContents();
-    const hasResource = rowTexts.some((t) => t.includes(resourceName));
-    expect(hasResource).toBe(true);
-  });
-
-  test("detail sheet shows archive button for active resources", async ({ page }) => {
-    // Create a fresh active resource for this test
-    const freshName = makeName("archive-active");
-    const fresh = await createTestResource(
-      token,
-      defaultResourceInput({ name: freshName }),
-    );
-
-    try {
-      await page.goto("/resources");
-      await expect(page.locator("table").first()).toBeVisible({
-        timeout: 15_000,
-      });
-
-      // Search and click the resource row
-      await page
-        .locator("main")
-        .getByPlaceholder("Search resource, owner, or ID")
-        .fill(freshName);
-
-      await expect(
-        page.locator("table").first().locator("tbody tr").first(),
-      ).toBeVisible({ timeout: 10_000 });
-
-      await page
-        .locator("table")
-        .first()
-        .locator("tbody tr")
-        .first()
-        .click();
-
-      const sheet = page.locator('[data-slot="sheet-content"]');
-      await expect(sheet).toBeVisible({ timeout: 10_000 });
-
-      // The Archive button should be present in the sheet header
-      await expect(
-        sheet.getByRole("button", { name: "Archive" }).first(),
-      ).toBeVisible({ timeout: 5_000 });
-    } finally {
-      await archiveTestResource(token, fresh.id).catch(() => {});
-    }
-  });
-
-  test("archived only filter shows exclusively archived resources", async ({ page }) => {
-    // Resource was archived in earlier tests; ensure it's archived
-    await archiveTestResource(token, resourceId).catch(() => {});
-
-    // Create a fresh active resource to prove it's excluded
-    const activeName = makeName("archive-active-filter");
-    const active = await createTestResource(
-      token,
-      defaultResourceInput({ name: activeName }),
-    );
-
-    try {
-      await page.goto("/resources");
-      await expect(page.locator("table").first()).toBeVisible({
-        timeout: 15_000,
-      });
-
-      // Open the archive filter and select "Archived only"
-      await page
-        .locator("main")
-        .getByRole("combobox", { name: "Archive state" })
-        .click();
-      await page.getByRole("option", { name: "Archived only" }).click();
-
-      await expect(
-        page.locator("table").first().locator("tbody tr").first(),
-      ).toBeVisible({ timeout: 10_000 });
-
-      // The archived resource should be visible
-      const rows = page.locator("table").first().locator("tbody tr");
-      const rowTexts = await rows.allTextContents();
-      const hasArchived = rowTexts.some((t) => t.includes(resourceName));
-      expect(hasArchived).toBe(true);
-
-      // The active resource should NOT be visible
-      const hasActive = rowTexts.some((t) => t.includes(activeName));
-      expect(hasActive).toBe(false);
-    } finally {
-      await archiveTestResource(token, active.id).catch(() => {});
-    }
   });
 });
