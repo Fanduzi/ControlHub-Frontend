@@ -139,7 +139,7 @@ describe("ResourceTable", () => {
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
-  it("updates includeArchived in the URL when archive filter changes", async () => {
+  it("updates archiveFilter to includeArchived in the URL when archive filter changes", async () => {
     const user = userEvent.setup();
 
     renderTable();
@@ -148,7 +148,20 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("option", { name: "Include archived" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&includeArchived=true",
+      "/resources?environmentId=env-prod&page=1&archiveFilter=includeArchived",
+    );
+  });
+
+  it("updates archiveFilter to archivedOnly in the URL when archived-only is selected", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.click(screen.getByRole("combobox", { name: "Archive state" }));
+    await user.click(await screen.findByRole("option", { name: "Archived only" }));
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/resources?environmentId=env-prod&page=1&archiveFilter=archivedOnly",
     );
   });
 

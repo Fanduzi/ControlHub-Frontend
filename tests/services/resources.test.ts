@@ -714,6 +714,31 @@ describe("listResources with archive filters", () => {
     const calledPath = apiClientMock.mock.calls[0][0] as string;
     expect(calledPath).not.toContain("includeArchived");
   });
+
+  it("forwards archivedOnly param", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    await listResources({ archivedOnly: true });
+
+    expect(apiClientMock).toHaveBeenCalledWith(
+      expect.stringContaining("archivedOnly=true"),
+    );
+  });
+
+  it("omits archivedOnly when not set", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    await listResources({ q: "test" });
+
+    const calledPath = apiClientMock.mock.calls[0][0] as string;
+    expect(calledPath).not.toContain("archivedOnly");
+  });
 });
 
 describe("archiveResource", () => {

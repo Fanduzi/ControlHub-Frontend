@@ -17,15 +17,6 @@ function normalizeText(value: string | string[] | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
-function normalizeBoolean(
-  value: string | string[] | undefined,
-): boolean | undefined {
-  const raw = readFirst(value)?.trim().toLowerCase();
-  if (raw === "true") return true;
-  if (raw === "false") return false;
-  return undefined;
-}
-
 function normalizePositiveInt(
   value: string | string[] | undefined,
   fallback: number,
@@ -40,6 +31,14 @@ export async function parseResourceListSearchParams(
   const resolved = await searchParams;
   const resourceType = normalizeText(resolved.resourceType);
 
+  // Unified archive filter: maps a single URL param to API-level booleans.
+  // Values: "all" (default, active only), "includeArchived", "archivedOnly".
+  const archiveFilter = normalizeText(resolved.archiveFilter);
+  const includeArchived =
+    archiveFilter === "includeArchived" ? true : undefined;
+  const archivedOnly =
+    archiveFilter === "archivedOnly" ? true : undefined;
+
   return {
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
@@ -48,7 +47,8 @@ export async function parseResourceListSearchParams(
     lifecycleStatus: normalizeText(resolved.lifecycleStatus),
     healthStatus: normalizeText(resolved.healthStatus),
     q: normalizeText(resolved.q),
-    includeArchived: normalizeBoolean(resolved.includeArchived),
+    includeArchived,
+    archivedOnly,
   };
 }
 

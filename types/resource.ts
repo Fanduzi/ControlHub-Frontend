@@ -44,6 +44,7 @@ export type ResourceListParams = {
   page?: number;
   pageSize?: number;
   includeArchived?: boolean;
+  archivedOnly?: boolean;
 };
 
 export type ResourceListResponse = {

@@ -137,4 +137,46 @@ test.describe("Resource archive lifecycle", () => {
       await archiveTestResource(token, fresh.id).catch(() => {});
     }
   });
+
+  test("archived only filter shows exclusively archived resources", async ({ page }) => {
+    // Resource was archived in earlier tests; ensure it's archived
+    await archiveTestResource(token, resourceId).catch(() => {});
+
+    // Create a fresh active resource to prove it's excluded
+    const activeName = makeName("archive-active-filter");
+    const active = await createTestResource(
+      token,
+      defaultResourceInput({ name: activeName }),
+    );
+
+    try {
+      await page.goto("/resources");
+      await expect(page.locator("table").first()).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Open the archive filter and select "Archived only"
+      await page
+        .locator("main")
+        .getByRole("combobox", { name: "Archive state" })
+        .click();
+      await page.getByRole("option", { name: "Archived only" }).click();
+
+      await expect(
+        page.locator("table").first().locator("tbody tr").first(),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // The archived resource should be visible
+      const rows = page.locator("table").first().locator("tbody tr");
+      const rowTexts = await rows.allTextContents();
+      const hasArchived = rowTexts.some((t) => t.includes(resourceName));
+      expect(hasArchived).toBe(true);
+
+      // The active resource should NOT be visible
+      const hasActive = rowTexts.some((t) => t.includes(activeName));
+      expect(hasActive).toBe(false);
+    } finally {
+      await archiveTestResource(token, active.id).catch(() => {});
+    }
+  });
 });

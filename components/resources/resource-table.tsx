@@ -71,7 +71,7 @@ export function ResourceTable({
   const resourceType = searchParams.get("resourceType") ?? "all";
   const lifecycleStatus = searchParams.get("lifecycleStatus") ?? "all";
   const healthStatus = searchParams.get("healthStatus") ?? "all";
-  const archiveFilter = searchParams.get("includeArchived") ?? "all";
+  const archiveFilter = searchParams.get("archiveFilter") ?? "all";
   const [searchDraft, setSearchDraft] = useState(search);
 
   useEffect(() => {
@@ -281,7 +281,7 @@ export function ResourceTable({
               value={archiveFilter}
               onValueChange={(value) =>
                 replaceSearchParams({
-                  includeArchived:
+                  archiveFilter:
                     !value || value === "all" ? null : value,
                 })
               }
@@ -296,8 +296,11 @@ export function ResourceTable({
                 <SelectItem value="all">
                   {t("tables.resources.allArchive")}
                 </SelectItem>
-                <SelectItem value="true">
+                <SelectItem value="includeArchived">
                   {t("tables.resources.includeArchived")}
+                </SelectItem>
+                <SelectItem value="archivedOnly">
+                  {t("tables.resources.archivedOnly")}
                 </SelectItem>
               </SelectContent>
             </Select>

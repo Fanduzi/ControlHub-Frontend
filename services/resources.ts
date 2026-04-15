@@ -38,6 +38,9 @@ function buildResourceListPath(params: ResourceListParams = {}) {
   if (params.includeArchived) {
     searchParams.set("includeArchived", "true");
   }
+  if (params.archivedOnly) {
+    searchParams.set("archivedOnly", "true");
+  }
 
   const query = searchParams.toString();
   return query ? `/resources?${query}` : "/resources";
