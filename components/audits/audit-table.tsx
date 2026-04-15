@@ -19,7 +19,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Table,
@@ -127,7 +126,12 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     columnHelper.accessor("summary", {
       header: t("common.fields.changeSummary"),
       cell: ({ row }) => (
-        <span className="block max-w-xl text-sm text-muted-foreground">
+        <span className="block max-w-[280px] truncate text-sm text-muted-foreground" title={
+          t("activityTimeline.summary", {
+            eventType: getEventTypeLabel(row.original.eventType),
+            result: getResultLabel(row.original.result),
+          })
+        }>
           {t("activityTimeline.summary", {
             eventType: getEventTypeLabel(row.original.eventType),
             result: getResultLabel(row.original.result),
@@ -148,6 +152,14 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  // Self-describing filter trigger labels
+  const eventTypeTriggerText = eventType === "all"
+    ? t("tables.audits.filterEventType")
+    : `${t("tables.audits.filterEventType")}: ${getEventTypeLabel(eventType)}`;
+  const resultTriggerText = result === "all"
+    ? t("tables.audits.filterResult")
+    : `${t("tables.audits.filterResult")}: ${getResultLabel(result)}`;
+
   return (
     <DataTableShell
       title={t("tables.audits.title")}
@@ -164,9 +176,9 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
           >
             <SelectTrigger
               aria-label={t("tables.audits.filterEventType")}
-              className="h-9 w-[180px] border-border bg-background"
+              className="h-9 w-[200px] border-border bg-background"
             >
-              <SelectValue placeholder={t("tables.audits.filterEventType")} />
+              <span className="truncate">{eventTypeTriggerText}</span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("tables.audits.allEventTypes")}</SelectItem>
@@ -187,9 +199,9 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
           >
             <SelectTrigger
               aria-label={t("tables.audits.filterResult")}
-              className="h-9 w-[160px] border-border bg-background"
+              className="h-9 w-[180px] border-border bg-background"
             >
-              <SelectValue placeholder={t("tables.audits.filterResult")} />
+              <span className="truncate">{resultTriggerText}</span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("tables.audits.allResults")}</SelectItem>
@@ -204,6 +216,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
       }
       pagination={<PaginationControls pageInfo={pageInfo} />}
     >
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -247,6 +260,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
           )}
         </TableBody>
       </Table>
+      </div>
     </DataTableShell>
   );
 }

@@ -174,6 +174,17 @@ export function ResourceTable({
     [pathname, router, searchParams],
   );
 
+  // Self-describing filter trigger labels
+  const typeTriggerText = resourceType === "all"
+    ? t("tables.resources.filterType")
+    : `${t("tables.resources.filterType")}: ${resourceTypes.find(rt => rt.key === resourceType)?.label ?? formatLabel(resourceType)}`;
+  const lifecycleTriggerText = lifecycleStatus === "all"
+    ? t("tables.resources.filterLifecycle")
+    : `${t("tables.resources.filterLifecycle")}: ${t(`statusValues.${lifecycleStatus}`)}`;
+  const healthTriggerText = healthStatus === "all"
+    ? t("tables.resources.filterHealth")
+    : `${t("tables.resources.filterHealth")}: ${t(`statusValues.${healthStatus}`)}`;
+
   return (
     <>
       <DataTableShell
@@ -197,7 +208,7 @@ export function ResourceTable({
                 });
               }}
               placeholder={t("tables.resources.searchPlaceholder")}
-              className="h-9 w-[240px] border-border bg-background py-2"
+              className="h-9 w-[220px] border-border bg-background py-2"
             />
             <Select
               value={resourceType}
@@ -210,9 +221,9 @@ export function ResourceTable({
             >
               <SelectTrigger
                 aria-label={t("tables.resources.filterType")}
-                className="h-9 w-[180px] border-border bg-background"
+                className="h-9 w-[200px] border-border bg-background"
               >
-                <SelectValue placeholder={t("tables.resources.filterType")} />
+                <span className="truncate">{typeTriggerText}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
@@ -236,9 +247,9 @@ export function ResourceTable({
             >
               <SelectTrigger
                 aria-label={t("tables.resources.filterLifecycle")}
-                className="h-9 w-[180px] border-border bg-background"
+                className="h-9 w-[200px] border-border bg-background"
               >
-                <SelectValue placeholder={t("tables.resources.filterLifecycle")} />
+                <span className="truncate">{lifecycleTriggerText}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
@@ -262,9 +273,9 @@ export function ResourceTable({
             >
               <SelectTrigger
                 aria-label={t("tables.resources.filterHealth")}
-                className="h-9 w-[180px] border-border bg-background"
+                className="h-9 w-[200px] border-border bg-background"
               >
-                <SelectValue placeholder={t("tables.resources.filterHealth")} />
+                <span className="truncate">{healthTriggerText}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
@@ -290,7 +301,7 @@ export function ResourceTable({
                 aria-label={t("tables.resources.filterArchive")}
                 className="h-9 w-[160px] border-border bg-background"
               >
-                <SelectValue placeholder={t("tables.resources.filterArchive")} />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">

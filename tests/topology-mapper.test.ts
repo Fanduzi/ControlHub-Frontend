@@ -221,9 +221,9 @@ describe("mapTopologyToFlow", () => {
     const pos0 = nodes.find((n) => n.id === "node-1")!.position;
     const pos1 = nodes.find((n) => n.id === "node-2")!.position;
 
-    // Distance 0 should be at x=0, distance 1 at x=280
+    // Distance 0 should be at x=0, distance 1 at x=300
     expect(pos0.x).toBe(0);
-    expect(pos1.x).toBe(280);
+    expect(pos1.x).toBe(300);
     // Both at same y since they're the only node in their column
     expect(pos0.y).toBe(pos1.y);
   });

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { Topbar } from "@/components/app-shell/topbar";
+import { useSidebarState } from "@/components/app-shell/use-sidebar-state";
 
 type AppShellProps = {
   children: ReactNode;
@@ -13,11 +14,18 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const { collapsed, toggle, hydrated } = useSidebarState();
 
   return (
-    <div className="grid min-h-screen bg-muted/35 lg:grid-cols-[300px_1fr]">
+    <div className="grid min-h-screen bg-muted/35 lg:grid-cols-[var(--sidebar-width)_1fr]" style={{
+      "--sidebar-width": collapsed ? "56px" : "300px",
+    } as React.CSSProperties}>
       <div className="hidden lg:block">
-        <Sidebar pathname={pathname} />
+        <Sidebar
+          pathname={pathname}
+          collapsed={hydrated ? collapsed : false}
+          onToggleCollapse={toggle}
+        />
       </div>
       <div className="flex min-w-0 flex-col">
         <Topbar pathname={pathname} />

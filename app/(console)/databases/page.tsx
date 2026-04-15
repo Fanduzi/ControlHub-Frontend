@@ -1,6 +1,5 @@
 import { getTranslations } from "next-intl/server";
 
-import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { DatabaseTable } from "@/components/databases/database-table";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
@@ -32,32 +31,23 @@ export default async function DatabasesPage({
         description={t("pages.databases.description")}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <DatabaseTable resources={databaseResources} pageInfo={pageInfo} />
-        <DetailPanel
-          title={t("pages.databases.posture.title")}
-          description={t("pages.databases.posture.description")}
-        >
-          <div className="space-y-3">
-            <div className="rounded-lg border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("pages.databases.posture.clusters")}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
-                {clusters}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("pages.databases.posture.instances")}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
-                {instances}
-              </p>
-            </div>
-          </div>
-        </DetailPanel>
+      <div className="flex items-center gap-6 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-semibold text-foreground">{clusters}</span>
+          <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {t("pages.databases.posture.clusters")}
+          </span>
+        </div>
+        <div className="h-6 w-px bg-border" />
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-semibold text-foreground">{instances}</span>
+          <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {t("pages.databases.posture.instances")}
+          </span>
+        </div>
       </div>
+
+      <DatabaseTable resources={databaseResources} pageInfo={pageInfo} />
     </div>
   );
 }

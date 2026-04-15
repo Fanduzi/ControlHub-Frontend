@@ -6,7 +6,7 @@ type RawSearchParams = Record<string, string | string[] | undefined>;
 type PageSearchParamsProp = Promise<RawSearchParams>;
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 15;
 
 function readFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -43,6 +43,7 @@ export async function parseResourceListSearchParams(
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     resourceType,
+    resourceSubtype: normalizeText(resolved.resourceSubtype),
     environmentId: normalizeText(resolved.environmentId),
     lifecycleStatus: normalizeText(resolved.lifecycleStatus),
     healthStatus: normalizeText(resolved.healthStatus),

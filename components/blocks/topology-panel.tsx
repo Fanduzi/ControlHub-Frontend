@@ -108,6 +108,12 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
 
   const hasEdges = topology && topology.edges.length > 0;
 
+  // Localized type labels for topology nodes
+  const getTypeLabel = useCallback((resourceType: string): string => {
+    const key = `topology.types.${resourceType}`;
+    return t.has(key) ? t(key) : resourceType.replace(/_/g, " ");
+  }, [t]);
+
   // Custom node component rendered inline via nodeTypes
   const nodeTypes = useMemo(() => ({
     topologyNode: ({ data }: { data: TopologyNodeData }) => (
@@ -132,7 +138,7 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
           )}
         </div>
         <div className="mt-1 flex items-center gap-2 text-muted-foreground">
-          <span>{data.resourceType.replace(/_/g, " ")}</span>
+          <span>{getTypeLabel(data.resourceType)}</span>
           {data.resourceSubtype && (
             <>
               <span>·</span>
@@ -147,7 +153,7 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
         <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-muted-foreground/40 !border-0" />
       </div>
     ),
-  }), [t]);
+  }), [t, getTypeLabel]);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -239,7 +245,7 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
           data-testid="topology-graph"
           className={cn(
             "rounded-lg border border-border bg-card",
-            compact ? "h-64" : "h-96",
+            compact ? "h-64" : "h-[500px]",
           )}
         >
           <ReactFlow

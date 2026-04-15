@@ -117,7 +117,9 @@
     "profile": "个人资料",
     "signOut": "退出登录",
     "role": "管理员",
-    "userName": "陈皓"
+    "userName": "陈皓",
+    "collapseSidebar": "收起侧边栏",
+    "expandSidebar": "展开侧边栏"
   },
   "environments": {
     "all": "全部",
@@ -343,6 +345,8 @@
       "title": "数据库资源",
       "description": "集群和实例记录共享同一资源骨架，并突出数据库相关信息。",
       "asset": "数据库资产",
+      "searchPlaceholder": "搜索数据库名称或 ID",
+      "allEngines": "全部引擎",
       "emptyTitle": "暂无数据库资源",
       "emptyDescription": "尚未登记任何数据库实例或集群。"
     },
@@ -387,6 +391,16 @@
     "directionUpstream": "上游",
     "directionDownstream": "下游",
     "rootLabel": "根节点",
+    "types": {
+      "host": "主机",
+      "database_instance": "数据库实例",
+      "database_cluster": "数据库集群",
+      "service": "服务",
+      "domain_name": "域名",
+      "virtual_ip": "虚拟 IP",
+      "database_proxy": "数据库代理",
+      "control_plane_component": "控制面组件"
+    },
     "emptyTitle": "暂无关联关系",
     "emptyDescription": "此资源没有可可视化的关联资源。",
     "errorTitle": "拓扑加载失败",

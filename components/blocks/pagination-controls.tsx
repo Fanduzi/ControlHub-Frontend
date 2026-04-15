@@ -18,7 +18,7 @@ type PaginationControlsProps = {
   pageInfo: PageInfo;
 };
 
-const DEFAULT_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+const DEFAULT_PAGE_SIZE_OPTIONS = [15, 50, 100] as const;
 
 function buildPageWindow(page: number, totalPages: number) {
   const start = Math.max(1, page - 1);

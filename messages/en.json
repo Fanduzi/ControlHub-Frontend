@@ -117,7 +117,9 @@
     "profile": "Profile",
     "signOut": "Sign out",
     "role": "admin",
-    "userName": "Chen Hao"
+    "userName": "Chen Hao",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "environments": {
     "all": "All",
@@ -343,6 +345,8 @@
       "title": "Database resources",
       "description": "Cluster and instance records share the same resource backbone with database-specific emphasis.",
       "asset": "Database asset",
+      "searchPlaceholder": "Search database name or ID",
+      "allEngines": "All engines",
       "emptyTitle": "No database resources",
       "emptyDescription": "No database instances or clusters have been registered yet."
     },
@@ -387,6 +391,16 @@
     "directionUpstream": "Upstream",
     "directionDownstream": "Downstream",
     "rootLabel": "Root",
+    "types": {
+      "host": "Host",
+      "database_instance": "DB Instance",
+      "database_cluster": "DB Cluster",
+      "service": "Service",
+      "domain_name": "Domain",
+      "virtual_ip": "VIP",
+      "database_proxy": "DB Proxy",
+      "control_plane_component": "Control Plane"
+    },
     "emptyTitle": "No relations to display",
     "emptyDescription": "This resource has no linked resources to visualize.",
     "errorTitle": "Failed to load topology",

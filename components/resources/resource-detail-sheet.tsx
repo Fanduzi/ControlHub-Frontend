@@ -84,6 +84,12 @@ export function ResourceDetailSheet({
               </SheetDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/resources/${resource.id}`}
+                className={buttonVariants({ variant: "outline", size: "xs" })}
+              >
+                {t("common.actions.openFullDetail")}
+              </Link>
               <ResourceArchiveButton resource={resource} compact />
               <Button
                 variant="outline"
@@ -251,23 +257,6 @@ export function ResourceDetailSheet({
               />
             )}
           </DetailPanel>
-
-          <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {t("detailSheet.inspectionTitle")}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("detailSheet.inspectionDescription")}
-              </p>
-            </div>
-            <Link
-              href={`/resources/${resource.id}`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              {t("common.actions.openFullDetail")}
-            </Link>
-          </div>
         </div>
       </SheetContent>
 

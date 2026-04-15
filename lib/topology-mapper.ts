@@ -5,12 +5,30 @@ type TopologyNodeData = TopologyNode & {
   label: string;
 };
 
-const COLUMN_WIDTH = 280;
+const COLUMN_WIDTH = 300;
 const ROW_HEIGHT = 120;
+
+// Semantic ordering: put database infrastructure types in a natural hierarchy order
+const TYPE_DISPLAY_ORDER: Record<string, number> = {
+  domain_name: 0,
+  virtual_ip: 1,
+  database_proxy: 2,
+  database_cluster: 3,
+  database_instance: 4,
+  host: 5,
+  control_plane_component: 6,
+  service: 7,
+};
+
+function getTypeOrder(resourceType: string): number {
+  return TYPE_DISPLAY_ORDER[resourceType] ?? 99;
+}
 
 function compareNodes(a: TopologyNode, b: TopologyNode): number {
   if (a.distance !== b.distance) return a.distance - b.distance;
-  if (a.resourceType !== b.resourceType) return a.resourceType.localeCompare(b.resourceType);
+  const typeOrderA = getTypeOrder(a.resourceType);
+  const typeOrderB = getTypeOrder(b.resourceType);
+  if (typeOrderA !== typeOrderB) return typeOrderA - typeOrderB;
   if (a.name !== b.name) return a.name.localeCompare(b.name);
   return a.id.localeCompare(b.id);
 }
@@ -73,6 +91,7 @@ export function mapTopologyToFlow(response: TopologyResponse): {
     source: edge.fromResourceId,
     target: edge.toResourceId,
     label: edge.relationType,
+    type: "smoothstep",
   }));
 
   return { nodes, edges };

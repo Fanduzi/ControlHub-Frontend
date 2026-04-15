@@ -111,7 +111,7 @@ function buildResource(page = 1): ResourceListViewModelResponse {
     items,
     pageInfo: {
       page,
-      pageSize: 20,
+      pageSize: 15,
       totalItems: 40,
       totalPages: 2,
     },
@@ -138,7 +138,7 @@ function buildAuditResponse(page = 1): AuditEventViewModelListResponse {
     items,
     pageInfo: {
       page,
-      pageSize: 20,
+      pageSize: 15,
       totalItems: 30,
       totalPages: 2,
     },
@@ -182,7 +182,7 @@ describe("list pages pagination contracts", () => {
 
     expect(listResourceViewModelsMock).toHaveBeenCalledWith({
       page: 1,
-      pageSize: 20,
+      pageSize: 15,
       resourceType: "service",
       lifecycleStatus: "running",
       healthStatus: "warning",
