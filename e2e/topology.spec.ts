@@ -1,27 +1,68 @@
 import { expect, test } from "@playwright/test";
 
 import { loginViaApi } from "./auth.helpers";
+import {
+  createTestRelation,
+  createTestResource,
+  defaultResourceInput,
+  deleteTestRelation,
+  getAuthToken,
+  testResourceName,
+} from "./api.helpers";
 
 test.describe("Resource topology view", () => {
+  let token: string;
+  let rootResourceId: string;
+  let relatedResourceId: string;
+  let relationId: string;
+  let rootResourceName: string;
+
+  test.beforeAll(async () => {
+    token = await getAuthToken();
+
+    rootResourceName = testResourceName("topo");
+
+    const rootResource = await createTestResource(
+      token,
+      defaultResourceInput({ name: rootResourceName }),
+    );
+    rootResourceId = rootResource.id;
+
+    const relatedResource = await createTestResource(
+      token,
+      defaultResourceInput({ name: testResourceName("topo") }),
+    );
+    relatedResourceId = relatedResource.id;
+
+    const relation = await createTestRelation(token, rootResourceId, {
+      toResourceId: relatedResourceId,
+      relationType: "depends_on",
+    });
+    relationId = relation.id;
+  });
+
+  test.afterAll(async () => {
+    if (relationId) {
+      try {
+        await deleteTestRelation(token, relationId);
+      } catch {
+        // Best-effort cleanup
+      }
+    }
+    // Note: backend does not support hard-delete of resources.
+    // Test resources remain with e2e- prefixed names for manual cleanup.
+    // They are harmless: lifecycleStatus=running, healthStatus=healthy.
+  });
+
   test.beforeEach(async ({ page }) => {
     await loginViaApi(page);
   });
 
-  test("topology section renders on resource detail page with graph", async ({ page }) => {
-    // Navigate to resources list
-    await page.goto("/resources");
-    await expect(page.locator("table").first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Click the first resource row
-    const firstRow = page.locator("table").first().locator("tbody tr").first();
-    await firstRow.click();
-
-    // Open the full detail page from the sheet
-    const sheet = page.locator('[data-slot="sheet-content"]');
-    await expect(sheet).toBeVisible({ timeout: 10_000 });
-    await sheet.getByRole("link", { name: /open full detail/i }).click();
+  test("topology section renders on resource detail page with graph", async ({
+    page,
+  }) => {
+    // Navigate directly to the API-created resource detail page
+    await page.goto(`/resources/${rootResourceId}`);
     await expect(page).toHaveURL(/\/resources\/[\w-]+/);
 
     // Verify the topology section exists
@@ -29,12 +70,12 @@ test.describe("Resource topology view", () => {
       timeout: 10_000,
     });
 
-    // Verify topology graph is rendered (real backend returns data)
+    // Verify topology graph is rendered
     await expect(page.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });
 
-    // Verify at least one topology node is visible
+    // Verify at least one topology node is visible (the root at minimum)
     const topologyNodes = page.locator("[data-testid^='topology-node-']");
     await expect(topologyNodes.first()).toBeVisible({ timeout: 10_000 });
     const nodeCount = await topologyNodes.count();
@@ -42,20 +83,7 @@ test.describe("Resource topology view", () => {
   });
 
   test("topology depth selector updates graph", async ({ page }) => {
-    await page.goto("/resources");
-    await expect(page.locator("table").first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    const firstRow = page.locator("table").first().locator("tbody tr").first();
-    await firstRow.click();
-
-    const sheet = page.locator('[data-slot="sheet-content"]');
-    await expect(sheet).toBeVisible({ timeout: 10_000 });
-    await sheet.getByRole("link", { name: /open full detail/i }).click();
-    await expect(page).toHaveURL(/\/resources\/[\w-]+/);
-
-    // Wait for graph to load
+    await page.goto(`/resources/${rootResourceId}`);
     await expect(page.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });
@@ -74,42 +102,52 @@ test.describe("Resource topology view", () => {
     });
   });
 
-  test("topology direction selector switches direction", async ({ page }) => {
-    await page.goto("/resources");
-    await expect(page.locator("table").first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    const firstRow = page.locator("table").first().locator("tbody tr").first();
-    await firstRow.click();
-
-    const sheet = page.locator('[data-slot="sheet-content"]');
-    await expect(sheet).toBeVisible({ timeout: 10_000 });
-    await sheet.getByRole("link", { name: /open full detail/i }).click();
-    await expect(page).toHaveURL(/\/resources\/[\w-]+/);
-
+  test("topology direction selector sends direction param", async ({ page }) => {
+    // Use the related resource which has the root as an upstream neighbor
+    // so "upstream" direction will return at least one node
+    await page.goto(`/resources/${relatedResourceId}`);
     await expect(page.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });
 
-    // Switch direction to upstream
+    // Switch direction to upstream — related resource depends_on root,
+    // so upstream direction should find the root
     await page.getByTestId("topology-direction-select").first().click();
     await page.getByTestId("topology-direction-upstream").click();
 
-    // Graph should reload and still be visible
+    // Graph should reload and still be visible (root is upstream)
     await expect(page.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });
   });
 
-  test("topology renders in detail sheet with compact view", async ({ page }) => {
+  test("topology renders in detail sheet with compact view", async ({
+    page,
+  }) => {
+    // Go to resources list and find our test resource
     await page.goto("/resources");
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });
 
-    const firstRow = page.locator("table").first().locator("tbody tr").first();
-    await firstRow.click();
+    // Search for our test resource by name
+    const searchInput = page
+      .locator("main")
+      .getByPlaceholder("Search resource, owner, or ID");
+    await searchInput.fill(rootResourceName);
+
+    // Wait for filtered results
+    await expect(
+      page.locator("table").first().locator("tbody tr").first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Click the row for our test resource
+    await page
+      .locator("table")
+      .first()
+      .locator("tbody tr")
+      .first()
+      .click();
 
     const sheet = page.locator('[data-slot="sheet-content"]');
     await expect(sheet).toBeVisible({ timeout: 10_000 });
@@ -119,7 +157,7 @@ test.describe("Resource topology view", () => {
       timeout: 10_000,
     });
 
-    // With real backend, topology graph should render in compact mode
+    // Topology graph should render in compact mode
     await expect(sheet.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });

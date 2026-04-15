@@ -9,7 +9,7 @@ function setCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "http://localhost:3100");
   response.setHeader("Access-Control-Allow-Credentials", "true");
   response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
 }
 
 const server = http.createServer(async (request, response) => {
@@ -59,15 +59,23 @@ const server = http.createServer(async (request, response) => {
   }
   const body = chunks.length ? Buffer.concat(chunks) : undefined;
 
-  if (incomingUrl.pathname === "/resources" || incomingUrl.pathname === "/audit-events") {
+  // Record topology requests under the key "/resources/*/topology"
+  // so tests can verify depth/direction/relationType params.
+  const isTopology = incomingUrl.pathname.match(/^\/resources\/[^/]+\/topology$/);
+  const recordKey =
+    incomingUrl.pathname === "/resources" ? "/resources" :
+    incomingUrl.pathname === "/audit-events" ? "/audit-events" :
+    isTopology ? "/resources/*/topology" : null;
+
+  if (recordKey) {
     const nextRequest = {
       pathname: incomingUrl.pathname,
       search: incomingUrl.search,
       searchParams: Object.fromEntries(incomingUrl.searchParams.entries()),
       method: request.method,
     };
-    const currentRequests = recordedRequests.get(incomingUrl.pathname) ?? [];
-    recordedRequests.set(incomingUrl.pathname, [...currentRequests, nextRequest]);
+    const currentRequests = recordedRequests.get(recordKey) ?? [];
+    recordedRequests.set(recordKey, [...currentRequests, nextRequest]);
   }
 
   try {
