@@ -21,11 +21,19 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 npm run dev -- -p 3100",
+      // Node.js v22 emits a noisy warning when both NO_COLOR and FORCE_COLOR
+      // are present in the environment.  Playwright internally sets FORCE_COLOR
+      // for child processes; some host environments (Claude Code, CI) also set
+      // NO_COLOR.  The `env: { NO_COLOR: undefined }` override removes it from
+      // the child process environment so the warning is suppressed without
+      // affecting color output (FORCE_COLOR still takes effect).
+      command:
+        "NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 npm run dev -- -p 3100",
       url: "http://localhost:3100/login",
       reuseExistingServer: true,
       timeout: 60_000,
       name: "frontend",
+      env: { NO_COLOR: undefined as unknown as string },
     },
     {
       command: "node e2e/api-proxy.mjs",

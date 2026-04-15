@@ -4,6 +4,7 @@ import { loginViaApi } from "./auth.helpers";
 import {
   createTestRelation,
   createTestResource,
+  decommissionTestResource,
   defaultResourceInput,
   deleteTestRelation,
   getAuthToken,
@@ -49,9 +50,14 @@ test.describe("Resource topology view", () => {
         // Best-effort cleanup
       }
     }
-    // Note: backend does not support hard-delete of resources.
-    // Test resources remain with e2e- prefixed names for manual cleanup.
-    // They are harmless: lifecycleStatus=running, healthStatus=healthy.
+    // Backend does not support hard-delete of resources.
+    // Decommission to harmless state instead.
+    if (rootResourceId) {
+      await decommissionTestResource(token, rootResourceId);
+    }
+    if (relatedResourceId) {
+      await decommissionTestResource(token, relatedResourceId);
+    }
   });
 
   test.beforeEach(async ({ page }) => {

@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { loginViaApi } from "./auth.helpers";
 import {
   createTestResource,
+  decommissionTestResource,
   defaultResourceInput,
   getAuthToken,
   testResourceName as makeName,
@@ -11,18 +12,23 @@ import {
 test.describe("Resources detail sheet", () => {
   let token: string;
   let resourceName: string;
+  let resourceId: string;
 
   test.beforeAll(async () => {
     token = await getAuthToken();
     resourceName = makeName("sheet");
 
-    // Create a test resource via API so we can find it deterministically
-    // Backend does not support hard-delete; resource remains with e2e- prefix.
-    await createTestResource(
+    const resource = await createTestResource(
       token,
       defaultResourceInput({ name: resourceName }),
     );
-    // Test resource remains with e2e- prefix.
+    resourceId = resource.id;
+  });
+
+  test.afterAll(async () => {
+    if (resourceId) {
+      await decommissionTestResource(token, resourceId);
+    }
   });
 
   test.beforeEach(async ({ page }) => {

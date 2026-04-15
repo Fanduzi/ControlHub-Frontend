@@ -169,6 +169,28 @@ export async function deleteTestRelation(
   });
 }
 
+// ── Decommission helper ─────────────────────────────────────────────
+
+/**
+ * Patch a test-created resource to a harmless final state so it does not
+ * clutter production views.  Backend has no hard-delete endpoint, so this
+ * is the best available cleanup.
+ */
+export async function decommissionTestResource(
+  token: string,
+  id: string,
+): Promise<void> {
+  try {
+    await updateTestResource(token, id, {
+      lifecycleStatus: "decommissioning",
+      healthStatus: "unknown",
+      labels: { test: "e2e", cleanup: "manual" },
+    });
+  } catch {
+    // Best-effort — resource may have been removed by another process.
+  }
+}
+
 // ── Naming helpers ───────────────────────────────────────────────────
 
 /**

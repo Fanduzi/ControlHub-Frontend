@@ -1,38 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-async function stubLoginApi(page: import("@playwright/test").Page) {
-  await page.route("**/auth/login", async (route) => {
-    const request = route.request();
-    const body = request.postDataJSON() as {
-      email?: string;
-      password?: string;
-    };
-
-    if (
-      request.method() === "POST" &&
-      body.email === "admin@example.com" &&
-      body.password === "secret123"
-    ) {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ token: "test-token", role: "admin" }),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "invalid credentials" }),
-    });
-  });
-}
-
 test.describe("Login", () => {
   test.beforeEach(async ({ page }) => {
-    await stubLoginApi(page);
-    // Force English locale
+    // Force English locale so test assertions match English i18n keys
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -46,6 +16,8 @@ test.describe("Login", () => {
   test("submits valid credentials and navigates to overview", async ({
     page,
   }) => {
+    // Uses real backend POST /auth/login through the api-proxy (localhost:8081).
+    // No route stub — the seeded admin@example.com / secret123 account is used.
     await page.goto("/login");
 
     await page.locator("#email").fill("admin@example.com");
@@ -57,6 +29,8 @@ test.describe("Login", () => {
   });
 
   test("rejects invalid credentials", async ({ page }) => {
+    // Uses real backend POST /auth/login through the api-proxy.
+    // Real backend returns 401 for wrong credentials.
     await page.goto("/login");
 
     await page.locator("#email").fill("admin@example.com");
