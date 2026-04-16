@@ -24,8 +24,15 @@ type SidebarProps = {
 export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: SidebarProps) {
   const t = useTranslations();
   const searchParams = useSearchParams();
-  const { currentEnvironmentId } = useEnvironment();
+  const { environments, currentEnvironmentId } = useEnvironment();
+  const urlEnvironmentSlug = searchParams.get("environment");
   const environmentId = searchParams.get("environmentId") ?? currentEnvironmentId;
+  const validatedEnvironmentSlug = environments.find(
+    (environment) => environment.slug === urlEnvironmentSlug,
+  )?.slug;
+  const environmentSlug =
+    validatedEnvironmentSlug ??
+    environments.find((environment) => environment.id === environmentId)?.slug;
 
   return (
     <aside
@@ -59,8 +66,26 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
             const title = t(`navigation.${item.id}.title`);
             const description = t(`navigation.${item.id}.description`);
 
-            const href = environmentId && item.supportsEnvironment
-              ? `${item.href}?environmentId=${environmentId}`
+            const href = item.supportsEnvironment
+              ? (() => {
+                  if (environmentSlug) {
+                    const params = new URLSearchParams({
+                      environment: environmentSlug,
+                    });
+
+                    return `${item.href}?${params.toString()}`;
+                  }
+
+                  if (environmentId) {
+                    const params = new URLSearchParams({
+                      environmentId,
+                    });
+
+                    return `${item.href}?${params.toString()}`;
+                  }
+
+                  return item.href;
+                })()
               : item.href;
 
             const linkContent = collapsed ? (
@@ -120,26 +145,47 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
         </ul>
       </nav>
 
-      <div className={cn("border-t border-sidebar-border px-4 py-3", collapsed && "px-2")}>
+      <div
+        data-sidebar-collapse-control="sticky"
+        className={cn(
+          "sticky bottom-0 mt-auto border-t border-sidebar-border bg-[var(--sidebar)] px-4 py-3",
+          collapsed && "px-2",
+        )}
+      >
         {onToggleCollapse && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? t("shell.expandSidebar") : t("shell.collapseSidebar")}
-            className={cn("w-full justify-center", !collapsed && "justify-start")}
-          >
-            {collapsed ? (
-              <PanelLeft className="size-4" />
-            ) : (
-              <>
-                <PanelLeftClose className="size-4" />
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {t("shell.collapseSidebar")}
-                </span>
-              </>
-            )}
-          </Button>
+          collapsed ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onToggleCollapse}
+                    aria-label={t("shell.expandSidebar")}
+                    className="w-full justify-center"
+                  />
+                }
+              >
+                <PanelLeft className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="right" className="font-medium">
+                {t("shell.expandSidebar")}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              aria-label={t("shell.collapseSidebar")}
+              className="w-full justify-start"
+            >
+              <PanelLeftClose className="size-4" />
+              <span className="ml-2 text-xs text-muted-foreground">
+                {t("shell.collapseSidebar")}
+              </span>
+            </Button>
+          )
         )}
       </div>
     </aside>
