@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
 import { DatabaseTable } from "@/components/databases/database-table";
+import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import {
   getDatabasePostureCounts,
@@ -14,7 +15,8 @@ export default async function DatabasesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getTranslations();
-  const params = await parseResourceListSearchParams(searchParams);
+  const parsedParams = await parseResourceListSearchParams(searchParams);
+  const params = await resolveEnvironmentSlugToId(parsedParams);
   const [
     { items: databaseResources, pageInfo },
     { clusters, instances },

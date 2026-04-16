@@ -179,25 +179,37 @@ export default async function ResourceDetailPage({
         </DetailPanel>
       )}
 
+      <DetailPanel
+        title={t("topology.title")}
+        description={t("topology.description")}
+        className="xl:col-span-2"
+      >
+        <div data-resource-topology-surface="prominent">
+          <TopologyPanel resourceId={resource.id} />
+        </div>
+      </DetailPanel>
+
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
         <DetailPanel
           title={t("pages.resourceDetail.profile.title")}
           description={t("pages.resourceDetail.profile.description")}
         >
-          {profileEntries.length ? (
-            <dl className="grid gap-3 md:grid-cols-2">
-              {profileEntries.map(([key, value]) => (
-                <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
-                  <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                    {formatLabel(key)}
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
-          )}
+          <div data-resource-profile-surface="supporting">
+            {profileEntries.length ? (
+              <dl className="grid gap-3 md:grid-cols-2">
+                {profileEntries.map(([key, value]) => (
+                  <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {formatLabel(key)}
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+            )}
+          </div>
         </DetailPanel>
 
         <DetailPanel
@@ -207,13 +219,6 @@ export default async function ResourceDetailPage({
           <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
         </DetailPanel>
       </div>
-
-      <DetailPanel
-        title={t("topology.title")}
-        description={t("topology.description")}
-      >
-        <TopologyPanel resourceId={resource.id} />
-      </DetailPanel>
 
       <DetailPanel
         title={t("pages.resourceDetail.audit.title")}

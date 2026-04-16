@@ -52,9 +52,12 @@
   "statusValues": {
     "healthy": "Healthy",
     "warning": "Warning",
+    "degraded": "Degraded",
     "critical": "Critical",
+    "unknown": "Unknown",
     "running": "Running",
     "active": "Active",
+    "stopped": "Stopped",
     "provisioning": "Provisioning",
     "retired": "Retired"
   },
@@ -337,7 +340,9 @@
       "emptyTitle": "No resources found",
       "emptyDescription": "No resources match the current filters, or no resources have been registered yet.",
       "filterArchive": "Archive state",
+      "filterSubtype": "Resource subtype",
       "allArchive": "Active only",
+      "allSubtypes": "All subtypes",
       "includeArchived": "Include archived",
       "archivedOnly": "Archived only"
     },

@@ -21,7 +21,7 @@ vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
   ResourceDetailSheetLoader: () => null,
 }));
 
-function renderTable() {
+function renderTable(availableSubtypes = ["api", "mysql"]) {
   const resources: ResourceListViewModel[] = [
     {
       id: "resource-1",
@@ -46,6 +46,29 @@ function renderTable() {
       isArchived: false,
       summary: "Orders API summary",
     },
+    {
+      id: "resource-2",
+      resourceType: "database_instance",
+      resourceSubtype: "mysql",
+      name: "orders-mysql-primary",
+      displayName: "Orders MySQL Primary",
+      environmentId: "env-prod",
+      ownerId: "owner-app",
+      ownerName: "Applications",
+      environmentName: "Production",
+      lifecycleStatus: "running",
+      healthStatus: "healthy",
+      source: "manual",
+      externalId: "db:orders-mysql-primary",
+      labels: {},
+      createdAt: "2026-04-14T11:00:00Z",
+      updatedAt: "2026-04-14T11:00:00Z",
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+      isArchived: false,
+      summary: "Orders database summary",
+    },
   ];
 
   const resourceTypes: ResourceTypeDefinition[] = [
@@ -67,6 +90,7 @@ function renderTable() {
           totalPages: 2,
         }}
         resourceTypes={resourceTypes}
+        availableSubtypes={availableSubtypes}
       />
     </NextIntlClientProvider>,
   );
@@ -137,6 +161,37 @@ describe("ResourceTable", () => {
     renderTable();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("renders the default archive filter as a self-describing active-only label", () => {
+    renderTable();
+
+    expect(screen.getByRole("combobox", { name: "Archive state" })).toHaveTextContent(
+      "Archive state: Active only",
+    );
+  });
+
+  it("updates resourceSubtype in the URL and resets to the first page", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.click(screen.getByRole("combobox", { name: "Resource subtype" }));
+    await user.click(await screen.findByRole("option", { name: "Mysql" }));
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/resources?environmentId=env-prod&page=1&resourceSubtype=mysql",
+    );
+  });
+
+  it("renders subtype options from the provided full filter set instead of only the current page slice", async () => {
+    const user = userEvent.setup();
+
+    renderTable(["api", "mysql", "postgres"]);
+
+    await user.click(screen.getByRole("combobox", { name: "Resource subtype" }));
+
+    expect(await screen.findByRole("option", { name: "Postgres" })).toBeInTheDocument();
   });
 
   it("updates archiveFilter to includeArchived in the URL when archive filter changes", async () => {

@@ -22,7 +22,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Table,
@@ -45,6 +44,7 @@ type ResourceTableProps = {
   resources: ResourceListViewModel[];
   pageInfo: PageInfo;
   resourceTypes: ResourceTypeDefinition[];
+  availableSubtypes?: string[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
@@ -56,6 +56,7 @@ export function ResourceTable({
   resources,
   pageInfo,
   resourceTypes,
+  availableSubtypes,
 }: ResourceTableProps) {
   const t = useTranslations();
   const localeValue = useLocale();
@@ -69,6 +70,7 @@ export function ResourceTable({
 
   const search = searchParams.get("q") ?? "";
   const resourceType = searchParams.get("resourceType") ?? "all";
+  const resourceSubtype = searchParams.get("resourceSubtype") ?? "all";
   const lifecycleStatus = searchParams.get("lifecycleStatus") ?? "all";
   const healthStatus = searchParams.get("healthStatus") ?? "all";
   const archiveFilter = searchParams.get("archiveFilter") ?? "all";
@@ -174,16 +176,33 @@ export function ResourceTable({
     [pathname, router, searchParams],
   );
 
+  const subtypeOptions = (availableSubtypes?.length
+    ? availableSubtypes
+    : Array.from(
+        new Set(resources.map((resource) => resource.resourceSubtype).filter(Boolean)),
+      )
+  ).sort();
+
   // Self-describing filter trigger labels
   const typeTriggerText = resourceType === "all"
     ? t("tables.resources.filterType")
     : `${t("tables.resources.filterType")}: ${resourceTypes.find(rt => rt.key === resourceType)?.label ?? formatLabel(resourceType)}`;
+  const subtypeTriggerText = resourceSubtype === "all"
+    ? t("tables.resources.filterSubtype")
+    : `${t("tables.resources.filterSubtype")}: ${formatLabel(resourceSubtype)}`;
   const lifecycleTriggerText = lifecycleStatus === "all"
     ? t("tables.resources.filterLifecycle")
     : `${t("tables.resources.filterLifecycle")}: ${t(`statusValues.${lifecycleStatus}`)}`;
   const healthTriggerText = healthStatus === "all"
     ? t("tables.resources.filterHealth")
     : `${t("tables.resources.filterHealth")}: ${t(`statusValues.${healthStatus}`)}`;
+  const archiveTriggerText = archiveFilter === "all"
+    ? `${t("tables.resources.filterArchive")}: ${t("tables.resources.allArchive")}`
+    : `${t("tables.resources.filterArchive")}: ${
+        archiveFilter === "includeArchived"
+          ? t("tables.resources.includeArchived")
+          : t("tables.resources.archivedOnly")
+      }`;
 
   return (
     <>
@@ -232,6 +251,32 @@ export function ResourceTable({
                 {resourceTypes.map((rt) => (
                   <SelectItem key={rt.key} value={rt.key}>
                     {rt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={resourceSubtype}
+              onValueChange={(value) =>
+                replaceSearchParams({
+                  resourceSubtype:
+                    !value || value === "all" ? null : value,
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label={t("tables.resources.filterSubtype")}
+                className="h-9 w-[200px] border-border bg-background"
+              >
+                <span className="truncate">{subtypeTriggerText}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("tables.resources.allSubtypes")}
+                </SelectItem>
+                {subtypeOptions.map((subtype) => (
+                  <SelectItem key={subtype} value={subtype}>
+                    {formatLabel(subtype)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -299,9 +344,9 @@ export function ResourceTable({
             >
               <SelectTrigger
                 aria-label={t("tables.resources.filterArchive")}
-                className="h-9 w-[160px] border-border bg-background"
+                className="h-9 w-[190px] border-border bg-background"
               >
-                <SelectValue />
+                <span className="truncate">{archiveTriggerText}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">

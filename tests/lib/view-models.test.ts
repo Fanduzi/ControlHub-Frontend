@@ -214,6 +214,26 @@ describe("getResourceViewModel", () => {
     expect(result.items[0].displayName).toBe("Orders DB Primary");
   });
 
+  it("passes through resolved environment ids for resource lists", async () => {
+    mockedListResources.mockResolvedValue({
+      items: [resource],
+      pageInfo: {
+        page: 1,
+        pageSize: 15,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    });
+
+    await listResourceViewModels({ environmentId: "env-prod", page: 1, pageSize: 15 });
+
+    expect(mockedListResources).toHaveBeenCalledWith({
+      environmentId: "env-prod",
+      page: 1,
+      pageSize: 15,
+    });
+  });
+
   it("composes exact backend database type pages for paginated database view models", async () => {
     const firstInstance = {
       ...resource,

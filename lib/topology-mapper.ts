@@ -8,7 +8,6 @@ type TopologyNodeData = TopologyNode & {
 const COLUMN_WIDTH = 300;
 const ROW_HEIGHT = 120;
 
-// Semantic ordering: put database infrastructure types in a natural hierarchy order
 const TYPE_DISPLAY_ORDER: Record<string, number> = {
   domain_name: 0,
   virtual_ip: 1,
@@ -18,6 +17,17 @@ const TYPE_DISPLAY_ORDER: Record<string, number> = {
   host: 5,
   control_plane_component: 6,
   service: 7,
+};
+
+const TYPE_COLUMN_ORDER: Record<string, number> = {
+  domain_name: 0,
+  virtual_ip: 0,
+  database_proxy: 1,
+  database_cluster: 2,
+  database_instance: 3,
+  host: 4,
+  control_plane_component: 4,
+  service: 5,
 };
 
 function getTypeOrder(resourceType: string): number {
@@ -40,22 +50,25 @@ function compareEdges(a: TopologyEdge, b: TopologyEdge): number {
   return a.id.localeCompare(b.id);
 }
 
+function getColumnIndex(node: TopologyNode): number {
+  return TYPE_COLUMN_ORDER[node.resourceType] ?? node.distance;
+}
+
 function computeLayout(sortedNodes: TopologyNode[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
 
-  // Group nodes by distance
   const columns = new Map<number, TopologyNode[]>();
   for (const node of sortedNodes) {
-    const col = columns.get(node.distance) ?? [];
+    const columnIndex = getColumnIndex(node);
+    const col = columns.get(columnIndex) ?? [];
     col.push(node);
-    columns.set(node.distance, col);
+    columns.set(columnIndex, col);
   }
 
   const maxColumnSize = Math.max(...[...columns.values()].map((col) => col.length), 1);
 
-  for (const [distance, colNodes] of columns) {
-    const x = distance * COLUMN_WIDTH;
-    // Center each column vertically relative to the tallest column
+  for (const [columnIndex, colNodes] of columns) {
+    const x = columnIndex * COLUMN_WIDTH;
     const totalHeight = (colNodes.length - 1) * ROW_HEIGHT;
     const maxHeight = (maxColumnSize - 1) * ROW_HEIGHT;
     const offsetY = (maxHeight - totalHeight) / 2;

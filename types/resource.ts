@@ -39,6 +39,7 @@ export type ResourceListParams = {
   resourceType?: string;
   resourceSubtype?: string;
   environmentId?: string;
+  environmentSlug?: string;
   lifecycleStatus?: string;
   healthStatus?: string;
   q?: string;

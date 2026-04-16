@@ -30,7 +30,7 @@ export default async function AuditsPage({
         description={t("pages.audits.description")}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.6fr_0.4fr]">
+      <div data-audits-layout="stacked" className="space-y-4">
         <AuditTable events={events} pageInfo={pageInfo} />
         <DetailPanel
           title={t("pages.audits.latest.title")}

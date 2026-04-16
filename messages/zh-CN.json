@@ -52,9 +52,12 @@
   "statusValues": {
     "healthy": "健康",
     "warning": "告警",
+    "degraded": "降级",
     "critical": "严重",
+    "unknown": "未知",
     "running": "运行中",
     "active": "启用",
+    "stopped": "已停止",
     "provisioning": "创建中",
     "retired": "已退役"
   },
@@ -337,7 +340,9 @@
       "emptyTitle": "未找到资源",
       "emptyDescription": "当前过滤条件没有匹配资源，或尚未登记任何资源。",
       "filterArchive": "归档状态",
+      "filterSubtype": "资源子类型",
       "allArchive": "仅活跃",
+      "allSubtypes": "全部子类型",
       "includeArchived": "包含已归档",
       "archivedOnly": "仅已归档"
     },

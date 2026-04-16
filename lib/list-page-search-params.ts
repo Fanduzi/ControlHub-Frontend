@@ -45,6 +45,7 @@ export async function parseResourceListSearchParams(
     resourceType,
     resourceSubtype: normalizeText(resolved.resourceSubtype),
     environmentId: normalizeText(resolved.environmentId),
+    environmentSlug: normalizeText(resolved.environment),
     lifecycleStatus: normalizeText(resolved.lifecycleStatus),
     healthStatus: normalizeText(resolved.healthStatus),
     q: normalizeText(resolved.q),

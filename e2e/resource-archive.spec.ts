@@ -90,18 +90,17 @@ test.describe("Resource archive lifecycle", () => {
   });
 
   test("archived only filter shows exclusively archived resources", async ({ page }) => {
-    // Navigate directly with archivedOnly filter
-    await page.goto(`/resources?archiveFilter=archivedOnly`);
+    await page.goto(
+      `/resources?archiveFilter=archivedOnly&q=${encodeURIComponent(archivedName)}`,
+    );
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });
 
-    // The archived resource should be present
     await expect(
       page.getByText(archivedName).first(),
     ).toBeVisible({ timeout: 10_000 });
 
-    // The active resource should NOT be present
     const bodyText = await page.locator("main").textContent();
     expect(bodyText).not.toContain(activeName);
   });

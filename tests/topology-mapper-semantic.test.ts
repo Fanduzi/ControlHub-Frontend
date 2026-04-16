@@ -54,6 +54,38 @@ describe("topology semantic ordering", () => {
     ]);
   });
 
+  it("places database topology nodes into semantic layer columns instead of distance columns", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "cluster-1",
+      depth: 2,
+      direction: "both",
+      nodes: [
+        makeNode({ id: "domain-1", resourceType: "domain_name", distance: 1, name: "domain" }),
+        makeNode({ id: "vip-1", resourceType: "virtual_ip", distance: 1, name: "vip" }),
+        makeNode({ id: "proxy-1", resourceType: "database_proxy", distance: 1, name: "proxy" }),
+        makeNode({ id: "cluster-1", resourceType: "database_cluster", distance: 0, isRoot: true, name: "cluster" }),
+        makeNode({ id: "inst-1", resourceType: "database_instance", distance: 1, name: "inst" }),
+        makeNode({ id: "host-1", resourceType: "host", distance: 2, name: "host" }),
+        makeNode({ id: "control-1", resourceType: "control_plane_component", distance: 2, name: "control" }),
+        makeNode({ id: "svc-1", resourceType: "service", distance: 2, name: "svc" }),
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { nodes } = mapTopologyToFlow(response);
+    const positions = new Map(nodes.map((node) => [node.id, node.position.x]));
+
+    expect(positions.get("domain-1")).toBe(0);
+    expect(positions.get("vip-1")).toBe(0);
+    expect(positions.get("proxy-1")).toBe(300);
+    expect(positions.get("cluster-1")).toBe(600);
+    expect(positions.get("inst-1")).toBe(900);
+    expect(positions.get("host-1")).toBe(1200);
+    expect(positions.get("control-1")).toBe(1200);
+    expect(positions.get("svc-1")).toBe(1500);
+  });
+
   it("uses smoothstep edge type for cleaner database topology edges", () => {
     const response: TopologyResponse = {
       rootResourceId: "cluster-1",

@@ -349,12 +349,12 @@ export async function listResourceViewModels(
 export async function listResourceViewModels(
   params?: ResourceListParams,
 ): Promise<ResourceListViewModel[] | ResourceListViewModelResponse> {
-  const response = (await listResources(params ?? {})) as ResourceListResult;
-  const items = toResourceItems(response);
-
   if (params === undefined) {
-    return listResourceListViewModels(items);
+    const response = (await listResources({})) as ResourceListResult;
+    return listResourceListViewModels(toResourceItems(response));
   }
+
+  const response = (await listResources(params)) as ResourceListResult;
 
   return toResourceListViewModelResponse(response);
 }

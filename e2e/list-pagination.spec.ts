@@ -44,6 +44,18 @@ async function expectRequestParam(
     .toBe(true);
 }
 
+async function expectRequestHasParam(
+  pathname: string,
+  key: string,
+): Promise<void> {
+  await expect
+    .poll(async () => {
+      const requests = await getRecordedRequests(pathname);
+      return requests.some((request) => Boolean(request.searchParams[key]));
+    })
+    .toBe(true);
+}
+
 async function expectUrlParam(
   page: Page,
   key: string,
@@ -101,20 +113,18 @@ test.describe("List pagination and backend query params", () => {
     await expectUrlParam(page, "q", "orders");
     await expectRequestParam("/resources", "q", "orders");
 
-    // Environment filter sends environmentId param
-    // Select the first environment option, then read the actual ID from the URL
+    // Environment filter keeps readable URL slug while backend receives environmentId
     await resetRecordedRequests("/resources");
     await page.locator('header [role="combobox"]').first().click();
     await page.getByRole("option", { name: /Production|Staging|Development/ }).first().click();
-    // Wait for the environmentId to appear in the URL
     await expect
       .poll(() => {
         const url = new URL(page.url());
-        return url.searchParams.has("environmentId");
+        return Boolean(url.searchParams.get("environment"));
       })
       .toBe(true);
-    const environmentId = new URL(page.url()).searchParams.get("environmentId")!;
-    await expectRequestParam("/resources", "environmentId", environmentId);
+    expect(new URL(page.url()).searchParams.has("environmentId")).toBe(false);
+    await expectRequestHasParam("/resources", "environmentId");
     await expectUrlParam(page, "page", "1");
 
     // Resource type filter sends resourceType param

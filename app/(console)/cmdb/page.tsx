@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
 import { CmdbTable } from "@/components/cmdb/cmdb-table";
+import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
 
@@ -11,7 +12,8 @@ export default async function CmdbPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getTranslations();
-  const params = await parseResourceListSearchParams(searchParams);
+  const parsedParams = await parseResourceListSearchParams(searchParams);
+  const params = await resolveEnvironmentSlugToId(parsedParams);
   const { items: resources, pageInfo } = await listResourceViewModels(params);
 
   return (

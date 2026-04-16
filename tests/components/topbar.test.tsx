@@ -75,11 +75,12 @@ describe("Topbar", () => {
       },
     ];
     searchParams.delete("environmentId");
+    searchParams.delete("environment");
     searchParams.set("page", "3");
     searchParams.set("q", "orders");
   });
 
-  it("updates environmentId in the current URL and resets to the first page", async () => {
+  it("updates environment in the current URL using a readable slug and resets to the first page", async () => {
     const user = userEvent.setup();
 
     render(
@@ -93,13 +94,13 @@ describe("Topbar", () => {
 
     expect(setEnvironmentId).toHaveBeenCalledWith("env-prod");
     expect(replace).toHaveBeenCalledWith(
-      "/resources?page=1&q=orders&environmentId=env-prod",
+      "/resources?page=1&q=orders&environment=prod",
     );
   });
 
-  it("prefers environmentId from the URL over provider state for the selected value", () => {
+  it("prefers readable environment slug from the URL over provider state for the selected value", () => {
     currentEnvironmentId = "env-stage";
-    searchParams.set("environmentId", "env-prod");
+    searchParams.set("environment", "prod");
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -108,6 +109,20 @@ describe("Topbar", () => {
     );
 
     expect(screen.getByRole("combobox")).toHaveTextContent("Production");
+  });
+
+  it("does not fall back to provider environment when URL slug is unknown", () => {
+    currentEnvironmentId = "env-stage";
+    searchParams.set("environment", "missing");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Unknown");
+    expect(setEnvironmentId).not.toHaveBeenCalled();
   });
 
   it("does not append environmentId to unsupported audits URLs", async () => {
@@ -126,7 +141,7 @@ describe("Topbar", () => {
     expect(replace).toHaveBeenCalledWith("/audits?page=1&q=orders");
   });
 
-  it("does not emit fallback environment slugs as environmentId values", async () => {
+  it("does not emit raw ids in readable environment URLs when a backend slug exists", async () => {
     const user = userEvent.setup();
     environments = [
       {
@@ -159,7 +174,7 @@ describe("Topbar", () => {
       "10000000-0000-0000-0000-000000000001",
     );
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?page=1&q=orders&environmentId=10000000-0000-0000-0000-000000000001",
+      "/resources?page=1&q=orders&environment=prod",
     );
   });
 });

@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { act } from "react";
 
 import en from "@/messages/en.json";
+import zhCN from "@/messages/zh-CN.json";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -45,9 +46,12 @@ import type { TopologyResponse } from "@/types/resource";
 
 const mockGetTopology = vi.mocked(getResourceTopology);
 
-function renderWithProviders(ui: React.ReactElement) {
+function renderWithProviders(
+  ui: React.ReactElement,
+  locale: "en" | "zh-CN" = "en",
+) {
   return render(
-    <NextIntlClientProvider locale="en" messages={en}>
+    <NextIntlClientProvider locale={locale} messages={locale === "en" ? en : zhCN}>
       {ui}
     </NextIntlClientProvider>,
   );
@@ -193,6 +197,59 @@ describe("TopologyPanel", () => {
     // Verify the select trigger shows current direction value
     const dirSelect = screen.getByTestId("topology-direction-select");
     expect(dirSelect).toHaveTextContent("both");
+  });
+
+  it("localizes degraded status in Chinese topology nodes", async () => {
+    mockGetTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      nodes: mockTopologyResponse.nodes.map((node) => ({
+        ...node,
+        healthStatus: node.id === "instance-1" ? "degraded" : node.healthStatus,
+      })),
+    });
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("降级")).toBeInTheDocument();
+    expect(screen.queryByText("degraded")).not.toBeInTheDocument();
+  });
+
+  it("localizes stopped and unknown statuses in Chinese topology nodes", async () => {
+    mockGetTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      nodes: mockTopologyResponse.nodes.map((node) => {
+        if (node.id === "cluster-1") {
+          return {
+            ...node,
+            healthStatus: "unknown",
+          };
+        }
+
+        if (node.id === "instance-1") {
+          return {
+            ...node,
+            lifecycleStatus: "stopped",
+          };
+        }
+
+        return node;
+      }),
+    });
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("未知")).toBeInTheDocument();
+    expect(screen.getByText("已停止")).toBeInTheDocument();
+    expect(screen.queryByText("unknown")).not.toBeInTheDocument();
+    expect(screen.queryByText("stopped")).not.toBeInTheDocument();
   });
 
   it("root node is visually distinguished", async () => {

@@ -10,6 +10,7 @@ const listAuditEventViewModelsMock = vi.fn();
 const listRecentAuditEventViewModelsMock = vi.fn();
 const getDatabasePostureCountsMock = vi.fn();
 const listResourceTypesMock = vi.fn();
+const listEnvironmentsMock = vi.fn();
 const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
 const cmdbTableMock = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("@/lib/view-models", () => ({
 
 vi.mock("@/services/settings", () => ({
   listResourceTypes: listResourceTypesMock,
+  listEnvironments: listEnvironmentsMock,
 }));
 
 vi.mock("@/components/blocks/page-header", () => ({
@@ -150,6 +152,15 @@ describe("list pages pagination contracts", () => {
     vi.clearAllMocks();
     getTranslationsMock.mockResolvedValue(t);
     listResourceTypesMock.mockResolvedValue([]);
+    listEnvironmentsMock.mockResolvedValue([
+      {
+        id: "env-prod",
+        name: "Production",
+        slug: "prod",
+        description: "",
+        createdAt: "",
+      },
+    ]);
     listResourceViewModelsMock.mockResolvedValue(buildResource());
     listDatabaseResourceViewModelsMock.mockResolvedValue(buildResource());
     listAuditEventViewModelsMock.mockResolvedValue(buildAuditResponse());
@@ -175,19 +186,72 @@ describe("list pages pagination contracts", () => {
         type: "host",
         lifecycleStatus: "running",
         healthStatus: "warning",
-        environmentId: "env-prod",
+        environment: "prod",
         q: "  orders  ",
       }),
     });
 
-    expect(listResourceViewModelsMock).toHaveBeenCalledWith({
+    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(1, {
       page: 1,
       pageSize: 15,
       resourceType: "service",
       lifecycleStatus: "running",
       healthStatus: "warning",
       environmentId: "env-prod",
+      environmentSlug: "prod",
       q: "orders",
+    });
+  });
+
+  it("uses broad resource scope for subtype options instead of active narrowing filters", async () => {
+    const { default: ResourcesPage } = await import("@/app/(console)/resources/page");
+
+    await ResourcesPage({
+      searchParams: Promise.resolve({
+        page: "2",
+        pageSize: "25",
+        resourceType: "service",
+        resourceSubtype: "api",
+        lifecycleStatus: "running",
+        healthStatus: "warning",
+        archiveFilter: "archivedOnly",
+        environment: "prod",
+        q: "  orders  ",
+      }),
+    });
+
+    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(2, {
+      page: 1,
+      pageSize: 500,
+      resourceType: "service",
+      environmentId: "env-prod",
+      environmentSlug: "prod",
+    });
+  });
+
+  it("does not widen resources when environment slug is unknown", async () => {
+    listEnvironmentsMock.mockResolvedValueOnce([
+      {
+        id: "env-prod",
+        name: "Production",
+        slug: "prod",
+        description: "",
+        createdAt: "",
+      },
+    ]);
+    const { default: ResourcesPage } = await import("@/app/(console)/resources/page");
+
+    await ResourcesPage({
+      searchParams: Promise.resolve({
+        environment: "missing",
+      }),
+    });
+
+    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(1, {
+      page: 1,
+      pageSize: 15,
+      environmentId: "00000000-0000-0000-0000-000000000000",
+      environmentSlug: "missing",
     });
   });
 
@@ -255,7 +319,22 @@ describe("list pages pagination contracts", () => {
 
   it("passes paginated resource response shape into the resources table", async () => {
     const response = buildResource(2);
-    listResourceViewModelsMock.mockResolvedValueOnce(response);
+    listResourceViewModelsMock
+      .mockResolvedValueOnce(response)
+      .mockResolvedValueOnce({
+        ...response,
+        items: [
+          ...response.items,
+          {
+            ...response.items[0],
+            id: "resource-postgres",
+            resourceSubtype: "postgres",
+            name: "orders-postgres-2",
+            displayName: "Orders Postgres 2",
+            externalId: "svc:orders-postgres:2",
+          },
+        ],
+      });
     const { default: ResourcesPage } = await import("@/app/(console)/resources/page");
 
     const element = await ResourcesPage({
@@ -270,6 +349,7 @@ describe("list pages pagination contracts", () => {
       expect.objectContaining({
         resources: response.items,
         pageInfo: response.pageInfo,
+        availableSubtypes: ["api", "postgres"],
       }),
     );
   });
@@ -361,7 +441,7 @@ describe("list pages pagination contracts", () => {
       }),
     });
 
-    render(element);
+    const { container } = render(element);
 
     expect(auditTableMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -369,5 +449,23 @@ describe("list pages pagination contracts", () => {
         pageInfo: response.pageInfo,
       }),
     );
+    expect(container.textContent).toContain("audit-table");
+    expect(container.textContent).toContain("activity-timeline");
+  });
+
+  it("renders audits page as stacked full-width table and timeline sections", async () => {
+    const { default: AuditsPage } = await import("@/app/(console)/audits/page");
+
+    const element = await AuditsPage({
+      searchParams: Promise.resolve({
+        page: "1",
+      }),
+    });
+
+    const { container } = render(element);
+    const layout = container.querySelector("[data-audits-layout]");
+
+    expect(layout).not.toBeNull();
+    expect(layout).toHaveAttribute("data-audits-layout", "stacked");
   });
 });

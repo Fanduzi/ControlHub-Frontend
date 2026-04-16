@@ -203,13 +203,13 @@ describe("mapTopologyToFlow", () => {
     expect(result1.edges).not.toBe(result2.edges);
   });
 
-  it("assigns different positions to nodes at different distances", () => {
+  it("assigns semantic positions by resource type instead of raw distance", () => {
     const response: TopologyResponse = {
       rootResourceId: "node-1",
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-1", isRoot: true, distance: 0 }),
+        makeNode({ id: "node-1", isRoot: true, distance: 0, resourceType: "database_cluster" }),
         makeNode({ id: "node-2", distance: 1, name: "inst-1", resourceType: "database_instance" }),
       ],
       edges: [],
@@ -221,22 +221,20 @@ describe("mapTopologyToFlow", () => {
     const pos0 = nodes.find((n) => n.id === "node-1")!.position;
     const pos1 = nodes.find((n) => n.id === "node-2")!.position;
 
-    // Distance 0 should be at x=0, distance 1 at x=300
-    expect(pos0.x).toBe(0);
-    expect(pos1.x).toBe(300);
-    // Both at same y since they're the only node in their column
+    expect(pos0.x).toBe(600);
+    expect(pos1.x).toBe(900);
     expect(pos0.y).toBe(pos1.y);
   });
 
-  it("stacks same-distance nodes vertically", () => {
+  it("stacks nodes vertically when they share the same semantic column", () => {
     const response: TopologyResponse = {
       rootResourceId: "root",
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "root", isRoot: true, distance: 0, name: "root" }),
-        makeNode({ id: "a", distance: 1, name: "a", resourceType: "database_cluster" }),
-        makeNode({ id: "b", distance: 1, name: "b", resourceType: "database_instance" }),
+        makeNode({ id: "root", isRoot: true, distance: 0, name: "root", resourceType: "database_cluster" }),
+        makeNode({ id: "a", distance: 1, name: "a", resourceType: "host" }),
+        makeNode({ id: "b", distance: 2, name: "b", resourceType: "control_plane_component" }),
       ],
       edges: [],
       groups: [],
@@ -247,9 +245,7 @@ describe("mapTopologyToFlow", () => {
     const posA = nodes.find((n) => n.id === "a")!.position;
     const posB = nodes.find((n) => n.id === "b")!.position;
 
-    // Same column (distance 1)
     expect(posA.x).toBe(posB.x);
-    // Different rows
     expect(posA.y).not.toBe(posB.y);
     expect(Math.abs(posB.y - posA.y)).toBe(120);
   });

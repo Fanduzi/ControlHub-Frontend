@@ -44,29 +44,49 @@ export function Topbar({ pathname }: TopbarProps) {
   const supportsEnvironment = section?.supportsEnvironment ?? false;
   const { environments, currentEnvironmentId, setEnvironmentId } =
     useEnvironment();
+  const urlEnvironmentSlug = searchParams.get("environment");
   const urlEnvironmentId = searchParams.get("environmentId");
+  const selectedEnvironmentFromUrl = environments.find(
+    (environment) => environment.slug === urlEnvironmentSlug,
+  )?.id;
+  const hasUnknownEnvironmentSlug = Boolean(
+    supportsEnvironment &&
+      urlEnvironmentSlug &&
+      !selectedEnvironmentFromUrl &&
+      !urlEnvironmentId,
+  );
   const selectedEnvironmentId = supportsEnvironment
-    ? (urlEnvironmentId ?? "")
+    ? (selectedEnvironmentFromUrl ?? urlEnvironmentId ?? (hasUnknownEnvironmentSlug ? "" : currentEnvironmentId))
     : currentEnvironmentId;
 
   useEffect(() => {
     if (
       supportsEnvironment &&
-      urlEnvironmentId !== null &&
-      urlEnvironmentId !== currentEnvironmentId
+      selectedEnvironmentId &&
+      selectedEnvironmentId !== currentEnvironmentId
     ) {
-      setEnvironmentId(urlEnvironmentId);
+      setEnvironmentId(selectedEnvironmentId);
     }
-  }, [currentEnvironmentId, setEnvironmentId, supportsEnvironment, urlEnvironmentId]);
+  }, [
+    currentEnvironmentId,
+    selectedEnvironmentId,
+    setEnvironmentId,
+    supportsEnvironment,
+  ]);
 
   function handleEnvironmentChange(value: string | null) {
     const nextEnvironmentId = value === "all" ? "" : (value ?? "");
     const params = new URLSearchParams(searchParams.toString());
+    const nextEnvironment = environments.find(
+      (environment) => environment.id === nextEnvironmentId,
+    );
 
     setEnvironmentId(nextEnvironmentId);
 
+    params.delete("environmentId");
+
     if (!supportsEnvironment) {
-      params.delete("environmentId");
+      params.delete("environment");
       params.set("page", "1");
       const query = params.toString();
 
@@ -74,10 +94,10 @@ export function Topbar({ pathname }: TopbarProps) {
       return;
     }
 
-    if (nextEnvironmentId) {
-      params.set("environmentId", nextEnvironmentId);
+    if (nextEnvironment?.slug) {
+      params.set("environment", nextEnvironment.slug);
     } else {
-      params.delete("environmentId");
+      params.delete("environment");
     }
 
     params.set("page", "1");
@@ -101,10 +121,12 @@ export function Topbar({ pathname }: TopbarProps) {
           onValueChange={handleEnvironmentChange}
         >
           <SelectTrigger className="h-8 min-w-28 border-border text-xs">
-            {selectedEnvironmentId
-              ? (environments.find((e) => e.id === selectedEnvironmentId)
-                  ?.name ?? selectedEnvironmentId)
-              : t("environments.all")}
+            {hasUnknownEnvironmentSlug
+              ? t("common.unknown")
+              : selectedEnvironmentId
+                ? (environments.find((e) => e.id === selectedEnvironmentId)
+                    ?.name ?? selectedEnvironmentId)
+                : t("environments.all")}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("environments.all")}</SelectItem>
