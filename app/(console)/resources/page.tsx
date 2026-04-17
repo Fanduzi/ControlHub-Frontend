@@ -2,7 +2,6 @@ import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
 import { ResourceTable } from "@/components/resources/resource-table";
-import { Button } from "@/components/ui/button";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
@@ -69,9 +68,6 @@ export default async function ResourcesPage({
         eyebrow={t("pages.resources.eyebrow")}
         title={t("pages.resources.title")}
         description={t("pages.resources.description")}
-        actions={
-          <Button size="sm">{t("common.actions.createResource")}</Button>
-        }
       />
 
       <ResourceTable

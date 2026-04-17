@@ -220,6 +220,15 @@ describe("ResourceTable", () => {
     );
   });
 
+  it("renders exactly one create-resource button", () => {
+    renderTable();
+
+    const createButtons = screen.getAllByRole("button", {
+      name: /new resource/i,
+    });
+    expect(createButtons).toHaveLength(1);
+  });
+
   it("renders Archived badge for archived resources", () => {
     const archivedResource: ResourceListViewModel = {
       id: "resource-archived",
