@@ -56,16 +56,16 @@ test.describe("Database page search and filter", () => {
     await expect(searchInput).toBeVisible();
   });
 
-  test("database page has engine filter select", async ({ page }) => {
+  test("database page has engine filter", async ({ page }) => {
     await page.goto("/databases");
     await expect(page.locator("table").first()).toBeVisible({ timeout: 10000 });
 
-    // Engine filter should be visible
+    // Engine filter should be visible (MultiSelectFilter renders as a button)
     const engineFilter = page.locator("button[aria-label='Engine']").first();
     if (await engineFilter.isVisible()) {
       await engineFilter.click();
-      // Should show "All engines" option
-      await expect(page.locator("text=All engines").first()).toBeVisible();
+      // Should show at least one engine checkbox option
+      await expect(page.locator('[role="menuitemcheckbox"]').first()).toBeVisible({ timeout: 5000 });
     }
   });
 
