@@ -346,6 +346,212 @@ describe("generic topology fallback", () => {
   });
 });
 
+describe("warning regression tests", () => {
+  it("edges must not reference sourceHandle/targetHandle ids that don't exist on node handles", () => {
+    // React Flow warns "Couldn't create edge for source handle id: X"
+    // when edge.sourceHandle doesn't match any Handle component's id prop.
+    // Since our Handle components don't use explicit id props, edges must not
+    // set sourceHandle/targetHandle to arbitrary strings like "source"/"target".
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
+        makeEdge({ id: "e-member", fromResourceId: "replica-1", toResourceId: "primary-1", semanticType: "membership" }),
+        makeEdge({ id: "e-traffic", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "traffic" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+
+    for (const edge of edges) {
+      // sourceHandle and targetHandle must be undefined — our Handle components
+      // don't have explicit ids, so React Flow auto-connects by type.
+      expect(edge.sourceHandle).toBeUndefined();
+      expect(edge.targetHandle).toBeUndefined();
+    }
+  });
+
+  it("no edge should reference handles not present on any node component", () => {
+    // Broader check: even non-backbone edges must not set sourceHandle/targetHandle
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "n-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "n-2", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "n-3", topologyRole: "host", topologyLayer: "host", resourceType: "host" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-1", fromResourceId: "n-1", toResourceId: "n-2", semanticType: "replication" }),
+        makeEdge({ id: "e-2", fromResourceId: "n-1", toResourceId: "n-3", semanticType: "placement" }),
+        makeEdge({ id: "e-3", fromResourceId: "n-2", toResourceId: "n-3", semanticType: "monitoring" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+
+    for (const edge of edges) {
+      expect(edge.sourceHandle).toBeUndefined();
+      expect(edge.targetHandle).toBeUndefined();
+    }
+  });
+
+  it("no node position should contain NaN values", () => {
+    // React Flow warns "Received NaN for cx/cy/r/x/y" when positions are NaN.
+    // This can happen if layout computation produces NaN from division by zero,
+    // undefined arithmetic, or missing position entries.
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", replicationDepth: 0, resourceType: "database_instance" }),
+        makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", replicationDepth: 1, resourceType: "database_instance" }),
+        makeNode({ id: "host-1", topologyRole: "host", topologyLayer: "host", resourceType: "host" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-1", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
+      ],
+    });
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    for (const node of nodes) {
+      expect(Number.isNaN(node.position.x)).toBe(false);
+      expect(Number.isNaN(node.position.y)).toBe(false);
+      expect(typeof node.position.x).toBe("number");
+      expect(typeof node.position.y).toBe("number");
+    }
+  });
+
+  it("node positions are finite numbers even with single-node topology", () => {
+    // Edge case: only one node, no edges — layout must still produce valid positions
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, resourceType: "database_cluster" }),
+      ],
+      edges: [],
+    });
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    expect(nodes).toHaveLength(1);
+    expect(Number.isFinite(nodes[0].position.x)).toBe(true);
+    expect(Number.isFinite(nodes[0].position.y)).toBe(true);
+  });
+
+  it("backbone edges (replication, membership, traffic) attach without explicit handles", () => {
+    // Backbone edges must work purely via React Flow's default Handle matching,
+    // without sourceHandle/targetHandle overrides.
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", resourceType: "database_cluster" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
+        makeEdge({ id: "e-member", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
+        makeEdge({ id: "e-traffic", fromResourceId: "cluster-1", toResourceId: "primary-1", semanticType: "traffic" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+
+    const backboneEdges = edges.filter((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "replication" || st === "membership" || st === "traffic";
+    });
+
+    expect(backboneEdges.length).toBe(3);
+    for (const edge of backboneEdges) {
+      expect(edge.sourceHandle).toBeUndefined();
+      expect(edge.targetHandle).toBeUndefined();
+    }
+  });
+
+  it("generic fallback also produces no handle references and no NaN positions", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root-1",
+      depth: 1,
+      direction: "both",
+      isDatabaseTopology: false,
+      nodes: [
+        {
+          ...makeNode({ id: "root-1", distance: 0, isRoot: true, resourceType: "service" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+        {
+          ...makeNode({ id: "n-2", distance: 1, resourceType: "host" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+      ],
+      edges: [
+        { id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" },
+      ],
+      groups: [],
+    };
+
+    const { nodes, edges } = mapTopologyToFlow(response);
+
+    for (const node of nodes) {
+      expect(Number.isNaN(node.position.x)).toBe(false);
+      expect(Number.isNaN(node.position.y)).toBe(false);
+    }
+    for (const edge of edges) {
+      expect(edge.sourceHandle).toBeUndefined();
+      expect(edge.targetHandle).toBeUndefined();
+    }
+  });
+
+  it("handles nodes with undefined replicationDepth without NaN positions", () => {
+    // replicationDepth might be missing from backend data in edge cases
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", replicationDepth: 0 as unknown as undefined, resourceType: "database_instance" }),
+        makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", replicationDepth: 1, resourceType: "database_instance" }),
+      ],
+      edges: [],
+    });
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    for (const node of nodes) {
+      expect(Number.isFinite(node.position.x)).toBe(true);
+      expect(Number.isFinite(node.position.y)).toBe(true);
+    }
+  });
+
+  it("handles generic nodes with undefined distance without NaN positions", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root-1",
+      depth: 1,
+      direction: "both",
+      isDatabaseTopology: false,
+      nodes: [
+        {
+          ...makeNode({ id: "root-1", distance: 0 as unknown as undefined, isRoot: true, resourceType: "service" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { nodes } = mapTopologyToFlow(response);
+
+    for (const node of nodes) {
+      expect(Number.isFinite(node.position.x)).toBe(true);
+      expect(Number.isFinite(node.position.y)).toBe(true);
+    }
+  });
+});
+
 describe("semantic field propagation", () => {
   it("propagates topologyRole and topologyLayer to node data", () => {
     const response = makeResponse({

@@ -5,8 +5,8 @@ type TopologyNodeData = TopologyNode & {
   label: string;
 };
 
-const COLUMN_WIDTH = 300;
-const ROW_HEIGHT = 120;
+const COLUMN_WIDTH = 360;
+const ROW_HEIGHT = 140;
 
 // --- Database semantic layer ordering ---
 // Left-to-right: application → entry → cluster → replication (by depth) → control_plane → host
@@ -110,7 +110,8 @@ function getSemanticColumnIndex(node: TopologyNode): number {
   // For replication layer, spread by depth to expand the tree rightward
   if (node.topologyLayer === "replication") {
     // layer base is 3, add replication depth to expand rightward
-    return layerOrder + node.replicationDepth;
+    const depth = typeof node.replicationDepth === "number" ? node.replicationDepth : 0;
+    return layerOrder + depth;
   }
 
   return layerOrder;
@@ -119,7 +120,8 @@ function getSemanticColumnIndex(node: TopologyNode): number {
 // --- Generic column index ---
 // For non-database topologies, use distance-based columns
 function getGenericColumnIndex(node: TopologyNode): number {
-  return node.distance;
+  const distance = typeof node.distance === "number" ? node.distance : 0;
+  return distance;
 }
 
 function computeDatabaseLayout(sortedNodes: TopologyNode[]): Map<string, { x: number; y: number }> {
@@ -205,18 +207,22 @@ export function mapTopologyToFlow(response: TopologyResponse): {
   const edges: Edge[] = sortedEdges.map((edge) => {
     const backbone = isDatabase && isBackboneEdge(edge);
 
+    // Determine if the edge goes right-to-left (source x > target x)
+    const sourcePos = positions.get(edge.fromResourceId);
+    const targetPos = positions.get(edge.toResourceId);
+    const isReverse = sourcePos !== undefined && targetPos !== undefined && sourcePos.x > targetPos.x;
+
     return {
       id: edge.id,
       source: edge.fromResourceId,
       target: edge.toResourceId,
-      label: edge.relationType,
-      type: "smoothstep",
+      label: backbone ? edge.relationType : undefined,
+      type: backbone ? "smoothstep" : "default",
       data: { semanticType: edge.semanticType },
       style: backbone
-        ? undefined
-        : { opacity: 0.4 },
-      sourceHandle: backbone ? "source" : undefined,
-      targetHandle: backbone ? "target" : undefined,
+        ? { strokeWidth: 2 }
+        : { opacity: 0.4, strokeWidth: 1 },
+      ...(backbone ? { pathOptions: { offset: isReverse ? 40 : 20 } } : {}),
     };
   });
 
