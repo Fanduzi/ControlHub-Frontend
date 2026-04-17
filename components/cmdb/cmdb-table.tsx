@@ -61,7 +61,7 @@ export function CmdbTable({
     useState<ResourceListViewModel | null>(null);
 
   const search = searchParams.get("q") ?? "";
-  const environmentId = searchParams.get("environmentId") ?? "all";
+  const environmentSlug = searchParams.get("environment") ?? "all";
   const [searchDraft, setSearchDraft] = useState(search);
 
   useEffect(() => {
@@ -158,6 +158,9 @@ export function CmdbTable({
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
 
+      // Always clean up legacy environmentId from URL
+      params.delete("environmentId");
+
       Object.entries(updates).forEach(([key, value]) => {
         if (value === null) {
           params.delete(key);
@@ -174,10 +177,10 @@ export function CmdbTable({
   );
 
   const envTriggerText =
-    environmentId === "all"
+    environmentSlug === "all"
       ? t("pages.cmdb.records.allEnvironments")
-      : environments.find((e) => e.id === environmentId)?.name ??
-        environmentId;
+      : environments.find((e) => e.slug === environmentSlug)?.name ??
+        formatLabel(environmentSlug);
 
   return (
     <>
@@ -199,10 +202,10 @@ export function CmdbTable({
               className="h-9 w-[260px] border-border bg-background py-2"
             />
             <Select
-              value={environmentId}
+              value={environmentSlug}
               onValueChange={(value) =>
                 replaceSearchParams({
-                  environmentId:
+                  environment:
                     !value || value === "all" ? null : value,
                 })
               }
@@ -218,7 +221,7 @@ export function CmdbTable({
                   {t("pages.cmdb.records.allEnvironments")}
                 </SelectItem>
                 {environments.map((env) => (
-                  <SelectItem key={env.id} value={env.id}>
+                  <SelectItem key={env.id} value={env.slug}>
                     {env.name}
                   </SelectItem>
                 ))}

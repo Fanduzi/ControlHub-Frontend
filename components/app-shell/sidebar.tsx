@@ -26,13 +26,12 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
   const searchParams = useSearchParams();
   const { environments, currentEnvironmentId } = useEnvironment();
   const urlEnvironmentSlug = searchParams.get("environment");
-  const environmentId = searchParams.get("environmentId") ?? currentEnvironmentId;
   const validatedEnvironmentSlug = environments.find(
     (environment) => environment.slug === urlEnvironmentSlug,
   )?.slug;
   const environmentSlug =
     validatedEnvironmentSlug ??
-    environments.find((environment) => environment.id === environmentId)?.slug;
+    environments.find((environment) => environment.id === currentEnvironmentId)?.slug;
 
   return (
     <aside
@@ -71,14 +70,6 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
                   if (environmentSlug) {
                     const params = new URLSearchParams({
                       environment: environmentSlug,
-                    });
-
-                    return `${item.href}?${params.toString()}`;
-                  }
-
-                  if (environmentId) {
-                    const params = new URLSearchParams({
-                      environmentId,
                     });
 
                     return `${item.href}?${params.toString()}`;

@@ -130,7 +130,7 @@ export function buildMultiSelectParams(
 ): URLSearchParams {
   const params = new URLSearchParams(searchParams.toString());
   params.delete(key);
-  params.delete("page");
+  params.set("page", "1");
   for (const value of values) {
     params.append(key, value);
   }

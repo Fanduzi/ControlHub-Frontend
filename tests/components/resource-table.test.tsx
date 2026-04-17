@@ -138,7 +138,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Running" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&lifecycleStatus=running",
+      "/resources?environmentId=env-prod&page=1&lifecycleStatus=running",
     );
   });
 
@@ -151,7 +151,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Warning" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&healthStatus=warning",
+      "/resources?environmentId=env-prod&page=1&healthStatus=warning",
     );
   });
 

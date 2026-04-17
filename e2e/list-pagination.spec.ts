@@ -134,17 +134,18 @@ test.describe("List pagination and backend query params", () => {
     await expectUrlParam(page, "resourceType", "service");
     await expectRequestParam("/resources", "resourceType", "service");
 
-    // Lifecycle status filter sends lifecycleStatus param
+    // Lifecycle status filter sends lifecycleStatus param (MultiSelectFilter uses DropdownMenu, not combobox)
     await resetRecordedRequests("/resources");
-    await page.getByRole("combobox", { name: "Lifecycle status" }).click();
-    await page.getByRole("option", { name: "Running" }).click();
+    await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Lifecycle status" }).first().click();
+    await page.getByRole("menuitemcheckbox", { name: "Running" }).click();
     await expectUrlParam(page, "lifecycleStatus", "running");
     await expectRequestParam("/resources", "lifecycleStatus", "running");
+    await page.keyboard.press("Escape");
 
     // Health status filter sends healthStatus param
     await resetRecordedRequests("/resources");
-    await page.getByRole("combobox", { name: "Health status" }).click();
-    await page.getByRole("option", { name: "Warning" }).click();
+    await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Health status" }).first().click();
+    await page.getByRole("menuitemcheckbox", { name: "Warning" }).click();
     await expectUrlParam(page, "healthStatus", "warning");
     await expectRequestParam("/resources", "healthStatus", "warning");
 
@@ -170,18 +171,19 @@ test.describe("List pagination and backend query params", () => {
       await expectRequestParam("/audit-events", "page", "2");
     }
 
-    // Event type filter
+    // Event type filter (MultiSelectFilter uses DropdownMenu, not combobox)
     await resetRecordedRequests("/audit-events");
-    await page.getByRole("combobox", { name: "Event type" }).click();
-    await page.getByRole("option", { name: "Resource updated" }).click();
+    await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Event type" }).first().click();
+    await page.getByRole("menuitemcheckbox", { name: "Resource updated" }).click();
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "eventType", "resource.updated");
     await expectRequestParam("/audit-events", "eventType", "resource.updated");
+    await page.keyboard.press("Escape");
 
     // Result filter
     await resetRecordedRequests("/audit-events");
-    await page.getByRole("combobox", { name: "Result" }).click();
-    await page.getByRole("option", { name: "success" }).click();
+    await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Result" }).first().click();
+    await page.getByRole("menuitemcheckbox", { name: "success" }).click();
     await expectUrlParam(page, "result", "success");
     await expectRequestParam("/audit-events", "result", "success");
   });

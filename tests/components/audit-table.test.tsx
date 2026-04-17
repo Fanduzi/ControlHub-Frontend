@@ -75,7 +75,7 @@ describe("AuditTable", () => {
     );
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/audits?pageSize=25&eventType=resource.updated",
+      "/audits?page=1&pageSize=25&eventType=resource.updated",
     );
   });
 
@@ -88,7 +88,7 @@ describe("AuditTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "success" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/audits?pageSize=25&result=success",
+      "/audits?page=1&pageSize=25&result=success",
     );
   });
 

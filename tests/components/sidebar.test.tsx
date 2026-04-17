@@ -111,7 +111,7 @@ describe("Sidebar", () => {
   });
 
   it("preserves environment scope only on pages that support environment-scoped URLs", () => {
-    searchParams.set("environmentId", "env-prod");
+    searchParams.set("environment", "prod");
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -182,7 +182,7 @@ describe("Sidebar", () => {
 
   it("falls back to the known environment slug when the URL slug is invalid", () => {
     searchParams.set("environment", "unknown");
-    searchParams.set("environmentId", "env-stage");
+    currentEnvironmentId = "env-stage";
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
