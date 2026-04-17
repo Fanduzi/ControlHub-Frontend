@@ -106,7 +106,41 @@ export type CreateResourceRelationInput = {
   relationType: string;
 };
 
-// Topology types — matches backend Phase 11 contract
+// Topology types — matches backend Phase 12.6 contract
+
+export type TopologyRole =
+  | "application"
+  | "entry"
+  | "proxy_active"
+  | "proxy_standby"
+  | "cluster"
+  | "primary"
+  | "replica"
+  | "replica_intermediate"
+  | "host"
+  | "control_plane"
+  | "service"
+  | "generic";
+
+export type TopologyLayer =
+  | "application"
+  | "entry"
+  | "cluster"
+  | "replication"
+  | "control_plane"
+  | "host"
+  | "generic";
+
+export type EdgeSemanticType =
+  | "traffic"
+  | "failover"
+  | "replication"
+  | "membership"
+  | "placement"
+  | "management"
+  | "dependency"
+  | "monitoring";
+
 export type TopologyNode = {
   id: string;
   resourceType: string;
@@ -119,6 +153,13 @@ export type TopologyNode = {
   healthStatus: string;
   isRoot: boolean;
   distance: number;
+  topologyRole: TopologyRole;
+  topologyLayer: TopologyLayer;
+  groupKey: string;
+  visualImportance: number;
+  isDatabaseTopology: boolean;
+  replicationDepth: number;
+  replicationParentId: string;
 };
 
 export type TopologyEdge = {
@@ -126,6 +167,7 @@ export type TopologyEdge = {
   fromResourceId: string;
   toResourceId: string;
   relationType: string;
+  semanticType: EdgeSemanticType;
 };
 
 export type TopologyGroup = {
@@ -142,6 +184,7 @@ export type TopologyResponse = {
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   groups: TopologyGroup[];
+  isDatabaseTopology: boolean;
 };
 
 export type TopologyParams = {

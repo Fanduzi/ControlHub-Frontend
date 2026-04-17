@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ReactFlow,
@@ -30,57 +30,154 @@ import { getResourceTopology, TopologyNotAvailableError } from "@/services/topol
 import { cn } from "@/lib/utils";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
-const HEALTH_COLORS: Record<string, string> = {
-  healthy: "border-emerald-500/50 bg-emerald-500/5",
-  warning: "border-amber-500/50 bg-amber-500/5",
-  critical: "border-rose-500/50 bg-rose-500/5",
+// --- Role-based node styling for semantic topology ---
+const ROLE_BORDER: Record<string, string> = {
+  primary: "border-blue-500/50",
+  replica: "border-cyan-500/50",
+  replica_intermediate: "border-teal-500/50",
+  cluster: "border-violet-500/50",
+  application: "border-indigo-500/50",
+  entry: "border-orange-500/50",
+  proxy_active: "border-green-500/50",
+  proxy_standby: "border-yellow-500/50",
+  host: "border-slate-500/50",
+  control_plane: "border-purple-500/50",
+  service: "border-emerald-500/50",
+};
+
+const ROLE_BG: Record<string, string> = {
+  primary: "bg-blue-500/5",
+  replica: "bg-cyan-500/5",
+  replica_intermediate: "bg-teal-500/5",
+  cluster: "bg-violet-500/5",
+  application: "bg-indigo-500/5",
+  entry: "bg-orange-500/5",
+  proxy_active: "bg-green-500/5",
+  proxy_standby: "bg-yellow-500/5",
+  host: "bg-slate-500/5",
+  control_plane: "bg-purple-500/5",
+  service: "bg-emerald-500/5",
 };
 
 type TopologyPanelProps = {
   resourceId: string;
   className?: string;
   compact?: boolean;
+  /** When true, sync depth/direction/expanded to URL searchParams. */
+  urlSync?: boolean;
 };
 
-export function TopologyPanel({ resourceId, className, compact = false }: TopologyPanelProps) {
+function TopologyPanelInner({
+  resourceId,
+  className,
+  compact = false,
+  urlSync = false,
+}: TopologyPanelProps) {
   const t = useTranslations();
   const router = useRouter();
+  const pathname = usePathname();
+  const urlParams = useSearchParams();
+
+  // --- State: URL-synced or local ---
+  const urlDepth = (Number(urlParams.get("topologyDepth")) || 1) as 1 | 2;
+  const urlDirection =
+    (urlParams.get("topologyDirection") ?? "both") as TopologyParams["direction"];
+  const urlExpanded = urlParams.get("topologyExpanded") === "1";
+
+  const [localDepth, setLocalDepth] = useState<1 | 2>(1);
+  const [localDirection, setLocalDirection] = useState<TopologyParams["direction"]>("both");
+  const [localExpanded, setLocalExpanded] = useState(false);
+
+  const depth = urlSync ? urlDepth : localDepth;
+  const direction = urlSync ? urlDirection : localDirection;
+  const expanded = urlSync ? urlExpanded : localExpanded;
 
   const [topology, setTopology] = useState<TopologyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
-  const [depth, setDepth] = useState<1 | 2>(1);
-  const [direction, setDirection] = useState<TopologyParams["direction"]>("both");
 
-  const fetchTopology = useCallback(async (params: TopologyParams) => {
-    setLoading(true);
-    setError(null);
-    setUnavailable(false);
-
-    const queryParams: TopologyParams = {};
-    if (params.depth) queryParams.depth = params.depth;
-    if (params.direction) queryParams.direction = params.direction;
-    if (params.relationType) queryParams.relationType = params.relationType;
-
-    try {
-      const result = await getResourceTopology(resourceId, queryParams);
-      setTopology(result);
-    } catch (error) {
-      if (error instanceof TopologyNotAvailableError) {
-        setUnavailable(true);
-        setTopology(null);
-      } else {
-        setError(t("topology.errorTitle"));
-        setTopology(null);
+  // URL update helper (only used when urlSync is true)
+  const updateUrlParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      if (!urlSync) return;
+      const params = new URLSearchParams(urlParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) {
+          params.set(key, value);
+        } else {
+          params.delete(key);
+        }
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [resourceId, t]);
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [urlSync, urlParams, router, pathname],
+  );
+
+  const setDepthValue = useCallback(
+    (v: 1 | 2) => {
+      if (urlSync) {
+        updateUrlParams({ topologyDepth: String(v) });
+      } else {
+        setLocalDepth(v);
+      }
+    },
+    [urlSync, updateUrlParams],
+  );
+
+  const setDirectionValue = useCallback(
+    (v: string) => {
+      if (urlSync) {
+        updateUrlParams({ topologyDirection: v === "both" ? null : v });
+      } else {
+        setLocalDirection(v as TopologyParams["direction"]);
+      }
+    },
+    [urlSync, updateUrlParams],
+  );
+
+  const setExpandedValue = useCallback(
+    (v: boolean) => {
+      if (urlSync) {
+        updateUrlParams({ topologyExpanded: v ? "1" : null });
+      } else {
+        setLocalExpanded(v);
+      }
+    },
+    [urlSync, updateUrlParams],
+  );
+
+  const fetchTopology = useCallback(
+    async (d: 1 | 2, dir: TopologyParams["direction"]) => {
+      setLoading(true);
+      setError(null);
+      setUnavailable(false);
+
+      const queryParams: TopologyParams = {};
+      if (d) queryParams.depth = d;
+      if (dir && dir !== "both") queryParams.direction = dir;
+
+      try {
+        const result = await getResourceTopology(resourceId, queryParams);
+        setTopology(result);
+      } catch (err) {
+        if (err instanceof TopologyNotAvailableError) {
+          setUnavailable(true);
+          setTopology(null);
+        } else {
+          setError(t("topology.errorTitle"));
+          setTopology(null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [resourceId, t],
+  );
 
   useEffect(() => {
-    fetchTopology({ depth, direction });
+    fetchTopology(depth, direction);
   }, [depth, direction, fetchTopology]);
 
   const flowData = useMemo(() => {
@@ -98,101 +195,246 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
     }
   }, [flowData, setNodes, setEdges]);
 
-  const handleNodeClick: NodeMouseHandler = useCallback((_event, node) => {
-    router.push(`/resources/${node.id}`);
-  }, [router]);
+  // ESC key closes expanded mode
+  useEffect(() => {
+    if (!expanded) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpandedValue(false);
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [expanded, setExpandedValue]);
+
+  const handleNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      router.push(`/resources/${node.id}`);
+    },
+    [router],
+  );
 
   const handleRetry = useCallback(() => {
-    fetchTopology({ depth, direction });
+    fetchTopology(depth, direction);
   }, [depth, direction, fetchTopology]);
 
   const hasEdges = topology && topology.edges.length > 0;
+  const isDatabase = topology?.isDatabaseTopology ?? false;
 
   // Localized type labels for topology nodes
-  const getTypeLabel = useCallback((resourceType: string): string => {
-    const key = `topology.types.${resourceType}`;
-    return t.has(key) ? t(key) : resourceType.replace(/_/g, " ");
-  }, [t]);
+  const getTypeLabel = useCallback(
+    (resourceType: string): string => {
+      const key = `topology.types.${resourceType}`;
+      return t.has(key) ? t(key) : resourceType.replace(/_/g, " ");
+    },
+    [t],
+  );
 
-  // Custom node component rendered inline via nodeTypes
-  const nodeTypes = useMemo(() => ({
-    topologyNode: ({ data }: { data: TopologyNodeData }) => (
-      <div
-        data-testid={`topology-node-${data.id}`}
-        data-is-root={data.isRoot ? "true" : "false"}
-        className={cn(
-          "rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors",
-          data.isRoot
-            ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
-            : "border-border bg-card",
-          HEALTH_COLORS[data.healthStatus] ?? "border-border bg-card",
-        )}
-      >
-        <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-muted-foreground/40 !border-0" />
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-foreground">{data.displayName || data.name}</span>
-          {data.isRoot && (
-            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              {t("topology.rootLabel")}
-            </span>
-          )}
-        </div>
-        <div className="mt-1 flex items-center gap-2 text-muted-foreground">
-          <span>{getTypeLabel(data.resourceType)}</span>
-          {data.resourceSubtype && (
-            <>
-              <span>·</span>
-              <span>{data.resourceSubtype}</span>
-            </>
-          )}
-        </div>
-        <div className="mt-1 flex gap-1">
-          <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />
-          <StatusBadge status={data.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
-        </div>
-        <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-muted-foreground/40 !border-0" />
+  // Localized role label for semantic nodes
+  const getRoleLabel = useCallback(
+    (role: string): string | null => {
+      const key = `topology.roles.${role}`;
+      return t.has(key) ? t(key) : null;
+    },
+    [t],
+  );
+
+  // Localized edge semantic type label
+  const getEdgeTypeLabel = useCallback(
+    (semanticType: string | undefined): string | null => {
+      if (!semanticType) return null;
+      const key = `topology.edgeTypes.${semanticType}`;
+      return t.has(key) ? t(key) : null;
+    },
+    [t],
+  );
+
+  // Custom node component with semantic role styling
+  const nodeTypes = useMemo(
+    () => ({
+      topologyNode: ({ data }: { data: TopologyNodeData }) => {
+        const roleLabel = getRoleLabel(data.topologyRole);
+        const roleBorder = ROLE_BORDER[data.topologyRole] ?? "border-border";
+        const roleBg = ROLE_BG[data.topologyRole] ?? "bg-card";
+
+        return (
+          <div
+            data-testid={`topology-node-${data.id}`}
+            data-is-root={data.isRoot ? "true" : "false"}
+            data-topology-role={data.topologyRole}
+            className={cn(
+              "rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors",
+              data.isRoot
+                ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
+                : cn(roleBorder, roleBg),
+            )}
+          >
+            <Handle
+              type="target"
+              position={Position.Left}
+              className="!w-2 !h-2 !bg-muted-foreground/40 !border-0"
+            />
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">
+                {data.displayName || data.name}
+              </span>
+              {data.isRoot && (
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  {t("topology.rootLabel")}
+                </span>
+              )}
+              {roleLabel && !data.isRoot && isDatabase && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {roleLabel}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+              <span>{getTypeLabel(data.resourceType)}</span>
+              {data.resourceSubtype && (
+                <>
+                  <span>·</span>
+                  <span>{data.resourceSubtype}</span>
+                </>
+              )}
+            </div>
+            <div className="mt-1 flex gap-1">
+              <StatusBadge
+                status={data.healthStatus}
+                tone="health"
+                className="text-[10px]"
+              />
+              <StatusBadge
+                status={data.lifecycleStatus}
+                tone="lifecycle"
+                className="text-[10px]"
+              />
+            </div>
+            <Handle
+              type="source"
+              position={Position.Right}
+              className="!w-2 !h-2 !bg-muted-foreground/40 !border-0"
+            />
+          </div>
+        );
+      },
+    }),
+    [t, getTypeLabel, getRoleLabel, isDatabase],
+  );
+
+  // Build edges with localized semantic labels for database topologies
+  const displayEdges = useMemo(
+    () =>
+      edges.map((edge) => {
+        const semanticType = (
+          edge.data as { semanticType?: string } | undefined
+        )?.semanticType;
+        const semanticLabel = getEdgeTypeLabel(semanticType);
+        if (semanticLabel && isDatabase) {
+          return { ...edge, label: semanticLabel };
+        }
+        return edge;
+      }),
+    [edges, getEdgeTypeLabel, isDatabase],
+  );
+
+  // --- Shared controls bar ---
+  const renderControls = () => (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {t("topology.depthLabel")}
+        </span>
+        <Select
+          value={String(depth)}
+          onValueChange={(v) => { if (v) setDepthValue(Number(v) as 1 | 2); }}
+        >
+          <SelectTrigger size="sm" data-testid="topology-depth-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1" data-testid="topology-depth-1">
+              1
+            </SelectItem>
+            <SelectItem value="2" data-testid="topology-depth-2">
+              2
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-    ),
-  }), [t, getTypeLabel]);
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {t("topology.directionLabel")}
+        </span>
+        <Select
+          value={direction ?? "both"}
+          onValueChange={(v) => { if (v) setDirectionValue(v); }}
+        >
+          <SelectTrigger size="sm" data-testid="topology-direction-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="both" data-testid="topology-direction-both">
+              {t("topology.directionBoth")}
+            </SelectItem>
+            <SelectItem value="upstream" data-testid="topology-direction-upstream">
+              {t("topology.directionUpstream")}
+            </SelectItem>
+            <SelectItem
+              value="downstream"
+              data-testid="topology-direction-downstream"
+            >
+              {t("topology.directionDownstream")}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {!expanded && hasEdges && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedValue(true)}
+          data-testid="topology-expand-button"
+        >
+          {t("topology.expandButton")}
+        </Button>
+      )}
+    </div>
+  );
+
+  // --- Shared ReactFlow graph ---
+  const renderGraph = (graphClassName?: string) => (
+    <div
+      data-testid="topology-graph"
+      className={cn(
+        "rounded-lg border border-border bg-card",
+        expanded ? "h-full rounded-none border-0" : compact ? "h-64" : "h-[500px]",
+        graphClassName,
+      )}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={displayEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={handleNodeClick}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.3 }}
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.3}
+        maxZoom={2}
+      >
+        <Background gap={16} size={1} className="!bg-background" />
+        <Controls
+          showInteractive={false}
+          className="!border-border !bg-card !shadow-sm [&>button]:!border-border [&>button]:!bg-card [&>button]:!fill-foreground [&>button:hover]:!bg-accent"
+        />
+      </ReactFlow>
+    </div>
+  );
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("topology.depthLabel")}</span>
-          <Select
-            value={String(depth)}
-            onValueChange={(v) => setDepth(Number(v) as 1 | 2)}
-          >
-            <SelectTrigger size="sm" data-testid="topology-depth-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1" data-testid="topology-depth-1">1</SelectItem>
-              <SelectItem value="2" data-testid="topology-depth-2">2</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("topology.directionLabel")}</span>
-          <Select value={direction ?? "both"} onValueChange={(v) => setDirection(v as TopologyParams["direction"])}>
-            <SelectTrigger size="sm" data-testid="topology-direction-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="both" data-testid="topology-direction-both">
-                {t("topology.directionBoth")}
-              </SelectItem>
-              <SelectItem value="upstream" data-testid="topology-direction-upstream">
-                {t("topology.directionUpstream")}
-              </SelectItem>
-              <SelectItem value="downstream" data-testid="topology-direction-downstream">
-                {t("topology.directionDownstream")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {renderControls()}
 
       {loading && (
         <div data-testid="topology-loading" className="space-y-3">
@@ -240,35 +482,40 @@ export function TopologyPanel({ resourceId, className, compact = false }: Topolo
         </div>
       )}
 
-      {!loading && !error && !unavailable && hasEdges && (
+      {!loading && !error && !unavailable && hasEdges && !expanded && renderGraph()}
+
+      {/* Expanded fullscreen overlay */}
+      {expanded && !loading && !error && !unavailable && hasEdges && (
         <div
-          data-testid="topology-graph"
-          className={cn(
-            "rounded-lg border border-border bg-card",
-            compact ? "h-64" : "h-[500px]",
-          )}
+          data-testid="topology-expanded-overlay"
+          className="fixed inset-0 z-50 flex flex-col bg-background"
         >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={handleNodeClick}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
-            proOptions={{ hideAttribution: true }}
-            minZoom={0.3}
-            maxZoom={2}
-          >
-            <Background gap={16} size={1} className="!bg-background" />
-            <Controls
-              showInteractive={false}
-              className="!border-border !bg-card !shadow-sm [&>button]:!border-border [&>button]:!bg-card [&>button]:!fill-foreground [&>button:hover]:!bg-accent"
-            />
-          </ReactFlow>
+          <div className="flex items-center justify-between border-b border-border px-4 py-2">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium">{t("topology.title")}</span>
+              {renderControls()}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpandedValue(false)}
+              data-testid="topology-exit-expanded"
+            >
+              {t("topology.collapseButton")}
+            </Button>
+          </div>
+          <div className="flex-1">{renderGraph()}</div>
         </div>
       )}
     </div>
+  );
+}
+
+/** TopologyPanel renders a resource topology graph with optional URL-synced controls. */
+export function TopologyPanel(props: TopologyPanelProps) {
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full rounded-lg" />}>
+      <TopologyPanelInner {...props} />
+    </Suspense>
   );
 }

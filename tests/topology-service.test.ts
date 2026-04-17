@@ -10,16 +10,24 @@ import type { TopologyResponse } from "@/types/resource";
 
 const mockApiClient = vi.mocked(apiClient);
 
+const minimalResponse = (overrides: Partial<TopologyResponse> = {}): TopologyResponse => ({
+  rootResourceId: "res-1",
+  depth: 1,
+  direction: "both",
+  nodes: [],
+  edges: [],
+  groups: [],
+  isDatabaseTopology: false,
+  ...overrides,
+});
+
 describe("getResourceTopology", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("calls GET /resources/{id}/topology with default params", async () => {
-    const mockResponse: TopologyResponse = {
-      rootResourceId: "res-1",
-      depth: 1,
-      direction: "both",
+    const mockResponse = minimalResponse({
       nodes: [
         {
           id: "res-1",
@@ -33,11 +41,17 @@ describe("getResourceTopology", () => {
           healthStatus: "healthy",
           isRoot: true,
           distance: 0,
+          topologyRole: "cluster",
+          topologyLayer: "cluster",
+          groupKey: "",
+          visualImportance: 0,
+          isDatabaseTopology: true,
+          replicationDepth: 0,
+          replicationParentId: "",
         },
       ],
-      edges: [],
-      groups: [],
-    };
+      isDatabaseTopology: true,
+    });
 
     mockApiClient.mockResolvedValueOnce(mockResponse);
 
@@ -51,14 +65,7 @@ describe("getResourceTopology", () => {
   });
 
   it("includes depth query parameter", async () => {
-    mockApiClient.mockResolvedValueOnce({
-      rootResourceId: "res-1",
-      depth: 2,
-      direction: "both",
-      nodes: [],
-      edges: [],
-      groups: [],
-    });
+    mockApiClient.mockResolvedValueOnce(minimalResponse({ depth: 2 }));
 
     await getResourceTopology("res-1", { depth: 2 });
 
@@ -68,14 +75,7 @@ describe("getResourceTopology", () => {
   });
 
   it("includes direction query parameter", async () => {
-    mockApiClient.mockResolvedValueOnce({
-      rootResourceId: "res-1",
-      depth: 1,
-      direction: "upstream",
-      nodes: [],
-      edges: [],
-      groups: [],
-    });
+    mockApiClient.mockResolvedValueOnce(minimalResponse({ direction: "upstream" }));
 
     await getResourceTopology("res-1", { direction: "upstream" });
 
@@ -85,14 +85,7 @@ describe("getResourceTopology", () => {
   });
 
   it("includes relationType query parameter", async () => {
-    mockApiClient.mockResolvedValueOnce({
-      rootResourceId: "res-1",
-      depth: 1,
-      direction: "both",
-      nodes: [],
-      edges: [],
-      groups: [],
-    });
+    mockApiClient.mockResolvedValueOnce(minimalResponse());
 
     await getResourceTopology("res-1", { relationType: "member_of" });
 
@@ -102,14 +95,10 @@ describe("getResourceTopology", () => {
   });
 
   it("combines multiple query parameters", async () => {
-    mockApiClient.mockResolvedValueOnce({
-      rootResourceId: "res-1",
+    mockApiClient.mockResolvedValueOnce(minimalResponse({
       depth: 2,
       direction: "downstream",
-      nodes: [],
-      edges: [],
-      groups: [],
-    });
+    }));
 
     await getResourceTopology("res-1", {
       depth: 2,

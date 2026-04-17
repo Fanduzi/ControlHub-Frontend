@@ -7,8 +7,11 @@ import en from "@/messages/en.json";
 import zhCN from "@/messages/zh-CN.json";
 
 const push = vi.fn();
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
+  usePathname: () => "/resources/cluster-1",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@xyflow/react", () => ({
@@ -74,6 +77,13 @@ const mockTopologyResponse: TopologyResponse = {
       healthStatus: "healthy",
       isRoot: true,
       distance: 0,
+      topologyRole: "cluster",
+      topologyLayer: "cluster",
+      groupKey: "",
+      visualImportance: 0,
+      isDatabaseTopology: true,
+      replicationDepth: 0,
+      replicationParentId: "",
     },
     {
       id: "instance-1",
@@ -87,6 +97,13 @@ const mockTopologyResponse: TopologyResponse = {
       healthStatus: "healthy",
       isRoot: false,
       distance: 1,
+      topologyRole: "primary",
+      topologyLayer: "replication",
+      groupKey: "",
+      visualImportance: 0,
+      isDatabaseTopology: true,
+      replicationDepth: 0,
+      replicationParentId: "",
     },
   ],
   edges: [
@@ -95,9 +112,11 @@ const mockTopologyResponse: TopologyResponse = {
       fromResourceId: "instance-1",
       toResourceId: "cluster-1",
       relationType: "member_of",
+      semanticType: "membership",
     },
   ],
   groups: [],
+  isDatabaseTopology: true,
 };
 
 describe("TopologyPanel", () => {
@@ -121,6 +140,7 @@ describe("TopologyPanel", () => {
       nodes: [mockTopologyResponse.nodes[0]],
       edges: [],
       groups: [],
+      isDatabaseTopology: true,
     });
 
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
@@ -180,7 +200,6 @@ describe("TopologyPanel", () => {
       expect(screen.getByTestId("topology-depth-select")).toBeInTheDocument();
     });
 
-    // Verify the select trigger shows current depth value
     const depthSelect = screen.getByTestId("topology-depth-select");
     expect(depthSelect).toHaveTextContent("1");
   });
@@ -194,7 +213,6 @@ describe("TopologyPanel", () => {
       expect(screen.getByTestId("topology-direction-select")).toBeInTheDocument();
     });
 
-    // Verify the select trigger shows current direction value
     const dirSelect = screen.getByTestId("topology-direction-select");
     expect(dirSelect).toHaveTextContent("both");
   });
@@ -288,7 +306,6 @@ describe("TopologyPanel", () => {
       expect(screen.getByTestId("topology-error")).toBeInTheDocument();
     });
 
-    // Click retry
     await act(async () => {
       screen.getByText("Try again").click();
     });
@@ -307,7 +324,6 @@ describe("TopologyPanel", () => {
       expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
     });
 
-    // Simulate click on a non-root node
     await act(async () => {
       screen.getByTestId("topology-node-instance-1").click();
     });
@@ -317,5 +333,94 @@ describe("TopologyPanel", () => {
     // verified via the handleNodeClick callback which calls router.push.
     expect(push).not.toHaveBeenCalled(); // mock ReactFlow doesn't fire onNodeClick
     // Real behavior is tested in E2E
+  });
+
+  // --- Semantic role tests ---
+
+  it("renders semantic role badge on non-root database topology nodes", async () => {
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+    });
+
+    // The primary node should have a role badge
+    const instanceNode = screen.getByTestId("topology-node-instance-1");
+    expect(instanceNode.getAttribute("data-topology-role")).toBe("primary");
+    expect(screen.getByText("Primary")).toBeInTheDocument();
+  });
+
+  it("does not render role badge on root node", async () => {
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-cluster-1")).toBeInTheDocument();
+    });
+
+    // Root node should show "Root" label, not a role badge
+    const rootNode = screen.getByTestId("topology-node-cluster-1");
+    expect(rootNode.getAttribute("data-topology-role")).toBe("cluster");
+    // "Root" label is shown instead of role badge
+    expect(screen.getByText("Root")).toBeInTheDocument();
+  });
+
+  it("localizes role labels in Chinese", async () => {
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("主库")).toBeInTheDocument();
+  });
+
+  // --- Expand button tests ---
+
+  it("renders expand button when graph has edges", async () => {
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-expand-button")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("topology-expand-button")).toHaveTextContent("Expand analysis");
+  });
+
+  it("does not render expand button when topology has no edges", async () => {
+    mockGetTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      edges: [],
+    });
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-empty")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("topology-expand-button")).not.toBeInTheDocument();
+  });
+
+  // --- Node type label localization ---
+
+  it("renders localized type labels on topology nodes", async () => {
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-node-cluster-1")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("DB Cluster")).toBeInTheDocument();
+    expect(screen.getByText("DB Instance")).toBeInTheDocument();
   });
 });
