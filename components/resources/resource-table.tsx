@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -13,6 +13,11 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import {
+  MultiSelectFilter,
+  buildMultiSelectParams,
+  readMultiSelectValues,
+} from "@/components/blocks/multi-select-filter";
 import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +57,17 @@ const columnHelper = createColumnHelper<ResourceListViewModel>();
 const LIFECYCLE_OPTIONS = ["running", "active", "provisioning", "retired"] as const;
 const HEALTH_OPTIONS = ["healthy", "warning", "critical"] as const;
 
+function updateMultiSelectParams(
+  pathname: string,
+  router: ReturnType<typeof useRouter>,
+  searchParams: URLSearchParams,
+  key: string,
+  values: string[],
+) {
+  const params = buildMultiSelectParams(searchParams, key, values);
+  router.replace(`${pathname}?${params.toString()}`);
+}
+
 export function ResourceTable({
   resources,
   pageInfo,
@@ -71,10 +87,17 @@ export function ResourceTable({
   const search = searchParams.get("q") ?? "";
   const resourceType = searchParams.get("resourceType") ?? "all";
   const resourceSubtype = searchParams.get("resourceSubtype") ?? "all";
-  const lifecycleStatus = searchParams.get("lifecycleStatus") ?? "all";
-  const healthStatus = searchParams.get("healthStatus") ?? "all";
   const archiveFilter = searchParams.get("archiveFilter") ?? "all";
   const [searchDraft, setSearchDraft] = useState(search);
+
+  const selectedLifecycleValues = useMemo(
+    () => readMultiSelectValues(searchParams, "lifecycleStatus"),
+    [searchParams],
+  );
+  const selectedHealthValues = useMemo(
+    () => readMultiSelectValues(searchParams, "healthStatus"),
+    [searchParams],
+  );
 
   useEffect(() => {
     setSearchDraft(search);
@@ -89,7 +112,10 @@ export function ResourceTable({
             {row.original.displayName}
           </p>
           <p className="text-xs text-muted-foreground">
-            {row.original.externalId || row.original.id}
+            {row.original.externalId
+              || row.original.resourceSubtype
+              || row.original.ownerName
+              || row.original.id}
           </p>
         </div>
       ),
@@ -183,6 +209,20 @@ export function ResourceTable({
       )
   ).sort();
 
+  const handleLifecycleChange = useCallback(
+    (values: string[]) => {
+      updateMultiSelectParams(pathname, router, searchParams, "lifecycleStatus", values);
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleHealthChange = useCallback(
+    (values: string[]) => {
+      updateMultiSelectParams(pathname, router, searchParams, "healthStatus", values);
+    },
+    [pathname, router, searchParams],
+  );
+
   // Self-describing filter trigger labels
   const typeTriggerText = resourceType === "all"
     ? t("tables.resources.filterType")
@@ -190,12 +230,6 @@ export function ResourceTable({
   const subtypeTriggerText = resourceSubtype === "all"
     ? t("tables.resources.filterSubtype")
     : `${t("tables.resources.filterSubtype")}: ${formatLabel(resourceSubtype)}`;
-  const lifecycleTriggerText = lifecycleStatus === "all"
-    ? t("tables.resources.filterLifecycle")
-    : `${t("tables.resources.filterLifecycle")}: ${t(`statusValues.${lifecycleStatus}`)}`;
-  const healthTriggerText = healthStatus === "all"
-    ? t("tables.resources.filterHealth")
-    : `${t("tables.resources.filterHealth")}: ${t(`statusValues.${healthStatus}`)}`;
   const archiveTriggerText = archiveFilter === "all"
     ? `${t("tables.resources.filterArchive")}: ${t("tables.resources.allArchive")}`
     : `${t("tables.resources.filterArchive")}: ${
@@ -203,6 +237,24 @@ export function ResourceTable({
           ? t("tables.resources.includeArchived")
           : t("tables.resources.archivedOnly")
       }`;
+
+  const lifecycleOptions = useMemo(
+    () =>
+      LIFECYCLE_OPTIONS.map((status) => ({
+        value: status,
+        label: t(`statusValues.${status}`),
+      })),
+    [t],
+  );
+
+  const healthOptions = useMemo(
+    () =>
+      HEALTH_OPTIONS.map((status) => ({
+        value: status,
+        label: t(`statusValues.${status}`),
+      })),
+    [t],
+  );
 
   return (
     <>
@@ -281,58 +333,20 @@ export function ResourceTable({
                 ))}
               </SelectContent>
             </Select>
-            <Select
-              value={lifecycleStatus}
-              onValueChange={(value) =>
-                replaceSearchParams({
-                  lifecycleStatus:
-                    !value || value === "all" ? null : value,
-                })
-              }
-            >
-              <SelectTrigger
-                aria-label={t("tables.resources.filterLifecycle")}
-                className="h-9 w-[200px] border-border bg-background"
-              >
-                <span className="truncate">{lifecycleTriggerText}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {t("tables.resources.allLifecycle")}
-                </SelectItem>
-                {LIFECYCLE_OPTIONS.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {t(`statusValues.${status}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={healthStatus}
-              onValueChange={(value) =>
-                replaceSearchParams({
-                  healthStatus:
-                    !value || value === "all" ? null : value,
-                })
-              }
-            >
-              <SelectTrigger
-                aria-label={t("tables.resources.filterHealth")}
-                className="h-9 w-[200px] border-border bg-background"
-              >
-                <span className="truncate">{healthTriggerText}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {t("tables.resources.allHealth")}
-                </SelectItem>
-                {HEALTH_OPTIONS.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {t(`statusValues.${status}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              label={t("tables.resources.filterLifecycle")}
+              options={lifecycleOptions}
+              selectedValues={selectedLifecycleValues}
+              onValuesChange={handleLifecycleChange}
+              className="w-[200px]"
+            />
+            <MultiSelectFilter
+              label={t("tables.resources.filterHealth")}
+              options={healthOptions}
+              selectedValues={selectedHealthValues}
+              onValuesChange={handleHealthChange}
+              className="w-[200px]"
+            />
             <Select
               value={archiveFilter}
               onValueChange={(value) =>

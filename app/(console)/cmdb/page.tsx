@@ -5,6 +5,7 @@ import { CmdbTable } from "@/components/cmdb/cmdb-table";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
+import { listEnvironments } from "@/services/settings";
 
 export default async function CmdbPage({
   searchParams,
@@ -14,7 +15,10 @@ export default async function CmdbPage({
   const t = await getTranslations();
   const parsedParams = await parseResourceListSearchParams(searchParams);
   const params = await resolveEnvironmentSlugToId(parsedParams);
-  const { items: resources, pageInfo } = await listResourceViewModels(params);
+  const [{ items: resources, pageInfo }, environments] = await Promise.all([
+    listResourceViewModels(params),
+    listEnvironments().catch(() => []),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -23,7 +27,11 @@ export default async function CmdbPage({
         title={t("pages.cmdb.title")}
         description={t("pages.cmdb.description")}
       />
-      <CmdbTable resources={resources} pageInfo={pageInfo} />
+      <CmdbTable
+        resources={resources}
+        pageInfo={pageInfo}
+        environments={environments}
+      />
     </div>
   );
 }

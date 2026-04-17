@@ -52,6 +52,20 @@ const actorLabels: Record<string, string> = {
   "30000000-0000-0000-0000-000000000002": "ControlHub Editor",
 };
 
+function buildFallbackSummary(resource: Resource): string {
+  const parts: string[] = [];
+  if (resource.resourceType) {
+    parts.push(formatLabel(resource.resourceType));
+  }
+  if (resource.resourceSubtype) {
+    parts.push(formatLabel(resource.resourceSubtype));
+  }
+  if (resource.lifecycleStatus) {
+    parts.push(formatLabel(resource.lifecycleStatus));
+  }
+  return parts.length > 0 ? parts.join(" · ") : resource.displayName;
+}
+
 function fallbackLabel(id: string) {
   return id
     .split("-")
@@ -300,9 +314,7 @@ function toResourceListViewModel(
     environmentName:
       environmentMap.get(resource.environmentId) ?? resource.environmentId,
     ownerName: ownerMap.get(resource.ownerId) ?? resource.ownerId,
-    summary:
-      resourceSummaries[resource.id] ??
-      "No supplemental resource summary has been defined yet.",
+    summary: resourceSummaries[resource.id] ?? buildFallbackSummary(resource),
     isArchived: resource.archivedAt !== null && resource.archivedAt !== undefined,
   };
 }

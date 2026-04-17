@@ -57,11 +57,11 @@ describe("AuditTable", () => {
 
     renderTable();
 
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
+    await user.click(screen.getByRole("button", { name: "Event type" }));
 
-    expect(await screen.findByRole("option", { name: "Resource updated" })).toBeVisible();
-    expect(await screen.findByRole("option", { name: "Resource created" })).toBeVisible();
-    expect(await screen.findByRole("option", { name: "Relation created" })).toBeVisible();
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Resource updated" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Resource created" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Relation created" })).toBeVisible();
   });
 
   it("updates eventType in the URL and resets to the first page", async () => {
@@ -69,13 +69,13 @@ describe("AuditTable", () => {
 
     renderTable();
 
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
+    await user.click(screen.getByRole("button", { name: "Event type" }));
     await user.click(
-      await screen.findByRole("option", { name: "Resource updated" }),
+      await screen.findByRole("menuitemcheckbox", { name: "Resource updated" }),
     );
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/audits?page=1&pageSize=25&eventType=resource.updated",
+      "/audits?pageSize=25&eventType=resource.updated",
     );
   });
 
@@ -84,11 +84,11 @@ describe("AuditTable", () => {
 
     renderTable();
 
-    await user.click(screen.getByRole("combobox", { name: "Result" }));
-    await user.click(await screen.findByRole("option", { name: "success" }));
+    await user.click(screen.getByRole("button", { name: "Result" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "success" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/audits?page=1&pageSize=25&result=success",
+      "/audits?pageSize=25&result=success",
     );
   });
 

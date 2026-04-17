@@ -19,7 +19,8 @@
       "confirm": "Confirm",
       "archiveResource": "Archive",
       "unarchiveResource": "Restore",
-      "archived": "Archived"
+      "archived": "Archived",
+      "clearAll": "Clear all"
     },
     "fields": {
       "resource": "Resource",
@@ -201,7 +202,7 @@
     "overview": {
       "eyebrow": "Overview",
       "title": "Operational posture across shared resources",
-      "description": "Overview stays close to the work: attention queues, environment posture, asset ownership, and recent changes instead of a generic dashboard.",
+      "description": "Overview stays close to the work: attention queues, environment posture, and asset ownership instead of a generic dashboard.",
       "attention": {
         "title": "Attention queue",
         "description": "Resources needing immediate operator context or ownership follow-up.",
@@ -216,13 +217,12 @@
         "warning": "Warning",
         "pending": "Pending"
       },
-      "lanes": {
-        "title": "Environment lanes",
-        "description": "Each lane compresses health, ownership, and scope by environment."
-      },
-      "recentAudits": {
-        "title": "Recent audit events",
-        "description": "Latest changes to the shared resource baseline."
+      "environmentSummary": {
+        "title": "Environment overview",
+        "description": "Resource distribution and health by environment.",
+        "totalResources": "{count} resources total",
+        "showingTop": "Showing top {shown} of {total}",
+        "noResources": "No resources"
       }
     },
     "resources": {
@@ -255,14 +255,16 @@
     },
     "cmdb": {
       "eyebrow": "CMDB",
-      "title": "Configuration maintenance view",
-      "description": "The CMDB page reuses the shared resource foundation but emphasizes maintenance ownership, source quality, and update cadence.",
+      "title": "Configuration item inventory",
+      "description": "The CMDB manages resources from a configuration/asset registration perspective, emphasizing structured identifiers, ownership, source, and labels rather than runtime health.",
       "records": {
         "title": "Configuration records",
-        "description": "High-signal configuration fields aligned with the resource model.",
+        "description": "Browse all registered resources by configuration attributes, complementary to the runtime resource list.",
         "emptyTitle": "No configuration records",
-        "emptyDescription": "Resources will appear here once they are registered through the resource inventory."
-      }
+        "emptyDescription": "Resources will appear here once they are registered through the resource inventory.",
+        "allEnvironments": "All environments"
+      },
+      "searchPlaceholder": "Search config item name, external ID, or labels"
     },
     "databases": {
       "eyebrow": "Databases",
@@ -318,7 +320,11 @@
       },
       "dictionaries": {
         "title": "Supporting dictionaries",
-        "description": "Small but explicit dictionary management keeps contracts readable."
+        "description": "Small but explicit dictionary management keeps contracts readable.",
+        "resourceType": "Top-level asset families used for registration and filtering.",
+        "relationType": "Inter-resource relationship types used for topology and dependency management.",
+        "lifecycleStatus": "Asset lifecycle state classification.",
+        "healthStatus": "Operator health posture signal."
       }
     }
   },

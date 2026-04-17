@@ -134,11 +134,11 @@ describe("ResourceTable", () => {
 
     renderTable();
 
-    await user.click(screen.getByRole("combobox", { name: "Lifecycle status" }));
-    await user.click(await screen.findByRole("option", { name: "Running" }));
+    await user.click(screen.getByRole("button", { name: "Lifecycle status" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Running" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&lifecycleStatus=running",
+      "/resources?environmentId=env-prod&lifecycleStatus=running",
     );
   });
 
@@ -147,11 +147,11 @@ describe("ResourceTable", () => {
 
     renderTable();
 
-    await user.click(screen.getByRole("combobox", { name: "Health status" }));
-    await user.click(await screen.findByRole("option", { name: "Warning" }));
+    await user.click(screen.getByRole("button", { name: "Health status" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Warning" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&healthStatus=warning",
+      "/resources?environmentId=env-prod&healthStatus=warning",
     );
   });
 

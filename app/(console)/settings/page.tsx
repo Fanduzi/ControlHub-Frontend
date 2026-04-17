@@ -13,6 +13,15 @@ import {
   listRoles,
 } from "@/services/settings";
 
+function getDictionaryDescription(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  key: string,
+  fallback: string,
+): string {
+  const i18nKey = `pages.settings.dictionaries.${key}`;
+  return t.has(i18nKey) ? t(i18nKey) : fallback;
+}
+
 export default async function SettingsPage() {
   const t = await getTranslations();
   const [environments, owners, roles, dictionaries] = await Promise.all([
@@ -167,7 +176,7 @@ export default async function SettingsPage() {
             >
               <p className="font-medium text-foreground">{dictionary.key}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {dictionary.description}
+                {getDictionaryDescription(t, dictionary.key, dictionary.description)}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {dictionary.values.map((value) => (

@@ -4,16 +4,14 @@ import { PageHeader } from "@/components/blocks/page-header";
 import { OverviewContent } from "@/components/overview/overview-content";
 import {
   listAttentionResourceViewModels,
-  listRecentAuditEventViewModels,
   listResourceViewModels,
 } from "@/lib/view-models";
 
 export default async function OverviewPage() {
   const t = await getTranslations("pages.overview");
-  const [attentionResources, resources, recentAudits] = await Promise.all([
+  const [attentionResources, resources] = await Promise.all([
     listAttentionResourceViewModels(),
     listResourceViewModels(),
-    listRecentAuditEventViewModels(),
   ]);
 
   return (
@@ -26,7 +24,6 @@ export default async function OverviewPage() {
       <OverviewContent
         resources={resources}
         attentionResources={attentionResources}
-        recentAudits={recentAudits}
       />
     </div>
   );

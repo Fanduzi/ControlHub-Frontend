@@ -70,7 +70,7 @@ export default async function ResourcesPage({
         title={t("pages.resources.title")}
         description={t("pages.resources.description")}
         actions={
-          <Button size="sm">{t("common.actions.registerResource")}</Button>
+          <Button size="sm">{t("common.actions.createResource")}</Button>
         }
       />
 

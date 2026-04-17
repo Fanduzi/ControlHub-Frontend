@@ -11,6 +11,18 @@ import type {
   UpdateResourceInput,
 } from "@/types/resource";
 
+function appendRepeated(
+  searchParams: URLSearchParams,
+  key: string,
+  value: string | string[] | undefined,
+) {
+  if (!value) return;
+  const values = Array.isArray(value) ? value : [value];
+  for (const v of values) {
+    searchParams.append(key, v);
+  }
+}
+
 function buildResourceListPath(params: ResourceListParams = {}) {
   const searchParams = new URLSearchParams();
 
@@ -20,21 +32,15 @@ function buildResourceListPath(params: ResourceListParams = {}) {
   if (params.pageSize) {
     searchParams.set("pageSize", String(params.pageSize));
   }
-  if (params.resourceType) {
-    searchParams.set("resourceType", params.resourceType);
-  }
+  appendRepeated(searchParams, "resourceType", params.resourceType);
   if (params.resourceSubtype) {
     searchParams.set("resourceSubtype", params.resourceSubtype);
   }
   if (params.environmentId) {
     searchParams.set("environmentId", params.environmentId);
   }
-  if (params.lifecycleStatus) {
-    searchParams.set("lifecycleStatus", params.lifecycleStatus);
-  }
-  if (params.healthStatus) {
-    searchParams.set("healthStatus", params.healthStatus);
-  }
+  appendRepeated(searchParams, "lifecycleStatus", params.lifecycleStatus);
+  appendRepeated(searchParams, "healthStatus", params.healthStatus);
   if (params.q) {
     searchParams.set("q", params.q);
   }

@@ -5,6 +5,18 @@ import type {
   AuditEventListResponse,
 } from "@/types/audit";
 
+function appendRepeated(
+  searchParams: URLSearchParams,
+  key: string,
+  value: string | string[] | undefined,
+) {
+  if (!value) return;
+  const values = Array.isArray(value) ? value : [value];
+  for (const v of values) {
+    searchParams.append(key, v);
+  }
+}
+
 function buildAuditListPath(params: AuditEventListParams = {}) {
   const searchParams = new URLSearchParams();
 
@@ -17,12 +29,8 @@ function buildAuditListPath(params: AuditEventListParams = {}) {
   if (params.targetResourceId) {
     searchParams.set("targetResourceId", params.targetResourceId);
   }
-  if (params.eventType) {
-    searchParams.set("eventType", params.eventType);
-  }
-  if (params.result) {
-    searchParams.set("result", params.result);
-  }
+  appendRepeated(searchParams, "eventType", params.eventType);
+  appendRepeated(searchParams, "result", params.result);
 
   const query = searchParams.toString();
   return query ? `/audit-events?${query}` : "/audit-events";

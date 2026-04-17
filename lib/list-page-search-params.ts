@@ -12,9 +12,22 @@ function readFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function readAll(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v) => v.trim() !== "");
+  }
+
+  return value && value.trim() !== "" ? [value] : [];
+}
+
 function normalizeText(value: string | string[] | undefined) {
   const trimmed = readFirst(value)?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizeTextArray(value: string | string[] | undefined) {
+  const values = readAll(value).map((v) => v.trim()).filter(Boolean);
+  return values.length > 0 ? values : undefined;
 }
 
 function normalizePositiveInt(
@@ -25,11 +38,20 @@ function normalizePositiveInt(
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function toSingleOrArray(values: string[] | undefined): string | string[] | undefined {
+  if (!values || values.length === 0) return undefined;
+  return values.length === 1 ? values[0] : values;
+}
+
 export async function parseResourceListSearchParams(
   searchParams: PageSearchParamsProp,
 ): Promise<ResourceListParams> {
   const resolved = await searchParams;
-  const resourceType = normalizeText(resolved.resourceType);
+
+  // Multi-select families: read all repeated values
+  const resourceType = toSingleOrArray(normalizeTextArray(resolved.resourceType));
+  const lifecycleStatus = toSingleOrArray(normalizeTextArray(resolved.lifecycleStatus));
+  const healthStatus = toSingleOrArray(normalizeTextArray(resolved.healthStatus));
 
   // Unified archive filter: maps a single URL param to API-level booleans.
   // Values: "all" (default, active only), "includeArchived", "archivedOnly".
@@ -46,8 +68,8 @@ export async function parseResourceListSearchParams(
     resourceSubtype: normalizeText(resolved.resourceSubtype),
     environmentId: normalizeText(resolved.environmentId),
     environmentSlug: normalizeText(resolved.environment),
-    lifecycleStatus: normalizeText(resolved.lifecycleStatus),
-    healthStatus: normalizeText(resolved.healthStatus),
+    lifecycleStatus,
+    healthStatus,
     q: normalizeText(resolved.q),
     includeArchived,
     archivedOnly,
@@ -59,11 +81,15 @@ export async function parseAuditListSearchParams(
 ): Promise<AuditEventListParams> {
   const resolved = await searchParams;
 
+  // Multi-select families for audits
+  const eventType = toSingleOrArray(normalizeTextArray(resolved.eventType));
+  const result = toSingleOrArray(normalizeTextArray(resolved.result));
+
   return {
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     targetResourceId: normalizeText(resolved.targetResourceId),
-    eventType: normalizeText(resolved.eventType),
-    result: normalizeText(resolved.result),
+    eventType,
+    result,
   };
 }

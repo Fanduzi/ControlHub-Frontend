@@ -13,15 +13,10 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { MultiSelectFilter, readMultiSelectValues, buildMultiSelectParams } from "@/components/blocks/multi-select-filter";
 import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import {
   Table,
@@ -52,6 +47,17 @@ const ENGINE_OPTIONS = [
   "tidb",
 ] as const;
 
+function updateMultiSelectParams(
+  pathname: string,
+  router: ReturnType<typeof useRouter>,
+  searchParams: URLSearchParams,
+  key: string,
+  values: string[],
+) {
+  const params = buildMultiSelectParams(searchParams, key, values);
+  router.replace(`${pathname}?${params.toString()}`);
+}
+
 export function DatabaseTable({
   resources,
   pageInfo,
@@ -66,7 +72,7 @@ export function DatabaseTable({
     useState<ResourceListViewModel | null>(null);
 
   const search = searchParams.get("q") ?? "";
-  const engineFilter = searchParams.get("resourceSubtype") ?? "all";
+  const selectedEngines = readMultiSelectValues(searchParams, "resourceSubtype");
   const [searchDraft, setSearchDraft] = useState(search);
 
   useEffect(() => {
@@ -81,10 +87,10 @@ export function DatabaseTable({
     ]),
   ).sort();
 
-  // Self-describing filter trigger labels
-  const engineTriggerText = engineFilter === "all"
-    ? t("common.fields.engine")
-    : `${t("common.fields.engine")}: ${formatLabel(engineFilter)}`;
+  const engineOptions = availableEngines.map((engine) => ({
+    value: engine,
+    label: formatLabel(engine),
+  }));
 
   const columns = [
     columnHelper.accessor("displayName", {
@@ -93,9 +99,10 @@ export function DatabaseTable({
         <div className="space-y-1">
           <p className="font-medium text-foreground">{info.getValue()}</p>
           <p className="text-xs text-muted-foreground">
-            {info.row.original.externalId ||
-              formatLabel(info.row.original.resourceSubtype) ||
-              t("common.notSet")}
+            {info.row.original.externalId
+              || formatLabel(info.row.original.resourceSubtype)
+              || info.row.original.environmentName
+              || t("common.notSet")}
           </p>
         </div>
       ),
@@ -169,32 +176,15 @@ export function DatabaseTable({
               placeholder={t("tables.databases.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
             />
-            <Select
-              value={engineFilter}
-              onValueChange={(value) =>
-                replaceSearchParams({
-                  resourceSubtype:
-                    !value || value === "all" ? null : value,
-                })
+            <MultiSelectFilter
+              label={t("common.fields.engine")}
+              options={engineOptions}
+              selectedValues={selectedEngines}
+              onValuesChange={(values) =>
+                updateMultiSelectParams(pathname, router, searchParams, "resourceSubtype", values)
               }
-            >
-              <SelectTrigger
-                aria-label={t("common.fields.engine")}
-                className="h-9 w-[180px] border-border bg-background"
-              >
-                <span className="truncate">{engineTriggerText}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {t("tables.databases.allEngines")}
-                </SelectItem>
-                {availableEngines.map((engine) => (
-                  <SelectItem key={engine} value={engine}>
-                    {formatLabel(engine)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className="w-[180px]"
+            />
           </>
         }
         pagination={<PaginationControls pageInfo={pageInfo} />}

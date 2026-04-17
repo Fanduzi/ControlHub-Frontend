@@ -11,8 +11,8 @@ export type AuditEvent = {
 
 export type AuditEventListParams = {
   targetResourceId?: string;
-  eventType?: string;
-  result?: string;
+  eventType?: string | string[];
+  result?: string | string[];
   page?: number;
   pageSize?: number;
 };

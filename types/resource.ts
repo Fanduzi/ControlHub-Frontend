@@ -36,12 +36,12 @@ export type PageInfo = {
 };
 
 export type ResourceListParams = {
-  resourceType?: string;
+  resourceType?: string | string[];
   resourceSubtype?: string;
   environmentId?: string;
   environmentSlug?: string;
-  lifecycleStatus?: string;
-  healthStatus?: string;
+  lifecycleStatus?: string | string[];
+  healthStatus?: string | string[];
   q?: string;
   page?: number;
   pageSize?: number;

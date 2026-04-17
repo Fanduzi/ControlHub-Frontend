@@ -13,13 +13,8 @@ import {
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { MultiSelectFilter, readMultiSelectValues, buildMultiSelectParams } from "@/components/blocks/multi-select-filter";
 import { PaginationControls } from "@/components/blocks/pagination-controls";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -48,6 +43,17 @@ const KNOWN_AUDIT_EVENT_TYPES = [
 
 const KNOWN_AUDIT_RESULTS = ["success", "warning", "error"] as const;
 
+function updateMultiSelectParams(
+  pathname: string,
+  router: ReturnType<typeof useRouter>,
+  searchParams: URLSearchParams,
+  key: string,
+  values: string[],
+) {
+  const params = buildMultiSelectParams(searchParams, key, values);
+  router.replace(`${pathname}?${params.toString()}`);
+}
+
 export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const t = useTranslations();
   const localeValue = useLocale();
@@ -55,8 +61,9 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const eventType = searchParams.get("eventType") ?? "all";
-  const result = searchParams.get("result") ?? "all";
+
+  const selectedEventTypes = readMultiSelectValues(searchParams, "eventType");
+  const selectedResults = readMultiSelectValues(searchParams, "result");
 
   function getEventTypeLabel(eventType: string) {
     const key = eventType.replaceAll(".", "_");
@@ -72,22 +79,6 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
       : formatLabel(result);
   }
 
-  function replaceSearchParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null) {
-        params.delete(key);
-        return;
-      }
-
-      params.set(key, value);
-    });
-
-    params.set("page", "1");
-    router.replace(`${pathname}?${params.toString()}`);
-  }
-
   const eventTypes = Array.from(
     new Set([
       ...KNOWN_AUDIT_EVENT_TYPES,
@@ -97,6 +88,16 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const results = Array.from(
     new Set([...KNOWN_AUDIT_RESULTS, ...events.map((event) => event.result)]),
   ).sort();
+
+  const eventTypeOptions = eventTypes.map((v) => ({
+    value: v,
+    label: getEventTypeLabel(v),
+  }));
+
+  const resultOptions = results.map((v) => ({
+    value: v,
+    label: getResultLabel(v),
+  }));
 
   const columns = [
     columnHelper.accessor("eventType", {
@@ -141,7 +142,11 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     }),
     columnHelper.accessor("createdAt", {
       header: t("common.fields.timestamp"),
-      cell: (info) => formatDateTime(info.getValue(), locale),
+      cell: (info) => (
+        <span className="whitespace-nowrap">
+          {formatDateTime(info.getValue(), locale)}
+        </span>
+      ),
     }),
   ];
 
@@ -152,66 +157,30 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  // Self-describing filter trigger labels
-  const eventTypeTriggerText = eventType === "all"
-    ? t("tables.audits.filterEventType")
-    : `${t("tables.audits.filterEventType")}: ${getEventTypeLabel(eventType)}`;
-  const resultTriggerText = result === "all"
-    ? t("tables.audits.filterResult")
-    : `${t("tables.audits.filterResult")}: ${getResultLabel(result)}`;
-
   return (
     <DataTableShell
       title={t("tables.audits.title")}
       description={t("tables.audits.description")}
       controls={
         <>
-          <Select
-            value={eventType}
-            onValueChange={(value) =>
-              replaceSearchParams({
-                eventType: !value || value === "all" ? null : value,
-              })
+          <MultiSelectFilter
+            label={t("tables.audits.filterEventType")}
+            options={eventTypeOptions}
+            selectedValues={selectedEventTypes}
+            onValuesChange={(values) =>
+              updateMultiSelectParams(pathname, router, searchParams, "eventType", values)
             }
-          >
-            <SelectTrigger
-              aria-label={t("tables.audits.filterEventType")}
-              className="h-9 w-[200px] border-border bg-background"
-            >
-              <span className="truncate">{eventTypeTriggerText}</span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("tables.audits.allEventTypes")}</SelectItem>
-              {eventTypes.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {getEventTypeLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={result}
-            onValueChange={(value) =>
-              replaceSearchParams({
-                result: !value || value === "all" ? null : value,
-              })
+            className="w-[200px]"
+          />
+          <MultiSelectFilter
+            label={t("tables.audits.filterResult")}
+            options={resultOptions}
+            selectedValues={selectedResults}
+            onValuesChange={(values) =>
+              updateMultiSelectParams(pathname, router, searchParams, "result", values)
             }
-          >
-            <SelectTrigger
-              aria-label={t("tables.audits.filterResult")}
-              className="h-9 w-[180px] border-border bg-background"
-            >
-              <span className="truncate">{resultTriggerText}</span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("tables.audits.allResults")}</SelectItem>
-              {results.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {getResultLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-[180px]"
+          />
         </>
       }
       pagination={<PaginationControls pageInfo={pageInfo} />}
