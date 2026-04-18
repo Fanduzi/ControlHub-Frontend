@@ -884,14 +884,14 @@ describe("Phase 15B: vertical layer layout", () => {
     expect(proxyY).toBeLessThan(primaryY);
   });
 
-  it("database cluster node is removed from node list, replaced by group box", () => {
+  it("root cluster node is kept, group box wraps replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const nodeIds = new Set(nodes.map((n) => n.id));
 
-    // Cluster node should NOT be in the visible node list
-    expect(nodeIds.has("cluster-1")).toBe(false);
+    // Root cluster node IS kept visible
+    expect(nodeIds.has("cluster-1")).toBe(true);
 
-    // Group box node should exist
+    // Group box node should also exist
     const groupBox = nodes.find((n) => n.id === "group-cluster-1");
     expect(groupBox).toBeDefined();
     expect(groupBox!.type).toBe("topologyGroup");
@@ -1016,9 +1016,34 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     });
   }
 
-  it("cluster node is removed from node list", () => {
+  it("root cluster node is kept visible (not removed)", () => {
     const { nodes } = mapTopologyToFlow(fullResponse());
-    expect(nodes.find((n) => n.id === "cluster-1")).toBeUndefined();
+    const rootCluster = nodes.find((n) => n.id === "cluster-1");
+    expect(rootCluster).toBeDefined();
+    expect(rootCluster!.type).toBe("topologyNode");
+  });
+
+  it("non-root cluster nodes are removed and replaced by group box", () => {
+    const resp = makeResponse({
+      nodes: [
+        makeNode({ id: "cluster-1", resourceType: "database_cluster", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, distance: 0 }),
+        makeNode({ id: "primary-1", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication", distance: 1, replicationDepth: 0 }),
+        makeNode({ id: "cluster-2", resourceType: "database_cluster", topologyRole: "cluster", topologyLayer: "cluster", isRoot: false, distance: 2, displayName: "Other Cluster" }),
+        makeNode({ id: "primary-2", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication", distance: 2, replicationDepth: 0 }),
+      ],
+      edges: [
+        makeEdge({ id: "e-repl-1", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
+        makeEdge({ id: "e-member-2", fromResourceId: "primary-2", toResourceId: "cluster-2", semanticType: "membership" }),
+      ],
+    });
+
+    const { nodes } = mapTopologyToFlow(resp);
+    // Root cluster is kept
+    expect(nodes.find((n) => n.id === "cluster-1")).toBeDefined();
+    // Non-root cluster is removed
+    expect(nodes.find((n) => n.id === "cluster-2")).toBeUndefined();
+    // Group box for non-root cluster exists
+    expect(nodes.find((n) => n.id === "group-cluster-2")).toBeDefined();
   });
 
   it("group box node is created with cluster label", () => {
@@ -1055,7 +1080,7 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     expect(membershipEdges).toHaveLength(0);
   });
 
-  it("traffic edges targeting cluster are retargeted to group box", () => {
+  it("traffic edges targeting root cluster are retargeted to group box", () => {
     const { edges } = mapTopologyToFlow(fullResponse());
     const trafficEdge = edges.find((e) => {
       const st = (e.data as { semanticType?: string })?.semanticType;
@@ -1066,7 +1091,7 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     expect(trafficEdge!.source).toBe("proxy-1");
   });
 
-  it("monitoring edges targeting cluster are retargeted to group box", () => {
+  it("monitoring edges targeting root cluster are retargeted to group box", () => {
     const { edges } = mapTopologyToFlow(fullResponse());
     const monEdge = edges.find((e) => {
       const st = (e.data as { semanticType?: string })?.semanticType;

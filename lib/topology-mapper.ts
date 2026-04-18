@@ -294,9 +294,9 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
   // --- Entry/Proxy layer ---
   y = layoutLayerRow(entryNodes, centerX, y, positions);
 
-  // --- Skip cluster row (they become group box labels) ---
-  // Add gap where cluster would have been for visual spacing
-  y += ROW_HEIGHT + LAYER_GAP;
+  // --- Cluster row ---
+  // Position cluster nodes (they serve as group box labels but the root must remain visible)
+  y = layoutLayerRow(clusterNodes, centerX, y, positions);
 
   // --- Replication area (inside group box) ---
   if (replNodes.length > 0) {
@@ -410,8 +410,8 @@ function computeLayerBands(
   for (const node of sortedNodes) {
     const pos = positions.get(node.id);
     if (!pos) continue;
-    // Skip cluster nodes — they're represented by group boxes
-    if (node.topologyLayer === "cluster") continue;
+    // Skip non-root cluster nodes — they're represented by group boxes
+    if (node.topologyLayer === "cluster" && !node.isRoot) continue;
     const layer = node.topologyLayer ?? "generic";
     const existing = layerRanges.get(layer);
     if (existing) {
@@ -459,9 +459,11 @@ export function mapTopologyToFlow(response: TopologyResponse): {
   const sortedNodes = [...response.nodes].sort(compareFn);
   const sortedEdges = [...response.edges].sort(compareEdges);
 
-  // Cluster node IDs for filtering
+  // Cluster node IDs for filtering (exclude root — root must always remain visible)
   const clusterNodeIds = new Set(
-    sortedNodes.filter((n) => n.topologyLayer === "cluster").map((n) => n.id),
+    sortedNodes
+      .filter((n) => n.topologyLayer === "cluster" && !n.isRoot)
+      .map((n) => n.id),
   );
 
   let positions: Map<string, { x: number; y: number }>;
