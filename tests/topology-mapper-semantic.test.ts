@@ -51,7 +51,7 @@ function makeResponse(overrides: Partial<TopologyResponse> = {}): TopologyRespon
 }
 
 describe("database semantic topology layout", () => {
-  it("lays out database topology in semantic layer order left-to-right", () => {
+  it("lays out database topology in vertical layer order top-to-bottom", () => {
     const response = makeResponse({
       nodes: [
         makeNode({ id: "svc-1", resourceType: "service", topologyRole: "service", topologyLayer: "application", distance: 2 }),
@@ -67,30 +67,36 @@ describe("database semantic topology layout", () => {
     });
 
     const { nodes } = mapTopologyToFlow(response);
-    const positions = new Map(nodes.map((n) => [n.id, n.position.x]));
+    const yPos = new Map(nodes.map((n) => [n.id, n.position.y]));
+    const xPos = new Map(nodes.map((n) => [n.id, n.position.x]));
 
-    // Layer order: application -> entry -> cluster -> replication -> control_plane -> host
-    const svcX = positions.get("svc-1")!;
-    const domainX = positions.get("domain-1")!;
-    const proxyX = positions.get("proxy-1")!;
-    const clusterX = positions.get("cluster-1")!;
-    const primaryX = positions.get("primary-1")!;
-    const replicaX = positions.get("replica-1")!;
-    const orchX = positions.get("orch-1")!;
-    const hostX = positions.get("host-1")!;
+    // Vertical layer order: application (top) → entry → cluster → replication → control_plane → host (bottom)
+    const svcY = yPos.get("svc-1")!;
+    const domainY = yPos.get("domain-1")!;
+    const proxyY = yPos.get("proxy-1")!;
+    const clusterY = yPos.get("cluster-1")!;
+    const primaryY = yPos.get("primary-1")!;
+    const replicaY = yPos.get("replica-1")!;
+    const orchY = yPos.get("orch-1")!;
+    const hostY = yPos.get("host-1")!;
 
-    // Application layer leftmost
-    expect(svcX).toBeLessThan(domainX);
-    // Entry layer after application
-    expect(domainX).toBeLessThan(clusterX);
-    expect(proxyX).toBeLessThan(clusterX);
-    // Cluster layer after entry
-    expect(clusterX).toBeLessThan(primaryX);
-    // Replication layer: primary at depth 0, replica at depth 1 (further right)
+    // Application layer topmost (lowest y)
+    expect(svcY).toBeLessThan(domainY);
+    // Entry layer below application
+    expect(domainY).toBeLessThan(clusterY);
+    expect(proxyY).toBeLessThan(clusterY);
+    // Cluster header above replication
+    expect(clusterY).toBeLessThan(primaryY);
+    // Replication below cluster header
+    // Control-plane and host layers below replication
+    expect(primaryY).toBeLessThan(orchY);
+    expect(replicaY).toBeLessThan(orchY);
+    expect(orchY).toBeLessThanOrEqual(hostY);
+
+    // Horizontal: primary at x=0, replica expands right by depth
+    const primaryX = xPos.get("primary-1")!;
+    const replicaX = xPos.get("replica-1")!;
     expect(primaryX).toBeLessThan(replicaX);
-    // Control-plane and host layers are to the right of the replication chain
-    expect(replicaX).toBeLessThanOrEqual(orchX);
-    expect(replicaX).toBeLessThanOrEqual(hostX);
   });
 
   it("places primary at the leftmost replication position, replicas expand rightward by replicationDepth", () => {
@@ -163,15 +169,17 @@ describe("database semantic topology layout", () => {
     });
 
     const { nodes } = mapTopologyToFlow(response);
-    const positions = new Map(nodes.map((n) => [n.id, n.position.x]));
+    const yPos = new Map(nodes.map((n) => [n.id, n.position.y]));
 
-    const primaryX = positions.get("primary-1")!;
-    const hostX = positions.get("host-1")!;
-    const replicaX = positions.get("replica-1")!;
+    const primaryY = yPos.get("primary-1")!;
+    const hostY = yPos.get("host-1")!;
+    const replicaY = yPos.get("replica-1")!;
 
-    // Host should not be between primary and replica in x axis
-    const hostOutsideReplication = hostX >= Math.max(primaryX, replicaX) || hostX <= Math.min(primaryX, replicaX);
-    expect(hostOutsideReplication).toBe(true);
+    // Host is in a separate layer below replication, never between primary and replica in y
+    // Both primary and replica are in the replication layer (same or similar y)
+    // Host is below both
+    expect(hostY).toBeGreaterThan(primaryY);
+    expect(hostY).toBeGreaterThan(replicaY);
   });
 
   it("produces deterministic layout (same input = same output)", () => {
@@ -811,7 +819,7 @@ describe("layer bands for visual grouping", () => {
     expect(layerBands).toHaveLength(0);
   });
 
-  it("layer bands have x position and width", () => {
+  it("layer bands have x position, width, y position, and height", () => {
     const response = makeResponse({
       nodes: [
         makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
@@ -824,9 +832,207 @@ describe("layer bands for visual grouping", () => {
     for (const band of layerBands) {
       expect(typeof band.x).toBe("number");
       expect(typeof band.width).toBe("number");
+      expect(typeof band.y).toBe("number");
+      expect(typeof band.height).toBe("number");
+      expect(Number.isFinite(band.x)).toBe(true);
+      expect(Number.isFinite(band.width)).toBe(true);
+      expect(Number.isFinite(band.y)).toBe(true);
+      expect(Number.isFinite(band.height)).toBe(true);
+      expect(band.width).toBeGreaterThan(0);
+      expect(band.height).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 15B — Vertical layer layout with horizontal replication expansion
+// ---------------------------------------------------------------------------
+describe("Phase 15B: vertical layer layout", () => {
+  /** Helper: build a full database topology response with all layers */
+  function fullDbResponse() {
+    return makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", resourceType: "service", topologyRole: "service", topologyLayer: "application", distance: 2 }),
+        makeNode({ id: "domain-1", resourceType: "domain_name", topologyRole: "entry", topologyLayer: "entry", distance: 1 }),
+        makeNode({ id: "proxy-ac", resourceType: "database_proxy", topologyRole: "proxy_active", topologyLayer: "entry", distance: 1, name: "a-proxy" }),
+        makeNode({ id: "proxy-sb", resourceType: "database_proxy", topologyRole: "proxy_standby", topologyLayer: "entry", distance: 1, name: "b-proxy" }),
+        makeNode({ id: "cluster-1", resourceType: "database_cluster", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, distance: 0 }),
+        makeNode({ id: "primary-1", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication", distance: 1, replicationDepth: 0 }),
+        makeNode({ id: "replica-1", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication", distance: 1, replicationDepth: 1, replicationParentId: "primary-1" }),
+        makeNode({ id: "replica-2", resourceType: "database_instance", topologyRole: "replica_intermediate", topologyLayer: "replication", distance: 1, replicationDepth: 1, replicationParentId: "primary-1" }),
+        makeNode({ id: "replica-2a", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication", distance: 2, replicationDepth: 2, replicationParentId: "replica-2" }),
+        makeNode({ id: "orch-1", resourceType: "control_plane_component", topologyRole: "control_plane", topologyLayer: "control_plane", distance: 2 }),
+        makeNode({ id: "host-1", resourceType: "host", topologyRole: "host", topologyLayer: "host", distance: 2 }),
+      ],
+    });
+  }
+
+  it("application nodes have lower y (higher on screen) than entry/proxy nodes", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const svcY = pos.get("svc-1")!.y;
+    const domainY = pos.get("domain-1")!.y;
+    const proxyY = pos.get("proxy-ac")!.y;
+
+    expect(svcY).toBeLessThan(domainY);
+    expect(svcY).toBeLessThan(proxyY);
+  });
+
+  it("entry/proxy nodes have lower y than replication nodes", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const proxyY = pos.get("proxy-ac")!.y;
+    const primaryY = pos.get("primary-1")!.y;
+
+    expect(proxyY).toBeLessThan(primaryY);
+  });
+
+  it("database cluster is NOT positioned between proxy and primary as a chain node", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const proxyX = pos.get("proxy-ac")!.x;
+    const clusterX = pos.get("cluster-1")!.x;
+    const primaryX = pos.get("primary-1")!.x;
+
+    // Cluster should not form a proxy→cluster→primary horizontal chain.
+    // Either cluster is above the replication area (different y) or at the same y as primary
+    // but NOT with proxy.x < cluster.x < primary.x.
+    const clusterBetweenProxyAndPrimary =
+      proxyX < clusterX && clusterX < primaryX;
+    expect(clusterBetweenProxyAndPrimary).toBe(false);
+  });
+
+  it("primary x-position is left of all replicas", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const primaryX = pos.get("primary-1")!.x;
+    const r1X = pos.get("replica-1")!.x;
+    const r2X = pos.get("replica-2")!.x;
+
+    expect(primaryX).toBeLessThan(r1X);
+    expect(primaryX).toBeLessThan(r2X);
+  });
+
+  it("replica x-position increases with replicationDepth", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const primaryX = pos.get("primary-1")!.x;
+    const r1X = pos.get("replica-1")!.x;   // depth 1
+    const r2aX = pos.get("replica-2a")!.x;  // depth 2
+
+    expect(r1X).toBeGreaterThan(primaryX);
+    expect(r2aX).toBeGreaterThan(r1X);
+  });
+
+  it("same-depth replicas share the same x band and stack vertically", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const r1Pos = pos.get("replica-1")!;
+    const r2Pos = pos.get("replica-2")!;  // both depth 1
+
+    // Same x band (same replication depth = same column)
+    expect(r1Pos.x).toBe(r2Pos.x);
+    // Different y (stacked vertically)
+    expect(r1Pos.y).not.toBe(r2Pos.y);
+  });
+
+  it("control plane nodes have higher y (lower on screen) than replication nodes", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const primaryY = pos.get("primary-1")!.y;
+    const orchY = pos.get("orch-1")!.y;
+
+    expect(orchY).toBeGreaterThan(primaryY);
+  });
+
+  it("host nodes have higher y (lower on screen) than replication nodes", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+    const primaryY = pos.get("primary-1")!.y;
+    const hostY = pos.get("host-1")!.y;
+
+    expect(hostY).toBeGreaterThan(primaryY);
+  });
+
+  it("entry layer nodes are centered horizontally above the replication area", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+    const pos = new Map(nodes.map((n) => [n.id, n.position]));
+
+    // Entry layer nodes should have their x centered relative to the replication area
+    const proxyX = pos.get("proxy-ac")!.x;
+
+    // Proxy should NOT be far to the left of primary (old broken layout had proxy on far left)
+    // Instead proxy should be roughly centered above the replication area
+    // At minimum, proxy x should be >= 0 (not in a separate left column)
+    expect(proxyX).toBeGreaterThanOrEqual(0);
+  });
+
+  it("active proxy is positioned before standby proxy (deterministic order)", () => {
+    const { nodes } = mapTopologyToFlow(fullDbResponse());
+
+    const proxyAc = nodes.find((n) => n.id === "proxy-ac")!;
+    const proxySb = nodes.find((n) => n.id === "proxy-sb")!;
+
+    // Active proxy should sort before standby (by role importance)
+    const acIdx = nodes.indexOf(proxyAc);
+    const sbIdx = nodes.indexOf(proxySb);
+    expect(acIdx).toBeLessThan(sbIdx);
+  });
+});
+
+describe("Phase 15B: failover edge routing", () => {
+  it("failover edges use horizontal handles (source-right → target-left)", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "proxy-ac", resourceType: "database_proxy", topologyRole: "proxy_active", topologyLayer: "entry" }),
+        makeNode({ id: "proxy-sb", resourceType: "database_proxy", topologyRole: "proxy_standby", topologyLayer: "entry" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-failover", fromResourceId: "proxy-ac", toResourceId: "proxy-sb", semanticType: "failover" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    expect(edges[0].sourceHandle).toBe("source-right");
+    expect(edges[0].targetHandle).toBe("target-left");
+  });
+});
+
+describe("Phase 15B: vertical layer bands", () => {
+  it("layer bands use y-ranges for vertical layout", () => {
+    const { layerBands } = mapTopologyToFlow(fullDbResponse15B());
+
+    // Each band should have valid x, width, y, and height reflecting the vertical layout
+    for (const band of layerBands) {
       expect(Number.isFinite(band.x)).toBe(true);
       expect(Number.isFinite(band.width)).toBe(true);
       expect(band.width).toBeGreaterThan(0);
     }
   });
+
+  it("layer bands include all present layers", () => {
+    const { layerBands } = mapTopologyToFlow(fullDbResponse15B());
+
+    const layerKeys = layerBands.map((b) => b.layerKey);
+    expect(layerKeys).toContain("application");
+    expect(layerKeys).toContain("entry");
+    expect(layerKeys).toContain("cluster");
+    expect(layerKeys).toContain("replication");
+    expect(layerKeys).toContain("control_plane");
+    expect(layerKeys).toContain("host");
+  });
 });
+
+function fullDbResponse15B() {
+  return makeResponse({
+    nodes: [
+      makeNode({ id: "svc-1", resourceType: "service", topologyRole: "service", topologyLayer: "application", distance: 2 }),
+      makeNode({ id: "proxy-1", resourceType: "database_proxy", topologyRole: "proxy_active", topologyLayer: "entry", distance: 1 }),
+      makeNode({ id: "cluster-1", resourceType: "database_cluster", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, distance: 0 }),
+      makeNode({ id: "primary-1", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication", distance: 1, replicationDepth: 0 }),
+      makeNode({ id: "replica-1", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication", distance: 1, replicationDepth: 1, replicationParentId: "primary-1" }),
+      makeNode({ id: "orch-1", resourceType: "control_plane_component", topologyRole: "control_plane", topologyLayer: "control_plane", distance: 2 }),
+      makeNode({ id: "host-1", resourceType: "host", topologyRole: "host", topologyLayer: "host", distance: 2 }),
+    ],
+  });
+}

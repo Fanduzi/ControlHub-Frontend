@@ -9,9 +9,10 @@ type TopologyNodeData = TopologyNode & {
 
 const COLUMN_WIDTH = 360;
 const ROW_HEIGHT = 140;
+/** Vertical gap between layer bands. */
+const LAYER_GAP = 80;
 
-// --- Database semantic layer ordering ---
-// application → entry → cluster → replication (by depth) → control_plane → host
+// --- Database semantic layer ordering (top to bottom) ---
 const SEMANTIC_LAYER_ORDER: Record<TopologyLayer, number> = {
   application: 0,
   entry: 1,
@@ -105,20 +106,26 @@ function getEdgeHandles(
         targetHandle: HANDLE_TARGET_LEFT,
       };
     case "traffic":
-      // Traffic flows vertically: source bottom → target top
+      // Traffic flows vertically downward: source bottom → target top
       return {
         sourceHandle: HANDLE_SOURCE_BOTTOM,
         targetHandle: HANDLE_TARGET_TOP,
       };
+    case "failover":
+      // Failover is a proxy/entry layer relationship: horizontal handles
+      return {
+        sourceHandle: HANDLE_SOURCE_RIGHT,
+        targetHandle: HANDLE_TARGET_LEFT,
+      };
     case "management":
     case "monitoring":
-      // Control-plane edges: source top → target bottom (upward flow)
+      // Control-plane edges: source top → target bottom (visually upward from control plane)
       return {
         sourceHandle: HANDLE_SOURCE_TOP,
         targetHandle: HANDLE_TARGET_BOTTOM,
       };
     case "placement":
-      // Host placement: vertical from database to host
+      // Host placement: vertical downward from database to host
       return {
         sourceHandle: HANDLE_SOURCE_BOTTOM,
         targetHandle: HANDLE_TARGET_TOP,
@@ -180,48 +187,121 @@ function compareEdges(a: TopologyEdge, b: TopologyEdge): number {
   return a.id.localeCompare(b.id);
 }
 
-// --- Database semantic column index ---
-function getSemanticColumnIndex(node: TopologyNode): number {
-  const layerOrder = SEMANTIC_LAYER_ORDER[node.topologyLayer] ?? 6;
-
-  // For replication layer, spread by depth to expand rightward
-  if (node.topologyLayer === "replication") {
-    const depth = typeof node.replicationDepth === "number" ? node.replicationDepth : 0;
-    return layerOrder + depth;
-  }
-
-  return layerOrder;
-}
-
 // --- Generic column index ---
 function getGenericColumnIndex(node: TopologyNode): number {
   const distance = typeof node.distance === "number" ? node.distance : 0;
   return distance;
 }
 
+/**
+ * Layout a single horizontal row of nodes at the given y position,
+ * centered around centerX. Multi-node rows spread horizontally.
+ */
+function layoutLayerRow(
+  nodes: TopologyNode[],
+  centerX: number,
+  baseY: number,
+  positions: Map<string, { x: number; y: number }>,
+): number {
+  if (nodes.length === 0) return baseY;
+
+  if (nodes.length === 1) {
+    positions.set(nodes[0].id, { x: centerX, y: baseY });
+    return baseY + ROW_HEIGHT + LAYER_GAP;
+  }
+
+  // Spread horizontally around center
+  const totalWidth = (nodes.length - 1) * COLUMN_WIDTH;
+  const startX = centerX - totalWidth / 2;
+
+  for (let i = 0; i < nodes.length; i++) {
+    positions.set(nodes[i].id, { x: startX + i * COLUMN_WIDTH, y: baseY });
+  }
+
+  return baseY + ROW_HEIGHT + LAYER_GAP;
+}
+
+/**
+ * Phase 15B: Vertical layer layout for database topology.
+ *
+ * Layers are stacked top-to-bottom:
+ *   Application → Entry/Proxy → Cluster (header) → Replication → Control Plane → Host
+ *
+ * Within the replication band, primary is at x=0 and replicas expand
+ * rightward by replicationDepth. Same-depth replicas stack vertically.
+ */
 function computeDatabaseLayout(sortedNodes: TopologyNode[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
 
-  const columns = new Map<number, TopologyNode[]>();
-  for (const node of sortedNodes) {
-    const columnIndex = getSemanticColumnIndex(node);
-    const col = columns.get(columnIndex) ?? [];
-    col.push(node);
-    columns.set(columnIndex, col);
-  }
+  // Group nodes by layer
+  const appNodes = sortedNodes.filter((n) => n.topologyLayer === "application");
+  const entryNodes = sortedNodes.filter((n) => n.topologyLayer === "entry");
+  const clusterNodes = sortedNodes.filter((n) => n.topologyLayer === "cluster");
+  const replNodes = sortedNodes.filter((n) => n.topologyLayer === "replication");
+  const cpNodes = sortedNodes.filter((n) => n.topologyLayer === "control_plane");
+  const hostNodes = sortedNodes.filter((n) => n.topologyLayer === "host");
+  const otherNodes = sortedNodes.filter(
+    (n) =>
+      !["application", "entry", "cluster", "replication", "control_plane", "host"].includes(
+        n.topologyLayer ?? "",
+      ),
+  );
 
-  const maxColumnSize = Math.max(...[...columns.values()].map((col) => col.length), 1);
+  // Compute horizontal center from replication area width
+  const maxDepth =
+    replNodes.length > 0
+      ? Math.max(
+          ...replNodes.map((n) => (typeof n.replicationDepth === "number" ? n.replicationDepth : 0)),
+        )
+      : 0;
+  const centerX = (maxDepth * COLUMN_WIDTH) / 2;
 
-  for (const [columnIndex, colNodes] of columns) {
-    const x = columnIndex * COLUMN_WIDTH;
-    const totalHeight = (colNodes.length - 1) * ROW_HEIGHT;
-    const maxHeight = (maxColumnSize - 1) * ROW_HEIGHT;
-    const offsetY = (maxHeight - totalHeight) / 2;
+  let y = 0;
 
-    for (let i = 0; i < colNodes.length; i++) {
-      positions.set(colNodes[i].id, { x, y: offsetY + i * ROW_HEIGHT });
+  // --- Application layer (topmost) ---
+  y = layoutLayerRow(appNodes, centerX, y, positions);
+
+  // --- Entry/Proxy layer ---
+  y = layoutLayerRow(entryNodes, centerX, y, positions);
+
+  // --- Cluster header (above replication, centered) ---
+  y = layoutLayerRow(clusterNodes, centerX, y, positions);
+
+  // --- Replication area ---
+  if (replNodes.length > 0) {
+    // Group by replication depth
+    const depthGroups = new Map<number, TopologyNode[]>();
+    for (const node of replNodes) {
+      const depth = typeof node.replicationDepth === "number" ? node.replicationDepth : 0;
+      const group = depthGroups.get(depth) ?? [];
+      group.push(node);
+      depthGroups.set(depth, group);
     }
+
+    const maxGroupSize = Math.max(...[...depthGroups.values()].map((g) => g.length), 1);
+
+    for (const [depth, groupNodes] of depthGroups) {
+      const x = depth * COLUMN_WIDTH;
+      const groupHeight = (groupNodes.length - 1) * ROW_HEIGHT;
+      const totalHeight = (maxGroupSize - 1) * ROW_HEIGHT;
+      const offsetY = (totalHeight - groupHeight) / 2;
+
+      for (let i = 0; i < groupNodes.length; i++) {
+        positions.set(groupNodes[i].id, { x, y: y + offsetY + i * ROW_HEIGHT });
+      }
+    }
+
+    y += (maxGroupSize - 1) * ROW_HEIGHT + ROW_HEIGHT + LAYER_GAP;
   }
+
+  // --- Control Plane ---
+  y = layoutLayerRow(cpNodes, centerX, y, positions);
+
+  // --- Host / Placement ---
+  y = layoutLayerRow(hostNodes, centerX, y, positions);
+
+  // --- Any remaining nodes ---
+  layoutLayerRow(otherNodes, centerX, y, positions);
 
   return positions;
 }
@@ -261,29 +341,33 @@ function isBackboneEdge(edge: TopologyEdge): boolean {
 function computeLayerBands(
   sortedNodes: TopologyNode[],
   positions: Map<string, { x: number; y: number }>,
-): Array<{ layerKey: string; labelKey: string; x: number; width: number }> {
-  const layerXRanges = new Map<string, { minX: number; maxX: number }>();
+): LayerBand[] {
+  const layerRanges = new Map<string, { minX: number; maxX: number; minY: number; maxY: number }>();
 
   for (const node of sortedNodes) {
     const pos = positions.get(node.id);
     if (!pos) continue;
     const layer = node.topologyLayer ?? "generic";
-    const existing = layerXRanges.get(layer);
+    const existing = layerRanges.get(layer);
     if (existing) {
       existing.minX = Math.min(existing.minX, pos.x);
       existing.maxX = Math.max(existing.maxX, pos.x);
+      existing.minY = Math.min(existing.minY, pos.y);
+      existing.maxY = Math.max(existing.maxY, pos.y);
     } else {
-      layerXRanges.set(layer, { minX: pos.x, maxX: pos.x });
+      layerRanges.set(layer, { minX: pos.x, maxX: pos.x, minY: pos.y, maxY: pos.y });
     }
   }
 
-  const bands: Array<{ layerKey: string; labelKey: string; x: number; width: number }> = [];
-  for (const [layer, range] of layerXRanges) {
+  const bands: LayerBand[] = [];
+  for (const [layer, range] of layerRanges) {
     bands.push({
       layerKey: layer,
       labelKey: LAYER_LABEL_KEYS[layer as TopologyLayer] ?? LAYER_LABEL_KEYS.generic,
       x: range.minX - 40,
       width: range.maxX - range.minX + 320,
+      y: range.minY - 40,
+      height: range.maxY - range.minY + 120,
     });
   }
 
@@ -295,6 +379,8 @@ export type LayerBand = {
   labelKey: string;
   x: number;
   width: number;
+  y: number;
+  height: number;
 };
 
 export function mapTopologyToFlow(response: TopologyResponse): {
