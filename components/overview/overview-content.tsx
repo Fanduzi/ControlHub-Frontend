@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
@@ -34,13 +35,19 @@ function severityRank(resource: ResourceListViewModel): number {
   return SEVERITY_ORDER[resource.healthStatus] ?? 99;
 }
 
-function buildFallbackSummary(resource: ResourceListViewModel): string {
-  const parts = [
-    formatLabel(resource.resourceType),
-    resource.environmentName,
-    formatLabel(resource.lifecycleStatus),
-  ].filter(Boolean);
-  return parts.join(" \u00B7 ");
+function isActionableAttention(resource: ResourceListViewModel): boolean {
+  const actionableHealth = ["critical", "degraded", "warning"].includes(
+    resource.healthStatus,
+  );
+  const actionableLifecycle = resource.lifecycleStatus !== "running";
+  // Exclude resources that are only "unknown" health with no other signal
+  if (
+    resource.healthStatus === "unknown" &&
+    resource.lifecycleStatus === "running"
+  ) {
+    return false;
+  }
+  return actionableHealth || actionableLifecycle;
 }
 
 function computeMetrics(resources: ResourceListViewModel[]): Metrics {
@@ -54,87 +61,35 @@ function computeMetrics(resources: ResourceListViewModel[]): Metrics {
   };
 }
 
-type EnvironmentGroup = {
-  environmentId: string;
-  environmentName: string;
-  total: number;
-  critical: number;
-  warning: number;
-  healthy: number;
-  abnormalResources: ResourceListViewModel[];
-};
+function buildAttentionReason(
+  resource: ResourceListViewModel,
+  t: ReturnType<typeof useTranslations>,
+): string {
+  const reasons: string[] = [];
+  const healthKey = `statusValues.${resource.healthStatus}`;
+  const healthLabel = t.has(healthKey) ? t(healthKey) : resource.healthStatus;
 
-function groupByEnvironment(
-  resources: ResourceListViewModel[],
-): EnvironmentGroup[] {
-  const groups = new Map<string, EnvironmentGroup>();
-
-  for (const resource of resources) {
-    const key = resource.environmentId;
-    const existing = groups.get(key);
-
-    if (existing) {
-      existing.total += 1;
-      if (
-        resource.healthStatus === "critical" ||
-        resource.healthStatus === "degraded"
-      ) {
-        existing.critical += 1;
-      } else if (resource.healthStatus === "warning") {
-        existing.warning += 1;
-      } else if (resource.healthStatus === "healthy") {
-        existing.healthy += 1;
-      }
-      if (
-        resource.healthStatus !== "healthy" &&
-        resource.healthStatus !== "unknown"
-      ) {
-        existing.abnormalResources.push(resource);
-      }
-    } else {
-      const abnormalResources: ResourceListViewModel[] = [];
-      let critical = 0;
-      let warning = 0;
-      let healthy = 0;
-
-      if (
-        resource.healthStatus === "critical" ||
-        resource.healthStatus === "degraded"
-      ) {
-        critical = 1;
-        abnormalResources.push(resource);
-      } else if (resource.healthStatus === "warning") {
-        warning = 1;
-        abnormalResources.push(resource);
-      } else if (resource.healthStatus === "healthy") {
-        healthy = 1;
-      }
-
-      groups.set(key, {
-        environmentId: resource.environmentId,
-        environmentName: resource.environmentName,
-        total: 1,
-        critical,
-        warning,
-        healthy,
-        abnormalResources,
-      });
-    }
+  if (resource.healthStatus === "critical" || resource.healthStatus === "degraded" || resource.healthStatus === "warning") {
+    reasons.push(`${t("common.fields.health")}=${healthLabel}`);
   }
-
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    abnormalResources: [...group.abnormalResources]
-      .sort((a, b) => severityRank(a) - severityRank(b))
-      .slice(0, 3),
-  }));
+  if (
+    resource.lifecycleStatus !== "running" &&
+    resource.lifecycleStatus !== "unknown"
+  ) {
+    const lifecycleKey = `statusValues.${resource.lifecycleStatus}`;
+    const lifecycleLabel = t.has(lifecycleKey) ? t(lifecycleKey) : resource.lifecycleStatus;
+    reasons.push(`${t("common.fields.lifecycle")}=${lifecycleLabel}`);
+  }
+  return reasons.join(", ") || t("statusValues.unknown");
 }
+
+const ATTENTION_PAGE_SIZE = 10;
 
 export function OverviewContent({
   resources,
   attentionResources,
 }: OverviewContentProps) {
-  const t = useTranslations("pages.overview");
+  const t = useTranslations();
   const { currentEnvironmentId } = useEnvironment();
 
   const filteredResources = useMemo(
@@ -160,27 +115,29 @@ export function OverviewContent({
     [filteredResources],
   );
 
+  // Filter to only actionable attention items and sort by severity
   const sortedAttention = useMemo(
-    () => [...filteredAttention].sort((a, b) => severityRank(a) - severityRank(b)),
+    () =>
+      [...filteredAttention]
+        .filter(isActionableAttention)
+        .sort((a, b) => severityRank(a) - severityRank(b))
+        .slice(0, ATTENTION_PAGE_SIZE),
     [filteredAttention],
   );
 
-  const environmentGroups = useMemo(
-    () => groupByEnvironment(filteredResources),
-    [filteredResources],
-  );
+  const hasMoreAttention = filteredAttention.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
 
   return (
     <div className="space-y-6">
       {/* Row 1: Resource posture metrics */}
       <DetailPanel
-        title={t("posture.title")}
-        description={t("posture.description")}
+        title={t("pages.overview.posture.title")}
+        description={t("pages.overview.posture.description")}
       >
         <div className="space-y-3">
           <div className="rounded-lg border border-border bg-background px-4 py-4">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              {t("posture.total")}
+              {t("pages.overview.posture.total")}
             </p>
             <p className="mt-2 text-3xl font-semibold text-foreground">
               {metrics.total}
@@ -189,7 +146,7 @@ export function OverviewContent({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("posture.degraded")}
+                {t("pages.overview.posture.degraded")}
               </p>
               <p className="mt-2 text-2xl font-semibold text-rose-700">
                 {metrics.degraded}
@@ -197,7 +154,7 @@ export function OverviewContent({
             </div>
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("posture.warning")}
+                {t("pages.overview.posture.warning")}
               </p>
               <p className="mt-2 text-2xl font-semibold text-amber-700">
                 {metrics.warning}
@@ -205,7 +162,7 @@ export function OverviewContent({
             </div>
             <div className="rounded-lg border border-border bg-background px-4 py-4">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("posture.pending")}
+                {t("pages.overview.posture.pending")}
               </p>
               <p className="mt-2 text-2xl font-semibold text-sky-700">
                 {metrics.pending}
@@ -215,111 +172,90 @@ export function OverviewContent({
         </div>
       </DetailPanel>
 
-      {/* Row 2: Attention queue with severity ordering */}
+      {/* Row 2: Attention queue — data-dense table */}
       <DetailPanel
-        title={t("attention.title")}
-        description={t("attention.description")}
+        title={t("pages.overview.attention.title")}
+        description={t("pages.overview.attention.description")}
       >
         {sortedAttention.length === 0 ? (
           <EmptyState
-            title={t("attention.emptyTitle")}
-            description={t("attention.emptyDescription")}
+            title={t("pages.overview.attention.emptyTitle")}
+            description={t("pages.overview.attention.emptyDescription")}
           />
         ) : (
-          <div className="space-y-3">
-            {sortedAttention.map((resource) => (
-              <div
-                key={resource.id}
-                className="grid gap-3 rounded-lg border border-border bg-background px-4 py-4 md:grid-cols-[1fr_auto]"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground">
-                      {resource.displayName}
-                    </p>
-                    <StatusBadge
-                      status={resource.healthStatus}
-                      tone="health"
-                    />
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {buildFallbackSummary(resource)}
-                  </p>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <p>{resource.environmentName}</p>
-                  <p>{resource.ownerName}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </DetailPanel>
-
-      {/* Row 3: Environment summary cards */}
-      <DetailPanel
-        title={t("environmentSummary.title")}
-        description={t("environmentSummary.description")}
-      >
-        {environmentGroups.length === 0 ? (
-          <EmptyState
-            title={t("environmentSummary.noResources")}
-            description=""
-          />
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {environmentGroups.map((group) => (
-              <div
-                key={group.environmentId}
-                className="rounded-lg border border-border bg-background px-4 py-4"
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {group.environmentName}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
-                  {t("environmentSummary.totalResources", {
-                    count: group.total,
-                  })}
-                </p>
-                <div className="mt-3 flex gap-4 text-sm">
-                  <span className="text-rose-700">
-                    {group.critical} {t("posture.degraded").toLowerCase()}
-                  </span>
-                  <span className="text-amber-700">
-                    {group.warning} {t("posture.warning").toLowerCase()}
-                  </span>
-                  <span className="text-emerald-700">
-                    {group.healthy} {t("posture.total").split(" ").pop()}
-                  </span>
-                </div>
-                {group.abnormalResources.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {group.abnormalResources.map((resource) => (
-                      <div
-                        key={resource.id}
-                        className="flex items-center justify-between gap-2"
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    {t("common.fields.resource")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    {t("common.fields.resourceType")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    {t("common.fields.environment")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    {t("common.fields.status")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    {t("pages.overview.attention.reasonColumn")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedAttention.map((resource) => (
+                  <tr
+                    key={resource.id}
+                    className="border-b border-border/50 transition-colors hover:bg-muted/30"
+                  >
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/resources/${resource.id}`}
+                        className="font-medium text-foreground hover:underline"
                       >
-                        <span className="truncate text-sm text-foreground">
-                          {resource.displayName}
-                        </span>
+                        {resource.displayName}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {formatLabel(resource.resourceType)}
+                      {resource.resourceSubtype
+                        ? ` / ${formatLabel(resource.resourceSubtype)}`
+                        : ""}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {resource.environmentName}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-1">
                         <StatusBadge
                           status={resource.healthStatus}
                           tone="health"
                         />
+                        <StatusBadge
+                          status={resource.lifecycleStatus}
+                          tone="lifecycle"
+                        />
                       </div>
-                    ))}
-                    {group.abnormalResources.length < group.critical + group.warning && (
-                      <p className="text-xs text-muted-foreground">
-                        {t("environmentSummary.showingTop", {
-                          shown: group.abnormalResources.length,
-                          total: group.critical + group.warning,
-                        })}
-                      </p>
-                    )}
-                  </div>
-                )}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {buildAttentionReason(resource, t)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {hasMoreAttention && (
+              <div className="mt-3 flex justify-end">
+                <Link
+                  href="/resources?healthStatus=degraded&healthStatus=warning&healthStatus=critical"
+                  className="text-sm text-primary hover:underline"
+                >
+                  {t("pages.overview.attention.viewAll")}
+                </Link>
               </div>
-            ))}
+            )}
           </div>
         )}
       </DetailPanel>

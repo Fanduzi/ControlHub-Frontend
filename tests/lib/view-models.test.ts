@@ -306,6 +306,93 @@ describe("getResourceViewModel", () => {
     ]);
   });
 
+  it("does not truncate totalItems when backend returns fewer items than total", async () => {
+    // Backend has 11 mysql instances total, but only returns 10 per page.
+    // Frontend must NOT use items.length as totalItems.
+    const instances = Array.from({ length: 10 }, (_, i) => ({
+      ...resource,
+      id: `db-inst-${i}`,
+      name: `instance-${String(i).padStart(2, "0")}`,
+      displayName: `Instance ${String(i).padStart(2, "0")}`,
+      resourceSubtype: "mysql",
+    }));
+
+    mockedListResources
+      .mockResolvedValueOnce({
+        items: instances,
+        pageInfo: {
+          page: 1,
+          pageSize: 10,
+          totalItems: 11,
+          totalPages: 2,
+        },
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 10,
+          totalItems: 0,
+          totalPages: 0,
+        },
+      });
+
+    const result = await listDatabaseResourceViewModels({
+      page: 1,
+      pageSize: 10,
+      resourceSubtype: "mysql",
+    });
+
+    // Must use backend's totalItems, not items.length
+    expect(result.pageInfo.totalItems).toBe(11);
+    expect(result.pageInfo.totalPages).toBe(2);
+    expect(result.items).toHaveLength(10);
+  });
+
+  it("passes resourceSubtype to backend and uses backend pageInfo for merged types", async () => {
+    const instance = { ...resource, id: "mysql-inst-1", resourceSubtype: "mysql" };
+    const cluster = {
+      ...resource,
+      id: "mysql-cluster-1",
+      resourceType: "database_cluster" as const,
+      resourceSubtype: "mysql",
+    };
+
+    mockedListResources
+      .mockResolvedValueOnce({
+        items: [instance],
+        pageInfo: { page: 1, pageSize: 20, totalItems: 7, totalPages: 1 },
+      })
+      .mockResolvedValueOnce({
+        items: [cluster],
+        pageInfo: { page: 1, pageSize: 20, totalItems: 3, totalPages: 1 },
+      });
+
+    const result = await listDatabaseResourceViewModels({
+      page: 1,
+      pageSize: 10,
+      resourceSubtype: "mysql",
+    });
+
+    // resourceSubtype is passed to both backend calls
+    expect(mockedListResources).toHaveBeenNthCalledWith(1, {
+      page: 1,
+      pageSize: 10,
+      resourceType: "database_instance",
+      resourceSubtype: "mysql",
+    });
+    expect(mockedListResources).toHaveBeenNthCalledWith(2, {
+      page: 1,
+      pageSize: 10,
+      resourceType: "database_cluster",
+      resourceSubtype: "mysql",
+    });
+
+    // totalItems = 7 + 3 = 10 (sum of backend totals, not items.length)
+    expect(result.pageInfo.totalItems).toBe(10);
+    expect(result.items).toHaveLength(2);
+  });
+
   it("preserves pageInfo when listing audit event view models", async () => {
     mockedListAuditEvents.mockResolvedValue({
       items: [

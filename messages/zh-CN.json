@@ -60,7 +60,9 @@
     "active": "启用",
     "stopped": "已停止",
     "provisioning": "创建中",
-    "retired": "已退役"
+    "retired": "已退役",
+    "decommissioning": "下线中",
+    "pending": "待处理"
   },
   "activityTimeline": {
     "summary": "{eventType}已完成，结果为{result}。",
@@ -207,7 +209,9 @@
         "title": "关注队列",
         "description": "需要立即补充运维上下文或负责人跟进的资源。",
         "emptyTitle": "暂无关注项",
-        "emptyDescription": "所有资源均处于健康运行状态。"
+        "emptyDescription": "所有资源均处于健康运行状态。",
+        "reasonColumn": "关注原因",
+        "viewAll": "查看全部关注项"
       },
       "posture": {
         "title": "资源态势",
@@ -442,6 +446,15 @@
       "management": "管理",
       "dependency": "依赖",
       "monitoring": "监控"
+    },
+    "layerLabels": {
+      "application": "应用层",
+      "entry": "入口层",
+      "cluster": "集群层",
+      "replication": "复制层",
+      "controlPlane": "控制面",
+      "host": "主机层",
+      "generic": "通用"
     },
     "emptyTitle": "暂无关联关系",
     "emptyDescription": "此资源没有可可视化的关联资源。",

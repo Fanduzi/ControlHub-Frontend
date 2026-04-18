@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { mapTopologyToFlow, type TopologyNodeData } from "@/lib/topology-mapper";
+import { mapTopologyToFlow, type TopologyNodeData, type LayerBand } from "@/lib/topology-mapper";
 import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
@@ -187,11 +187,13 @@ function TopologyPanelInner({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowData?.nodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowData?.edges ?? []);
+  const [layerBands, setLayerBands] = useState<LayerBand[]>([]);
 
   useEffect(() => {
     if (flowData) {
       setNodes(flowData.nodes);
       setEdges(flowData.edges);
+      setLayerBands(flowData.layerBands);
     }
   }, [flowData, setNodes, setEdges]);
 
@@ -247,13 +249,14 @@ function TopologyPanelInner({
     [t],
   );
 
-  // Custom node component with semantic role styling
+  // Custom node component with semantic role styling and named handles
   const nodeTypes = useMemo(
     () => ({
       topologyNode: ({ data }: { data: TopologyNodeData }) => {
         const roleLabel = getRoleLabel(data.topologyRole);
         const roleBorder = ROLE_BORDER[data.topologyRole] ?? "border-border";
         const roleBg = ROLE_BG[data.topologyRole] ?? "bg-card";
+        const handleClass = "!w-2 !h-2 !bg-muted-foreground/40 !border-0";
 
         return (
           <div
@@ -261,17 +264,21 @@ function TopologyPanelInner({
             data-is-root={data.isRoot ? "true" : "false"}
             data-topology-role={data.topologyRole}
             className={cn(
-              "rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors",
+              "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors",
               data.isRoot
                 ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
                 : cn(roleBorder, roleBg),
             )}
           >
-            <Handle
-              type="target"
-              position={Position.Left}
-              className="!w-2 !h-2 !bg-muted-foreground/40 !border-0"
-            />
+            {/* Named handles — source and target at each position for full directional flexibility */}
+            <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
+            <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
+            <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
+            <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
+            <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
+            <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
+            <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
+            <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
             <div className="flex items-center gap-2">
               <span className="font-medium text-foreground">
                 {data.displayName || data.name}
@@ -308,11 +315,6 @@ function TopologyPanelInner({
                 className="text-[10px]"
               />
             </div>
-            <Handle
-              type="source"
-              position={Position.Right}
-              className="!w-2 !h-2 !bg-muted-foreground/40 !border-0"
-            />
           </div>
         );
       },
@@ -400,6 +402,26 @@ function TopologyPanelInner({
     </div>
   );
 
+  // Render layer band labels as a legend below the graph
+  const renderLayerBands = () => {
+    if (!isDatabase || layerBands.length === 0) return null;
+    return (
+      <div className="flex flex-wrap gap-2 border-t border-border px-3 py-2">
+        {layerBands.map((band) => {
+          const label = t.has(band.labelKey) ? t(band.labelKey) : band.layerKey;
+          return (
+            <span
+              key={band.layerKey}
+              className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+            >
+              {label}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   // --- Shared ReactFlow graph ---
   const renderGraph = (graphClassName?: string) => (
     <div
@@ -429,6 +451,7 @@ function TopologyPanelInner({
           className="!border-border !bg-card !shadow-sm [&>button]:!border-border [&>button]:!bg-card [&>button]:!fill-foreground [&>button:hover]:!bg-accent"
         />
       </ReactFlow>
+      {renderLayerBands()}
     </div>
   );
 

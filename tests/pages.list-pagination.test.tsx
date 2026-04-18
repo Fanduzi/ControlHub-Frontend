@@ -113,7 +113,7 @@ function buildResource(page = 1): ResourceListViewModelResponse {
     items,
     pageInfo: {
       page,
-      pageSize: 15,
+      pageSize: 10,
       totalItems: 40,
       totalPages: 2,
     },
@@ -140,7 +140,7 @@ function buildAuditResponse(page = 1): AuditEventViewModelListResponse {
     items,
     pageInfo: {
       page,
-      pageSize: 15,
+      pageSize: 10,
       totalItems: 30,
       totalPages: 2,
     },
@@ -193,7 +193,7 @@ describe("list pages pagination contracts", () => {
 
     expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(1, {
       page: 1,
-      pageSize: 15,
+      pageSize: 10,
       resourceType: "service",
       lifecycleStatus: "running",
       healthStatus: "warning",
@@ -249,7 +249,7 @@ describe("list pages pagination contracts", () => {
 
     expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(1, {
       page: 1,
-      pageSize: 15,
+      pageSize: 10,
       environmentId: "00000000-0000-0000-0000-000000000000",
       environmentSlug: "missing",
     });

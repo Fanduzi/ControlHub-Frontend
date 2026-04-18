@@ -96,15 +96,7 @@ export function DatabaseTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: (info) => (
-        <div className="space-y-1">
-          <p className="font-medium text-foreground">{info.getValue()}</p>
-          <p className="text-xs text-muted-foreground">
-            {info.row.original.externalId
-              || formatLabel(info.row.original.resourceSubtype)
-              || info.row.original.environmentName
-              || t("common.notSet")}
-          </p>
-        </div>
+        <span className="font-medium text-foreground">{info.getValue()}</span>
       ),
     }),
     columnHelper.accessor("environmentName", {

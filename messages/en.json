@@ -60,7 +60,9 @@
     "active": "Active",
     "stopped": "Stopped",
     "provisioning": "Provisioning",
-    "retired": "Retired"
+    "retired": "Retired",
+    "decommissioning": "Decommissioning",
+    "pending": "Pending"
   },
   "activityTimeline": {
     "summary": "{eventType} completed with {result} result.",
@@ -207,7 +209,9 @@
         "title": "Attention queue",
         "description": "Resources needing immediate operator context or ownership follow-up.",
         "emptyTitle": "No attention items",
-        "emptyDescription": "All resources are healthy and running."
+        "emptyDescription": "All resources are healthy and running.",
+        "reasonColumn": "Reason",
+        "viewAll": "View all attention items"
       },
       "posture": {
         "title": "Resource posture",
@@ -442,6 +446,15 @@
       "management": "Management",
       "dependency": "Dependency",
       "monitoring": "Monitoring"
+    },
+    "layerLabels": {
+      "application": "Application",
+      "entry": "Entry Layer",
+      "cluster": "Cluster",
+      "replication": "Replication",
+      "controlPlane": "Control Plane",
+      "host": "Host",
+      "generic": "Generic"
     },
     "emptyTitle": "No relations to display",
     "emptyDescription": "This resource has no linked resources to visualize.",

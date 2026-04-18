@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyEdge, TopologyNode, TopologyResponse } from "@/types/resource";
-import { mapTopologyToFlow } from "@/lib/topology-mapper";
+import { mapTopologyToFlow, SOURCE_HANDLE_IDS, TARGET_HANDLE_IDS } from "@/lib/topology-mapper";
 
 function makeNode(overrides: Partial<TopologyNode> = {}): TopologyNode {
   return {
@@ -347,11 +347,11 @@ describe("generic topology fallback", () => {
 });
 
 describe("warning regression tests", () => {
-  it("edges must not reference sourceHandle/targetHandle ids that don't exist on node handles", () => {
+  it("edges must only reference sourceHandle/targetHandle ids that exist on node handles", () => {
     // React Flow warns "Couldn't create edge for source handle id: X"
-    // when edge.sourceHandle doesn't match any Handle component's id prop.
-    // Since our Handle components don't use explicit id props, edges must not
-    // set sourceHandle/targetHandle to arbitrary strings like "source"/"target".
+    // when edge.sourceHandle doesn't match any Handle component's id+type combo.
+    // Our Handle components use prefixed ids (source-left, target-left, etc.),
+    // so sourceHandle must belong to SOURCE_HANDLE_IDS and targetHandle to TARGET_HANDLE_IDS.
     const response = makeResponse({
       nodes: [
         makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
@@ -367,15 +367,17 @@ describe("warning regression tests", () => {
     const { edges } = mapTopologyToFlow(response);
 
     for (const edge of edges) {
-      // sourceHandle and targetHandle must be undefined — our Handle components
-      // don't have explicit ids, so React Flow auto-connects by type.
-      expect(edge.sourceHandle).toBeUndefined();
-      expect(edge.targetHandle).toBeUndefined();
+      if (edge.sourceHandle != null) {
+        expect(SOURCE_HANDLE_IDS.has(edge.sourceHandle), `sourceHandle "${edge.sourceHandle}" must be a source-type handle`).toBe(true);
+      }
+      if (edge.targetHandle != null) {
+        expect(TARGET_HANDLE_IDS.has(edge.targetHandle), `targetHandle "${edge.targetHandle}" must be a target-type handle`).toBe(true);
+      }
     }
   });
 
   it("no edge should reference handles not present on any node component", () => {
-    // Broader check: even non-backbone edges must not set sourceHandle/targetHandle
+    // Broader check: sourceHandle in SOURCE_HANDLE_IDS, targetHandle in TARGET_HANDLE_IDS
     const response = makeResponse({
       nodes: [
         makeNode({ id: "n-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
@@ -392,8 +394,37 @@ describe("warning regression tests", () => {
     const { edges } = mapTopologyToFlow(response);
 
     for (const edge of edges) {
-      expect(edge.sourceHandle).toBeUndefined();
-      expect(edge.targetHandle).toBeUndefined();
+      if (edge.sourceHandle != null) {
+        expect(SOURCE_HANDLE_IDS.has(edge.sourceHandle)).toBe(true);
+      }
+      if (edge.targetHandle != null) {
+        expect(TARGET_HANDLE_IDS.has(edge.targetHandle)).toBe(true);
+      }
+    }
+  });
+
+  it("management/monitoring edges use source-top→target-bottom (not raw 'top')", () => {
+    // Regression: old code used sourceHandle="top" but Handle id="top" was type="target",
+    // causing React Flow warning. Now sourceHandle must be "source-top" (type=source).
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "orch-1", topologyRole: "control_plane", topologyLayer: "control_plane", resourceType: "control_plane_component" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-mgmt", fromResourceId: "orch-1", toResourceId: "primary-1", semanticType: "management" }),
+        makeEdge({ id: "e-mon", fromResourceId: "orch-1", toResourceId: "primary-1", semanticType: "monitoring" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+
+    for (const edge of edges) {
+      expect(edge.sourceHandle).toBe("source-top");
+      expect(edge.targetHandle).toBe("target-bottom");
+      // Must NOT be raw position names — those lack the source/target prefix
+      expect(edge.sourceHandle).not.toBe("top");
+      expect(edge.sourceHandle).not.toBe("bottom");
     }
   });
 
@@ -439,9 +470,9 @@ describe("warning regression tests", () => {
     expect(Number.isFinite(nodes[0].position.y)).toBe(true);
   });
 
-  it("backbone edges (replication, membership, traffic) attach without explicit handles", () => {
-    // Backbone edges must work purely via React Flow's default Handle matching,
-    // without sourceHandle/targetHandle overrides.
+  it("backbone edges (replication, membership, traffic) use valid typed handles", () => {
+    // Backbone edges use explicit named handles for deterministic routing.
+    // sourceHandle must be in SOURCE_HANDLE_IDS, targetHandle in TARGET_HANDLE_IDS.
     const response = makeResponse({
       nodes: [
         makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
@@ -464,8 +495,12 @@ describe("warning regression tests", () => {
 
     expect(backboneEdges.length).toBe(3);
     for (const edge of backboneEdges) {
-      expect(edge.sourceHandle).toBeUndefined();
-      expect(edge.targetHandle).toBeUndefined();
+      if (edge.sourceHandle != null) {
+        expect(SOURCE_HANDLE_IDS.has(edge.sourceHandle)).toBe(true);
+      }
+      if (edge.targetHandle != null) {
+        expect(TARGET_HANDLE_IDS.has(edge.targetHandle)).toBe(true);
+      }
     }
   });
 
@@ -598,5 +633,200 @@ describe("semantic field propagation", () => {
 
     expect(replica.data.replicationDepth).toBe(1);
     expect(replica.data.replicationParentId).toBe("primary-1");
+  });
+});
+
+describe("named handles for semantic edge routing", () => {
+  it("replication edges use right→left handles", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    expect(edges[0].sourceHandle).toBe("source-right");
+    expect(edges[0].targetHandle).toBe("target-left");
+  });
+
+  it("traffic edges use source-bottom→target-top handles", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-traffic", fromResourceId: "svc-1", toResourceId: "primary-1", semanticType: "traffic" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    expect(edges[0].sourceHandle).toBe("source-bottom");
+    expect(edges[0].targetHandle).toBe("target-top");
+  });
+
+  it("placement edges use source-bottom→target-top handles", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "host-1", topologyRole: "host", topologyLayer: "host", resourceType: "host" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-place", fromResourceId: "primary-1", toResourceId: "host-1", semanticType: "placement" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    expect(edges[0].sourceHandle).toBe("source-bottom");
+    expect(edges[0].targetHandle).toBe("target-top");
+  });
+
+  it("management and monitoring edges use source-top→target-bottom handles", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "orch-1", topologyRole: "control_plane", topologyLayer: "control_plane", resourceType: "control_plane_component" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-mgmt", fromResourceId: "orch-1", toResourceId: "primary-1", semanticType: "management" }),
+        makeEdge({ id: "e-mon", fromResourceId: "orch-1", toResourceId: "primary-1", semanticType: "monitoring" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    const mgmtEdge = edges.find((e) => e.id === "e-mgmt")!;
+    const monEdge = edges.find((e) => e.id === "e-mon")!;
+
+    expect(mgmtEdge.sourceHandle).toBe("source-top");
+    expect(mgmtEdge.targetHandle).toBe("target-bottom");
+    expect(monEdge.sourceHandle).toBe("source-top");
+    expect(monEdge.targetHandle).toBe("target-bottom");
+  });
+
+  it("membership edges use right→left handles", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", resourceType: "database_cluster" }),
+      ],
+      edges: [
+        makeEdge({ id: "e-member", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
+      ],
+    });
+
+    const { edges } = mapTopologyToFlow(response);
+    expect(edges[0].sourceHandle).toBe("source-right");
+    expect(edges[0].targetHandle).toBe("target-left");
+  });
+
+  it("generic topology does not set explicit handles", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root-1",
+      depth: 1,
+      direction: "both",
+      isDatabaseTopology: false,
+      nodes: [
+        {
+          ...makeNode({ id: "root-1", distance: 0, isRoot: true, resourceType: "service" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+        {
+          ...makeNode({ id: "n-2", distance: 1, resourceType: "host" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+      ],
+      edges: [
+        { id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" },
+      ],
+      groups: [],
+    };
+
+    const { edges } = mapTopologyToFlow(response);
+    for (const edge of edges) {
+      expect(edge.sourceHandle).toBeUndefined();
+      expect(edge.targetHandle).toBeUndefined();
+    }
+  });
+});
+
+describe("layer bands for visual grouping", () => {
+  it("computes layer bands for database topology", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+        makeNode({ id: "host-1", topologyRole: "host", topologyLayer: "host", resourceType: "host" }),
+      ],
+    });
+
+    const { layerBands } = mapTopologyToFlow(response);
+
+    expect(layerBands.length).toBe(3);
+    const layerKeys = layerBands.map((b) => b.layerKey);
+    expect(layerKeys).toContain("application");
+    expect(layerKeys).toContain("replication");
+    expect(layerKeys).toContain("host");
+  });
+
+  it("layer bands include i18n label keys", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+    });
+
+    const { layerBands } = mapTopologyToFlow(response);
+
+    expect(layerBands.length).toBe(1);
+    expect(layerBands[0].labelKey).toBe("topology.layerLabels.replication");
+  });
+
+  it("generic topology produces no layer bands", () => {
+    const response: TopologyResponse = {
+      rootResourceId: "root-1",
+      depth: 1,
+      direction: "both",
+      isDatabaseTopology: false,
+      nodes: [
+        {
+          ...makeNode({ id: "root-1", distance: 0, isRoot: true, resourceType: "service" }),
+          topologyRole: "generic",
+          topologyLayer: "generic",
+          isDatabaseTopology: false,
+        },
+      ],
+      edges: [],
+      groups: [],
+    };
+
+    const { layerBands } = mapTopologyToFlow(response);
+    expect(layerBands).toHaveLength(0);
+  });
+
+  it("layer bands have x position and width", () => {
+    const response = makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
+        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
+      ],
+    });
+
+    const { layerBands } = mapTopologyToFlow(response);
+
+    for (const band of layerBands) {
+      expect(typeof band.x).toBe("number");
+      expect(typeof band.width).toBe("number");
+      expect(Number.isFinite(band.x)).toBe(true);
+      expect(Number.isFinite(band.width)).toBe(true);
+      expect(band.width).toBeGreaterThan(0);
+    }
   });
 });

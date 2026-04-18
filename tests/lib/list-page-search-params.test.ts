@@ -49,13 +49,13 @@ describe("parseResourceListSearchParams", () => {
     expect(result.environmentSlug).toBe("staging");
   });
 
-  it("defaults page to 1 and pageSize to 15", async () => {
+  it("defaults page to 1 and pageSize to 10", async () => {
     const result = await parseResourceListSearchParams(
       Promise.resolve({}),
     );
 
     expect(result.page).toBe(1);
-    expect(result.pageSize).toBe(15);
+    expect(result.pageSize).toBe(10);
   });
 
   it("reads multi-select resourceType values", async () => {
@@ -133,12 +133,12 @@ describe("parseAuditListSearchParams", () => {
     expect(result.result).toEqual(["success", "warning"]);
   });
 
-  it("defaults page to 1 and pageSize to 15", async () => {
+  it("defaults page to 1 and pageSize to 10", async () => {
     const result = await parseAuditListSearchParams(
       Promise.resolve({}),
     );
 
     expect(result.page).toBe(1);
-    expect(result.pageSize).toBe(15);
+    expect(result.pageSize).toBe(10);
   });
 });

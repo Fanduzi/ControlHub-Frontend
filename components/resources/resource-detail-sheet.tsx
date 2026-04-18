@@ -138,6 +138,14 @@ export function ResourceDetailSheet({
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("common.fields.externalId")}
+                </dt>
+                <dd className="mt-1 break-all font-medium text-foreground">
+                  {resource.externalId || t("common.notSet")}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.updated")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">

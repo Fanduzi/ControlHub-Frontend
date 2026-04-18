@@ -113,30 +113,17 @@ export function ResourceTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
-        <div className="space-y-1">
-          <p className="font-medium text-foreground">
-            {row.original.displayName}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {row.original.externalId
-              || row.original.resourceSubtype
-              || row.original.ownerName
-              || row.original.id}
-          </p>
-        </div>
+        <span className="font-medium text-foreground">
+          {row.original.displayName}
+        </span>
       ),
     }),
     columnHelper.accessor("resourceType", {
       header: t("common.fields.resourceType"),
       cell: (info) => (
-        <div className="space-y-1">
-          <p className="font-medium text-foreground">
-            {formatLabel(info.getValue())}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {formatLabel(info.row.original.resourceSubtype)}
-          </p>
-        </div>
+        <span className="text-sm text-foreground">
+          {formatLabel(info.getValue())}
+        </span>
       ),
     }),
     columnHelper.accessor("environmentName", {

@@ -6,7 +6,7 @@ type RawSearchParams = Record<string, string | string[] | undefined>;
 type PageSearchParamsProp = Promise<RawSearchParams>;
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 15;
+const DEFAULT_PAGE_SIZE = 10;
 
 function readFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

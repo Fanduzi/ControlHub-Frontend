@@ -225,23 +225,34 @@ async function listPaginatedResourcesByTypes(
 ): Promise<ResourceListViewModelResponse> {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 20;
-  const offset = (page - 1) * pageSize;
-  const fetchSize = page * pageSize;
 
+  // Fetch each resource type separately — backend handles resourceSubtype
+  // filtering natively (Phase 12.7). We merge client-side because the
+  // backend only accepts a single resourceType per request.
   const responses = await Promise.all(
     resourceTypes.map((resourceType) =>
       listResources({
         ...params,
-        page: 1,
-        pageSize: fetchSize,
         resourceType,
+        // Request all items up to the current page boundary so we can
+        // merge, sort, and slice client-side while preserving true totals.
+        page: 1,
+        pageSize: page * pageSize,
       }) as Promise<ResourceListResult>,
     ),
+  );
+
+  // Sum true totals from backend pageInfo for each resource type
+  const totalItems = responses.reduce(
+    (sum, response) => sum + toResourcePageInfo(response).totalItems,
+    0,
   );
 
   const mergedItems = responses
     .flatMap((response) => toResourceItems(response))
     .sort(compareResourcesForList);
+
+  const offset = (page - 1) * pageSize;
 
   return {
     items: await listResourceListViewModels(
@@ -250,16 +261,8 @@ async function listPaginatedResourcesByTypes(
     pageInfo: {
       page,
       pageSize,
-      totalItems: responses.reduce(
-        (total, response) => total + toResourcePageInfo(response).totalItems,
-        0,
-      ),
-      totalPages: Math.ceil(
-        responses.reduce(
-          (total, response) => total + toResourcePageInfo(response).totalItems,
-          0,
-        ) / pageSize,
-      ),
+      totalItems,
+      totalPages: Math.ceil(totalItems / pageSize),
     },
   };
 }
