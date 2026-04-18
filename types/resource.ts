@@ -37,7 +37,7 @@ export type PageInfo = {
 
 export type ResourceListParams = {
   resourceType?: string | string[];
-  resourceSubtype?: string;
+  resourceSubtype?: string | string[];
   environmentId?: string;
   environmentSlug?: string;
   lifecycleStatus?: string | string[];

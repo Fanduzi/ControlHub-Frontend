@@ -127,12 +127,13 @@ test.describe("List pagination and backend query params", () => {
     await expectRequestHasParam("/resources", "environmentId");
     await expectUrlParam(page, "page", "1");
 
-    // Resource type filter sends resourceType param
+    // Resource type filter sends resourceType param (MultiSelectFilter uses DropdownMenu)
     await resetRecordedRequests("/resources");
-    await page.getByRole("combobox", { name: "Filter type" }).click();
-    await page.getByRole("option", { name: "Service" }).click();
+    await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Filter type" }).first().click();
+    await page.getByRole("menuitemcheckbox", { name: "Service" }).click();
     await expectUrlParam(page, "resourceType", "service");
     await expectRequestParam("/resources", "resourceType", "service");
+    await page.keyboard.press("Escape");
 
     // Lifecycle status filter sends lifecycleStatus param (MultiSelectFilter uses DropdownMenu, not combobox)
     await resetRecordedRequests("/resources");

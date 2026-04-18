@@ -50,6 +50,7 @@ export async function parseResourceListSearchParams(
 
   // Multi-select families: read all repeated values
   const resourceType = toSingleOrArray(normalizeTextArray(resolved.resourceType));
+  const resourceSubtype = toSingleOrArray(normalizeTextArray(resolved.resourceSubtype));
   const lifecycleStatus = toSingleOrArray(normalizeTextArray(resolved.lifecycleStatus));
   const healthStatus = toSingleOrArray(normalizeTextArray(resolved.healthStatus));
 
@@ -65,7 +66,7 @@ export async function parseResourceListSearchParams(
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     resourceType,
-    resourceSubtype: normalizeText(resolved.resourceSubtype),
+    resourceSubtype,
     environmentId: normalizeText(resolved.environmentId),
     environmentSlug: normalizeText(resolved.environment),
     lifecycleStatus,

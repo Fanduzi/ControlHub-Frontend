@@ -73,6 +73,47 @@ describe("parseResourceListSearchParams", () => {
 
     expect(result.q).toBe("orders");
   });
+
+  it("reads multi-select resourceSubtype values", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({ resourceSubtype: ["mysql", "clickhouse"] }),
+    );
+
+    expect(result.resourceSubtype).toEqual(["mysql", "clickhouse"]);
+  });
+
+  it("reads single resourceSubtype value as string", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({ resourceSubtype: "mysql" }),
+    );
+
+    expect(result.resourceSubtype).toBe("mysql");
+  });
+
+  it("preserves environment slug alongside multi-select filters", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({
+        environment: "prod",
+        resourceType: ["service", "host"],
+        resourceSubtype: ["mysql", "clickhouse"],
+        lifecycleStatus: ["running"],
+      }),
+    );
+
+    expect(result.environmentSlug).toBe("prod");
+    expect(result.resourceType).toEqual(["service", "host"]);
+    expect(result.resourceSubtype).toEqual(["mysql", "clickhouse"]);
+    expect(result.lifecycleStatus).toBe("running");
+  });
+
+  it("archiveFilter remains single-value", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({ archiveFilter: "includeArchived" }),
+    );
+
+    expect(result.includeArchived).toBe(true);
+    expect(result.archivedOnly).toBeUndefined();
+  });
 });
 
 describe("parseAuditListSearchParams", () => {

@@ -85,11 +85,17 @@ export function ResourceTable({
   const [createOpen, setCreateOpen] = useState(false);
 
   const search = searchParams.get("q") ?? "";
-  const resourceType = searchParams.get("resourceType") ?? "all";
-  const resourceSubtype = searchParams.get("resourceSubtype") ?? "all";
   const archiveFilter = searchParams.get("archiveFilter") ?? "all";
   const [searchDraft, setSearchDraft] = useState(search);
 
+  const selectedTypeValues = useMemo(
+    () => readMultiSelectValues(searchParams, "resourceType"),
+    [searchParams],
+  );
+  const selectedSubtypeValues = useMemo(
+    () => readMultiSelectValues(searchParams, "resourceSubtype"),
+    [searchParams],
+  );
   const selectedLifecycleValues = useMemo(
     () => readMultiSelectValues(searchParams, "lifecycleStatus"),
     [searchParams],
@@ -209,6 +215,20 @@ export function ResourceTable({
       )
   ).sort();
 
+  const handleTypeChange = useCallback(
+    (values: string[]) => {
+      updateMultiSelectParams(pathname, router, searchParams, "resourceType", values);
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleSubtypeChange = useCallback(
+    (values: string[]) => {
+      updateMultiSelectParams(pathname, router, searchParams, "resourceSubtype", values);
+    },
+    [pathname, router, searchParams],
+  );
+
   const handleLifecycleChange = useCallback(
     (values: string[]) => {
       updateMultiSelectParams(pathname, router, searchParams, "lifecycleStatus", values);
@@ -223,13 +243,7 @@ export function ResourceTable({
     [pathname, router, searchParams],
   );
 
-  // Self-describing filter trigger labels
-  const typeTriggerText = resourceType === "all"
-    ? t("tables.resources.filterType")
-    : `${t("tables.resources.filterType")}: ${resourceTypes.find(rt => rt.key === resourceType)?.label ?? formatLabel(resourceType)}`;
-  const subtypeTriggerText = resourceSubtype === "all"
-    ? t("tables.resources.filterSubtype")
-    : `${t("tables.resources.filterSubtype")}: ${formatLabel(resourceSubtype)}`;
+  // Self-describing archive filter trigger label
   const archiveTriggerText = archiveFilter === "all"
     ? `${t("tables.resources.filterArchive")}: ${t("tables.resources.allArchive")}`
     : `${t("tables.resources.filterArchive")}: ${
@@ -237,6 +251,24 @@ export function ResourceTable({
           ? t("tables.resources.includeArchived")
           : t("tables.resources.archivedOnly")
       }`;
+
+  const typeOptions = useMemo(
+    () =>
+      resourceTypes.map((rt) => ({
+        value: rt.key,
+        label: rt.label,
+      })),
+    [resourceTypes],
+  );
+
+  const subtypeFilterOptions = useMemo(
+    () =>
+      subtypeOptions.map((subtype) => ({
+        value: subtype,
+        label: formatLabel(subtype),
+      })),
+    [subtypeOptions],
+  );
 
   const lifecycleOptions = useMemo(
     () =>
@@ -281,58 +313,20 @@ export function ResourceTable({
               placeholder={t("tables.resources.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
             />
-            <Select
-              value={resourceType}
-              onValueChange={(value) =>
-                replaceSearchParams({
-                  resourceType:
-                    !value || value === "all" ? null : value,
-                })
-              }
-            >
-              <SelectTrigger
-                aria-label={t("tables.resources.filterType")}
-                className="h-9 w-[200px] border-border bg-background"
-              >
-                <span className="truncate">{typeTriggerText}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {t("tables.resources.allTypes")}
-                </SelectItem>
-                {resourceTypes.map((rt) => (
-                  <SelectItem key={rt.key} value={rt.key}>
-                    {rt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={resourceSubtype}
-              onValueChange={(value) =>
-                replaceSearchParams({
-                  resourceSubtype:
-                    !value || value === "all" ? null : value,
-                })
-              }
-            >
-              <SelectTrigger
-                aria-label={t("tables.resources.filterSubtype")}
-                className="h-9 w-[200px] border-border bg-background"
-              >
-                <span className="truncate">{subtypeTriggerText}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  {t("tables.resources.allSubtypes")}
-                </SelectItem>
-                {subtypeOptions.map((subtype) => (
-                  <SelectItem key={subtype} value={subtype}>
-                    {formatLabel(subtype)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              label={t("tables.resources.filterType")}
+              options={typeOptions}
+              selectedValues={selectedTypeValues}
+              onValuesChange={handleTypeChange}
+              className="w-[200px]"
+            />
+            <MultiSelectFilter
+              label={t("tables.resources.filterSubtype")}
+              options={subtypeFilterOptions}
+              selectedValues={selectedSubtypeValues}
+              onValuesChange={handleSubtypeChange}
+              className="w-[200px]"
+            />
             <MultiSelectFilter
               label={t("tables.resources.filterLifecycle")}
               options={lifecycleOptions}

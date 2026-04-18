@@ -33,9 +33,7 @@ function buildResourceListPath(params: ResourceListParams = {}) {
     searchParams.set("pageSize", String(params.pageSize));
   }
   appendRepeated(searchParams, "resourceType", params.resourceType);
-  if (params.resourceSubtype) {
-    searchParams.set("resourceSubtype", params.resourceSubtype);
-  }
+  appendRepeated(searchParams, "resourceSubtype", params.resourceSubtype);
   if (params.environmentId) {
     searchParams.set("environmentId", params.environmentId);
   }
