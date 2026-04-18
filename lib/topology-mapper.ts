@@ -144,10 +144,10 @@ function getEdgeHandles(
         targetHandle: HANDLE_TARGET_TOP,
       };
     case "membership":
-      // Membership: horizontal handles for cluster→member
+      // Membership: member → parent (upward from replica to cluster)
       return {
-        sourceHandle: HANDLE_SOURCE_RIGHT,
-        targetHandle: HANDLE_TARGET_LEFT,
+        sourceHandle: HANDLE_SOURCE_TOP,
+        targetHandle: HANDLE_TARGET_BOTTOM,
       };
     default:
       // Default: no explicit handles, let React Flow decide
@@ -247,6 +247,8 @@ type DatabaseLayoutResult = {
     height: number;
     data: GroupBoxData;
   }>;
+  /** Root cluster node IDs — used to keep membership edges targeting root directly. */
+  rootClusterNodeIds: Set<string>;
 };
 
 /**
@@ -262,6 +264,7 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
   const positions = new Map<string, { x: number; y: number }>();
   const clusterToGroupMap = new Map<string, string>();
   const groupBoxNodes: DatabaseLayoutResult["groupBoxNodes"] = [];
+  const rootClusterNodeIds = new Set<string>();
 
   // Group nodes by layer
   const appNodes = sortedNodes.filter((n) => n.topologyLayer === "application");
@@ -286,6 +289,9 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
       : 0;
   const centerX = (maxDepth * COLUMN_WIDTH) / 2;
 
+  // Root cluster nodes to position inside the group box
+  const rootClusterNodes = clusterNodes.filter((n) => n.isRoot);
+
   let y = 0;
 
   // --- Application layer (topmost) ---
@@ -294,46 +300,49 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
   // --- Entry/Proxy layer ---
   y = layoutLayerRow(entryNodes, centerX, y, positions);
 
-  // --- Cluster row ---
-  // Position cluster nodes (they serve as group box labels but the root must remain visible)
-  y = layoutLayerRow(clusterNodes, centerX, y, positions);
-
-  // --- Replication area (inside group box) ---
-  if (replNodes.length > 0) {
-    // Group by replication depth
-    const depthGroups = new Map<number, TopologyNode[]>();
-    for (const node of replNodes) {
-      const depth = typeof node.replicationDepth === "number" ? node.replicationDepth : 0;
-      const group = depthGroups.get(depth) ?? [];
-      group.push(node);
-      depthGroups.set(depth, group);
+  // --- Cluster + Replication area (inside group box) ---
+  if (rootClusterNodes.length > 0 || replNodes.length > 0) {
+    // Position root cluster nodes at the top of the area
+    for (const root of rootClusterNodes) {
+      positions.set(root.id, { x: centerX, y });
+    }
+    if (rootClusterNodes.length > 0) {
+      y += ROW_HEIGHT;
     }
 
-    const maxGroupSize = Math.max(...[...depthGroups.values()].map((g) => g.length), 1);
-
-    for (const [depth, groupNodes] of depthGroups) {
-      const x = depth * COLUMN_WIDTH;
-      const groupHeight = (groupNodes.length - 1) * ROW_HEIGHT;
-      const totalHeight = (maxGroupSize - 1) * ROW_HEIGHT;
-      const offsetY = (totalHeight - groupHeight) / 2;
-
-      for (let i = 0; i < groupNodes.length; i++) {
-        positions.set(groupNodes[i].id, { x, y: y + offsetY + i * ROW_HEIGHT });
+    // Position replication nodes by depth
+    if (replNodes.length > 0) {
+      const depthGroups = new Map<number, TopologyNode[]>();
+      for (const node of replNodes) {
+        const depth = typeof node.replicationDepth === "number" ? node.replicationDepth : 0;
+        const group = depthGroups.get(depth) ?? [];
+        group.push(node);
+        depthGroups.set(depth, group);
       }
+
+      const maxGroupSize = Math.max(...[...depthGroups.values()].map((g) => g.length), 1);
+
+      for (const [depth, groupNodes] of depthGroups) {
+        const x = depth * COLUMN_WIDTH;
+        const groupHeight = (groupNodes.length - 1) * ROW_HEIGHT;
+        const totalHeight = (maxGroupSize - 1) * ROW_HEIGHT;
+        const offsetY = (totalHeight - groupHeight) / 2;
+
+        for (let i = 0; i < groupNodes.length; i++) {
+          positions.set(groupNodes[i].id, { x, y: y + offsetY + i * ROW_HEIGHT });
+        }
+      }
+
+      y += (maxGroupSize - 1) * ROW_HEIGHT + ROW_HEIGHT;
     }
 
-    const replHeight = (maxGroupSize - 1) * ROW_HEIGHT + ROW_HEIGHT;
-
-    // Create group box for each cluster node that has replication children
-    // Use the root cluster node for the main group box
-    for (const clusterNode of clusterNodes) {
-      const groupId = `group-${clusterNode.id}`;
-      clusterToGroupMap.set(clusterNode.id, groupId);
-
-      // Compute group box bounding box from replication node positions
+    // Only create group box when cluster nodes exist
+    if (clusterNodes.length > 0) {
+      // Compute group box bounding box from root cluster + replication nodes
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const repl of replNodes) {
-        const pos = positions.get(repl.id);
+      const allBoxedNodes = [...rootClusterNodes, ...replNodes];
+      for (const node of allBoxedNodes) {
+        const pos = positions.get(node.id);
         if (pos) {
           minX = Math.min(minX, pos.x);
           maxX = Math.max(maxX, pos.x);
@@ -342,19 +351,36 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
         }
       }
 
+      // Create ONE group box using the root cluster's label
+      const groupBoxId = "group-box";
+      const label =
+        rootClusterNodes.length > 0
+          ? rootClusterNodes[0].displayName || rootClusterNodes[0].name
+          : "Cluster";
+
       groupBoxNodes.push({
-        id: groupId,
+        id: groupBoxId,
         position: {
           x: minX - GROUP_PADDING,
           y: minY - GROUP_PADDING - GROUP_LABEL_HEIGHT,
         },
-        width: (maxX - minX) + 320 + GROUP_PADDING * 2,
-        height: (maxY - minY) + ROW_HEIGHT + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
-        data: { label: clusterNode.displayName || clusterNode.name },
+        width: maxX - minX + 320 + GROUP_PADDING * 2,
+        height: maxY - minY + ROW_HEIGHT + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+        data: { label },
       });
+
+      // Map ALL cluster nodes (including root) to the group box for edge retargeting.
+      // External edges (traffic, management, monitoring) will target the group box.
+      // Membership edges are later overridden to target the root node directly.
+      for (const cn of clusterNodes) {
+        clusterToGroupMap.set(cn.id, groupBoxId);
+        if (cn.isRoot) {
+          rootClusterNodeIds.add(cn.id);
+        }
+      }
     }
 
-    y += replHeight + LAYER_GAP;
+    y += LAYER_GAP;
   }
 
   // --- Control Plane ---
@@ -366,7 +392,7 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
   // --- Any remaining nodes ---
   layoutLayerRow(otherNodes, centerX, y, positions);
 
-  return { positions, clusterToGroupMap, groupBoxNodes };
+  return { positions, clusterToGroupMap, groupBoxNodes, rootClusterNodeIds };
 }
 
 function computeGenericLayout(sortedNodes: TopologyNode[]): Map<string, { x: number; y: number }> {
@@ -410,8 +436,8 @@ function computeLayerBands(
   for (const node of sortedNodes) {
     const pos = positions.get(node.id);
     if (!pos) continue;
-    // Skip non-root cluster nodes — they're represented by group boxes
-    if (node.topologyLayer === "cluster" && !node.isRoot) continue;
+    // Skip cluster nodes — root is inside the group box, non-root is filtered
+    if (node.topologyLayer === "cluster") continue;
     const layer = node.topologyLayer ?? "generic";
     const existing = layerRanges.get(layer);
     if (existing) {
@@ -469,12 +495,14 @@ export function mapTopologyToFlow(response: TopologyResponse): {
   let positions: Map<string, { x: number; y: number }>;
   let clusterToGroupMap = new Map<string, string>();
   let groupBoxNodes: DatabaseLayoutResult["groupBoxNodes"] = [];
+  let rootClusterNodeIds = new Set<string>();
 
   if (isDatabase) {
     const result = computeDatabaseLayout(sortedNodes);
     positions = result.positions;
     clusterToGroupMap = result.clusterToGroupMap;
     groupBoxNodes = result.groupBoxNodes;
+    rootClusterNodeIds = result.rootClusterNodeIds;
   } else {
     positions = computeGenericLayout(sortedNodes);
   }
@@ -519,9 +547,6 @@ export function mapTopologyToFlow(response: TopologyResponse): {
   const edges: Edge[] = [];
 
   for (const edge of sortedEdges) {
-    // Drop membership edges (primary→cluster, replica→cluster) — visually implied by group box
-    if (isDatabase && edge.semanticType === "membership") continue;
-
     let sourceId = edge.fromResourceId;
     let targetId = edge.toResourceId;
 
@@ -531,6 +556,13 @@ export function mapTopologyToFlow(response: TopologyResponse): {
     }
     if (clusterToGroupMap.has(targetId)) {
       targetId = clusterToGroupMap.get(targetId)!;
+    }
+
+    // Membership edges: if target was retargeted from a root cluster node,
+    // keep targeting the root node directly (shows internal replica→cluster
+    // relationship inside the group box).
+    if (isDatabase && edge.semanticType === "membership" && rootClusterNodeIds.has(edge.toResourceId)) {
+      targetId = edge.toResourceId;
     }
 
     const backbone = isDatabase && isBackboneEdge(edge);

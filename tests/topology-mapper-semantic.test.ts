@@ -892,7 +892,7 @@ describe("Phase 15B: vertical layer layout", () => {
     expect(nodeIds.has("cluster-1")).toBe(true);
 
     // Group box node should also exist
-    const groupBox = nodes.find((n) => n.id === "group-cluster-1");
+    const groupBox = nodes.find((n) => n.id === "group-box");
     expect(groupBox).toBeDefined();
     expect(groupBox!.type).toBe("topologyGroup");
   });
@@ -1043,41 +1043,61 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     // Non-root cluster is removed
     expect(nodes.find((n) => n.id === "cluster-2")).toBeUndefined();
     // Group box for non-root cluster exists
-    expect(nodes.find((n) => n.id === "group-cluster-2")).toBeDefined();
+    expect(nodes.find((n) => n.id === "group-box")).toBeDefined();
   });
 
   it("group box node is created with cluster label", () => {
     const { nodes } = mapTopologyToFlow(fullResponse());
-    const gb = nodes.find((n) => n.id === "group-cluster-1");
+    const gb = nodes.find((n) => n.id === "group-box");
     expect(gb).toBeDefined();
     expect(gb!.type).toBe("topologyGroup");
     expect((gb!.data as { label: string }).label).toBe("My Cluster");
   });
 
-  it("group box wraps replication nodes", () => {
+  it("group box wraps root cluster and replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullResponse());
-    const gb = nodes.find((n) => n.id === "group-cluster-1")!;
+    const gb = nodes.find((n) => n.id === "group-box")!;
+    const rootCluster = nodes.find((n) => n.id === "cluster-1")!;
     const primary = nodes.find((n) => n.id === "primary-1")!;
     const replica = nodes.find((n) => n.id === "replica-1")!;
 
-    // Group box should contain primary and replica within its bounds
+    // Group box should contain root cluster, primary and replica within its bounds
     const gbRight = gb.position.x + (gb.style?.width as number || 0);
     const gbBottom = gb.position.y + (gb.style?.height as number || 0);
 
+    // Root cluster is inside the group box
+    expect(rootCluster.position.x).toBeGreaterThanOrEqual(gb.position.x);
+    expect(rootCluster.position.y).toBeGreaterThanOrEqual(gb.position.y);
+    expect(rootCluster.position.x).toBeLessThanOrEqual(gbRight);
+
+    // Replication nodes are inside the group box
     expect(primary.position.x).toBeGreaterThanOrEqual(gb.position.x);
     expect(primary.position.y).toBeGreaterThanOrEqual(gb.position.y);
-    expect(primary.position.x).toBeLessThanOrEqual(gbRight);
     expect(replica.position.x).toBeGreaterThanOrEqual(gb.position.x);
     expect(replica.position.y).toBeLessThanOrEqual(gbBottom);
   });
 
-  it("membership edges are removed from edge list", () => {
+  it("membership edges are kept targeting root cluster directly", () => {
     const { edges } = mapTopologyToFlow(fullResponse());
     const membershipEdges = edges.filter((e) => {
       const st = (e.data as { semanticType?: string })?.semanticType;
       return st === "membership";
     });
-    expect(membershipEdges).toHaveLength(0);
+    expect(membershipEdges).toHaveLength(1);
+    // Membership edge connects primary to root cluster (not retargeted to group box)
+    expect(membershipEdges[0].source).toBe("primary-1");
+    expect(membershipEdges[0].target).toBe("cluster-1");
+  });
+
+  it("membership edges use source-top → target-bottom handles", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const membershipEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "membership";
+    });
+    expect(membershipEdge).toBeDefined();
+    expect(membershipEdge!.sourceHandle).toBe("source-top");
+    expect(membershipEdge!.targetHandle).toBe("target-bottom");
   });
 
   it("traffic edges targeting root cluster are retargeted to group box", () => {
@@ -1087,7 +1107,8 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
       return st === "traffic";
     });
     expect(trafficEdge).toBeDefined();
-    expect(trafficEdge!.target).toBe("group-cluster-1");
+    // External edges (traffic) target the group box, not root node
+    expect(trafficEdge!.target).toBe("group-box");
     expect(trafficEdge!.source).toBe("proxy-1");
   });
 
@@ -1098,7 +1119,8 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
       return st === "monitoring";
     });
     expect(monEdge).toBeDefined();
-    expect(monEdge!.target).toBe("group-cluster-1");
+    // External edges (monitoring) target the group box, not root node
+    expect(monEdge!.target).toBe("group-box");
     expect(monEdge!.source).toBe("orch-1");
   });
 
