@@ -17,14 +17,14 @@ vi.mock("next/navigation", () => ({
 vi.mock("@xyflow/react", () => ({
   ReactFlow: ({ nodeTypes, nodes }: {
     nodeTypes: Record<string, React.ComponentType<Record<string, unknown>>>;
-    nodes: { data: Record<string, unknown> }[];
+    nodes: { type?: string; data: Record<string, unknown> }[];
   }) => {
-    const NodeComponent = nodeTypes?.topologyNode;
     return (
       <div data-testid="react-flow-mock">
-        {NodeComponent && nodes?.map((node, i) => (
-          <NodeComponent key={i} data={node.data} />
-        ))}
+        {nodes?.map((node, i) => {
+          const NodeComponent = nodeTypes?.[node.type ?? "topologyNode"];
+          return NodeComponent ? <NodeComponent key={i} data={node.data} /> : null;
+        })}
       </div>
     );
   },
@@ -240,16 +240,10 @@ describe("TopologyPanel", () => {
     mockGetTopology.mockResolvedValueOnce({
       ...mockTopologyResponse,
       nodes: mockTopologyResponse.nodes.map((node) => {
-        if (node.id === "cluster-1") {
-          return {
-            ...node,
-            healthStatus: "unknown",
-          };
-        }
-
         if (node.id === "instance-1") {
           return {
             ...node,
+            healthStatus: "unknown",
             lifecycleStatus: "stopped",
           };
         }
@@ -271,15 +265,29 @@ describe("TopologyPanel", () => {
   });
 
   it("root node is visually distinguished", async () => {
-    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+    // Use a topology where a non-cluster node is the root
+    mockGetTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      nodes: [
+        {
+          ...mockTopologyResponse.nodes[1], // instance-1 as root
+          isRoot: true,
+        },
+        {
+          ...mockTopologyResponse.nodes[0], // cluster-1 as non-root
+          isRoot: false,
+        },
+      ],
+      edges: [mockTopologyResponse.edges[0]],
+    });
 
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-cluster-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
     });
 
-    const rootNode = screen.getByTestId("topology-node-cluster-1");
+    const rootNode = screen.getByTestId("topology-node-instance-1");
     expect(rootNode.getAttribute("data-is-root")).toBe("true");
   });
 
@@ -353,17 +361,31 @@ describe("TopologyPanel", () => {
   });
 
   it("does not render role badge on root node", async () => {
-    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+    // Use a topology where instance-1 is the root (non-cluster nodes can be root)
+    mockGetTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      nodes: [
+        {
+          ...mockTopologyResponse.nodes[1], // instance-1 as root
+          isRoot: true,
+        },
+        {
+          ...mockTopologyResponse.nodes[0], // cluster-1 as non-root
+          isRoot: false,
+        },
+      ],
+      edges: [mockTopologyResponse.edges[0]],
+    });
 
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-cluster-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
     });
 
     // Root node should show "Root" label, not a role badge
-    const rootNode = screen.getByTestId("topology-node-cluster-1");
-    expect(rootNode.getAttribute("data-topology-role")).toBe("cluster");
+    const rootNode = screen.getByTestId("topology-node-instance-1");
+    expect(rootNode.getAttribute("data-topology-role")).toBe("primary");
     // "Root" label is shown instead of role badge
     expect(screen.getByText("Root")).toBeInTheDocument();
   });
@@ -417,10 +439,10 @@ describe("TopologyPanel", () => {
     renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-cluster-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("DB Cluster")).toBeInTheDocument();
+    // Instance-1 is a database_instance → "DB Instance"
     expect(screen.getByText("DB Instance")).toBeInTheDocument();
   });
 });

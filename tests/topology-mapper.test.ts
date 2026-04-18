@@ -15,8 +15,8 @@ function makeNode(overrides: Partial<TopologyNode> = {}): TopologyNode {
     healthStatus: "healthy",
     isRoot: false,
     distance: 1,
-    topologyRole: "cluster",
-    topologyLayer: "cluster",
+    topologyRole: "generic",
+    topologyLayer: "generic",
     groupKey: "",
     visualImportance: 0,
     isDatabaseTopology: true,
@@ -48,7 +48,7 @@ describe("mapTopologyToFlow", () => {
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-1", isRoot: true, distance: 0 }),
+        makeNode({ id: "node-1", isRoot: true, distance: 0, topologyRole: "service", topologyLayer: "application" }),
         makeNode({ id: "node-2", name: "instance-1", displayName: "Instance 1", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
       ],
       edges: [],
@@ -76,7 +76,7 @@ describe("mapTopologyToFlow", () => {
 
     const { nodes } = mapTopologyToFlow(response);
 
-    expect(nodes[0].data.isRoot).toBe(true);
+    expect((nodes[0].data as import("@/lib/topology-mapper").TopologyNodeData).isRoot).toBe(true);
   });
 
   it("maps edges with source and target from relation fields", () => {
@@ -89,7 +89,7 @@ describe("mapTopologyToFlow", () => {
         makeNode({ id: "node-2" }),
       ],
       edges: [
-        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "member_of" }),
+        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
       ...DB_TOPOLOGY,
@@ -101,7 +101,6 @@ describe("mapTopologyToFlow", () => {
     expect(edges[0].id).toBe("edge-1");
     expect(edges[0].source).toBe("node-2");
     expect(edges[0].target).toBe("node-1");
-    expect(edges[0].label).toBe("member_of");
   });
 
   it("orders nodes deterministically", () => {
@@ -110,8 +109,8 @@ describe("mapTopologyToFlow", () => {
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-3", name: "b-cluster", resourceType: "database_cluster", distance: 1 }),
-        makeNode({ id: "node-1", name: "a-cluster", resourceType: "database_cluster", distance: 0, isRoot: true }),
+        makeNode({ id: "node-3", name: "b-host", resourceType: "host", distance: 1, topologyRole: "host", topologyLayer: "host" }),
+        makeNode({ id: "node-1", name: "a-service", resourceType: "service", distance: 0, isRoot: true, topologyRole: "service", topologyLayer: "application" }),
         makeNode({ id: "node-2", name: "a-instance", resourceType: "database_instance", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
       ],
       edges: [],
@@ -135,8 +134,8 @@ describe("mapTopologyToFlow", () => {
         makeNode({ id: "node-3" }),
       ],
       edges: [
-        makeEdge({ id: "edge-2", fromResourceId: "node-3", toResourceId: "node-1", relationType: "runs_on" }),
-        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "member_of" }),
+        makeEdge({ id: "edge-2", fromResourceId: "node-3", toResourceId: "node-1", relationType: "runs_on", semanticType: "placement" }),
+        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
       ...DB_TOPOLOGY,
@@ -144,7 +143,7 @@ describe("mapTopologyToFlow", () => {
 
     const { edges } = mapTopologyToFlow(response);
 
-    expect(edges[0].id).toBe("edge-1"); // member_of < runs_on
+    expect(edges[0].id).toBe("edge-1"); // depends_on < runs_on
     expect(edges[1].id).toBe("edge-2");
   });
 
@@ -172,7 +171,7 @@ describe("mapTopologyToFlow", () => {
     };
 
     const { nodes } = mapTopologyToFlow(response);
-    const data = nodes[0].data;
+    const data = nodes[0].data as import("@/lib/topology-mapper").TopologyNodeData;
 
     expect(data.resourceType).toBe("database_cluster");
     expect(data.resourceSubtype).toBe("mysql");

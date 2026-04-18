@@ -70,11 +70,10 @@ describe("database semantic topology layout", () => {
     const yPos = new Map(nodes.map((n) => [n.id, n.position.y]));
     const xPos = new Map(nodes.map((n) => [n.id, n.position.x]));
 
-    // Vertical layer order: application (top) → entry → cluster → replication → control_plane → host (bottom)
+    // Vertical layer order: application (top) → entry → replication → control_plane → host (bottom)
     const svcY = yPos.get("svc-1")!;
     const domainY = yPos.get("domain-1")!;
     const proxyY = yPos.get("proxy-1")!;
-    const clusterY = yPos.get("cluster-1")!;
     const primaryY = yPos.get("primary-1")!;
     const replicaY = yPos.get("replica-1")!;
     const orchY = yPos.get("orch-1")!;
@@ -83,11 +82,8 @@ describe("database semantic topology layout", () => {
     // Application layer topmost (lowest y)
     expect(svcY).toBeLessThan(domainY);
     // Entry layer below application
-    expect(domainY).toBeLessThan(clusterY);
-    expect(proxyY).toBeLessThan(clusterY);
-    // Cluster header above replication
-    expect(clusterY).toBeLessThan(primaryY);
-    // Replication below cluster header
+    expect(domainY).toBeLessThan(primaryY);
+    expect(proxyY).toBeLessThan(primaryY);
     // Control-plane and host layers below replication
     expect(primaryY).toBeLessThan(orchY);
     expect(replicaY).toBeLessThan(orchY);
@@ -367,8 +363,8 @@ describe("warning regression tests", () => {
       ],
       edges: [
         makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
-        makeEdge({ id: "e-member", fromResourceId: "replica-1", toResourceId: "primary-1", semanticType: "membership" }),
         makeEdge({ id: "e-traffic", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "traffic" }),
+        makeEdge({ id: "e-dep", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "dependency" }),
       ],
     });
 
@@ -391,11 +387,12 @@ describe("warning regression tests", () => {
         makeNode({ id: "n-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
         makeNode({ id: "n-2", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
         makeNode({ id: "n-3", topologyRole: "host", topologyLayer: "host", resourceType: "host" }),
+        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", resourceType: "database_cluster" }),
       ],
       edges: [
         makeEdge({ id: "e-1", fromResourceId: "n-1", toResourceId: "n-2", semanticType: "replication" }),
         makeEdge({ id: "e-2", fromResourceId: "n-1", toResourceId: "n-3", semanticType: "placement" }),
-        makeEdge({ id: "e-3", fromResourceId: "n-2", toResourceId: "n-3", semanticType: "monitoring" }),
+        makeEdge({ id: "e-3", fromResourceId: "n-2", toResourceId: "cluster-1", semanticType: "monitoring" }),
       ],
     });
 
@@ -463,10 +460,10 @@ describe("warning regression tests", () => {
   });
 
   it("node positions are finite numbers even with single-node topology", () => {
-    // Edge case: only one node, no edges — layout must still produce valid positions
+    // Edge case: only one node (non-cluster), no edges — layout must still produce valid positions
     const response = makeResponse({
       nodes: [
-        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, resourceType: "database_cluster" }),
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", isRoot: true, resourceType: "service" }),
       ],
       edges: [],
     });
@@ -478,19 +475,17 @@ describe("warning regression tests", () => {
     expect(Number.isFinite(nodes[0].position.y)).toBe(true);
   });
 
-  it("backbone edges (replication, membership, traffic) use valid typed handles", () => {
+  it("backbone edges (replication, traffic) use valid typed handles", () => {
     // Backbone edges use explicit named handles for deterministic routing.
     // sourceHandle must be in SOURCE_HANDLE_IDS, targetHandle in TARGET_HANDLE_IDS.
     const response = makeResponse({
       nodes: [
         makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
         makeNode({ id: "replica-1", topologyRole: "replica", topologyLayer: "replication", resourceType: "database_instance" }),
-        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", resourceType: "database_cluster" }),
       ],
       edges: [
         makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
-        makeEdge({ id: "e-member", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
-        makeEdge({ id: "e-traffic", fromResourceId: "cluster-1", toResourceId: "primary-1", semanticType: "traffic" }),
+        makeEdge({ id: "e-traffic", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "traffic" }),
       ],
     });
 
@@ -498,10 +493,10 @@ describe("warning regression tests", () => {
 
     const backboneEdges = edges.filter((e) => {
       const st = (e.data as { semanticType?: string })?.semanticType;
-      return st === "replication" || st === "membership" || st === "traffic";
+      return st === "replication" || st === "traffic";
     });
 
-    expect(backboneEdges.length).toBe(3);
+    expect(backboneEdges.length).toBe(2);
     for (const edge of backboneEdges) {
       if (edge.sourceHandle != null) {
         expect(SOURCE_HANDLE_IDS.has(edge.sourceHandle)).toBe(true);
@@ -609,9 +604,10 @@ describe("semantic field propagation", () => {
     });
 
     const { nodes } = mapTopologyToFlow(response);
+    const nodeData = nodes[0].data as import("@/lib/topology-mapper").TopologyNodeData;
 
-    expect(nodes[0].data.topologyRole).toBe("primary");
-    expect(nodes[0].data.topologyLayer).toBe("replication");
+    expect(nodeData.topologyRole).toBe("primary");
+    expect(nodeData.topologyLayer).toBe("replication");
   });
 
   it("propagates replicationDepth and replicationParentId to node data", () => {
@@ -638,9 +634,10 @@ describe("semantic field propagation", () => {
 
     const { nodes } = mapTopologyToFlow(response);
     const replica = nodes.find((n) => n.id === "replica-1")!;
+    const replicaData = replica.data as import("@/lib/topology-mapper").TopologyNodeData;
 
-    expect(replica.data.replicationDepth).toBe(1);
-    expect(replica.data.replicationParentId).toBe("primary-1");
+    expect(replicaData.replicationDepth).toBe(1);
+    expect(replicaData.replicationParentId).toBe("primary-1");
   });
 });
 
@@ -715,20 +712,20 @@ describe("named handles for semantic edge routing", () => {
     expect(monEdge.targetHandle).toBe("target-bottom");
   });
 
-  it("membership edges use right→left handles", () => {
+  it("dependency edges use source-bottom→target-top handles", () => {
     const response = makeResponse({
       nodes: [
-        makeNode({ id: "primary-1", topologyRole: "primary", topologyLayer: "replication", resourceType: "database_instance" }),
-        makeNode({ id: "cluster-1", topologyRole: "cluster", topologyLayer: "cluster", resourceType: "database_cluster" }),
+        makeNode({ id: "svc-1", topologyRole: "service", topologyLayer: "application", resourceType: "service" }),
+        makeNode({ id: "proxy-1", topologyRole: "proxy_active", topologyLayer: "entry", resourceType: "database_proxy" }),
       ],
       edges: [
-        makeEdge({ id: "e-member", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
+        makeEdge({ id: "e-dep", fromResourceId: "svc-1", toResourceId: "proxy-1", semanticType: "dependency" }),
       ],
     });
 
     const { edges } = mapTopologyToFlow(response);
-    expect(edges[0].sourceHandle).toBe("source-right");
-    expect(edges[0].targetHandle).toBe("target-left");
+    expect(edges[0].sourceHandle).toBe("source-bottom");
+    expect(edges[0].targetHandle).toBe("target-top");
   });
 
   it("generic topology does not set explicit handles", () => {
@@ -887,19 +884,17 @@ describe("Phase 15B: vertical layer layout", () => {
     expect(proxyY).toBeLessThan(primaryY);
   });
 
-  it("database cluster is NOT positioned between proxy and primary as a chain node", () => {
+  it("database cluster node is removed from node list, replaced by group box", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
-    const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const proxyX = pos.get("proxy-ac")!.x;
-    const clusterX = pos.get("cluster-1")!.x;
-    const primaryX = pos.get("primary-1")!.x;
+    const nodeIds = new Set(nodes.map((n) => n.id));
 
-    // Cluster should not form a proxy→cluster→primary horizontal chain.
-    // Either cluster is above the replication area (different y) or at the same y as primary
-    // but NOT with proxy.x < cluster.x < primary.x.
-    const clusterBetweenProxyAndPrimary =
-      proxyX < clusterX && clusterX < primaryX;
-    expect(clusterBetweenProxyAndPrimary).toBe(false);
+    // Cluster node should NOT be in the visible node list
+    expect(nodeIds.has("cluster-1")).toBe(false);
+
+    // Group box node should exist
+    const groupBox = nodes.find((n) => n.id === "group-cluster-1");
+    expect(groupBox).toBeDefined();
+    expect(groupBox!.type).toBe("topologyGroup");
   });
 
   it("primary x-position is left of all replicas", () => {
@@ -998,6 +993,118 @@ describe("Phase 15B: failover edge routing", () => {
   });
 });
 
+describe("Phase 15B-fix: group box replaces cluster node", () => {
+  function fullResponse() {
+    return makeResponse({
+      nodes: [
+        makeNode({ id: "svc-1", resourceType: "service", topologyRole: "service", topologyLayer: "application", distance: 2 }),
+        makeNode({ id: "proxy-1", resourceType: "database_proxy", topologyRole: "proxy_active", topologyLayer: "entry", distance: 1 }),
+        makeNode({ id: "cluster-1", resourceType: "database_cluster", topologyRole: "cluster", topologyLayer: "cluster", isRoot: true, distance: 0, displayName: "My Cluster" }),
+        makeNode({ id: "primary-1", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication", distance: 1, replicationDepth: 0 }),
+        makeNode({ id: "replica-1", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication", distance: 1, replicationDepth: 1, replicationParentId: "primary-1" }),
+        makeNode({ id: "orch-1", resourceType: "control_plane_component", topologyRole: "control_plane", topologyLayer: "control_plane", distance: 2 }),
+        makeNode({ id: "host-1", resourceType: "host", topologyRole: "host", topologyLayer: "host", distance: 2 }),
+      ],
+      edges: [
+        makeEdge({ id: "e-dep", fromResourceId: "svc-1", toResourceId: "proxy-1", semanticType: "dependency" }),
+        makeEdge({ id: "e-traffic", fromResourceId: "proxy-1", toResourceId: "cluster-1", semanticType: "traffic" }),
+        makeEdge({ id: "e-member", fromResourceId: "primary-1", toResourceId: "cluster-1", semanticType: "membership" }),
+        makeEdge({ id: "e-repl", fromResourceId: "primary-1", toResourceId: "replica-1", semanticType: "replication" }),
+        makeEdge({ id: "e-mon", fromResourceId: "orch-1", toResourceId: "cluster-1", semanticType: "monitoring" }),
+        makeEdge({ id: "e-place", fromResourceId: "primary-1", toResourceId: "host-1", semanticType: "placement" }),
+      ],
+    });
+  }
+
+  it("cluster node is removed from node list", () => {
+    const { nodes } = mapTopologyToFlow(fullResponse());
+    expect(nodes.find((n) => n.id === "cluster-1")).toBeUndefined();
+  });
+
+  it("group box node is created with cluster label", () => {
+    const { nodes } = mapTopologyToFlow(fullResponse());
+    const gb = nodes.find((n) => n.id === "group-cluster-1");
+    expect(gb).toBeDefined();
+    expect(gb!.type).toBe("topologyGroup");
+    expect((gb!.data as { label: string }).label).toBe("My Cluster");
+  });
+
+  it("group box wraps replication nodes", () => {
+    const { nodes } = mapTopologyToFlow(fullResponse());
+    const gb = nodes.find((n) => n.id === "group-cluster-1")!;
+    const primary = nodes.find((n) => n.id === "primary-1")!;
+    const replica = nodes.find((n) => n.id === "replica-1")!;
+
+    // Group box should contain primary and replica within its bounds
+    const gbRight = gb.position.x + (gb.style?.width as number || 0);
+    const gbBottom = gb.position.y + (gb.style?.height as number || 0);
+
+    expect(primary.position.x).toBeGreaterThanOrEqual(gb.position.x);
+    expect(primary.position.y).toBeGreaterThanOrEqual(gb.position.y);
+    expect(primary.position.x).toBeLessThanOrEqual(gbRight);
+    expect(replica.position.x).toBeGreaterThanOrEqual(gb.position.x);
+    expect(replica.position.y).toBeLessThanOrEqual(gbBottom);
+  });
+
+  it("membership edges are removed from edge list", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const membershipEdges = edges.filter((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "membership";
+    });
+    expect(membershipEdges).toHaveLength(0);
+  });
+
+  it("traffic edges targeting cluster are retargeted to group box", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const trafficEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "traffic";
+    });
+    expect(trafficEdge).toBeDefined();
+    expect(trafficEdge!.target).toBe("group-cluster-1");
+    expect(trafficEdge!.source).toBe("proxy-1");
+  });
+
+  it("monitoring edges targeting cluster are retargeted to group box", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const monEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "monitoring";
+    });
+    expect(monEdge).toBeDefined();
+    expect(monEdge!.target).toBe("group-cluster-1");
+    expect(monEdge!.source).toBe("orch-1");
+  });
+
+  it("replication and placement edges remain unchanged", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const replEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "replication";
+    });
+    const placeEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "placement";
+    });
+
+    expect(replEdge!.source).toBe("primary-1");
+    expect(replEdge!.target).toBe("replica-1");
+    expect(placeEdge!.source).toBe("primary-1");
+    expect(placeEdge!.target).toBe("host-1");
+  });
+
+  it("dependency edges use bottom→top handles", () => {
+    const { edges } = mapTopologyToFlow(fullResponse());
+    const depEdge = edges.find((e) => {
+      const st = (e.data as { semanticType?: string })?.semanticType;
+      return st === "dependency";
+    });
+    expect(depEdge!.sourceHandle).toBe("source-bottom");
+    expect(depEdge!.targetHandle).toBe("target-top");
+  });
+});
+
 describe("Phase 15B: vertical layer bands", () => {
   it("layer bands use y-ranges for vertical layout", () => {
     const { layerBands } = mapTopologyToFlow(fullDbResponse15B());
@@ -1016,7 +1123,6 @@ describe("Phase 15B: vertical layer bands", () => {
     const layerKeys = layerBands.map((b) => b.layerKey);
     expect(layerKeys).toContain("application");
     expect(layerKeys).toContain("entry");
-    expect(layerKeys).toContain("cluster");
     expect(layerKeys).toContain("replication");
     expect(layerKeys).toContain("control_plane");
     expect(layerKeys).toContain("host");

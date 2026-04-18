@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { mapTopologyToFlow, type TopologyNodeData, type LayerBand } from "@/lib/topology-mapper";
+import { mapTopologyToFlow, type TopologyNodeData, type GroupBoxData, type LayerBand } from "@/lib/topology-mapper";
 import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
@@ -314,6 +314,27 @@ function TopologyPanelInner({
                 tone="lifecycle"
                 className="text-[10px]"
               />
+            </div>
+          </div>
+        );
+      },
+      topologyGroup: ({ data }: { data: GroupBoxData }) => {
+        const handleClass = "!w-2 !h-2 !bg-muted-foreground/30 !border-0";
+
+        return (
+          <div className="relative h-full w-full rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/5">
+            {/* Handles for group box */}
+            <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
+            <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
+            <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
+            <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
+            <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
+            <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
+            <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
+            <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
+            {/* Cluster label */}
+            <div className="absolute -top-3 left-3 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {data.label}
             </div>
           </div>
         );
