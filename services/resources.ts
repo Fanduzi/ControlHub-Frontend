@@ -3,6 +3,7 @@ import type {
   CreateResourceInput,
   CreateResourceRelationInput,
   Resource,
+  ResourceDetailResponse,
   ResourceListParams,
   ResourceListResponse,
   ResourceProfileResponse,
@@ -76,9 +77,23 @@ async function listAllResources(params: ResourceListParams = {}): Promise<Resour
   return allItems;
 }
 
-export async function getResourceById(id: string): Promise<Resource | null> {
+export async function getResourceById(
+  id: string,
+): Promise<ResourceDetailResponse | null> {
   try {
-    return await apiClient<Resource>(`/resources/${encodeURIComponent(id)}`);
+    const response = await apiClient<ResourceDetailResponse>(
+      `/resources/${encodeURIComponent(id)}`,
+    );
+
+    // Handle both the new wrapped response and the legacy flat response
+    if ("resource" in response && response.resource) {
+      return response;
+    }
+
+    // Legacy: response is a flat Resource — wrap it
+    return {
+      resource: response as unknown as Resource,
+    };
   } catch (error) {
     if (error instanceof Error && error.message.includes("404")) {
       return null;

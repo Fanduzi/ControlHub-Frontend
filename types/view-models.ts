@@ -1,5 +1,10 @@
 import type { AuditEvent } from "@/types/audit";
-import type { PageInfo, Resource, ResourceRelation } from "@/types/resource";
+import type {
+  ClusterMember,
+  PageInfo,
+  Resource,
+  ResourceRelation,
+} from "@/types/resource";
 
 export type AuditEventViewModel = AuditEvent & {
   actorLabel: string;
@@ -17,6 +22,7 @@ export type ResourceRelationViewModel = ResourceRelation & {
   relatedResourceId: string;
   relatedResourceName: string;
   direction: "incoming" | "outgoing";
+  relatedResource?: ResourceRelation["relatedResource"];
 };
 
 export type ResourceListViewModel = Resource & {
@@ -35,4 +41,5 @@ export type ResourceDetailViewModel = ResourceListViewModel & {
   profile: Record<string, string>;
   relations: ResourceRelationViewModel[];
   auditEvents: AuditEventViewModel[];
+  members?: ClusterMember[];
 };

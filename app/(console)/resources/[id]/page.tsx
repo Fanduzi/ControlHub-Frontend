@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
+import { ClusterMembersTable } from "@/components/blocks/cluster-members-table";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
@@ -148,6 +149,17 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {resource.resourceType === "database_cluster" &&
+        resource.members &&
+        resource.members.length > 0 && (
+          <DetailPanel
+            title={t("pages.resourceDetail.clusterMembers.title")}
+            description={t("pages.resourceDetail.clusterMembers.description")}
+          >
+            <ClusterMembersTable members={resource.members} />
+          </DetailPanel>
+        )}
 
       {resource.isArchived && (
         <DetailPanel

@@ -76,7 +76,7 @@ describe("getResourceViewModel", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    mockedGetResourceById.mockResolvedValue(resource);
+    mockedGetResourceById.mockResolvedValue({ resource });
     mockedListResources.mockResolvedValue([resource] as never);
     mockedListEnvironments.mockResolvedValue([
       {
@@ -149,7 +149,7 @@ describe("getResourceViewModel", () => {
       lifecycleStatus: "running",
       displayName: "Payment MySQL Cluster",
     };
-    mockedGetResourceById.mockResolvedValue(uncopiedResource);
+    mockedGetResourceById.mockResolvedValue({ resource: uncopiedResource });
     mockedListResources.mockResolvedValue([uncopiedResource] as never);
 
     const viewModel = await getResourceViewModel(uncopiedResource.id);

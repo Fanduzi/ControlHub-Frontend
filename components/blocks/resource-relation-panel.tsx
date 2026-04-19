@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -179,37 +180,53 @@ export function ResourceRelationPanel({
           description={emptyDescription ?? t("emptyDescription")}
         />
       ) : (
-        relations.map((relation) => (
-          <div
-            key={relation.id}
-            className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-3"
-          >
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {relation.relatedResourceName}
-              </p>
-              <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {formatLabel(relation.relationType)} · {relation.direction}
-              </p>
+        relations.map((relation) => {
+          const related = relation.relatedResource;
+          const displayName = related?.displayName ?? relation.relatedResourceName;
+
+          return (
+            <div
+              key={relation.id}
+              className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-3"
+            >
+              <div>
+                {related ? (
+                  <Link
+                    href={`/resources/${related.id}`}
+                    className="text-sm font-medium text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring/50"
+                  >
+                    {displayName}
+                  </Link>
+                ) : (
+                  <span className="text-sm font-medium text-foreground">
+                    {displayName}
+                  </span>
+                )}
+                <p className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <span>{formatLabel(relation.relationType)} &middot; {relation.direction}</span>
+                  {related && (
+                    <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium lowercase tracking-normal text-muted-foreground">
+                      {formatLabel(related.resourceType)}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {resourceId && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => handleDeleteRelation(relation.id)}
+                    disabled={deletingId === relation.id}
+                    aria-label={mt("relation.confirmDelete")}
+                  >
+                    ×
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <p className="font-mono text-xs text-muted-foreground">
-                {relation.relatedResourceId}
-              </p>
-              {resourceId && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => handleDeleteRelation(relation.id)}
-                  disabled={deletingId === relation.id}
-                  aria-label={mt("relation.confirmDelete")}
-                >
-                  ×
-                </Button>
-              )}
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

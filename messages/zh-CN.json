@@ -255,6 +255,17 @@
       "audit": {
         "title": "审计历史",
         "description": "此资源资产基线的最近变更。"
+      },
+      "clusterMembers": {
+        "title": "集群成员",
+        "description": "属于此集群的数据库实例。",
+        "empty": "未找到成员实例。",
+        "instance": "实例",
+        "subtype": "子类型",
+        "hostname": "主机名",
+        "port": "端口",
+        "health": "健康状态",
+        "lifecycle": "生命周期"
       }
     },
     "cmdb": {

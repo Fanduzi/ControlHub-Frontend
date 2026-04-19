@@ -255,6 +255,17 @@
       "audit": {
         "title": "Audit history",
         "description": "Recent changes to the asset baseline for this resource."
+      },
+      "clusterMembers": {
+        "title": "Cluster members",
+        "description": "Database instances that belong to this cluster.",
+        "empty": "No member instances found.",
+        "instance": "Instance",
+        "subtype": "Subtype",
+        "hostname": "Hostname",
+        "port": "Port",
+        "health": "Health",
+        "lifecycle": "Lifecycle"
       }
     },
     "cmdb": {

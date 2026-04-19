@@ -13,7 +13,6 @@ const listResourceTypesMock = vi.fn();
 const listEnvironmentsMock = vi.fn();
 const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
-const cmdbTableMock = vi.fn();
 const databaseTableMock = vi.fn();
 const auditTableMock = vi.fn();
 
@@ -42,13 +41,6 @@ vi.mock("@/components/resources/resource-table", () => ({
   ResourceTable: (props: unknown) => {
     resourceTableMock(props);
     return <div>resource-table</div>;
-  },
-}));
-
-vi.mock("@/components/cmdb/cmdb-table", () => ({
-  CmdbTable: (props: unknown) => {
-    cmdbTableMock(props);
-    return <div>cmdb-table</div>;
   },
 }));
 
@@ -170,7 +162,6 @@ describe("list pages pagination contracts", () => {
       instances: 2,
     });
     resourceTableMock.mockClear();
-    cmdbTableMock.mockClear();
     databaseTableMock.mockClear();
     auditTableMock.mockClear();
   });
@@ -255,26 +246,6 @@ describe("list pages pagination contracts", () => {
     });
   });
 
-  it("passes normalized page params to cmdb", async () => {
-    const { default: CmdbPage } = await import("@/app/(console)/cmdb/page");
-
-    await CmdbPage({
-      searchParams: Promise.resolve({
-        page: "2",
-        pageSize: "50",
-        environmentId: "env-stage",
-        q: "  billing  ",
-      }),
-    });
-
-    expect(listResourceViewModelsMock).toHaveBeenCalledWith({
-      page: 2,
-      pageSize: 50,
-      environmentId: "env-stage",
-      q: "billing",
-    });
-  });
-
   it("passes normalized page params to databases", async () => {
     const { default: DatabasesPage } = await import("@/app/(console)/databases/page");
 
@@ -350,27 +321,6 @@ describe("list pages pagination contracts", () => {
         resources: response.items,
         pageInfo: response.pageInfo,
         availableSubtypes: ["api", "postgres"],
-      }),
-    );
-  });
-
-  it("passes paginated resource response shape into the cmdb table", async () => {
-    const response = buildResource(3);
-    listResourceViewModelsMock.mockResolvedValueOnce(response);
-    const { default: CmdbPage } = await import("@/app/(console)/cmdb/page");
-
-    const element = await CmdbPage({
-      searchParams: Promise.resolve({
-        page: "3",
-      }),
-    });
-
-    render(element);
-
-    expect(cmdbTableMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resources: response.items,
-        pageInfo: response.pageInfo,
       }),
     );
   });

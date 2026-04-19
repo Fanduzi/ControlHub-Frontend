@@ -37,6 +37,12 @@ const relations: ResourceRelationViewModel[] = [
     relatedResourceId: "res-2",
     relatedResourceName: "orders-cluster",
     direction: "outgoing",
+    relatedResource: {
+      id: "res-2",
+      displayName: "orders-cluster",
+      resourceType: "database_cluster",
+      healthStatus: "healthy",
+    },
   },
 ];
 
@@ -51,17 +57,24 @@ describe("ResourceRelationPanel", () => {
     ]);
   });
 
-  it("renders relations with name, type, and resource ID", () => {
+  it("renders relations with linked name, type, and resource type badge", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceRelationPanel relations={relations} />
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("orders-cluster")).toBeInTheDocument();
+    // Name is rendered as a link to the resource detail page
+    const link = screen.getByRole("link", { name: "orders-cluster" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/resources/res-2");
+
+    // Relation type and direction are still shown
     expect(screen.getByText(/Member Of/)).toBeInTheDocument();
     expect(screen.getByText(/outgoing/)).toBeInTheDocument();
-    expect(screen.getByText("res-2")).toBeInTheDocument();
+
+    // Resource type badge is shown
+    expect(screen.getByText("Database Cluster")).toBeInTheDocument();
   });
 
   it("shows empty state when no relations and no resourceId", () => {

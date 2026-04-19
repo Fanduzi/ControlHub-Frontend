@@ -8,6 +8,14 @@ export type ResourceType =
   | "database_proxy"
   | "control_plane_component";
 
+export type ProfileSummary = {
+  hostname?: string;
+  ip?: string;
+  port?: number;
+  nodeCount?: number;
+  engine?: string;
+};
+
 export type Resource = {
   id: string;
   resourceType: ResourceType;
@@ -21,6 +29,7 @@ export type Resource = {
   source: string;
   externalId: string;
   labels: Record<string, string>;
+  profileSummary?: ProfileSummary | null;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
@@ -63,12 +72,20 @@ export type ResourceProfileResponse = {
   profile: Record<string, ResourceProfileValue>;
 };
 
+export type RelatedResourceSummary = {
+  id: string;
+  displayName: string;
+  resourceType: ResourceType;
+  healthStatus: string;
+};
+
 export type ResourceRelation = {
   id: string;
   fromResourceId: string;
   toResourceId: string;
   relationType: string;
   createdAt: string;
+  relatedResource?: RelatedResourceSummary | null;
 };
 
 export type ResourceRelationListResponse = {
@@ -191,4 +208,23 @@ export type TopologyParams = {
   depth?: 1 | 2;
   direction?: "both" | "upstream" | "downstream";
   relationType?: string;
+};
+
+// Cluster member types — matches backend database_cluster detail response
+
+export type ClusterMember = {
+  id: string;
+  displayName: string;
+  resourceSubtype: string;
+  profileSummary?: {
+    hostname?: string;
+    port?: number;
+  };
+  healthStatus: string;
+  lifecycleStatus: string;
+};
+
+export type ResourceDetailResponse = {
+  resource: Resource;
+  members?: ClusterMember[];
 };

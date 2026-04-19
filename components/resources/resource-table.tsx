@@ -92,6 +92,9 @@ export function ResourceTable({
     resourceSubtype: false,
     externalId: false,
     source: false,
+    hostname: false,
+    port: false,
+    nodes: false,
   });
 
   const search = searchParams.get("q") ?? "";
@@ -180,6 +183,45 @@ export function ResourceTable({
           <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
         </div>
       ),
+    }),
+    columnHelper.display({
+      id: "hostname",
+      header: "Hostname",
+      enableHiding: true,
+      cell: ({ row }) => {
+        if (row.original.resourceType !== "database_instance") return null;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {row.original.profileSummary?.hostname ?? "\u2014"}
+          </span>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "port",
+      header: "Port",
+      enableHiding: true,
+      cell: ({ row }) => {
+        if (row.original.resourceType !== "database_instance") return null;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {row.original.profileSummary?.port ?? "\u2014"}
+          </span>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "nodes",
+      header: "Nodes",
+      enableHiding: true,
+      cell: ({ row }) => {
+        if (row.original.resourceType !== "database_cluster") return null;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {row.original.profileSummary?.nodeCount ?? "\u2014"}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("updatedAt", {
       header: t("common.fields.updated"),

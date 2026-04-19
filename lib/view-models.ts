@@ -20,6 +20,7 @@ import type {
   AuditEventListResponse,
 } from "@/types/audit";
 import type {
+  ClusterMember,
   Resource,
   ResourceListParams,
   ResourceListResponse,
@@ -123,8 +124,11 @@ function toRelationViewModel(
     ...relation,
     relatedResourceId,
     relatedResourceName:
-      resourceMap.get(relatedResourceId)?.displayName ?? relatedResourceId,
+      relation.relatedResource?.displayName ??
+      resourceMap.get(relatedResourceId)?.displayName ??
+      relatedResourceId,
     direction: outgoing ? "outgoing" : "incoming",
+    relatedResource: relation.relatedResource ?? null,
   };
 }
 
@@ -324,6 +328,7 @@ function toResourceListViewModel(
 
 async function toResourceDetailViewModel(
   resource: Resource,
+  members?: ClusterMember[],
 ): Promise<ResourceDetailViewModel> {
   const [
     { resourceMap, environmentMap, ownerMap },
@@ -346,6 +351,7 @@ async function toResourceDetailViewModel(
     auditEvents: auditEvents.map((event) =>
       toAuditEventViewModel(event, resourceMap, environmentMap),
     ),
+    ...(members && members.length > 0 ? { members } : {}),
   };
 }
 
@@ -406,13 +412,16 @@ export async function listAttentionResourceViewModels(): Promise<
 export async function getResourceViewModel(
   resourceId: string,
 ): Promise<ResourceDetailViewModel | null> {
-  const resource = await getResourceById(resourceId);
+  const detailResponse = await getResourceById(resourceId);
 
-  if (!resource) {
+  if (!detailResponse) {
     return null;
   }
 
-  return toResourceDetailViewModel(resource);
+  return toResourceDetailViewModel(
+    detailResponse.resource,
+    detailResponse.members,
+  );
 }
 
 export async function listAuditEventViewModels(): Promise<AuditEventViewModel[]>;
