@@ -11,6 +11,10 @@ import { ResourceDetailEditButton } from "@/components/resources/resource-detail
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import {
+  buildLocalizedFallbackSummary,
+  localizeResourceType,
+} from "@/lib/resource-summary";
 import { getResourceSummaryKey } from "@/lib/resource-copy";
 import { getResourceViewModel } from "@/lib/view-models";
 
@@ -39,7 +43,7 @@ export default async function ResourceDetailPage({
   const summary =
     summaryKey && t.has(`resourceSummaries.${summaryKey}`)
       ? t(`resourceSummaries.${summaryKey}`)
-      : resource.summary;
+      : buildLocalizedFallbackSummary(resource, t);
   const profileEntries = Object.entries(resource.profile);
 
   return (
@@ -74,7 +78,7 @@ export default async function ResourceDetailPage({
                 {t("common.fields.resourceType")}
               </dt>
               <dd className="mt-1 font-medium text-foreground">
-                {formatLabel(resource.resourceType)}
+                {localizeResourceType(resource.resourceType, t)}
               </dd>
             </div>
             <div>
@@ -82,7 +86,7 @@ export default async function ResourceDetailPage({
                 {t("common.fields.resourceSubtype")}
               </dt>
               <dd className="mt-1 font-medium text-foreground">
-                {formatLabel(resource.resourceSubtype)}
+                {resource.resourceSubtype}
               </dd>
             </div>
             <div>

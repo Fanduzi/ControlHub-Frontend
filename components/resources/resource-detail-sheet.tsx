@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import {
+  buildLocalizedFallbackSummary,
+  localizeResourceType,
+} from "@/lib/resource-summary";
 import { getResourceSummaryKey } from "@/lib/resource-copy";
 import type {
   ResourceDetailViewModel,
@@ -64,7 +68,7 @@ export function ResourceDetailSheet({
   const summary =
     summaryKey && t.has(`resourceSummaries.${summaryKey}`)
       ? t(`resourceSummaries.${summaryKey}`)
-      : resource.summary;
+      : buildLocalizedFallbackSummary(resource, t);
   const detailResource = hasDetailData(resource) ? resource : null;
   const profileEntries = detailResource
     ? Object.entries(detailResource.profile)
@@ -80,7 +84,7 @@ export function ResourceDetailSheet({
             <div>
               <SheetTitle>{resource.displayName}</SheetTitle>
               <SheetDescription className="mt-1">
-                {resource.name} · {formatLabel(resource.resourceType)}
+                {resource.name} · {localizeResourceType(resource.resourceType, t)}
               </SheetDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">

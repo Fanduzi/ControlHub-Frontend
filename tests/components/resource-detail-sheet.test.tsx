@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -104,7 +105,7 @@ describe("ResourceDetailSheet", () => {
     );
 
     expect(screen.getByText("Orders DB Primary")).toBeInTheDocument();
-    expect(screen.getByText("Primary transactional database handling checkout and order writes.")).toBeInTheDocument();
+    expect(screen.getByText("DB Instance · mysql · Running")).toBeInTheDocument();
     expect(screen.getByText("orders-primary.internal:3306")).toBeInTheDocument();
     expect(screen.getByText("orders-cluster")).toBeInTheDocument();
     expect(screen.getByText("Admin User")).toBeInTheDocument();
@@ -134,5 +135,102 @@ describe("ResourceDetailSheet", () => {
 
     expect(screen.getByText("Not set")).toBeInTheDocument();
     expect(screen.getByText("No audit activity yet")).toBeInTheDocument();
+  });
+
+  it("shows localized fallback summary in zh-CN without English type/status leaks", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    // Resource with no explicit resourceSummaries key — triggers fallback path
+    const fallbackResource: ResourceDetailViewModel = {
+      ...resource,
+      id: "41000000-0000-0000-0000-000000000010",
+      resourceType: "database_cluster",
+      resourceSubtype: "mysql",
+      lifecycleStatus: "running",
+      // English fallback from buildFallbackSummary — should NOT appear
+      summary: "Database Cluster · Mysql · Running",
+    };
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={fallbackResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Summary must not contain English fallback words
+    expect(screen.queryByText(/Database Cluster/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Running/)).not.toBeInTheDocument();
+
+    // Must contain Chinese type and status (may appear in summary + badge)
+    expect(screen.getAllByText(/数据库集群/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/运行中/).length).toBeGreaterThanOrEqual(1);
+
+    consoleError.mockRestore();
+  });
+
+  it("shows localized fallback summary for degraded status in zh-CN", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const fallbackResource: ResourceDetailViewModel = {
+      ...resource,
+      id: "41000000-0000-0000-0000-000000000013",
+      resourceType: "database_cluster",
+      resourceSubtype: "mysql",
+      lifecycleStatus: "degraded",
+      summary: "Database Cluster · Mysql · Degraded",
+    };
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={fallbackResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText(/Database Cluster/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Degraded/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/降级/).length).toBeGreaterThanOrEqual(1);
+
+    consoleError.mockRestore();
+  });
+
+  it("localizes resource type in header description with zh-CN", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const fallbackResource: ResourceDetailViewModel = {
+      ...resource,
+      id: "41000000-0000-0000-0000-000000000010",
+      resourceType: "database_cluster",
+      resourceSubtype: "mysql",
+      summary: "Database Cluster · Mysql · Running",
+    };
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={fallbackResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Header description should not show "Database Cluster"
+    expect(screen.queryByText(/Database Cluster/)).not.toBeInTheDocument();
+
+    consoleError.mockRestore();
   });
 });
