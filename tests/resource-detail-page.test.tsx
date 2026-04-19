@@ -72,7 +72,7 @@ vi.mock("@/lib/resource-copy", () => ({
 function t(key: string) {
   return key;
 }
-t.has = (_key: string) => false;
+t.has = () => false;
 
 const resource: ResourceDetailViewModel = {
   id: "res-db-primary",
