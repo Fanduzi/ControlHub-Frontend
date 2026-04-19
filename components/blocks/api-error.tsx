@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
+import { Button } from "@/components/ui/button";
+
 type ApiErrorProps = {
   error: Error;
   reset?: () => void;
@@ -21,17 +23,18 @@ export function ApiError({ error, reset }: ApiErrorProps) {
           : t("unexpected", { message: error.message });
 
   return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-5">
-      <p className="text-sm font-medium text-rose-900">{t("title")}</p>
-      <p className="mt-1 text-sm text-rose-700">{message}</p>
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-5">
+      <p className="text-sm font-medium text-destructive">{t("title")}</p>
+      <p className="mt-1 text-sm text-destructive/80">{message}</p>
       {reset ? (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={reset}
-          className="mt-3 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-900 hover:bg-rose-50"
+          className="mt-3"
         >
           {common("actions.tryAgain")}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

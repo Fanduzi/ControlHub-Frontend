@@ -148,7 +148,7 @@ export function OverviewContent({
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 {t("pages.overview.posture.degraded")}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-rose-700">
+              <p className="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
                 {metrics.degraded}
               </p>
             </div>
@@ -156,7 +156,7 @@ export function OverviewContent({
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 {t("pages.overview.posture.warning")}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-amber-700">
+              <p className="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
                 {metrics.warning}
               </p>
             </div>
@@ -164,7 +164,7 @@ export function OverviewContent({
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 {t("pages.overview.posture.pending")}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-sky-700">
+              <p className="mt-2 text-2xl font-semibold text-sky-600 dark:text-sky-400">
                 {metrics.pending}
               </p>
             </div>

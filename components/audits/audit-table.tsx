@@ -110,7 +110,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
         info.row.original.targetResourceId ? (
           <Link
             href={`/resources/${info.row.original.targetResourceId}`}
-            className="font-medium text-foreground hover:text-sky-700"
+            className="font-medium text-primary hover:text-primary/80"
           >
             {info.getValue()}
           </Link>
