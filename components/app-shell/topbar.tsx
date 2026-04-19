@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Bell, ChevronsUpDown, Command, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -26,6 +26,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { useEnvironment } from "@/components/providers/environment-provider";
+import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
 import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
 
 type TopbarProps = {
@@ -36,6 +37,7 @@ export function Topbar({ pathname }: TopbarProps) {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [showCreate, setShowCreate] = useState(false);
   const sectionId = getConsoleSectionId(pathname);
   const sectionTitle = sectionId
     ? t(`navigation.${sectionId}.title`)
@@ -142,7 +144,7 @@ export function Topbar({ pathname }: TopbarProps) {
         <ThemeToggle />
         <AccentSwitcher />
 
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowCreate(true)}>
           <Plus className="size-4" />
           {t("shell.quickAction")}
         </Button>
@@ -194,6 +196,9 @@ export function Topbar({ pathname }: TopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {showCreate && (
+        <CreateResourceSheet open={showCreate} onOpenChange={setShowCreate} />
+      )}
     </header>
   );
 }
