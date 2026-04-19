@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDebounceCallback } from "@/hooks/use-debounce";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -95,8 +96,14 @@ export function DatabaseTable({
   const columns = [
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
-      cell: (info) => (
-        <span className="font-medium text-foreground">{info.getValue()}</span>
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="font-medium text-left text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring/50"
+          onClick={() => setSelectedResource(row.original)}
+        >
+          {row.original.displayName}
+        </button>
       ),
     }),
     columnHelper.accessor("environmentName", {
@@ -149,6 +156,13 @@ export function DatabaseTable({
     router.replace(`${pathname}?${params.toString()}`);
   }
 
+  const debouncedSearch = useDebounceCallback(
+    (value: string) => {
+      replaceSearchParams({ q: value.trim() || null });
+    },
+    300,
+  );
+
   return (
     <>
       <DataTableShell
@@ -161,9 +175,7 @@ export function DatabaseTable({
               onChange={(event) => {
                 const nextValue = event.target.value;
                 setSearchDraft(nextValue);
-                replaceSearchParams({
-                  q: nextValue.trim() ? nextValue.trim() : null,
-                });
+                debouncedSearch(nextValue);
               }}
               placeholder={t("tables.databases.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
@@ -215,8 +227,6 @@ export function DatabaseTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer"
-                  onClick={() => setSelectedResource(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDebounceCallback } from "@/hooks/use-debounce";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -113,9 +114,13 @@ export function ResourceTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
-        <span className="font-medium text-foreground">
+        <button
+          type="button"
+          className="font-medium text-left text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring/50"
+          onClick={() => setSelectedResource(row.original)}
+        >
           {row.original.displayName}
-        </span>
+        </button>
       ),
     }),
     columnHelper.accessor("resourceType", {
@@ -193,6 +198,13 @@ export function ResourceTable({
       router.replace(`${pathname}?${params.toString()}`);
     },
     [pathname, router, searchParams],
+  );
+
+  const debouncedSearch = useDebounceCallback(
+    (value: string) => {
+      replaceSearchParams({ q: value.trim() || null });
+    },
+    300,
   );
 
   const subtypeOptions = (availableSubtypes?.length
@@ -293,9 +305,7 @@ export function ResourceTable({
               onChange={(event) => {
                 const nextValue = event.target.value;
                 setSearchDraft(nextValue);
-                replaceSearchParams({
-                  q: nextValue.trim() ? nextValue.trim() : null,
-                });
+                debouncedSearch(nextValue);
               }}
               placeholder={t("tables.resources.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
@@ -393,8 +403,7 @@ export function ResourceTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={`cursor-pointer${row.original.isArchived ? " opacity-60" : ""}`}
-                  onClick={() => setSelectedResource(row.original)}
+                  className={`${row.original.isArchived ? " opacity-60" : ""}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
