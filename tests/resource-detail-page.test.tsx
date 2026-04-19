@@ -109,7 +109,7 @@ describe("ResourceDetailPage", () => {
     getResourceViewModelMock.mockResolvedValue(resource);
   });
 
-  it("elevates topology into a prominent full-width surface before profile content", async () => {
+  it("elevates topology into a prominent full-width surface after profile content", async () => {
     const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
 
     const element = await ResourceDetailPage({
@@ -124,7 +124,7 @@ describe("ResourceDetailPage", () => {
     expect(topologySurface).toHaveAttribute("data-resource-topology-surface", "prominent");
     expect(profileSurface).not.toBeNull();
     expect(topologySurface?.compareDocumentPosition(profileSurface as Node)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
+      Node.DOCUMENT_POSITION_PRECEDING,
     );
     expect(screen.getByText(`topology:${resource.id}`)).toBeInTheDocument();
   });

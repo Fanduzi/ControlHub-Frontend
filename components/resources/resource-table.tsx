@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
-import { formatDateTime, formatLabel } from "@/lib/format";
+import { formatLabel, formatRelativeDateTime } from "@/lib/format";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { ResourceTypeDefinition } from "@/types/settings";
@@ -227,7 +227,7 @@ export function ResourceTable({
       header: t("common.fields.updated"),
       cell: (info) => (
         <span className="text-sm text-muted-foreground">
-          {formatDateTime(info.getValue(), locale)}
+          {formatRelativeDateTime(info.getValue(), locale)}
         </span>
       ),
     }),

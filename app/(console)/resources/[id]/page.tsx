@@ -10,6 +10,13 @@ import { StatusBadge } from "@/components/blocks/status-badge";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import {
@@ -49,6 +56,17 @@ export default async function ResourceDetailPage({
 
   return (
     <div className="space-y-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/resources">{t("navigation.resources.title")}</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <span className="text-sm text-muted-foreground">{resource.displayName}</span>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <PageHeader
         eyebrow={t("pages.resourceDetail.eyebrow")}
         title={resource.displayName}
@@ -195,16 +213,6 @@ export default async function ResourceDetailPage({
         </DetailPanel>
       )}
 
-      <DetailPanel
-        title={t("topology.title")}
-        description={t("topology.description")}
-        className="xl:col-span-2"
-      >
-        <div data-resource-topology-surface="prominent">
-          <TopologyPanel resourceId={resource.id} urlSync />
-        </div>
-      </DetailPanel>
-
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
         <DetailPanel
           title={t("pages.resourceDetail.profile.title")}
@@ -235,6 +243,16 @@ export default async function ResourceDetailPage({
           <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
         </DetailPanel>
       </div>
+
+      <DetailPanel
+        title={t("topology.title")}
+        description={t("topology.description")}
+        className="xl:col-span-2"
+      >
+        <div data-resource-topology-surface="prominent">
+          <TopologyPanel resourceId={resource.id} urlSync />
+        </div>
+      </DetailPanel>
 
       <DetailPanel
         title={t("pages.resourceDetail.audit.title")}
