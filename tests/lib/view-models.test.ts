@@ -140,6 +140,25 @@ describe("getResourceViewModel", () => {
     });
   });
 
+  it("does not generate title-cased English fallback summaries for resources without curated copy", async () => {
+    const uncopiedResource = {
+      ...resource,
+      id: "41000000-0000-0000-0000-000000000099",
+      resourceType: "database_cluster" as const,
+      resourceSubtype: "mysql",
+      lifecycleStatus: "running",
+      displayName: "Payment MySQL Cluster",
+    };
+    mockedGetResourceById.mockResolvedValue(uncopiedResource);
+    mockedListResources.mockResolvedValue([uncopiedResource] as never);
+
+    const viewModel = await getResourceViewModel(uncopiedResource.id);
+
+    expect(viewModel?.summary).toBe("database_cluster · mysql · running");
+    expect(viewModel?.summary).not.toContain("Database Cluster");
+    expect(viewModel?.summary).not.toContain("Running");
+  });
+
   it("keeps the profile empty when the backend projection has no populated fields", async () => {
     mockedGetResourceProfileById.mockResolvedValue({
       resourceId: resource.id,

@@ -55,13 +55,13 @@ const actorLabels: Record<string, string> = {
 function buildFallbackSummary(resource: Resource): string {
   const parts: string[] = [];
   if (resource.resourceType) {
-    parts.push(formatLabel(resource.resourceType));
+    parts.push(resource.resourceType);
   }
   if (resource.resourceSubtype) {
-    parts.push(formatLabel(resource.resourceSubtype));
+    parts.push(resource.resourceSubtype);
   }
   if (resource.lifecycleStatus) {
-    parts.push(formatLabel(resource.lifecycleStatus));
+    parts.push(resource.lifecycleStatus);
   }
   return parts.length > 0 ? parts.join(" · ") : resource.displayName;
 }
