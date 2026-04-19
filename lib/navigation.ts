@@ -1,7 +1,6 @@
 import {
   Activity,
   Database,
-  FolderKanban,
   LayoutDashboard,
   Settings,
   ServerCog,
@@ -18,12 +17,6 @@ export const consoleNavigation = [
     id: "resources",
     href: "/resources",
     icon: ServerCog,
-    supportsEnvironment: true,
-  },
-  {
-    id: "cmdb",
-    href: "/cmdb",
-    icon: FolderKanban,
     supportsEnvironment: true,
   },
   {

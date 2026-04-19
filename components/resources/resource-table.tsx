@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
@@ -22,6 +23,7 @@ import {
 import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -42,6 +44,8 @@ import { formatDateTime, formatLabel } from "@/lib/format";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { ResourceTypeDefinition } from "@/types/settings";
+
+import { Columns3 } from "lucide-react";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 import { CreateResourceSheet } from "./create-resource-sheet";
@@ -84,6 +88,11 @@ export function ResourceTable({
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    resourceSubtype: false,
+    externalId: false,
+    source: false,
+  });
 
   const search = searchParams.get("q") ?? "";
   const archiveFilter = searchParams.get("archiveFilter") ?? "all";
@@ -111,6 +120,20 @@ export function ResourceTable({
   }, [search]);
 
   const columns = [
+    {
+      id: "icon",
+      size: 36,
+      minSize: 36,
+      enableHiding: false,
+      cell: ({ row }: { row: { original: ResourceListViewModel } }) => {
+        const type = row.original.resourceType;
+        const subtype = row.original.resourceSubtype;
+        if (type === "database_instance" || type === "database_cluster" || type === "database_proxy") {
+          return <DbTypeIcon subtype={subtype} />;
+        }
+        return null;
+      },
+    },
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
@@ -166,6 +189,30 @@ export function ResourceTable({
         </span>
       ),
     }),
+    columnHelper.accessor("resourceSubtype", {
+      id: "resourceSubtype",
+      header: "Subtype",
+      cell: (info) => {
+        const v = info.getValue();
+        return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
+      },
+    }),
+    columnHelper.accessor("externalId", {
+      id: "externalId",
+      header: "External ID",
+      cell: (info) => {
+        const v = info.getValue();
+        return v ? <span className="font-mono text-xs text-muted-foreground">{v}</span> : <span className="text-muted-foreground">&mdash;</span>;
+      },
+    }),
+    columnHelper.accessor("source", {
+      id: "source",
+      header: "Source",
+      cell: (info) => {
+        const v = info.getValue();
+        return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
+      },
+    }),
   ];
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -173,6 +220,8 @@ export function ResourceTable({
     data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    state: { columnVisibility },
+    onColumnVisibilityChange: setColumnVisibility,
   });
 
   const handleSheetOpenChange = useCallback((open: boolean) => {
@@ -300,6 +349,28 @@ export function ResourceTable({
             >
               {t("common.actions.createResource")}
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Columns3 className="size-4" />
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {table.getAllLeafColumns()
+                  .filter(col => col.id !== "icon")
+                  .map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                      className="capitalize"
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Input
               value={searchDraft}
               onChange={(event) => {
