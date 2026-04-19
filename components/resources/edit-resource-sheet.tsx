@@ -20,7 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
+import { LabelsEditor } from "@/components/blocks/labels-editor";
 import { updateResource } from "@/services/resources";
 import {
   listEnvironments,
@@ -53,7 +53,7 @@ export function EditResourceSheet({
   const [healthStatus, setHealthStatus] = useState("");
   const [source, setSource] = useState("");
   const [externalId, setExternalId] = useState("");
-  const [labels, setLabels] = useState("");
+  const [labels, setLabels] = useState<Record<string, string>>({});
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +73,7 @@ export function EditResourceSheet({
     setHealthStatus(resource.healthStatus);
     setSource(resource.source);
     setExternalId(resource.externalId);
-    setLabels(
-      resource.labels && Object.keys(resource.labels).length > 0
-        ? JSON.stringify(resource.labels, null, 2)
-        : "",
-    );
+    setLabels(resource.labels ?? {});
     setError(null);
 
     Promise.all([
@@ -99,17 +95,6 @@ export function EditResourceSheet({
     setSubmitting(true);
     setError(null);
 
-    let parsedLabels: Record<string, string> | undefined;
-    if (labels.trim()) {
-      try {
-        parsedLabels = JSON.parse(labels);
-      } catch {
-        setError(t("mutations.errors.validation"));
-        setSubmitting(false);
-        return;
-      }
-    }
-
     const input: UpdateResourceInput = {
       displayName,
       environmentId,
@@ -118,7 +103,7 @@ export function EditResourceSheet({
       healthStatus,
       source: source || "manual",
       externalId,
-      ...(parsedLabels !== undefined ? { labels: parsedLabels } : {}),
+      ...(Object.keys(labels).length > 0 ? { labels } : {}),
     };
 
     try {
@@ -301,15 +286,7 @@ export function EditResourceSheet({
             <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {t("common.fields.labels")}
             </label>
-            <Textarea
-              value={labels}
-              onChange={(e) => {
-                setLabels(e.target.value);
-                setError(null);
-              }}
-              placeholder='{"team": "order"}'
-              className="min-h-[80px] border-border bg-background font-mono text-sm"
-            />
+            <LabelsEditor value={labels} onChange={setLabels} />
           </div>
 
           {error && (

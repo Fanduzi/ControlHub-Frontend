@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 type DataTableShellProps = {
   title: string;
   description: string;
   controls?: ReactNode;
   pagination?: ReactNode;
+  loading?: boolean;
   children: ReactNode;
 };
 
@@ -13,6 +16,7 @@ export function DataTableShell({
   description,
   controls,
   pagination,
+  loading,
   children,
 }: DataTableShellProps) {
   return (
@@ -24,7 +28,23 @@ export function DataTableShell({
         </div>
         {controls ? <div className="flex flex-wrap items-center gap-2">{controls}</div> : null}
       </div>
-      <div>{children}</div>
+      <div>
+        {loading ? (
+          <div className="divide-y divide-border">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3">
+                <Skeleton className="h-4 w-[200px]" />
+                <Skeleton className="h-4 w-[100px]" />
+                <Skeleton className="h-4 w-[80px]" />
+                <Skeleton className="h-4 w-[120px]" />
+                <Skeleton className="h-4 w-[60px]" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
       {pagination ? (
         <div className="border-t border-border px-4 py-3">{pagination}</div>
       ) : null}

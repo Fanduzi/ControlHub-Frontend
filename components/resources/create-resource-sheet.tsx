@@ -20,7 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
+import { LabelsEditor } from "@/components/blocks/labels-editor";
 import { createResource } from "@/services/resources";
 import {
   listEnvironments,
@@ -53,7 +53,7 @@ type FormState = {
   source: string;
   resourceSubtype: string;
   externalId: string;
-  labels: string;
+  labels: Record<string, string>;
 };
 
 const INITIAL_STATE: FormState = {
@@ -67,7 +67,7 @@ const INITIAL_STATE: FormState = {
   source: "manual",
   resourceSubtype: "",
   externalId: "",
-  labels: "",
+  labels: {},
 };
 
 export function CreateResourceSheet({
@@ -136,17 +136,6 @@ export function CreateResourceSheet({
     setSubmitting(true);
     setError(null);
 
-    let labels: Record<string, string> = {};
-    if (form.labels.trim()) {
-      try {
-        labels = JSON.parse(form.labels);
-      } catch {
-        setError(t("mutations.errors.validation"));
-        setSubmitting(false);
-        return;
-      }
-    }
-
     const input: CreateResourceInput = {
       resourceType: form.resourceType,
       name: form.name,
@@ -158,7 +147,7 @@ export function CreateResourceSheet({
       source: form.source || "manual",
       ...(form.resourceSubtype && { resourceSubtype: form.resourceSubtype }),
       ...(form.externalId && { externalId: form.externalId }),
-      ...(Object.keys(labels).length > 0 && { labels }),
+      ...(Object.keys(form.labels).length > 0 && { labels: form.labels }),
     };
 
     try {
@@ -368,11 +357,9 @@ export function CreateResourceSheet({
                 <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.labels")}
                 </label>
-                <Textarea
+                <LabelsEditor
                   value={form.labels}
-                  onChange={(e) => updateField("labels", e.target.value)}
-                  placeholder='{"team": "order", "tier": "data"}'
-                  className="min-h-[80px] border-border bg-background font-mono text-sm"
+                  onChange={(labels) => updateField("labels", labels)}
                 />
               </div>
             </div>
