@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { EmptyState } from "@/components/blocks/empty-state";
+import { ResourceSearchCombobox } from "@/components/blocks/resource-search-combobox";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -130,14 +130,12 @@ export function ResourceRelationPanel({
             <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {mt("relation.targetLabel")}
             </label>
-            <Input
-              value={targetId}
-              onChange={(e) => {
-                setTargetId(e.target.value);
+            <ResourceSearchCombobox
+              onSelect={(resource) => {
+                setTargetId(resource.id);
                 setError(null);
               }}
-              placeholder={mt("relation.targetPlaceholder")}
-              className="h-8 border-border bg-background text-sm"
+              excludeIds={resourceId ? [resourceId] : []}
             />
           </div>
           <div>
