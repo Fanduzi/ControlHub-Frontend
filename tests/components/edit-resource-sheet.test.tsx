@@ -121,11 +121,9 @@ describe("EditResourceSheet", () => {
     expect(
       screen.getByDisplayValue("aws:rds:orders-primary"),
     ).toBeInTheDocument();
-    // Labels textarea should contain the JSON stringified labels
-    const labelsTextarea = screen.getByPlaceholderText('{"team": "order"}');
-    expect(labelsTextarea).toHaveValue(
-      JSON.stringify({ team: "order" }, null, 2),
-    );
+    // Labels editor should show the key and value inputs
+    expect(screen.getByDisplayValue("team")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("order")).toBeInTheDocument();
   });
 
   it("submits updated display name via updateResource and refreshes", async () => {
@@ -187,31 +185,6 @@ describe("EditResourceSheet", () => {
         ),
       ).toBeInTheDocument();
     });
-  });
-
-  it("shows validation error when labels JSON is malformed", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <NextIntlClientProvider locale="en" messages={messages}>
-        <EditResourceSheet
-          open
-          onOpenChange={() => undefined}
-          resource={resource}
-        />
-      </NextIntlClientProvider>,
-    );
-
-    const labelsTextarea = screen.getByPlaceholderText('{"team": "order"}');
-    await user.clear(labelsTextarea);
-    await user.type(labelsTextarea, "not-valid-json{{}");
-
-    await user.click(screen.getByRole("button", { name: /Save/i }));
-
-    expect(
-      screen.getByText("Validation failed. Please check the form fields."),
-    ).toBeInTheDocument();
-    expect(mockedUpdateResource).not.toHaveBeenCalled();
   });
 
   it("never sends id, name, resourceType, or createdAt in the PATCH payload", async () => {

@@ -75,10 +75,6 @@ describe("Sidebar", () => {
       "href",
       "/resources",
     );
-    expect(screen.getByRole("link", { name: "CMDB" })).toHaveAttribute(
-      "href",
-      "/cmdb",
-    );
     expect(screen.getByRole("link", { name: "Databases" })).toHaveAttribute(
       "href",
       "/databases",

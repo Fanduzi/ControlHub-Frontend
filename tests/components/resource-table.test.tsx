@@ -1,6 +1,6 @@
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -116,9 +116,12 @@ describe("ResourceTable", () => {
       "billing",
     );
 
-    expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&q=billing",
-    );
+    // Wait for the 300ms debounce to fire
+    await waitFor(() => {
+      expect(replace).toHaveBeenLastCalledWith(
+        "/resources?environmentId=env-prod&page=1&q=billing",
+      );
+    }, { timeout: 2000 });
   });
 
   it("updates resourceType in the URL with repeated params when filtering (multi-select)", async () => {
