@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useDebounceCallback } from "@/hooks/use-debounce";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -140,13 +141,13 @@ export function ResourceTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
-        <button
-          type="button"
-          className="font-medium text-left text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring/50"
-          onClick={() => setSelectedResource(row.original)}
+        <Link
+          href={`/resources/${row.original.id}`}
+          className="font-medium text-foreground hover:text-primary hover:underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring/50 transition-colors"
+          onClick={(e) => e.stopPropagation()}
         >
           {row.original.displayName}
-        </button>
+        </Link>
       ),
     }),
     columnHelper.accessor("resourceType", {
@@ -516,7 +517,14 @@ export function ResourceTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={`${row.original.isArchived ? " opacity-60" : ""}`}
+                  tabIndex={0}
+                  className={`cursor-pointer hover:bg-muted/40 transition-colors${row.original.isArchived ? " opacity-60" : ""}`}
+                  onClick={() => setSelectedResource(row.original)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.defaultPrevented) {
+                      setSelectedResource(row.original);
+                    }
+                  }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
