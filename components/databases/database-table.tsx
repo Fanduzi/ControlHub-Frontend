@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -46,6 +47,9 @@ const ENGINE_OPTIONS = [
   "redis",
   "mongodb",
   "tidb",
+  "clickhouse",
+  "proxysql",
+  "chproxy",
 ] as const;
 
 function updateMultiSelectParams(
@@ -114,11 +118,17 @@ export function DatabaseTable({
     }),
     columnHelper.accessor("resourceSubtype", {
       header: t("common.fields.engine"),
-      cell: (info) => (
-        <span className="text-sm text-foreground">
-          {formatLabel(info.getValue())}
-        </span>
-      ),
+      cell: (info) => {
+        const subtype = info.getValue();
+        return (
+          <div className="flex items-center gap-2">
+            <DbTypeIcon subtype={subtype} />
+            <span className="text-sm text-foreground">
+              {formatLabel(subtype)}
+            </span>
+          </div>
+        );
+      },
     }),
     columnHelper.display({
       id: "status",
