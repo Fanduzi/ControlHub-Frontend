@@ -8,7 +8,9 @@ const subtypeIconMap: Record<string, string> = {
   redis: "/icons/db/redis.svg",
   mongodb: "/icons/db/mongodb.svg",
   tidb: "/icons/db/tidb.svg",
-  proxysql: "/icons/db/proxysql.svg",
+  clickhouse: "/icons/db/clickhouse.svg",
+  proxysql: "/icons/db/proxysql.png",
+  chproxy: "/icons/db/chproxy.svg",
 };
 
 interface DbTypeIconProps {
