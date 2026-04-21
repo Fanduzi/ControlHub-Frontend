@@ -178,6 +178,10 @@ export type TopologyNode = {
   isDatabaseTopology: boolean;
   replicationDepth: number;
   replicationParentId: string;
+  hostname?: string;
+  ip?: string;
+  port?: number;
+  problems?: TopologyProblem[];
 };
 
 export type TopologyEdge = {
@@ -203,6 +207,21 @@ export type TopologyResponse = {
   edges: TopologyEdge[];
   groups: TopologyGroup[];
   isDatabaseTopology: boolean;
+  problems?: TopologyProblemSummary[];
+};
+
+export type TopologyProblem = {
+  severity: "warning" | "critical";
+  message: string;
+  code: string;
+};
+
+export type TopologyProblemSummary = {
+  resourceId: string;
+  resourceName: string;
+  resourceType: string;
+  severity: "warning" | "critical";
+  problems: TopologyProblem[];
 };
 
 export type TopologyParams = {

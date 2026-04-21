@@ -486,6 +486,9 @@
       "host": "主机层",
       "generic": "通用"
     },
+    "problemsTitle": "异常汇总",
+    "address": "地址",
+    "viewDetails": "查看完整详情",
     "emptyTitle": "暂无关联关系",
     "emptyDescription": "此资源没有可可视化的关联资源。",
     "errorTitle": "拓扑加载失败",

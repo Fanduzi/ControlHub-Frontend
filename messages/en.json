@@ -486,6 +486,9 @@
       "host": "Host",
       "generic": "Generic"
     },
+    "problemsTitle": "Problems",
+    "address": "Address",
+    "viewDetails": "View Full Details",
     "emptyTitle": "No relations to display",
     "emptyDescription": "This resource has no linked resources to visualize.",
     "errorTitle": "Failed to load topology",

@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+import { AlertTriangle, ChevronDown, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -29,9 +30,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData, type GroupBoxData, type LayerBand } from "@/lib/topology-mapper";
 import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
-import type { TopologyParams, TopologyResponse } from "@/types/resource";
+import type { TopologyParams, TopologyResponse, TopologyProblemSummary } from "@/types/resource";
 
-// --- Role-based node styling for semantic topology ---
+// --- Role-based node styling ---
 const ROLE_BORDER: Record<string, string> = {
   primary: "border-blue-500/50",
   replica: "border-cyan-500/50",
@@ -60,11 +61,40 @@ const ROLE_BG: Record<string, string> = {
   service: "bg-emerald-500/5",
 };
 
+// --- Status-based node coloring (Orchestrator-style) ---
+const STATUS_STYLES: Record<string, { border: string; bg: string }> = {
+  critical: { border: "border-red-500/70", bg: "bg-red-500/10" },
+  warning: { border: "border-amber-500/70", bg: "bg-amber-500/10" },
+};
+
+function getNodeStatusStyle(data: TopologyNodeData) {
+  const hasCritical = data.problems?.some((p) => p.severity === "critical");
+  const hasWarning = data.problems?.some((p) => p.severity === "warning");
+  if (hasCritical) return STATUS_STYLES.critical;
+  if (hasWarning) return STATUS_STYLES.warning;
+  return null;
+}
+
+// --- Zone color palette for group boxes ---
+const ZONE_PALETTE = [
+  { border: "border-blue-400/60", bg: "bg-blue-400/5", label: "text-blue-500" },
+  { border: "border-emerald-400/60", bg: "bg-emerald-400/5", label: "text-emerald-500" },
+  { border: "border-amber-400/60", bg: "bg-amber-400/5", label: "text-amber-500" },
+  { border: "border-violet-400/60", bg: "bg-violet-400/5", label: "text-violet-500" },
+  { border: "border-rose-400/60", bg: "bg-rose-400/5", label: "text-rose-500" },
+  { border: "border-cyan-400/60", bg: "bg-cyan-400/5", label: "text-cyan-500" },
+];
+
+function getZoneColor(zoneKey: string) {
+  let hash = 0;
+  for (let i = 0; i < zoneKey.length; i++) hash = zoneKey.charCodeAt(i) + ((hash << 5) - hash);
+  return ZONE_PALETTE[Math.abs(hash) % ZONE_PALETTE.length];
+}
+
 type TopologyPanelProps = {
   resourceId: string;
   className?: string;
   compact?: boolean;
-  /** When true, sync depth/direction/expanded to URL searchParams. */
   urlSync?: boolean;
 };
 
@@ -97,8 +127,10 @@ function TopologyPanelInner({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [selectedNodeData, setSelectedNodeData] = useState<TopologyNodeData | null>(null);
+  const [problemsExpanded, setProblemsExpanded] = useState(true);
 
-  // URL update helper (only used when urlSync is true)
+  // URL update helper
   const updateUrlParams = useCallback(
     (updates: Record<string, string | null>) => {
       if (!urlSync) return;
@@ -208,11 +240,12 @@ function TopologyPanelInner({
     return () => document.removeEventListener("keydown", handleEsc);
   }, [expanded, setExpandedValue]);
 
+  // Node click opens detail popup instead of navigating
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      router.push(`/resources/${node.id}`);
+      setSelectedNodeData(node.data as TopologyNodeData);
     },
-    [router],
+    [],
   );
 
   const handleRetry = useCallback(() => {
@@ -222,7 +255,7 @@ function TopologyPanelInner({
   const hasEdges = topology && topology.edges.length > 0;
   const isDatabase = topology?.isDatabaseTopology ?? false;
 
-  // Localized type labels for topology nodes
+  // Localized type labels
   const getTypeLabel = useCallback(
     (resourceType: string): string => {
       const key = `topology.types.${resourceType}`;
@@ -231,7 +264,7 @@ function TopologyPanelInner({
     [t],
   );
 
-  // Localized role label for semantic nodes
+  // Localized role label
   const getRoleLabel = useCallback(
     (role: string): string | null => {
       const key = `topology.roles.${role}`;
@@ -240,7 +273,7 @@ function TopologyPanelInner({
     [t],
   );
 
-  // Localized edge semantic type label
+  // Localized edge type label
   const getEdgeTypeLabel = useCallback(
     (semanticType: string | undefined): string | null => {
       if (!semanticType) return null;
@@ -250,14 +283,36 @@ function TopologyPanelInner({
     [t],
   );
 
-  // Custom node component with semantic role styling and named handles
+  // Highlight a node in the graph (used by problem panel)
+  const highlightNode = useCallback(
+    (nodeId: string) => {
+      setNodes((nds) =>
+        nds.map((n) => ({
+          ...n,
+          className: n.id === nodeId ? "ring-2 ring-primary/50" : undefined,
+        })),
+      );
+    },
+    [setNodes],
+  );
+
+  // --- Custom node component: Orchestrator-style ---
   const nodeTypes = useMemo(
     () => ({
       topologyNode: ({ data }: { data: TopologyNodeData }) => {
         const roleLabel = getRoleLabel(data.topologyRole);
         const roleBorder = ROLE_BORDER[data.topologyRole] ?? "border-border";
         const roleBg = ROLE_BG[data.topologyRole] ?? "bg-card";
+        const statusStyle = getNodeStatusStyle(data);
         const handleClass = "!w-2 !h-2 !bg-muted-foreground/40 !border-0";
+
+        const addressParts: string[] = [];
+        if (data.ip) addressParts.push(data.ip);
+        if (data.port) addressParts.push(String(data.port));
+        const address = addressParts.join(":");
+        const isDb = data.resourceType === "database_instance" ||
+          data.resourceType === "database_cluster" ||
+          data.resourceType === "database_proxy";
 
         return (
           <div
@@ -265,13 +320,14 @@ function TopologyPanelInner({
             data-is-root={data.isRoot ? "true" : "false"}
             data-topology-role={data.topologyRole}
             className={cn(
-              "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors",
+              "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors min-w-[140px] max-w-[220px]",
               data.isRoot
                 ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
-                : cn(roleBorder, roleBg),
+                : statusStyle
+                  ? cn(statusStyle.border, statusStyle.bg)
+                  : cn(roleBorder, roleBg),
             )}
           >
-            {/* Named handles — source and target at each position for full directional flexibility */}
             <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
             <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
             <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
@@ -280,60 +336,68 @@ function TopologyPanelInner({
             <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
             <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
             <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground">
+
+            {/* Line 1: Icon + Name + Role */}
+            <div className="flex items-center gap-1.5">
+              {isDb && data.resourceSubtype && (
+                <DbTypeIcon subtype={data.resourceSubtype} className="size-3.5 shrink-0" />
+              )}
+              <span className="font-medium text-foreground truncate">
                 {data.displayName || data.name}
               </span>
               {data.isRoot && (
-                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary shrink-0">
                   {t("topology.rootLabel")}
                 </span>
               )}
               {roleLabel && !data.isRoot && isDatabase && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
                   {roleLabel}
                 </span>
               )}
             </div>
-            <div className="mt-1 flex items-center gap-2 text-muted-foreground">
-              <span>{getTypeLabel(data.resourceType)}</span>
-              {data.resourceSubtype && (
-                <>
-                  <span>·</span>
-                  {(data.resourceType === "database_instance" ||
-                    data.resourceType === "database_cluster" ||
-                    data.resourceType === "database_proxy") ? (
-                    <span className="inline-flex items-center gap-1">
-                      <DbTypeIcon subtype={data.resourceSubtype} className="size-3" />
-                      <span>{data.resourceSubtype}</span>
-                    </span>
-                  ) : (
+
+            {/* Line 2: IP:port (for DB instances and hosts) */}
+            {address && (
+              <div className="mt-0.5 text-[11px] font-mono text-foreground/80">
+                {address}
+              </div>
+            )}
+
+            {/* Line 3: Hostname (if different from IP) */}
+            {data.hostname && data.hostname !== data.ip && (
+              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                {data.hostname}
+              </div>
+            )}
+
+            {/* Fallback: show type if no IP */}
+            {!address && (
+              <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+                <span>{getTypeLabel(data.resourceType)}</span>
+                {data.resourceSubtype && !isDb && (
+                  <>
+                    <span>·</span>
                     <span>{data.resourceSubtype}</span>
-                  )}
-                </>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Line 4: Status badges */}
             <div className="mt-1 flex gap-1">
-              <StatusBadge
-                status={data.healthStatus}
-                tone="health"
-                className="text-[10px]"
-              />
-              <StatusBadge
-                status={data.lifecycleStatus}
-                tone="lifecycle"
-                className="text-[10px]"
-              />
+              <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />
+              <StatusBadge status={data.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
             </div>
           </div>
         );
       },
       topologyGroup: ({ data }: { data: GroupBoxData }) => {
         const handleClass = "!w-2 !h-2 !bg-muted-foreground/30 !border-0";
+        const zoneColor = getZoneColor(data.label || "default");
 
         return (
-          <div className="relative h-full w-full rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/5">
-            {/* Handles for group box */}
+          <div className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}>
             <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
             <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
             <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
@@ -342,8 +406,7 @@ function TopologyPanelInner({
             <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
             <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
             <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
-            {/* Cluster label */}
-            <div className="absolute -top-3 left-3 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <div className={cn("absolute -top-3 left-3 rounded bg-background px-2 py-0.5 text-[10px] font-medium", zoneColor.label)}>
               {data.label}
             </div>
           </div>
@@ -353,7 +416,7 @@ function TopologyPanelInner({
     [t, getTypeLabel, getRoleLabel, isDatabase],
   );
 
-  // Build edges with localized semantic labels for database topologies
+  // Build edges with localized semantic labels
   const displayEdges = useMemo(
     () =>
       edges.map((edge) => {
@@ -368,6 +431,146 @@ function TopologyPanelInner({
       }),
     [edges, getEdgeTypeLabel, isDatabase],
   );
+
+  // --- Problem summary panel ---
+  const renderProblemsPanel = () => {
+    const problems = topology?.problems;
+    if (!problems || problems.length === 0) return null;
+
+    return (
+      <div className="rounded-lg border border-border bg-card">
+        <button
+          onClick={() => setProblemsExpanded(!problemsExpanded)}
+          className="flex w-full items-center justify-between px-3 py-2 text-xs"
+          data-testid="topology-problems-toggle"
+        >
+          <span className="flex items-center gap-2 font-medium text-foreground">
+            <AlertTriangle className="size-3.5 text-amber-500" />
+            {t("topology.problemsTitle")} ({problems.length})
+          </span>
+          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", problemsExpanded && "rotate-180")} />
+        </button>
+        {problemsExpanded && (
+          <div className="border-t border-border px-3 py-2 space-y-1">
+            {problems.map((p: TopologyProblemSummary) => (
+              <div
+                key={p.resourceId}
+                className="flex items-center gap-2 text-xs py-1 cursor-pointer hover:bg-muted/50 rounded px-2"
+                onClick={() => highlightNode(p.resourceId)}
+                data-testid={`topology-problem-${p.resourceId}`}
+              >
+                <span className={cn("size-2 rounded-full shrink-0", p.severity === "critical" ? "bg-red-500" : "bg-amber-500")} />
+                <span className="font-medium text-foreground">{p.resourceName}</span>
+                <span className="text-muted-foreground truncate">
+                  {p.problems.map((pr) => {
+                    const key = `topology.problem${pr.code.charAt(0).toUpperCase()}${pr.code.slice(1)}`;
+                    return t.has(key) ? t(key) : pr.message;
+                  }).join(", ")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // --- Node detail popup ---
+  const renderNodePopup = () => {
+    if (!selectedNodeData) return null;
+    const d = selectedNodeData;
+    const isDb = d.resourceType === "database_instance" ||
+      d.resourceType === "database_cluster" ||
+      d.resourceType === "database_proxy";
+    const addressParts: string[] = [];
+    if (d.ip) addressParts.push(d.ip);
+    if (d.port) addressParts.push(String(d.port));
+    const address = addressParts.join(":");
+
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+        onClick={() => setSelectedNodeData(null)}
+        data-testid="topology-node-popup-overlay"
+      >
+        <div
+          className="rounded-xl border border-border bg-card shadow-lg p-4 min-w-[280px] max-w-[360px]"
+          onClick={(e) => e.stopPropagation()}
+          data-testid="topology-node-popup"
+        >
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              {isDb && d.resourceSubtype && <DbTypeIcon subtype={d.resourceSubtype} className="size-4" />}
+              <span className="font-medium text-sm text-foreground">{d.displayName || d.name}</span>
+            </div>
+            <button
+              onClick={() => setSelectedNodeData(null)}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid="topology-node-popup-close"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{t("common.fields.resourceType")}</span>
+              <span className="text-foreground">{getTypeLabel(d.resourceType)}</span>
+            </div>
+            {d.resourceSubtype && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("common.fields.engine")}</span>
+                <span className="text-foreground">{d.resourceSubtype}</span>
+              </div>
+            )}
+            {d.hostname && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("common.fields.hostname")}</span>
+                <span className="font-mono text-foreground">{d.hostname}</span>
+              </div>
+            )}
+            {address && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("topology.address")}</span>
+                <span className="font-mono text-foreground">{address}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">{t("common.fields.status")}</span>
+              <div className="flex gap-1">
+                <StatusBadge status={d.healthStatus} tone="health" className="text-[10px]" />
+                <StatusBadge status={d.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
+              </div>
+            </div>
+            {d.problems && d.problems.length > 0 && (
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground">{t("topology.problemsTitle")}</span>
+                <div className="flex flex-col gap-0.5 items-end">
+                  {d.problems.map((p, i) => (
+                    <span key={i} className={cn("text-[10px] font-medium", p.severity === "critical" ? "text-red-500" : "text-amber-500")}>
+                      {p.message}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={() => router.push(`/resources/${d.id}`)}
+            >
+              <ExternalLink className="size-3" />
+              {t("topology.viewDetails")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // --- Shared controls bar ---
   const renderControls = () => (
@@ -433,7 +636,7 @@ function TopologyPanelInner({
     </div>
   );
 
-  // Render layer band labels as a legend below the graph
+  // Render layer band labels
   const renderLayerBands = () => {
     if (!isDatabase || layerBands.length === 0) return null;
     return (
@@ -536,6 +739,8 @@ function TopologyPanelInner({
         </div>
       )}
 
+      {!loading && !error && !unavailable && topology && renderProblemsPanel()}
+
       {!loading && !error && !unavailable && hasEdges && !expanded && renderGraph()}
 
       {/* Expanded fullscreen overlay */}
@@ -558,9 +763,15 @@ function TopologyPanelInner({
               {t("topology.collapseButton")}
             </Button>
           </div>
+          <div className="px-4 pt-2">
+            {renderProblemsPanel()}
+          </div>
           <div className="flex-1">{renderGraph()}</div>
         </div>
       )}
+
+      {/* Node detail popup */}
+      {renderNodePopup()}
     </div>
   );
 }
