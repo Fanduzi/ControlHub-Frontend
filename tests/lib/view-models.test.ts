@@ -8,6 +8,7 @@ import {
   getResourceById,
   getResourceProfileById,
   getOverviewMetrics,
+  listAllResources,
   listAttentionResources,
   listDatabaseResources,
   listResourceRelations,
@@ -22,6 +23,7 @@ import { listEnvironments, listOwners } from "@/services/settings";
 
 vi.mock("@/services/resources", () => ({
   listResources: vi.fn(),
+  listAllResources: vi.fn(),
   getResourceById: vi.fn(),
   getResourceProfileById: vi.fn(),
   listResourceRelations: vi.fn(),
@@ -45,6 +47,7 @@ const mockedGetResourceById = vi.mocked(getResourceById);
 const mockedGetResourceProfileById = vi.mocked(getResourceProfileById);
 const mockedListResourceRelations = vi.mocked(listResourceRelations);
 const mockedListResources = vi.mocked(listResources);
+const mockedListAllResources = vi.mocked(listAllResources);
 const mockedListEnvironments = vi.mocked(listEnvironments);
 const mockedListOwners = vi.mocked(listOwners);
 const mockedListResourceAuditEvents = vi.mocked(listResourceAuditEvents);
@@ -78,6 +81,7 @@ describe("getResourceViewModel", () => {
 
     mockedGetResourceById.mockResolvedValue({ resource });
     mockedListResources.mockResolvedValue([resource] as never);
+    mockedListAllResources.mockResolvedValue([resource] as never);
     mockedListEnvironments.mockResolvedValue([
       {
         id: "env-prod",

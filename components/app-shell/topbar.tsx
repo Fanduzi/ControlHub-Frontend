@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AccentSwitcher } from "@/components/settings/accent-switcher";
 import { LanguageSwitcher } from "@/components/settings/language-switcher";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
+import { CommandPalette } from "@/components/app-shell/command-palette";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,16 @@ export function Topbar({ pathname }: TopbarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    function handleOpenCreate() {
+      setShowCreate(true);
+    }
+    window.addEventListener("open-create-resource", handleOpenCreate);
+    return () =>
+      window.removeEventListener("open-create-resource", handleOpenCreate);
+  }, []);
   const sectionId = getConsoleSectionId(pathname);
   const sectionTitle = sectionId
     ? t(`navigation.${sectionId}.title`)
@@ -185,13 +196,15 @@ export function Topbar({ pathname }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuGroup>
               <DropdownMenuLabel>{t("shell.workspace")}</DropdownMenuLabel>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPaletteOpen(true)}>
                 <Command className="size-4" />
                 {t("shell.openCommandPalette")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>{t("shell.profile")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
+              {t("shell.profile")}
+            </DropdownMenuItem>
             <DropdownMenuItem>{t("shell.signOut")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -199,6 +212,8 @@ export function Topbar({ pathname }: TopbarProps) {
       {showCreate && (
         <CreateResourceSheet open={showCreate} onOpenChange={setShowCreate} />
       )}
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </header>
   );
 }

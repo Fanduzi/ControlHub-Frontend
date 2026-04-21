@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
+import { ResourceLink } from "@/components/blocks/resource-link";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import type { ClusterMember } from "@/types/resource";
 
@@ -50,15 +51,17 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
           {members.map((member) => (
             <tr key={member.id} className="group">
               <td className="px-4 py-2">
-                <Link
-                  href={`/resources/${member.id}`}
-                  className="font-medium text-foreground underline-offset-2 hover:text-primary/80 hover:underline"
-                >
+                <ResourceLink href={`/resources/${member.id}`}>
                   {member.displayName}
-                </Link>
+                </ResourceLink>
               </td>
-              <td className="px-4 py-2 capitalize text-muted-foreground">
-                {member.resourceSubtype}
+              <td className="px-4 py-2">
+                <div className="flex items-center gap-1.5">
+                  <DbTypeIcon subtype={member.resourceSubtype} className="size-3.5" />
+                  <span className="capitalize text-muted-foreground">
+                    {member.resourceSubtype}
+                  </span>
+                </div>
               </td>
               <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                 {member.profileSummary?.hostname ?? "-"}

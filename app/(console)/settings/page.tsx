@@ -12,6 +12,7 @@ import {
   listOwners,
   listRoles,
 } from "@/services/settings";
+import { OwnersSection } from "@/components/settings/owners-section";
 
 function getDictionaryDescription(
   t: Awaited<ReturnType<typeof getTranslations>>,
@@ -20,6 +21,14 @@ function getDictionaryDescription(
 ): string {
   const i18nKey = `pages.settings.dictionaries.${key}`;
   return t.has(i18nKey) ? t(i18nKey) : fallback;
+}
+
+function getDictionaryValueLabel(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  value: string,
+): string {
+  const i18nKey = `dictionaryValues.${value}`;
+  return t.has(i18nKey) ? t(i18nKey) : value;
 }
 
 export default async function SettingsPage() {
@@ -93,49 +102,25 @@ export default async function SettingsPage() {
               description={t("pages.settings.environments.emptyDescription")}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="max-h-80 divide-y divide-border overflow-y-auto">
               {environments.map((environment) => (
                 <div
                   key={environment.id}
-                  className="rounded-lg border border-border bg-background px-3 py-3"
+                  className="flex items-baseline justify-between gap-2 px-1 py-2 first:pt-0 last:pb-0"
                 >
-                  <p className="font-medium text-foreground">
+                  <span className="text-sm font-medium text-foreground">
                     {environment.name}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
                     {environment.slug} · {environment.description}
-                  </p>
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </DetailPanel>
 
-        <DetailPanel
-          title={t("pages.settings.owners.title")}
-          description={t("pages.settings.owners.description")}
-        >
-          {owners.length === 0 ? (
-            <EmptyState
-              title={t("pages.settings.owners.emptyTitle")}
-              description={t("pages.settings.owners.emptyDescription")}
-            />
-          ) : (
-            <div className="space-y-3">
-              {owners.map((owner) => (
-                <div
-                  key={owner.id}
-                  className="rounded-lg border border-border bg-background px-3 py-3"
-                >
-                  <p className="font-medium text-foreground">{owner.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {owner.email}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </DetailPanel>
+        <OwnersSection owners={owners} />
 
         <DetailPanel
           title={t("pages.settings.roles.title")}
@@ -147,16 +132,18 @@ export default async function SettingsPage() {
               description={t("pages.settings.roles.emptyDescription")}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="max-h-80 divide-y divide-border overflow-y-auto">
               {roles.map((role) => (
                 <div
                   key={role.id}
-                  className="rounded-lg border border-border bg-background px-3 py-3"
+                  className="flex items-baseline justify-between gap-2 px-1 py-2 first:pt-0 last:pb-0"
                 >
-                  <p className="font-medium text-foreground">{role.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <span className="text-sm font-medium text-foreground">
+                    {role.name}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
                     {role.description}
-                  </p>
+                  </span>
                 </div>
               ))}
             </div>
@@ -184,7 +171,7 @@ export default async function SettingsPage() {
                     key={value}
                     className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
                   >
-                    {value}
+                    {getDictionaryValueLabel(t, value)}
                   </span>
                 ))}
               </div>

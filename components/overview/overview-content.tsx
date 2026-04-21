@@ -5,10 +5,10 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
-import { EmptyState } from "@/components/blocks/empty-state";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { useEnvironment } from "@/components/providers/environment-provider";
 import { formatLabel } from "@/lib/format";
+import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 type OverviewContentProps = {
@@ -40,7 +40,6 @@ function isActionableAttention(resource: ResourceListViewModel): boolean {
     resource.healthStatus,
   );
   const actionableLifecycle = resource.lifecycleStatus !== "running";
-  // Exclude resources that are only "unknown" health with no other signal
   if (
     resource.healthStatus === "unknown" &&
     resource.lifecycleStatus === "running"
@@ -83,6 +82,10 @@ function buildAttentionReason(
   return reasons.join(", ") || t("statusValues.unknown");
 }
 
+function attentionRowColor(resource: ResourceListViewModel): string {
+  return HEALTH_BORDER[resource.healthStatus] ?? HEALTH_BORDER[resource.lifecycleStatus] ?? "";
+}
+
 const ATTENTION_PAGE_SIZE = 10;
 
 export function OverviewContent({
@@ -115,7 +118,6 @@ export function OverviewContent({
     [filteredResources],
   );
 
-  // Filter to only actionable attention items and sort by severity
   const sortedAttention = useMemo(
     () =>
       [...filteredAttention]
@@ -127,79 +129,101 @@ export function OverviewContent({
 
   const hasMoreAttention = filteredAttention.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
 
+  const barTotal = metrics.degraded + metrics.warning + metrics.pending;
+
   return (
     <div className="space-y-6">
-      {/* Row 1: Resource posture metrics */}
+      {/* Posture: 4-column segmented grid + proportional bar */}
       <DetailPanel
         title={t("pages.overview.posture.title")}
         description={t("pages.overview.posture.description")}
       >
-        <div className="space-y-3">
-          <div className="rounded-lg border border-border bg-background px-4 py-4">
+        <div className="grid grid-cols-2 rounded-lg border border-border divide-x divide-border overflow-hidden sm:grid-cols-4 divide-y sm:divide-y-0">
+          <div className="bg-background px-4 py-4 border-l-2 border-l-primary">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {t("pages.overview.posture.total")}
             </p>
-            <p className="mt-2 text-3xl font-semibold text-foreground">
+            <p className="mt-1 text-2xl font-semibold text-foreground">
               {metrics.total}
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("pages.overview.posture.degraded")}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
-                {metrics.degraded}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("pages.overview.posture.warning")}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
-                {metrics.warning}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {t("pages.overview.posture.pending")}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-sky-600 dark:text-sky-400">
-                {metrics.pending}
-              </p>
-            </div>
+          <div className="bg-background px-4 py-4 border-l-2 border-l-rose-500">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {t("pages.overview.posture.degraded")}
+            </p>
+            <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.degraded}`}>
+              {metrics.degraded}
+            </p>
+          </div>
+          <div className="bg-background px-4 py-4 border-l-2 border-l-amber-500">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {t("pages.overview.posture.warning")}
+            </p>
+            <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.warning}`}>
+              {metrics.warning}
+            </p>
+          </div>
+          <div className="bg-background px-4 py-4 border-l-2 border-l-sky-500">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {t("pages.overview.posture.pending")}
+            </p>
+            <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.pending}`}>
+              {metrics.pending}
+            </p>
           </div>
         </div>
+
+        {barTotal > 0 && metrics.total > 0 && (
+          <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted">
+            {metrics.degraded > 0 && (
+              <div
+                className={`${POSTURE_BAR_COLORS.degraded} transition-[width] duration-300`}
+                style={{ width: `${(metrics.degraded / metrics.total) * 100}%` }}
+              />
+            )}
+            {metrics.warning > 0 && (
+              <div
+                className={`${POSTURE_BAR_COLORS.warning} transition-[width] duration-300`}
+                style={{ width: `${(metrics.warning / metrics.total) * 100}%` }}
+              />
+            )}
+            {metrics.pending > 0 && (
+              <div
+                className={`${POSTURE_BAR_COLORS.pending} transition-[width] duration-300`}
+                style={{ width: `${(metrics.pending / metrics.total) * 100}%` }}
+              />
+            )}
+          </div>
+        )}
       </DetailPanel>
 
-      {/* Row 2: Attention queue — data-dense table */}
-      <DetailPanel
-        title={t("pages.overview.attention.title")}
-        description={t("pages.overview.attention.description")}
-      >
-        {sortedAttention.length === 0 ? (
-          <EmptyState
-            title={t("pages.overview.attention.emptyTitle")}
-            description={t("pages.overview.attention.emptyDescription")}
-          />
-        ) : (
+      {/* Attention queue */}
+      {sortedAttention.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border px-4 py-3 text-center text-sm text-muted-foreground">
+          {t("pages.overview.attention.emptyDescription")}
+        </div>
+      ) : (
+        <DetailPanel
+          title={t("pages.overview.attention.title")}
+          description={t("pages.overview.attention.description")}
+        >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label={t("pages.overview.attention.title")}>
               <thead>
                 <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t("common.fields.resource")}
                   </th>
-                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t("common.fields.resourceType")}
                   </th>
-                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t("common.fields.environment")}
                   </th>
-                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t("common.fields.status")}
                   </th>
-                  <th className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t("pages.overview.attention.reasonColumn")}
                   </th>
                 </tr>
@@ -208,7 +232,7 @@ export function OverviewContent({
                 {sortedAttention.map((resource) => (
                   <tr
                     key={resource.id}
-                    className="border-b border-border/50 transition-colors hover:bg-muted/30"
+                    className={`border-b border-border/50 transition-colors hover:bg-muted/30 ${attentionRowColor(resource)}`}
                   >
                     <td className="px-3 py-2">
                       <Link
@@ -239,7 +263,7 @@ export function OverviewContent({
                         />
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">
+                    <td className="max-w-[200px] truncate px-3 py-2 text-muted-foreground">
                       {buildAttentionReason(resource, t)}
                     </td>
                   </tr>
@@ -257,8 +281,8 @@ export function OverviewContent({
               </div>
             )}
           </div>
-        )}
-      </DetailPanel>
+        </DetailPanel>
+      )}
     </div>
   );
 }

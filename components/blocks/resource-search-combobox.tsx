@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,8 @@ export function ResourceSearchCombobox({
   onSelect,
   excludeIds = [],
 }: ResourceSearchComboboxProps) {
+  const t = useTranslations("relations");
+  const ct = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,7 +63,7 @@ export function ResourceSearchCombobox({
           variant="outline"
           className="h-8 w-full justify-between border-border bg-background text-sm font-normal"
         >
-          {selectedName || "Search resources..."}
+          {selectedName || t("searchPlaceholder")}
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -71,17 +74,17 @@ export function ResourceSearchCombobox({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search by name..."
+            placeholder={t("searchPlaceholder")}
             onValueChange={handleSearch}
           />
           <CommandList>
             <CommandEmpty>
               {loading ? (
                 <span className="flex items-center justify-center gap-2 py-6 text-sm">
-                  <Loader2 className="size-3 animate-spin" /> Searching...
+                  <Loader2 className="size-3 animate-spin" /> {ct("loading")}
                 </span>
               ) : (
-                "No resources found."
+                ct("noResults")
               )}
             </CommandEmpty>
             <CommandGroup>

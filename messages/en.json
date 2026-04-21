@@ -4,6 +4,7 @@
     "loading": "Loading...",
     "notSet": "Not set",
     "unknown": "Unknown",
+    "noResults": "No results found.",
     "actions": {
       "tryAgain": "Try again",
       "registerResource": "Register resource",
@@ -47,7 +48,10 @@
       "engine": "Engine",
       "archivedAt": "Archived at",
       "archivedBy": "Archived by",
-      "archiveReason": "Archive reason"
+      "archiveReason": "Archive reason",
+      "hostname": "Hostname",
+      "port": "Port",
+      "nodes": "Nodes"
     }
   },
   "statusValues": {
@@ -84,6 +88,7 @@
     "prodDbHost01": "Production database host providing compute and storage for the MySQL primary instance."
   },
   "navigation": {
+    "_label": "Navigation",
     "overview": {
       "title": "Overview",
       "description": "Operational posture and attention queue"
@@ -94,7 +99,7 @@
     },
     "cmdb": {
       "title": "CMDB",
-      "description": "Configuration maintenance over shared assets"
+      "description": "Configuration maintenance over shared resources"
     },
     "databases": {
       "title": "Databases",
@@ -111,9 +116,9 @@
   },
   "shell": {
     "title": "Unified Resource Console",
-    "description": "Platform asset context, ownership, and auditability.",
+    "description": "Platform resource context, ownership, and auditability.",
     "baseline": "Baseline phase: manual registration, relations, and audit feeds.",
-    "subtitle": "Shared shell for asset visibility, ownership context, and change traces.",
+    "subtitle": "Shared shell for resource visibility, ownership context, and change traces.",
     "searchPlaceholder": "Search resources, owners, IDs",
     "environmentPlaceholder": "Environment",
     "quickAction": "Quick action",
@@ -163,7 +168,7 @@
   "login": {
     "eyebrow": "ControlHub",
     "title": "Unified resource visibility for platform operations.",
-    "description": "The foundation focuses on manual registration, owner alignment, environment context, and baseline auditability across hosts, services, clusters, and database instances.",
+    "description": "Manual resource registration, owner alignment, environment context, and baseline auditing.",
     "cards": {
       "shell": {
         "label": "Shell",
@@ -171,7 +176,7 @@
       },
       "resourceModel": {
         "label": "Resource model",
-        "description": "One asset backbone with typed profiles and relations"
+        "description": "One unified model with type-specific profiles and relations."
       },
       "auditBaseline": {
         "label": "Audit baseline",
@@ -204,7 +209,7 @@
     "overview": {
       "eyebrow": "Overview",
       "title": "Operational posture across shared resources",
-      "description": "Overview stays close to the work: attention queues, environment posture, and asset ownership instead of a generic dashboard.",
+      "description": "Attention queues, environment posture, and resource ownership at a glance.",
       "attention": {
         "title": "Attention queue",
         "description": "Resources needing immediate operator context or ownership follow-up.",
@@ -215,8 +220,8 @@
       },
       "posture": {
         "title": "Resource posture",
-        "description": "Counts emphasize actionability rather than vanity totals.",
-        "total": "Total managed assets",
+        "description": "Resource counts by health and status.",
+        "total": "Total managed resources",
         "degraded": "Degraded",
         "warning": "Warning",
         "pending": "Pending"
@@ -232,29 +237,29 @@
     "resources": {
       "eyebrow": "Resources",
       "title": "Unified resource inventory",
-      "description": "Search, filter, and inspect manually managed assets from a single operational list. Row click opens the right-side detail panel."
+      "description": "Search, filter, and inspect resources. Click a row for details."
     },
     "resourceDetail": {
       "eyebrow": "Resource detail",
       "identity": {
         "title": "Identity and ownership",
-        "description": "Core fields mirror the resource contract names used by the backend."
+        "description": "Basic identifiers, environment, and owner."
       },
       "labels": {
         "title": "Labels and source",
-        "description": "Wire data keeps labels in a key-value map; the page presents them without mutating the contract."
+        "description": "Custom labels and registration source."
       },
       "profile": {
         "title": "Operational profile",
-        "description": "Typed extension fields remain explicit and readable on the detail page."
+        "description": "Type-specific fields for this resource."
       },
       "relations": {
         "title": "Relations",
-        "description": "Dependencies, containment, and ownership context anchored to resource IDs."
+        "description": "Linked resources: dependencies, containment, ownership."
       },
       "audit": {
         "title": "Audit history",
-        "description": "Recent changes to the asset baseline for this resource."
+        "description": "Recent changes made to this resource."
       },
       "clusterMembers": {
         "title": "Cluster members",
@@ -266,15 +271,25 @@
         "port": "Port",
         "health": "Health",
         "lifecycle": "Lifecycle"
+      },
+      "deployedResources": {
+        "title": "Deployed resources",
+        "description": "Resources currently running on or managed by this host.",
+        "empty": "No deployed resources found.",
+        "emptyDescription": "Resources running on or managed by this host will appear here.",
+        "resource": "Resource",
+        "type": "Type",
+        "health": "Health",
+        "lifecycle": "Lifecycle"
       }
     },
     "cmdb": {
       "eyebrow": "CMDB",
       "title": "Configuration item inventory",
-      "description": "The CMDB manages resources from a configuration/asset registration perspective, emphasizing structured identifiers, ownership, source, and labels rather than runtime health.",
+      "description": "Browse resources by configuration attributes: identifiers, ownership, source, and labels.",
       "records": {
         "title": "Configuration records",
-        "description": "Browse all registered resources by configuration attributes, complementary to the runtime resource list.",
+        "description": "All registered resources organized by configuration attributes.",
         "emptyTitle": "No configuration records",
         "emptyDescription": "Resources will appear here once they are registered through the resource inventory.",
         "allEnvironments": "All environments"
@@ -284,10 +299,10 @@
     "databases": {
       "eyebrow": "Databases",
       "title": "Database clusters and instances",
-      "description": "Clusters and instances are first-class resources, with shared ownership and audit flows.",
+      "description": "Manage database clusters and instances with shared ownership and audit trails.",
       "posture": {
         "title": "Database posture",
-        "description": "The console keeps clusters visible as logical containers without forcing heavy topology views.",
+        "description": "Cluster and instance counts at a glance.",
         "clusters": "Cluster records",
         "instances": "Instance records"
       }
@@ -295,7 +310,7 @@
     "audits": {
       "eyebrow": "Audits",
       "title": "Baseline audit events",
-      "description": "Audit records capture manual maintenance activity so resource history stays visible before workflow automation arrives.",
+      "description": "A timeline of manual changes made to resources.",
       "latest": {
         "title": "Latest changes",
         "description": "Compact timeline for recent ownership, relation, and metadata changes."
@@ -304,10 +319,10 @@
     "settings": {
       "eyebrow": "Settings",
       "title": "Reference dictionaries and access baseline",
-      "description": "Settings cover environments, owners, users, roles, and supporting dictionaries for resource maintenance.",
+      "description": "Manage environments, owners, users, roles, and reference dictionaries.",
       "appearance": {
         "title": "Appearance",
-        "description": "Fallback controls for locale, theme, and accent without changing console semantics.",
+        "description": "Theme, language, and accent color preferences.",
         "languageTitle": "Language",
         "languageDescription": "Use the direct Chinese and English switch used in the topbar.",
         "themeTitle": "Theme",
@@ -317,7 +332,7 @@
       },
       "environments": {
         "title": "Environments",
-        "description": "Environment catalog for asset registration and filtering.",
+        "description": "Environment catalog for resource registration and filtering.",
         "emptyTitle": "No environments",
         "emptyDescription": "Environments will appear here once they are created in the backend."
       },
@@ -325,7 +340,8 @@
         "title": "Owners",
         "description": "Current owner groups attached to resources.",
         "emptyTitle": "No owners",
-        "emptyDescription": "Owner groups will appear here once they are created in the backend."
+        "emptyDescription": "Owner groups will appear here once they are created in the backend.",
+        "searchPlaceholder": "Search name or email"
       },
       "roles": {
         "title": "Roles",
@@ -335,10 +351,10 @@
       },
       "dictionaries": {
         "title": "Supporting dictionaries",
-        "description": "Small but explicit dictionary management keeps contracts readable.",
-        "resourceType": "Top-level asset families used for registration and filtering.",
+        "description": "Manage resource types, relation types, lifecycle states, and health statuses.",
+        "resourceType": "Top-level resource families used for registration and filtering.",
         "relationType": "Inter-resource relationship types used for topology and dependency management.",
-        "lifecycleStatus": "Asset lifecycle state classification.",
+        "lifecycleStatus": "Resource lifecycle state classification.",
         "healthStatus": "Operator health posture signal."
       }
     }
@@ -365,12 +381,13 @@
       "allArchive": "Active only",
       "allSubtypes": "All subtypes",
       "includeArchived": "Include archived",
-      "archivedOnly": "Archived only"
+      "archivedOnly": "Archived only",
+      "columnVisibility": "Columns"
     },
     "databases": {
       "title": "Database resources",
-      "description": "Cluster and instance records share the same resource backbone with database-specific emphasis.",
-      "asset": "Database asset",
+      "description": "Cluster and instance records with database-specific details.",
+      "asset": "Database resource",
       "searchPlaceholder": "Search database name or ID",
       "allEngines": "All engines",
       "emptyTitle": "No database resources",
@@ -378,11 +395,12 @@
     },
     "audits": {
       "title": "Audit feed",
-      "description": "Baseline asset mutations are captured as append-only operational history.",
+      "description": "A chronological record of resource changes.",
       "filterEventType": "Event type",
       "filterResult": "Result",
       "allEventTypes": "All event types",
       "allResults": "All results",
+      "searchPlaceholder": "Search action, actor, or resource",
       "emptyTitle": "No audit events",
       "emptyDescription": "Audit records will appear here once resource changes are captured."
     }
@@ -390,19 +408,20 @@
   "detailSheet": {
     "summary": "Summary",
     "profile": "Operational profile",
-    "profileDescription": "High-frequency fields stay explicit; vendor detail remains supplemental.",
-    "relationsDescription": "List-row context should immediately expose upstream and downstream dependencies.",
+    "profileDescription": "Key operational fields for this resource.",
+    "relationsDescription": "Resources linked to this resource.",
     "audit": "Audit activity",
-    "auditDescription": "Baseline changes captured for ownership and asset maintenance.",
+    "auditDescription": "Recent changes to this resource.",
     "emptyAuditTitle": "No audit activity yet",
-    "emptyAuditDescription": "Audit signals will show up here once the backend event feed is available.",
-    "inspectionTitle": "Need deeper inspection?",
-    "inspectionDescription": "Open the dedicated detail page for the full resource record."
+    "emptyAuditDescription": "Changes will appear here once the audit feed is connected.",
+    "inspectionTitle": "Need more details?",
+    "inspectionDescription": "Open the full detail page for complete resource information."
   },
   "relations": {
     "emptyTitle": "No linked resources",
     "emptyDescription": "Use relations to capture containment, ownership, and service dependency context.",
-    "cancelAdd": "Cancel"
+    "cancelAdd": "Cancel",
+    "searchPlaceholder": "Search resources..."
   },
   "timeline": {
     "emptyTitle": "No audit activity yet",
@@ -485,7 +504,7 @@
   "mutations": {
     "create": {
       "title": "Create resource",
-      "description": "Register a new manually maintained asset.",
+      "description": "Register a new manually maintained resource.",
       "sections": {
         "identity": "Identity",
         "ownership": "Ownership & environment",
@@ -504,7 +523,7 @@
     },
     "relation": {
       "addTitle": "Add relation",
-      "addDescription": "Link this resource to another asset.",
+      "addDescription": "Link this resource to another resource.",
       "targetLabel": "Target resource",
       "targetPlaceholder": "Search by name or ID",
       "typeLabel": "Relation type",
@@ -546,5 +565,31 @@
   "archive": {
     "badge": "Archived",
     "metadataTitle": "Archive information"
+  },
+  "dictionaryValues": {
+    "host": "Host",
+    "database_instance": "Database Instance",
+    "database_cluster": "Database Cluster",
+    "service": "Service",
+    "domain_name": "Domain Name",
+    "virtual_ip": "Virtual IP",
+    "database_proxy": "Database Proxy",
+    "control_plane_component": "Control Plane Component",
+    "depends_on": "Depends On",
+    "member_of": "Member Of",
+    "runs_on": "Runs On",
+    "points_to": "Points To",
+    "fronts": "Fronts",
+    "manages": "Manages",
+    "replicates_to": "Replicates To",
+    "provisioning": "Provisioning",
+    "running": "Running",
+    "stopped": "Stopped",
+    "degraded": "Degraded",
+    "decommissioning": "Decommissioning",
+    "healthy": "Healthy",
+    "warning": "Warning",
+    "critical": "Critical",
+    "unknown": "Unknown"
   }
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useDebounceCallback } from "@/hooks/use-debounce";
+import { ResourceLink } from "@/components/blocks/resource-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
-import { formatDateTime, formatLabel } from "@/lib/format";
+import { formatDateTime, formatLabel, formatRelativeDateTime } from "@/lib/format";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 
@@ -102,20 +102,25 @@ export function DatabaseTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
-        <Link
+        <ResourceLink
           href={`/resources/${row.original.id}`}
-          className="font-medium text-foreground hover:text-primary hover:underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring/50 transition-colors"
           onClick={(e) => e.stopPropagation()}
         >
           {row.original.displayName}
-        </Link>
+        </ResourceLink>
       ),
     }),
     columnHelper.accessor("environmentName", {
       header: t("common.fields.environment"),
+      cell: (info) => (
+        <span className="text-sm text-foreground">{info.getValue()}</span>
+      ),
     }),
     columnHelper.accessor("ownerName", {
       header: t("common.fields.owner"),
+      cell: (info) => (
+        <span className="text-sm text-foreground">{info.getValue()}</span>
+      ),
     }),
     columnHelper.accessor("resourceSubtype", {
       header: t("common.fields.engine"),
@@ -133,14 +138,46 @@ export function DatabaseTable({
     }),
     columnHelper.display({
       id: "status",
-      header: t("common.fields.health"),
+      header: t("common.fields.status"),
       cell: ({ row }) => (
-        <StatusBadge status={row.original.healthStatus} tone="health" />
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge status={row.original.healthStatus} tone="health" />
+          <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+        </div>
       ),
+    }),
+    columnHelper.display({
+      id: "hostname",
+      header: t("common.fields.hostname"),
+      cell: ({ row }) => {
+        const rt = row.original.resourceType;
+        if (rt !== "database_instance" && rt !== "host") return null;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {row.original.profileSummary?.hostname ?? "—"}
+          </span>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "port",
+      header: t("common.fields.port"),
+      cell: ({ row }) => {
+        if (row.original.resourceType !== "database_instance") return null;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {row.original.profileSummary?.port ?? "—"}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("updatedAt", {
       header: t("common.fields.updated"),
-      cell: (info) => formatDateTime(info.getValue(), locale),
+      cell: (info) => (
+        <span className="text-sm text-muted-foreground whitespace-nowrap" title={formatDateTime(info.getValue(), locale)}>
+          {formatRelativeDateTime(info.getValue(), locale)}
+        </span>
+      ),
     }),
   ];
 
@@ -238,8 +275,10 @@ export function DatabaseTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  role="button"
                   tabIndex={0}
-                  className="cursor-pointer hover:bg-muted/40 transition-colors"
+                  aria-label={`View details for ${row.original.displayName}`}
+                  className="cursor-pointer transition-colors"
                   onClick={() => setSelectedResource(row.original)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.defaultPrevented) {

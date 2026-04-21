@@ -60,7 +60,7 @@ export async function listResources(
   return apiClient<ResourceListResponse>(buildResourceListPath(params));
 }
 
-async function listAllResources(params: ResourceListParams = {}): Promise<Resource[]> {
+export async function listAllResources(params: ResourceListParams = {}): Promise<Resource[]> {
   const firstPage = await listResources(params);
   const allItems = [...firstPage.items];
 

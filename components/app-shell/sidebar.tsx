@@ -41,7 +41,7 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
       )}
     >
       <div className={cn("border-b border-sidebar-border px-4 py-4", collapsed && "px-2")}>
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
           {collapsed ? "CH" : t("common.brand")}
         </p>
         {!collapsed && (

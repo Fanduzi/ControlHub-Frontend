@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData, type GroupBoxData, type LayerBand } from "@/lib/topology-mapper";
 import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
@@ -299,7 +300,16 @@ function TopologyPanelInner({
               {data.resourceSubtype && (
                 <>
                   <span>·</span>
-                  <span>{data.resourceSubtype}</span>
+                  {(data.resourceType === "database_instance" ||
+                    data.resourceType === "database_cluster" ||
+                    data.resourceType === "database_proxy") ? (
+                    <span className="inline-flex items-center gap-1">
+                      <DbTypeIcon subtype={data.resourceSubtype} className="size-3" />
+                      <span>{data.resourceSubtype}</span>
+                    </span>
+                  ) : (
+                    <span>{data.resourceSubtype}</span>
+                  )}
                 </>
               )}
             </div>

@@ -12,6 +12,7 @@ import {
   listAttentionResources,
   listDatabaseResources,
   listResourceRelations,
+  listAllResources,
   listResources,
 } from "@/services/resources";
 import type {
@@ -80,12 +81,11 @@ function buildAuditSummary(event: AuditEvent) {
 }
 
 async function buildLookupMaps() {
-  const [resourceResponse, environments, owners] = await Promise.all([
-    listResources() as Promise<ResourceListResult>,
+  const [resources, environments, owners] = await Promise.all([
+    listAllResources({ includeArchived: true }),
     listEnvironments(),
     listOwners(),
   ]);
-  const resources = toResourceItems(resourceResponse);
 
   return {
     resourceMap: new Map(resources.map((resource) => [resource.id, resource])),
@@ -120,15 +120,20 @@ function toRelationViewModel(
     ? relation.toResourceId
     : relation.fromResourceId;
 
+  const relatedFromMap = resourceMap.get(relatedResourceId);
+  const related = relation.relatedResource ?? (relatedFromMap
+    ? { id: relatedFromMap.id, displayName: relatedFromMap.displayName, resourceType: relatedFromMap.resourceType, resourceSubtype: relatedFromMap.resourceSubtype, healthStatus: relatedFromMap.healthStatus }
+    : undefined);
+
   return {
     ...relation,
     relatedResourceId,
     relatedResourceName:
-      relation.relatedResource?.displayName ??
-      resourceMap.get(relatedResourceId)?.displayName ??
+      related?.displayName ??
+      relatedFromMap?.displayName ??
       relatedResourceId,
     direction: outgoing ? "outgoing" : "incoming",
-    relatedResource: relation.relatedResource ?? null,
+    relatedResource: related ?? null,
   };
 }
 

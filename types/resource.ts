@@ -76,6 +76,7 @@ export type RelatedResourceSummary = {
   id: string;
   displayName: string;
   resourceType: ResourceType;
+  resourceSubtype?: string;
   healthStatus: string;
 };
 

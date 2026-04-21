@@ -137,6 +137,9 @@ describe("ResourceRelationPanel", () => {
     });
     await user.click(removeButton);
 
+    // Confirm the deletion in the AlertDialog
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
     await waitFor(() => {
       expect(mockedDeleteRelation).toHaveBeenCalledWith("rel-1");
     });
@@ -160,6 +163,9 @@ describe("ResourceRelationPanel", () => {
     await user.click(
       screen.getByRole("button", { name: /Remove this relation/i }),
     );
+
+    // Confirm the deletion in the AlertDialog
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
       expect(mockedDeleteRelation).toHaveBeenCalledWith("rel-1");
@@ -192,6 +198,9 @@ describe("ResourceRelationPanel", () => {
       screen.getByRole("button", { name: /Remove this relation/i }),
     );
 
+    // Confirm the deletion in the AlertDialog
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
     await waitFor(() => {
       expect(
         screen.getByText("The target resource was not found."),
@@ -217,6 +226,9 @@ describe("ResourceRelationPanel", () => {
     await user.click(
       screen.getByRole("button", { name: /Remove this relation/i }),
     );
+
+    // Confirm the deletion in the AlertDialog
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
       expect(

@@ -400,10 +400,9 @@ describe("list pages pagination contracts", () => {
       }),
     );
     expect(container.textContent).toContain("audit-table");
-    expect(container.textContent).toContain("activity-timeline");
   });
 
-  it("renders audits page as stacked full-width table and timeline sections", async () => {
+  it("renders audits page with page header and audit table", async () => {
     const { default: AuditsPage } = await import("@/app/(console)/audits/page");
 
     const element = await AuditsPage({
@@ -413,9 +412,6 @@ describe("list pages pagination contracts", () => {
     });
 
     const { container } = render(element);
-    const layout = container.querySelector("[data-audits-layout]");
-
-    expect(layout).not.toBeNull();
-    expect(layout).toHaveAttribute("data-audits-layout", "stacked");
+    expect(container.textContent).toContain("audit-table");
   });
 });

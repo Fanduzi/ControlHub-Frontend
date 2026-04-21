@@ -5,9 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { ResourceSearchCombobox } from "@/components/blocks/resource-search-combobox";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -36,6 +47,7 @@ export function ResourceRelationPanel({
 }: ResourceRelationPanelProps) {
   const t = useTranslations("relations");
   const mt = useTranslations("mutations");
+  const ct = useTranslations("common");
   const router = useRouter();
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -44,6 +56,7 @@ export function ResourceRelationPanel({
   const [relationTypes, setRelationTypes] = useState<RelationTypeDefinition[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -205,7 +218,12 @@ export function ResourceRelationPanel({
                 <p className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <span>{formatLabel(relation.relationType)} &middot; {relation.direction}</span>
                   {related && (
-                    <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium lowercase tracking-normal text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium lowercase tracking-normal text-muted-foreground">
+                      {(related.resourceType === "database_instance" ||
+                        related.resourceType === "database_cluster" ||
+                        related.resourceType === "database_proxy") && (
+                        <DbTypeIcon subtype={related.resourceSubtype} className="size-3.5" />
+                      )}
                       {formatLabel(related.resourceType)}
                     </span>
                   )}
@@ -216,7 +234,7 @@ export function ResourceRelationPanel({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => handleDeleteRelation(relation.id)}
+                    onClick={() => setPendingDeleteId(relation.id)}
                     disabled={deletingId === relation.id}
                     aria-label={mt("relation.confirmDelete")}
                   >
@@ -228,6 +246,28 @@ export function ResourceRelationPanel({
           );
         })
       )}
+
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(open) => !open && setPendingDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{mt("relation.confirmDelete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {mt("relation.deleteSuccess")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{ct("actions.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDeleteId) handleDeleteRelation(pendingDeleteId);
+                setPendingDeleteId(null);
+              }}
+            >
+              {ct("actions.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -65,7 +65,7 @@ export function MultiSelectFilter({
         <DropdownMenuTrigger
           data-slot="multi-select-trigger"
           className={cn(
-            "flex h-9 items-center justify-between gap-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/20",
+            "flex h-9 items-center justify-between gap-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
             className,
           )}
           aria-label={label}

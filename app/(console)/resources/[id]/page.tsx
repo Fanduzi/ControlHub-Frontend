@@ -2,7 +2,9 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { ClusterMembersTable } from "@/components/blocks/cluster-members-table";
+import { DeployedResourcesCard } from "@/components/blocks/deployed-resources-card";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { PageHeader } from "@/components/blocks/page-header";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
@@ -76,7 +78,7 @@ export default async function ResourceDetailPage({
             <ResourceArchiveButton resource={resource} />
             <ResourceDetailEditButton resource={resource} />
             {resource.isArchived && (
-              <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                 {t("common.actions.archived")}
               </span>
             )}
@@ -105,7 +107,18 @@ export default async function ResourceDetailPage({
                 {t("common.fields.resourceSubtype")}
               </dt>
               <dd className="mt-1 font-medium text-foreground">
-                {resource.resourceSubtype}
+                {resource.resourceSubtype ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    {(resource.resourceType === "database_instance" ||
+                      resource.resourceType === "database_cluster" ||
+                      resource.resourceType === "database_proxy") && (
+                      <DbTypeIcon subtype={resource.resourceSubtype} className="size-4" />
+                    )}
+                    {formatLabel(resource.resourceSubtype)}
+                  </span>
+                ) : (
+                  t("common.notSet")
+                )}
               </dd>
             </div>
             <div>
@@ -149,14 +162,18 @@ export default async function ResourceDetailPage({
         >
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              {Object.entries(resource.labels).map(([key, value]) => (
-                <span
-                  key={key}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-                >
-                  {key}: {value}
-                </span>
-              ))}
+              {Object.keys(resource.labels).length === 0 ? (
+                <span className="text-sm text-muted-foreground">{t("common.notSet")}</span>
+              ) : (
+                Object.entries(resource.labels).map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    {key}: {value}
+                  </span>
+                ))
+              )}
             </div>
             <div className="rounded-lg border border-border bg-background px-3 py-3">
               <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -178,6 +195,15 @@ export default async function ResourceDetailPage({
             <ClusterMembersTable members={resource.members} />
           </DetailPanel>
         )}
+
+      {resource.resourceType === "host" && (
+        <DetailPanel
+          title={t("pages.resourceDetail.deployedResources.title")}
+          description={t("pages.resourceDetail.deployedResources.description")}
+        >
+          <DeployedResourcesCard relations={resource.relations} />
+        </DetailPanel>
+      )}
 
       {resource.isArchived && (
         <DetailPanel

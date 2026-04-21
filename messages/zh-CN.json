@@ -4,6 +4,7 @@
     "loading": "加载中...",
     "notSet": "未设置",
     "unknown": "未知",
+    "noResults": "未找到结果。",
     "actions": {
       "tryAgain": "重试",
       "registerResource": "登记资源",
@@ -47,7 +48,10 @@
       "engine": "引擎",
       "archivedAt": "归档时间",
       "archivedBy": "归档操作者",
-      "archiveReason": "归档原因"
+      "archiveReason": "归档原因",
+      "hostname": "主机名",
+      "port": "端口",
+      "nodes": "节点数"
     }
   },
   "statusValues": {
@@ -84,6 +88,7 @@
     "prodDbHost01": "为 MySQL 主实例提供计算与存储承载的生产数据库主机。"
   },
   "navigation": {
+    "_label": "导航",
     "overview": {
       "title": "概览",
       "description": "运行态势与关注队列"
@@ -94,7 +99,7 @@
     },
     "cmdb": {
       "title": "CMDB",
-      "description": "围绕共享资产维护配置"
+      "description": "围绕共享资源维护配置"
     },
     "databases": {
       "title": "数据库",
@@ -111,9 +116,9 @@
   },
   "shell": {
     "title": "统一资源控制台",
-    "description": "平台资产上下文、负责人和审计可见性。",
+    "description": "平台资源上下文、负责人和审计可见性。",
     "baseline": "基线阶段：手动登记、关系维护和审计流。",
-    "subtitle": "面向资产可见性、负责人上下文和变更痕迹的共享工作台。",
+    "subtitle": "面向资源可见性、负责人上下文和变更痕迹的共享工作台。",
     "searchPlaceholder": "搜索资源、负责人、ID",
     "environmentPlaceholder": "环境",
     "quickAction": "快捷操作",
@@ -163,7 +168,7 @@
   "login": {
     "eyebrow": "ControlHub",
     "title": "面向平台运营的统一资源可见性。",
-    "description": "基础能力聚焦手动登记、负责人对齐、环境上下文，以及主机、服务、集群和数据库实例的基线审计。",
+    "description": "手动资源登记、负责人对齐、环境上下文和基线审计能力。",
     "cards": {
       "shell": {
         "label": "工作台",
@@ -171,7 +176,7 @@
       },
       "resourceModel": {
         "label": "资源模型",
-        "description": "以统一资产骨架承载类型化画像和关系"
+        "description": "统一模型，支持类型专属画像和关系。"
       },
       "auditBaseline": {
         "label": "审计基线",
@@ -204,7 +209,7 @@
     "overview": {
       "eyebrow": "概览",
       "title": "共享资源的运行态势",
-      "description": "概览紧贴日常工作：关注队列、环境态势和资产负责人，而不是泛化仪表盘。",
+      "description": "一览关注队列、环境态势和资源归属。",
       "attention": {
         "title": "关注队列",
         "description": "需要立即补充运维上下文或负责人跟进的资源。",
@@ -215,8 +220,8 @@
       },
       "posture": {
         "title": "资源态势",
-        "description": "计数聚焦可行动性，而不是展示型总量。",
-        "total": "托管资产总数",
+        "description": "按健康和状态分类的资源计数。",
+        "total": "托管资源总数",
         "degraded": "降级",
         "warning": "告警",
         "pending": "待处理"
@@ -232,29 +237,29 @@
     "resources": {
       "eyebrow": "资源",
       "title": "统一资源清单",
-      "description": "从单一运行列表搜索、过滤并查看手动维护资产。点击行会打开右侧详情面板。"
+      "description": "搜索、筛选和检查资源。点击行查看详情。"
     },
     "resourceDetail": {
       "eyebrow": "资源详情",
       "identity": {
         "title": "身份与负责人",
-        "description": "核心字段与后端资源契约命名保持一致。"
+        "description": "基本标识、环境和负责人。"
       },
       "labels": {
         "title": "标签与来源",
-        "description": "线缆数据保持键值映射；页面只负责呈现，不改变契约。"
+        "description": "自定义标签和登记来源。"
       },
       "profile": {
         "title": "运行画像",
-        "description": "类型化扩展字段在详情页保持明确可读。"
+        "description": "该资源类型的专属字段。"
       },
       "relations": {
         "title": "关系",
-        "description": "依赖、包含和负责人上下文均锚定到资源 ID。"
+        "description": "关联资源：依赖、归属、所有权。"
       },
       "audit": {
         "title": "审计历史",
-        "description": "此资源资产基线的最近变更。"
+        "description": "该资源的最近变更记录。"
       },
       "clusterMembers": {
         "title": "集群成员",
@@ -266,15 +271,25 @@
         "port": "端口",
         "health": "健康状态",
         "lifecycle": "生命周期"
+      },
+      "deployedResources": {
+        "title": "已部署资源",
+        "description": "当前运行在该主机上或由该主机管理的资源。",
+        "empty": "未发现已部署资源。",
+        "emptyDescription": "运行在该主机上或由该主机管理的资源将显示在此处。",
+        "resource": "资源",
+        "type": "类型",
+        "health": "健康状态",
+        "lifecycle": "生命周期"
       }
     },
     "cmdb": {
       "eyebrow": "CMDB",
       "title": "配置项清单",
-      "description": "CMDB 以配置/资产登记视角管理资源，强调结构化标识、归属关系、来源与标签，而非运行时健康状态。",
+      "description": "按配置属性浏览资源：标识符、归属、来源和标签。",
       "records": {
         "title": "配置记录",
-        "description": "按配置属性浏览所有登记资源，与运行时资源列表互补。",
+        "description": "按配置属性组织的所有已登记资源。",
         "emptyTitle": "暂无配置记录",
         "emptyDescription": "资源通过资源清单登记后会出现在这里。",
         "allEnvironments": "全部环境"
@@ -284,10 +299,10 @@
     "databases": {
       "eyebrow": "数据库",
       "title": "数据库集群与实例",
-      "description": "集群和实例都是一等资源，并共享负责人和审计流。",
+      "description": "管理数据库集群和实例，共享归属和审计链路。",
       "posture": {
         "title": "数据库态势",
-        "description": "控制台将集群作为逻辑容器呈现，不强制进入重型拓扑视图。",
+        "description": "集群和实例计数一览。",
         "clusters": "集群记录",
         "instances": "实例记录"
       }
@@ -295,7 +310,7 @@
     "audits": {
       "eyebrow": "审计",
       "title": "基线审计事件",
-      "description": "审计记录捕获手动维护活动，让流程自动化前的资源历史保持可见。",
+      "description": "资源手动变更的时间线记录。",
       "latest": {
         "title": "最近变更",
         "description": "负责人、关系和元数据变更的紧凑时间线。"
@@ -304,10 +319,10 @@
     "settings": {
       "eyebrow": "设置",
       "title": "基础字典与访问基线",
-      "description": "设置覆盖环境、负责人、用户、角色和支撑资源维护的基础字典。",
+      "description": "管理环境、负责人、用户、角色和参考字典。",
       "appearance": {
         "title": "外观",
-        "description": "为语言、主题和强调色提供回退控制，同时不改变控制台语义。",
+        "description": "主题、语言和强调色偏好设置。",
         "languageTitle": "语言",
         "languageDescription": "使用与顶栏一致的中英文直接切换。",
         "themeTitle": "主题",
@@ -317,7 +332,7 @@
       },
       "environments": {
         "title": "环境",
-        "description": "用于资产登记和过滤的环境目录。",
+        "description": "用于资源登记和过滤的环境目录。",
         "emptyTitle": "暂无环境",
         "emptyDescription": "后端创建环境后会显示在这里。"
       },
@@ -325,7 +340,8 @@
         "title": "负责人",
         "description": "当前绑定到资源的负责人组。",
         "emptyTitle": "暂无负责人",
-        "emptyDescription": "后端创建负责人组后会显示在这里。"
+        "emptyDescription": "后端创建负责人组后会显示在这里。",
+        "searchPlaceholder": "搜索名称或邮箱"
       },
       "roles": {
         "title": "角色",
@@ -335,10 +351,10 @@
       },
       "dictionaries": {
         "title": "支撑字典",
-        "description": "小而明确的字典管理让契约保持可读。",
-        "resourceType": "资源类型分类，用于资产登记和过滤。",
+        "description": "管理资源类型、关系类型、生命周期状态和健康状态。",
+        "resourceType": "资源类型分类，用于资源登记和过滤。",
         "relationType": "资源间关系类型，用于拓扑和依赖管理。",
-        "lifecycleStatus": "资产生命周期状态分类。",
+        "lifecycleStatus": "资源生命周期状态分类。",
         "healthStatus": "运维健康状态信号。"
       }
     }
@@ -365,12 +381,13 @@
       "allArchive": "仅活跃",
       "allSubtypes": "全部子类型",
       "includeArchived": "包含已归档",
-      "archivedOnly": "仅已归档"
+      "archivedOnly": "仅已归档",
+      "columnVisibility": "列"
     },
     "databases": {
       "title": "数据库资源",
-      "description": "集群和实例记录共享同一资源骨架，并突出数据库相关信息。",
-      "asset": "数据库资产",
+      "description": "集群和实例记录，含数据库专属详情。",
+      "asset": "数据库资源",
       "searchPlaceholder": "搜索数据库名称或 ID",
       "allEngines": "全部引擎",
       "emptyTitle": "暂无数据库资源",
@@ -378,11 +395,12 @@
     },
     "audits": {
       "title": "审计流",
-      "description": "基线资产变更以追加式运行历史记录。",
+      "description": "按时间顺序记录的资源变更历史。",
       "filterEventType": "事件类型",
       "filterResult": "结果",
       "allEventTypes": "全部事件类型",
       "allResults": "全部结果",
+      "searchPlaceholder": "搜索操作、操作人或资源",
       "emptyTitle": "暂无审计事件",
       "emptyDescription": "资源变更被捕获后，审计记录会显示在这里。"
     }
@@ -390,19 +408,20 @@
   "detailSheet": {
     "summary": "摘要",
     "profile": "运行画像",
-    "profileDescription": "高频字段保持显式；厂商细节作为补充信息。",
-    "relationsDescription": "列表行上下文应立即暴露上游和下游依赖。",
+    "profileDescription": "该资源的关键运行参数。",
+    "relationsDescription": "与该资源关联的其他资源。",
     "audit": "审计活动",
-    "auditDescription": "捕获负责人和资产维护的基线变更。",
+    "auditDescription": "该资源的最近变更记录。",
     "emptyAuditTitle": "暂无审计活动",
-    "emptyAuditDescription": "后端事件流可用后，审计信号会显示在这里。",
-    "inspectionTitle": "需要更深入检查？",
-    "inspectionDescription": "打开专用详情页查看完整资源记录。"
+    "emptyAuditDescription": "审计接入后，变更记录会显示在这里。",
+    "inspectionTitle": "需要更多信息？",
+    "inspectionDescription": "打开详情页查看完整资源信息。"
   },
   "relations": {
     "emptyTitle": "暂无关联资源",
     "emptyDescription": "使用关系来捕获包含、负责人和服务依赖上下文。",
-    "cancelAdd": "取消"
+    "cancelAdd": "取消",
+    "searchPlaceholder": "搜索资源..."
   },
   "timeline": {
     "emptyTitle": "暂无审计活动",
@@ -485,7 +504,7 @@
   "mutations": {
     "create": {
       "title": "创建资源",
-      "description": "登记一个手动维护的新资产。",
+      "description": "登记一个手动维护的新资源。",
       "sections": {
         "identity": "身份",
         "ownership": "负责人与环境",
@@ -504,7 +523,7 @@
     },
     "relation": {
       "addTitle": "添加关系",
-      "addDescription": "将此资源关联到另一个资产。",
+      "addDescription": "将此资源关联到另一个资源。",
       "targetLabel": "目标资源",
       "targetPlaceholder": "按名称或 ID 搜索",
       "typeLabel": "关系类型",
@@ -546,5 +565,31 @@
   "archive": {
     "badge": "已归档",
     "metadataTitle": "归档信息"
+  },
+  "dictionaryValues": {
+    "host": "主机",
+    "database_instance": "数据库实例",
+    "database_cluster": "数据库集群",
+    "service": "服务",
+    "domain_name": "域名",
+    "virtual_ip": "虚拟 IP",
+    "database_proxy": "数据库代理",
+    "control_plane_component": "控制面组件",
+    "depends_on": "依赖",
+    "member_of": "归属",
+    "runs_on": "运行于",
+    "points_to": "指向",
+    "fronts": "前置代理",
+    "manages": "管理",
+    "replicates_to": "复制至",
+    "provisioning": "创建中",
+    "running": "运行中",
+    "stopped": "已停止",
+    "degraded": "降级",
+    "decommissioning": "下线中",
+    "healthy": "健康",
+    "warning": "告警",
+    "critical": "严重",
+    "unknown": "未知"
   }
 }

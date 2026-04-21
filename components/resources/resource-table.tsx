@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useDebounceCallback } from "@/hooks/use-debounce";
+import { ResourceLink } from "@/components/blocks/resource-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -141,13 +141,12 @@ export function ResourceTable({
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
       cell: ({ row }) => (
-        <Link
+        <ResourceLink
           href={`/resources/${row.original.id}`}
-          className="font-medium text-foreground hover:text-primary hover:underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring/50 transition-colors"
           onClick={(e) => e.stopPropagation()}
         >
           {row.original.displayName}
-        </Link>
+        </ResourceLink>
       ),
     }),
     columnHelper.accessor("resourceType", {
@@ -187,10 +186,11 @@ export function ResourceTable({
     }),
     columnHelper.display({
       id: "hostname",
-      header: "Hostname",
+      header: t("common.fields.hostname"),
       enableHiding: true,
       cell: ({ row }) => {
-        if (row.original.resourceType !== "database_instance") return null;
+        const rt = row.original.resourceType;
+        if (rt !== "database_instance" && rt !== "host") return null;
         return (
           <span className="text-sm text-muted-foreground">
             {row.original.profileSummary?.hostname ?? "\u2014"}
@@ -200,7 +200,7 @@ export function ResourceTable({
     }),
     columnHelper.display({
       id: "port",
-      header: "Port",
+      header: t("common.fields.port"),
       enableHiding: true,
       cell: ({ row }) => {
         if (row.original.resourceType !== "database_instance") return null;
@@ -213,7 +213,7 @@ export function ResourceTable({
     }),
     columnHelper.display({
       id: "nodes",
-      header: "Nodes",
+      header: t("common.fields.nodes"),
       enableHiding: true,
       cell: ({ row }) => {
         if (row.original.resourceType !== "database_cluster") return null;
@@ -234,7 +234,7 @@ export function ResourceTable({
     }),
     columnHelper.accessor("resourceSubtype", {
       id: "resourceSubtype",
-      header: "Subtype",
+      header: t("common.fields.resourceSubtype"),
       cell: (info) => {
         const v = info.getValue();
         return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
@@ -242,7 +242,7 @@ export function ResourceTable({
     }),
     columnHelper.accessor("externalId", {
       id: "externalId",
-      header: "External ID",
+      header: t("common.fields.externalId"),
       cell: (info) => {
         const v = info.getValue();
         return v ? <span className="font-mono text-xs text-muted-foreground">{v}</span> : <span className="text-muted-foreground">&mdash;</span>;
@@ -250,7 +250,7 @@ export function ResourceTable({
     }),
     columnHelper.accessor("source", {
       id: "source",
-      header: "Source",
+      header: t("common.fields.source"),
       cell: (info) => {
         const v = info.getValue();
         return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
@@ -393,11 +393,13 @@ export function ResourceTable({
               {t("common.actions.createResource")}
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Columns3 className="size-4" />
-                  Columns
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" size="sm" className="gap-2" />
+                }
+              >
+                <Columns3 className="size-4" />
+                {t("tables.resources.columnVisibility")}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 {table.getAllLeafColumns()
@@ -407,9 +409,10 @@ export function ResourceTable({
                       key={column.id}
                       checked={column.getIsVisible()}
                       onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                      className="capitalize"
                     >
-                      {column.id}
+                      {typeof column.columnDef.header === "string"
+                        ? column.columnDef.header
+                        : column.id.replace(/([A-Z])/g, " ").replace(/^./, (s) => s.toUpperCase())}
                     </DropdownMenuCheckboxItem>
                   ))}
               </DropdownMenuContent>
@@ -517,8 +520,10 @@ export function ResourceTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  role="button"
                   tabIndex={0}
-                  className={`cursor-pointer hover:bg-muted/40 transition-colors${row.original.isArchived ? " opacity-60" : ""}`}
+                  aria-label={`View details for ${row.original.displayName}`}
+                  className={`cursor-pointer transition-colors${row.original.isArchived ? " opacity-60" : ""}`}
                   onClick={() => setSelectedResource(row.original)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.defaultPrevented) {

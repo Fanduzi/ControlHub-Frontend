@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
@@ -84,7 +85,14 @@ export function ResourceDetailSheet({
             <div>
               <SheetTitle>{resource.displayName}</SheetTitle>
               <SheetDescription className="mt-1">
-                {resource.name} · {localizeResourceType(resource.resourceType, t)}
+                <span className="inline-flex items-center gap-1.5">
+                  {(resource.resourceType === "database_instance" ||
+                    resource.resourceType === "database_cluster" ||
+                    resource.resourceType === "database_proxy") && (
+                    <DbTypeIcon subtype={resource.resourceSubtype} className="size-4" />
+                  )}
+                  {resource.name} · {localizeResourceType(resource.resourceType, t)}
+                </span>
               </SheetDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
