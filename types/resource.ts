@@ -182,6 +182,7 @@ export type TopologyNode = {
   ip?: string;
   port?: number;
   problems?: TopologyProblem[];
+  labels?: Record<string, string>;
 };
 
 export type TopologyEdge = {

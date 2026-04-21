@@ -127,7 +127,10 @@ function TopologyPanelInner({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
-  const [selectedNodeData, setSelectedNodeData] = useState<TopologyNodeData | null>(null);
+  const [selectedNodePopup, setSelectedNodePopup] = useState<{
+    data: TopologyNodeData;
+    position: { x: number; y: number };
+  } | null>(null);
   const [problemsExpanded, setProblemsExpanded] = useState(true);
 
   // URL update helper
@@ -240,10 +243,14 @@ function TopologyPanelInner({
     return () => document.removeEventListener("keydown", handleEsc);
   }, [expanded, setExpandedValue]);
 
-  // Node click opens detail popup instead of navigating
+  // Node click opens anchored detail popup
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => {
-      setSelectedNodeData(node.data as TopologyNodeData);
+    (event, node) => {
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      setSelectedNodePopup({
+        data: node.data as TopologyNodeData,
+        position: { x: rect.right + 12, y: rect.top },
+      });
     },
     [],
   );
@@ -475,10 +482,10 @@ function TopologyPanelInner({
     );
   };
 
-  // --- Node detail popup ---
+  // --- Node detail popup (anchored to clicked node) ---
   const renderNodePopup = () => {
-    if (!selectedNodeData) return null;
-    const d = selectedNodeData;
+    if (!selectedNodePopup) return null;
+    const d = selectedNodePopup.data;
     const isDb = d.resourceType === "database_instance" ||
       d.resourceType === "database_cluster" ||
       d.resourceType === "database_proxy";
@@ -487,25 +494,40 @@ function TopologyPanelInner({
     if (d.port) addressParts.push(String(d.port));
     const address = addressParts.join(":");
 
+    const roleLabel = getRoleLabel(d.topologyRole);
+    const datacenter = d.labels?.datacenter || d.labels?.dc;
+    const zone = d.labels?.zone || d.labels?.az;
+
+    // Position: anchor to the right of the node, flip left if overflows
+    const POPUP_WIDTH = 300;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    let px = selectedNodePopup.position.x;
+    let py = selectedNodePopup.position.y;
+    if (px + POPUP_WIDTH > vw - 16) px = selectedNodePopup.position.x - POPUP_WIDTH - 56;
+    if (py + 400 > vh - 16) py = Math.max(16, vh - 420);
+    px = Math.max(16, px);
+
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-        onClick={() => setSelectedNodeData(null)}
+        className="fixed inset-0 z-50"
+        onClick={() => setSelectedNodePopup(null)}
         data-testid="topology-node-popup-overlay"
       >
         <div
-          className="rounded-xl border border-border bg-card shadow-lg p-4 min-w-[280px] max-w-[360px]"
+          className="absolute rounded-xl border border-border bg-card shadow-lg p-4 min-w-[280px] max-w-[340px]"
+          style={{ left: px, top: py }}
           onClick={(e) => e.stopPropagation()}
           data-testid="topology-node-popup"
         >
           <div className="flex items-start justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              {isDb && d.resourceSubtype && <DbTypeIcon subtype={d.resourceSubtype} className="size-4" />}
-              <span className="font-medium text-sm text-foreground">{d.displayName || d.name}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              {isDb && d.resourceSubtype && <DbTypeIcon subtype={d.resourceSubtype} className="size-4 shrink-0" />}
+              <span className="font-medium text-sm text-foreground truncate">{d.displayName || d.name}</span>
             </div>
             <button
-              onClick={() => setSelectedNodeData(null)}
-              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedNodePopup(null)}
+              className="text-muted-foreground hover:text-foreground shrink-0"
               data-testid="topology-node-popup-close"
             >
               <X className="size-4" />
@@ -520,7 +542,10 @@ function TopologyPanelInner({
             {d.resourceSubtype && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{t("common.fields.engine")}</span>
-                <span className="text-foreground">{d.resourceSubtype}</span>
+                <div className="flex items-center gap-1">
+                  {isDb && <DbTypeIcon subtype={d.resourceSubtype} className="size-3" />}
+                  <span className="text-foreground capitalize">{d.resourceSubtype}</span>
+                </div>
               </div>
             )}
             {d.hostname && (
@@ -535,6 +560,18 @@ function TopologyPanelInner({
                 <span className="font-mono text-foreground">{address}</span>
               </div>
             )}
+            {datacenter && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("topology.datacenter")}</span>
+                <span className="text-foreground">{datacenter}</span>
+              </div>
+            )}
+            {zone && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("topology.zone")}</span>
+                <span className="text-foreground">{zone}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">{t("common.fields.status")}</span>
               <div className="flex gap-1">
@@ -542,6 +579,12 @@ function TopologyPanelInner({
                 <StatusBadge status={d.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
               </div>
             </div>
+            {roleLabel && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">{t("topology.roles.generic")}</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{roleLabel}</span>
+              </div>
+            )}
             {d.problems && d.problems.length > 0 && (
               <div className="flex justify-between items-start">
                 <span className="text-muted-foreground">{t("topology.problemsTitle")}</span>
@@ -561,7 +604,10 @@ function TopologyPanelInner({
               variant="outline"
               size="sm"
               className="w-full gap-2"
-              onClick={() => router.push(`/resources/${d.id}`)}
+              onClick={() => {
+                setSelectedNodePopup(null);
+                router.push(`/resources/${d.id}`);
+              }}
             >
               <ExternalLink className="size-3" />
               {t("topology.viewDetails")}

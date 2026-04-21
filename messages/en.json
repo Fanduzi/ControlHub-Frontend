@@ -489,6 +489,8 @@
     "problemsTitle": "Problems",
     "address": "Address",
     "viewDetails": "View Full Details",
+    "datacenter": "Datacenter",
+    "zone": "Zone",
     "emptyTitle": "No relations to display",
     "emptyDescription": "This resource has no linked resources to visualize.",
     "errorTitle": "Failed to load topology",
