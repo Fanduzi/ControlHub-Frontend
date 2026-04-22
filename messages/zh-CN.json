@@ -507,6 +507,32 @@
     "pageSizeOption": "每页 {pageSize} 条"
   },
   "mutations": {
+    "profileSection": "运行时属性",
+    "profileSectionHint": "资源类型相关的运维属性。",
+    "noProfileFields": "该资源类型无运行时属性。",
+    "nameEditable": "系统引用标识符，修改可能影响集成。",
+    "continueCreate": "继续创建",
+    "viewDetails": "查看详情",
+    "createdSuccess": "资源创建成功",
+    "profileFields": {
+      "hostname": "主机名",
+      "ipAddress": "IP 地址",
+      "osName": "操作系统",
+      "engine": "引擎",
+      "version": "版本",
+      "host": "主机",
+      "port": "端口",
+      "role": "角色",
+      "rolePrimary": "主库",
+      "roleReplica": "从库",
+      "topologyMode": "拓扑模式",
+      "topologySinglePrimary": "单主",
+      "topologyMultiPrimary": "多主",
+      "primaryEndpoint": "主节点地址",
+      "systemName": "系统名称",
+      "repositoryUrl": "代码仓库",
+      "runtimeEnv": "运行环境"
+    },
     "create": {
       "title": "创建资源",
       "description": "登记一个手动维护的新资源。",
