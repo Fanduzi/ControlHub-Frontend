@@ -487,7 +487,7 @@ export function CreateResourceSheet({
                               <SelectContent>
                                 {field.options?.map((opt) => (
                                   <SelectItem key={opt.value} value={opt.value}>
-                                    {t(`profileFields.${opt.labelKey}`)}
+                                    {t(opt.labelKey)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

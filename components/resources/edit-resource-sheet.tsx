@@ -106,7 +106,7 @@ export function EditResourceSheet({
   const [lifecycleStatuses, setLifecycleStatuses] = useState<DictionaryItem[]>([]);
   const [healthStatuses, setHealthStatuses] = useState<DictionaryItem[]>([]);
   const [subtypes, setSubtypes] = useState<DictionaryItem[]>([]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(true);
 
   const [currentProfileData, setCurrentProfileData] = useState<Record<string, string | number | boolean | null>>({});
 

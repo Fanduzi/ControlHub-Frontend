@@ -622,5 +622,24 @@
     "warning": "Warning",
     "critical": "Critical",
     "unknown": "Unknown"
+  },
+  "profileFields": {
+    "hostname": "Hostname",
+    "ipAddress": "IP Address",
+    "osName": "Operating System",
+    "engine": "Engine",
+    "version": "Version",
+    "host": "Host",
+    "port": "Port",
+    "role": "Role",
+    "rolePrimary": "Primary",
+    "roleReplica": "Replica",
+    "topologyMode": "Topology Mode",
+    "topologySinglePrimary": "Single Primary",
+    "topologyMultiPrimary": "Multi Primary",
+    "primaryEndpoint": "Primary Endpoint",
+    "systemName": "System Name",
+    "repositoryUrl": "Repository URL",
+    "runtimeEnv": "Runtime Environment"
   }
 }
