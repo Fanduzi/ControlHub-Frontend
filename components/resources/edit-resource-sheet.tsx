@@ -76,6 +76,7 @@ export function EditResourceSheet({
     register,
     reset,
     setValue,
+    watch,
     handleSubmit,
     formState: { errors, dirtyFields, isDirty },
     setError: setFormError,
@@ -327,6 +328,13 @@ export function EditResourceSheet({
 
   const profileSchema = resource ? getProfileSchema(resource.resourceType) : undefined;
 
+  const watchResourceSubtype = watch("resourceSubtype");
+  const watchEnvironmentId = watch("environmentId");
+  const watchOwnerId = watch("ownerId");
+  const watchLifecycleStatus = watch("lifecycleStatus");
+  const watchHealthStatus = watch("healthStatus");
+  const watchProfile = watch("profile");
+
   // Friendly resource type name
   const resourceTypeDisplay = resource
     ? (t.has(`dictionaryValues.${resource.resourceType}`)
@@ -405,7 +413,7 @@ export function EditResourceSheet({
                   <Skeleton className="h-9 w-full" />
                 ) : (
                   <Select
-                    defaultValue={resource?.resourceSubtype ?? ""}
+                    value={watchResourceSubtype}
                     onValueChange={(v) => {
                       if (v !== null) {
                         setValue("resourceSubtype", v, { shouldDirty: true });
@@ -525,7 +533,7 @@ export function EditResourceSheet({
                     <Skeleton className="h-9 w-full" />
                   ) : (
                     <Select
-                      defaultValue={resource?.environmentId ?? ""}
+                      value={watchEnvironmentId}
                       onValueChange={(v) => {
                         if (v !== null) {
                           setValue("environmentId", v, { shouldDirty: true });
@@ -558,7 +566,7 @@ export function EditResourceSheet({
                     <Skeleton className="h-9 w-full" />
                   ) : (
                     <Select
-                      defaultValue={resource?.ownerId ?? ""}
+                      value={watchOwnerId}
                       onValueChange={(v) => {
                         if (v !== null) {
                           setValue("ownerId", v, { shouldDirty: true });
@@ -591,7 +599,7 @@ export function EditResourceSheet({
                     {t("common.fields.lifecycleStatus")}
                   </label>
                   <Select
-                    defaultValue={resource?.lifecycleStatus ?? ""}
+                    value={watchLifecycleStatus}
                     onValueChange={(v) => {
                       if (v !== null) {
                         setValue("lifecycleStatus", v, { shouldDirty: true });
@@ -620,7 +628,7 @@ export function EditResourceSheet({
                     {t("common.fields.healthStatus")}
                   </label>
                   <Select
-                    defaultValue={resource?.healthStatus ?? ""}
+                    value={watchHealthStatus}
                     onValueChange={(v) => {
                       if (v !== null) {
                         setValue("healthStatus", v, { shouldDirty: true });
