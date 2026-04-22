@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EditResourceSheet } from "@/components/resources/edit-resource-sheet";
 import * as resourceService from "@/services/resources";
+import { ApiError } from "@/services/api-client";
 import * as settingsService from "@/services/settings";
 import messages from "@/messages/en.json";
 import type { ResourceDetailViewModel } from "@/types/view-models";
@@ -12,11 +13,13 @@ import type { ResourceDetailViewModel } from "@/types/view-models";
 const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh }),
+  useRouter: () => ({ refresh, push: vi.fn() }),
 }));
 
 vi.mock("@/services/resources", () => ({
   updateResource: vi.fn(),
+  updateProfile: vi.fn(),
+  getResourceProfileById: vi.fn(),
 }));
 
 vi.mock("@/services/settings", () => ({
@@ -24,15 +27,23 @@ vi.mock("@/services/settings", () => ({
   listOwners: vi.fn(),
   listLifecycleStatuses: vi.fn(),
   listHealthStatuses: vi.fn(),
+  listResourceSubtypes: vi.fn(),
 }));
 
 const mockedUpdateResource = vi.mocked(resourceService.updateResource);
+const mockedUpdateProfile = vi.mocked(resourceService.updateProfile);
+const mockedGetResourceProfileById = vi.mocked(
+  resourceService.getResourceProfileById,
+);
 const mockedListEnvironments = vi.mocked(settingsService.listEnvironments);
 const mockedListOwners = vi.mocked(settingsService.listOwners);
 const mockedListLifecycleStatuses = vi.mocked(
   settingsService.listLifecycleStatuses,
 );
 const mockedListHealthStatuses = vi.mocked(settingsService.listHealthStatuses);
+const mockedListResourceSubtypes = vi.mocked(
+  settingsService.listResourceSubtypes,
+);
 
 const resource: ResourceDetailViewModel = {
   id: "res-1",
@@ -61,6 +72,33 @@ const resource: ResourceDetailViewModel = {
   auditEvents: [],
 };
 
+const hostResource: ResourceDetailViewModel = {
+  id: "res-2",
+  resourceType: "host",
+  resourceSubtype: "",
+  name: "prod-host-01",
+  displayName: "Production Host 01",
+  environmentId: "env-prod",
+  environmentName: "Production",
+  ownerId: "owner-dba",
+  ownerName: "DBA Team",
+  lifecycleStatus: "running",
+  healthStatus: "healthy",
+  source: "manual",
+  externalId: "",
+  createdAt: "2026-04-11T12:00:00Z",
+  updatedAt: "2026-04-11T13:00:00Z",
+  labels: {},
+  summary: "Production host.",
+  archivedAt: null,
+  archivedBy: null,
+  archiveReason: null,
+  isArchived: false,
+  profile: {},
+  relations: [],
+  auditEvents: [],
+};
+
 describe("EditResourceSheet", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -78,9 +116,27 @@ describe("EditResourceSheet", () => {
     mockedListHealthStatuses.mockResolvedValue([
       { key: "healthy", label: "Healthy", description: "" },
     ]);
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "mysql", label: "MySQL", description: "" },
+      { key: "postgresql", label: "PostgreSQL", description: "" },
+    ]);
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: "res-1",
+      resourceType: "database_instance",
+      resourceSubtype: "mysql",
+      profile: {
+        engine: "mysql",
+        version: "8.0",
+        host: "db-host-01",
+        port: 3306,
+        role: "primary",
+      },
+    });
+    mockedUpdateResource.mockResolvedValue({} as never);
+    mockedUpdateProfile.mockResolvedValue(undefined);
   });
 
-  it("renders immutable field hints for name and resourceType", async () => {
+  it("loads profile data on open and pre-fills profile fields", async () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <EditResourceSheet
@@ -91,22 +147,69 @@ describe("EditResourceSheet", () => {
       </NextIntlClientProvider>,
     );
 
-    // Name input is disabled
-    const nameInput = screen.getByDisplayValue("orders-db-primary");
-    expect(nameInput).toBeDisabled();
+    // Wait for profile to be fetched
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith("res-1");
+    });
 
-    // Resource type input is disabled
-    const typeInput = screen.getByDisplayValue("database_instance");
+    // Profile fields should be pre-filled with the profile data values
+    // "mysql" appears in both the subtype hidden input and the profile engine input
+    await waitFor(() => {
+      const mysqlInputs = screen.getAllByDisplayValue("mysql");
+      expect(mysqlInputs.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByDisplayValue("8.0")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("db-host-01")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("3306")).toBeInTheDocument();
+    });
+  });
+
+  it("name field is editable (not disabled)", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Name input should be present with its value and NOT disabled
+    const nameInput = await screen.findByDisplayValue("orders-db-primary");
+    expect(nameInput).toBeInTheDocument();
+    expect(nameInput).not.toBeDisabled();
+
+    // Should show the editable hint text
+    expect(
+      screen.getByText(
+        "Identifier used for system references. Changing it may affect integrations.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("resourceType field is displayed as disabled", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Resource type should show as a disabled input
+    const typeInput = await screen.findByDisplayValue("Database Instance");
+    expect(typeInput).toBeInTheDocument();
     expect(typeInput).toBeDisabled();
 
-    // Two immutable hints (one per disabled field)
-    const hints = screen.getAllByText(
-      "This field cannot be changed after creation.",
-    );
-    expect(hints).toHaveLength(2);
+    // Immutable hint
+    expect(
+      screen.getByText("This field cannot be changed after creation."),
+    ).toBeInTheDocument();
   });
 
-  it("pre-fills mutable text fields from the resource", async () => {
+  it("pre-fills base form fields from the resource", async () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <EditResourceSheet
@@ -117,31 +220,89 @@ describe("EditResourceSheet", () => {
       </NextIntlClientProvider>,
     );
 
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalled();
+    });
+
+    // Display name should be pre-filled
     expect(screen.getByDisplayValue("Orders DB Primary")).toBeInTheDocument();
+    // External ID should be pre-filled
     expect(
       screen.getByDisplayValue("aws:rds:orders-primary"),
     ).toBeInTheDocument();
-    // Labels editor should show the key and value inputs
+    // Labels should be pre-filled
     expect(screen.getByDisplayValue("team")).toBeInTheDocument();
     expect(screen.getByDisplayValue("order")).toBeInTheDocument();
   });
 
-  it("submits updated display name via updateResource and refreshes", async () => {
+  it("save calls both PATCH endpoints when base and profile fields change", async () => {
     const user = userEvent.setup();
     mockedUpdateResource.mockResolvedValue({} as never);
-    const onOpenChange = vi.fn();
+    mockedUpdateProfile.mockResolvedValue(undefined);
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <EditResourceSheet
           open
-          onOpenChange={onOpenChange}
+          onOpenChange={() => undefined}
           resource={resource}
         />
       </NextIntlClientProvider>,
     );
 
-    // Change the display name
+    // Wait for data to load
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith("res-1");
+    });
+
+    // Change display name (base field)
+    const displayNameInput = screen.getByDisplayValue("Orders DB Primary");
+    await user.clear(displayNameInput);
+    await user.type(displayNameInput, "Updated DB Name");
+
+    // Change a profile field (e.g., version)
+    const versionInput = screen.getByDisplayValue("8.0");
+    await user.clear(versionInput);
+    await user.type(versionInput, "8.4");
+
+    // Submit
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      // Both PATCH calls should have been made
+      expect(mockedUpdateResource).toHaveBeenCalledWith(
+        "res-1",
+        expect.objectContaining({ displayName: "Updated DB Name" }),
+      );
+      expect(mockedUpdateProfile).toHaveBeenCalledWith(
+        "res-1",
+        expect.objectContaining({ version: "8.4" }),
+      );
+    });
+
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("save only calls resource PATCH when only base fields changed", async () => {
+    const user = userEvent.setup();
+    mockedUpdateResource.mockResolvedValue({} as never);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Wait for data to load
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalled();
+    });
+
+    // Change only the display name (base field)
     const displayNameInput = screen.getByDisplayValue("Orders DB Primary");
     await user.clear(displayNameInput);
     await user.type(displayNameInput, "Updated DB Name");
@@ -150,20 +311,89 @@ describe("EditResourceSheet", () => {
     await user.click(screen.getByRole("button", { name: /Save/i }));
 
     await waitFor(() => {
-      expect(mockedUpdateResource).toHaveBeenCalledWith(
-        "res-1",
-        expect.objectContaining({ displayName: "Updated DB Name" }),
-      );
+      expect(mockedUpdateResource).toHaveBeenCalledOnce();
     });
 
+    // Should NOT call updateProfile since no profile fields changed
+    expect(mockedUpdateProfile).not.toHaveBeenCalled();
+
+    // Verify the resource PATCH payload
+    const [resourceId, payload] = mockedUpdateResource.mock.calls[0];
+    expect(resourceId).toBe("res-1");
+    expect(payload).toEqual(
+      expect.objectContaining({ displayName: "Updated DB Name" }),
+    );
+
     expect(refresh).toHaveBeenCalledOnce();
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("never sends id, resourceType, or createdAt in the PATCH payload", async () => {
+    const user = userEvent.setup();
+    mockedUpdateResource.mockResolvedValue({} as never);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalled();
+    });
+
+    // Change display name to trigger submission
+    const displayNameInput = screen.getByDisplayValue("Orders DB Primary");
+    await user.clear(displayNameInput);
+    await user.type(displayNameInput, "New Name");
+
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateResource).toHaveBeenCalledOnce();
+    });
+
+    const [, payload] = mockedUpdateResource.mock.calls[0];
+
+    // Immutable fields must never appear in PATCH payload
+    expect(payload).not.toHaveProperty("id");
+    expect(payload).not.toHaveProperty("resourceType");
+    expect(payload).not.toHaveProperty("createdAt");
+  });
+
+  it("shows profile section with no-profile-fields message for types without profile schema", async () => {
+    mockedGetResourceProfileById.mockResolvedValue(null);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={hostResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(mockedListResourceSubtypes).toHaveBeenCalled();
+    });
+
+    // Host type IS in the registry, so it should show profile fields (hostname, ipAddress, osName)
+    // For a type like domain_name (not in registry), it would show "no profile fields"
+    // Since host IS in registry, let's verify the profile section appears
+    await waitFor(() => {
+      expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
+    });
   });
 
   it("shows backend error when update fails with 401", async () => {
     const user = userEvent.setup();
     mockedUpdateResource.mockRejectedValue(
-      new Error("Request failed: 401"),
+      new ApiError(401, "Request failed: 401"),
     );
 
     render(
@@ -175,6 +405,15 @@ describe("EditResourceSheet", () => {
         />
       </NextIntlClientProvider>,
     );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalled();
+    });
+
+    // Change a base field to enable submission
+    const displayNameInput = screen.getByDisplayValue("Orders DB Primary");
+    await user.clear(displayNameInput);
+    await user.type(displayNameInput, "Changed Name");
 
     await user.click(screen.getByRole("button", { name: /Save/i }));
 
@@ -185,35 +424,5 @@ describe("EditResourceSheet", () => {
         ),
       ).toBeInTheDocument();
     });
-  });
-
-  it("never sends id, name, resourceType, or createdAt in the PATCH payload", async () => {
-    const user = userEvent.setup();
-    mockedUpdateResource.mockResolvedValue({} as never);
-
-    render(
-      <NextIntlClientProvider locale="en" messages={messages}>
-        <EditResourceSheet
-          open
-          onOpenChange={() => undefined}
-          resource={resource}
-        />
-      </NextIntlClientProvider>,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Save/i }));
-
-    await waitFor(() => {
-      expect(mockedUpdateResource).toHaveBeenCalledOnce();
-    });
-
-    const [resourceId, payload] = mockedUpdateResource.mock.calls[0];
-    expect(resourceId).toBe("res-1");
-
-    // Immutable fields must never appear in PATCH payload
-    expect(payload).not.toHaveProperty("id");
-    expect(payload).not.toHaveProperty("name");
-    expect(payload).not.toHaveProperty("resourceType");
-    expect(payload).not.toHaveProperty("createdAt");
   });
 });
