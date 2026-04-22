@@ -230,13 +230,13 @@ export function CreateResourceSheet({
     }
   }, [watchResourceType, watchResourceSubtype, form]);
 
-  // Update resolver when resourceType changes
-  useEffect(() => {
+  // Build dynamic resolver based on current resourceType
+  const dynamicResolver = useMemo(() => {
     const schema = getProfileSchema(watchResourceType);
     const fields = schema?.fields ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (form as any)._options.resolver = zodResolver(buildFormSchema(fields));
-  }, [watchResourceType, form]);
+    return zodResolver(buildFormSchema(fields)) as any;
+  }, [watchResourceType]);
 
   const profileSchema = useMemo(() => {
     if (!watchResourceType) return null;
@@ -696,9 +696,16 @@ export function CreateResourceSheet({
               </Button>
               <Button
                 size="sm"
-                onClick={() => {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  void (form.handleSubmit(handleSubmit) as any)();
+                onClick={async () => {
+                  const values = form.getValues();
+                  const result = await dynamicResolver(values, {}, { fields: {} as any });
+                  if (result.errors && Object.keys(result.errors).length > 0) {
+                    Object.entries(result.errors).forEach(([field, err]) => {
+                      form.setError(field as any, { message: (err as any)?.message ?? "Invalid" });
+                    });
+                    return;
+                  }
+                  handleSubmit(values as any);
                 }}
                 disabled={submitting || dictError}
               >

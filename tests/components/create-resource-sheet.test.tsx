@@ -9,11 +9,8 @@ vi.mock("react-hook-form", async () => {
   const actual = await vi.importActual("react-hook-form");
   return {
     ...actual,
-    useForm: (opts: Record<string, unknown>) => {
-      const result = (actual as Record<string, unknown>).useForm(opts) as Record<string, unknown>;
-      // The component accesses (form as any)._options which is actually form.control._options
-      (result as Record<string, unknown>)["_options"] = (result["control"] as Record<string, unknown>)["_options"];
-      return result;
+    useForm: (opts: any) => {
+      return (actual as any).useForm(opts);
     },
   };
 });
