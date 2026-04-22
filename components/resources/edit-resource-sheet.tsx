@@ -49,20 +49,23 @@ type EditResourceSheetProps = {
   resource: ResourceDetailViewModel | null;
 };
 
-const editFormSchema = z.object({
-  name: z.string().min(1),
-  displayName: z.string().min(1),
-  resourceSubtype: z.string(),
-  environmentId: z.string().min(1),
-  ownerId: z.string().min(1),
-  lifecycleStatus: z.string().min(1),
-  healthStatus: z.string().min(1),
-  externalId: z.string(),
-  labels: z.record(z.string(), z.string()),
-  profile: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.undefined()])),
-});
+function makeEditFormSchema(requiredMessage: string) {
+  const msg = requiredMessage;
+  return z.object({
+    name: z.string().min(1, msg),
+    displayName: z.string().min(1, msg),
+    resourceSubtype: z.string(),
+    environmentId: z.string().min(1, msg),
+    ownerId: z.string().min(1, msg),
+    lifecycleStatus: z.string().min(1, msg),
+    healthStatus: z.string().min(1, msg),
+    externalId: z.string(),
+    labels: z.record(z.string(), z.string()),
+    profile: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.undefined()])),
+  });
+}
 
-type EditFormValues = z.infer<typeof editFormSchema>;
+type EditFormValues = z.infer<ReturnType<typeof makeEditFormSchema>>;
 
 export function EditResourceSheet({
   open,
@@ -70,6 +73,7 @@ export function EditResourceSheet({
   resource,
 }: EditResourceSheetProps) {
   const t = useTranslations();
+  const ct = useTranslations("common");
   const router = useRouter();
 
   const {
@@ -82,7 +86,7 @@ export function EditResourceSheet({
     setError: setFormError,
     clearErrors,
   } = useForm<EditFormValues>({
-    resolver: zodResolver(editFormSchema),
+    resolver: zodResolver(makeEditFormSchema(ct("fieldRequired"))),
     defaultValues: {
       name: "",
       displayName: "",
@@ -109,12 +113,11 @@ export function EditResourceSheet({
   const [subtypes, setSubtypes] = useState<DictionaryItem[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
 
-  const [currentProfileData, setCurrentProfileData] = useState<Record<string, string | number | boolean | null>>({});
-
   // Load data when sheet opens or resource changes
   useEffect(() => {
     if (!open || !resource) return;
 
+    let cancelled = false;
     setError(null);
     setProfileError(null);
     setBaseError(null);
@@ -135,6 +138,8 @@ export function EditResourceSheet({
         ? getResourceProfileById(resource.id).catch(() => null)
         : Promise.resolve(null),
     ]).then(([env, own, lc, hs, sub, profileResp]) => {
+      if (cancelled) return;
+
       setEnvironments(env);
       setOwners(own);
       setLifecycleStatuses(lc);
@@ -143,13 +148,10 @@ export function EditResourceSheet({
       setOptionsLoading(false);
 
       if (profileResp?.profile) {
-        setCurrentProfileData(profileResp.profile as Record<string, string | number | boolean | null>);
         for (const field of profileSchema?.fields ?? []) {
           const raw = profileResp.profile[field.key];
           profileDefaults[field.key] = raw != null ? String(raw) : "";
         }
-      } else {
-        setCurrentProfileData({});
       }
 
       reset({
@@ -165,6 +167,8 @@ export function EditResourceSheet({
         profile: profileDefaults,
       });
     });
+
+    return () => { cancelled = true; };
   }, [open, resource, reset]);
 
   // Handle close with unsaved changes check
@@ -213,12 +217,16 @@ export function EditResourceSheet({
 
       // Determine changed profile fields
       const changedProfileFields: Record<string, string | number | boolean> = {};
+      const editSchema = resource ? getProfileSchema(resource.resourceType) : undefined;
+      const editNumberFields = new Set(
+        editSchema?.fields.filter((f) => f.inputType === "number").map((f) => f.key) ?? [],
+      );
       if (dirtyFields.profile && data.profile) {
         for (const key of Object.keys(dirtyFields.profile)) {
           if (dirtyFields.profile[key]) {
-            const val = data.profile[key];
-            if (val !== undefined) {
-              changedProfileFields[key] = val;
+            const rawVal = data.profile[key];
+            if (rawVal !== undefined && rawVal !== "") {
+              changedProfileFields[key] = editNumberFields.has(key) ? Number(rawVal) : rawVal;
             }
           }
         }
@@ -354,7 +362,7 @@ export function EditResourceSheet({
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-5 px-6 py-5"
+          className="space-y-6 px-6 py-5"
         >
           {/* Card A — Basic Info */}
           <section className="rounded-xl border border-border p-4">
@@ -363,10 +371,12 @@ export function EditResourceSheet({
             </h3>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="edit-name" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.name")}
                 </label>
                 <Input
+                  id="edit-name"
+                  aria-required="true"
                   {...register("name")}
                   className="h-9 border-border bg-background"
                 />
@@ -379,10 +389,12 @@ export function EditResourceSheet({
               </div>
 
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="edit-displayName" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.displayName")}
                 </label>
                 <Input
+                  id="edit-displayName"
+                  aria-required="true"
                   {...register("displayName")}
                   className="h-9 border-border bg-background"
                 />
@@ -392,10 +404,11 @@ export function EditResourceSheet({
               </div>
 
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="edit-resourceType" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.resourceType")}
                 </label>
                 <Input
+                  id="edit-resourceType"
                   value={resourceTypeDisplay}
                   disabled
                   className="h-9 border-border bg-muted text-muted-foreground"
@@ -406,7 +419,7 @@ export function EditResourceSheet({
               </div>
 
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="edit-resourceSubtype" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.resourceSubtype")}
                 </label>
                 {optionsLoading ? (
@@ -421,7 +434,7 @@ export function EditResourceSheet({
                       }
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="edit-resourceSubtype" className="h-9 w-full border-border bg-background">
                       <SelectValue placeholder={t("common.fields.resourceSubtype")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -457,28 +470,27 @@ export function EditResourceSheet({
               ) : (
                 <div className="space-y-3">
                   {profileSchema.fields.map((field) => {
-                    const rawValue = currentProfileData[field.key];
-                    const defaultVal = rawValue != null ? String(rawValue) : "";
+                    const currentVal = watchProfile?.[field.key as keyof typeof watchProfile];
+                    const stringValue = currentVal != null ? String(currentVal) : "";
 
                     return (
                       <div key={field.key}>
-                        <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                        <label htmlFor={`edit-profile-${field.key}`} className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           {t(field.labelKey)}
                           {field.required && " *"}
                         </label>
                         {field.inputType === "select" && field.options ? (
                           <Select
-                            defaultValue={defaultVal}
+                            value={stringValue}
                             onValueChange={(v) => {
-                              if (v !== null) {
+                              if (v) {
                                 setValue(`profile.${field.key}` as const, v, {
                                   shouldDirty: true,
                                 });
-                                clearErrors(`profile.${field.key}` as const);
                               }
                             }}
                           >
-                            <SelectTrigger className="h-9 w-full border-border bg-background">
+                            <SelectTrigger id={`edit-profile-${field.key}`} aria-required={field.required ? "true" : undefined} className="h-9 w-full border-border bg-background">
                               <SelectValue placeholder={field.placeholder ?? ""} />
                             </SelectTrigger>
                             <SelectContent>
@@ -491,8 +503,9 @@ export function EditResourceSheet({
                           </Select>
                         ) : (
                           <Input
+                            id={`edit-profile-${field.key}`}
+                            aria-required={field.required ? "true" : undefined}
                             type={field.inputType === "number" ? "number" : "text"}
-                            defaultValue={defaultVal}
                             placeholder={field.placeholder ?? ""}
                             {...register(`profile.${field.key}` as const)}
                             className="h-9 border-border bg-background"
@@ -526,7 +539,7 @@ export function EditResourceSheet({
               {/* Row 1: Environment + Owner */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="edit-environmentId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {t("common.fields.environment")}
                   </label>
                   {optionsLoading ? (
@@ -541,7 +554,7 @@ export function EditResourceSheet({
                         }
                       }}
                     >
-                      <SelectTrigger className="h-9 w-full border-border bg-background">
+                      <SelectTrigger id="edit-environmentId" aria-required="true" className="h-9 w-full border-border bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -559,7 +572,7 @@ export function EditResourceSheet({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="edit-ownerId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {t("common.fields.owner")}
                   </label>
                   {optionsLoading ? (
@@ -574,7 +587,7 @@ export function EditResourceSheet({
                         }
                       }}
                     >
-                      <SelectTrigger className="h-9 w-full border-border bg-background">
+                      <SelectTrigger id="edit-ownerId" aria-required="true" className="h-9 w-full border-border bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -595,7 +608,7 @@ export function EditResourceSheet({
               {/* Row 2: Lifecycle + Health */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="edit-lifecycleStatus" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {t("common.fields.lifecycleStatus")}
                   </label>
                   <Select
@@ -607,7 +620,7 @@ export function EditResourceSheet({
                       }
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="edit-lifecycleStatus" aria-required="true" className="h-9 w-full border-border bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -624,7 +637,7 @@ export function EditResourceSheet({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="edit-healthStatus" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {t("common.fields.healthStatus")}
                   </label>
                   <Select
@@ -636,7 +649,7 @@ export function EditResourceSheet({
                       }
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="edit-healthStatus" aria-required="true" className="h-9 w-full border-border bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -655,10 +668,11 @@ export function EditResourceSheet({
 
               {/* External ID */}
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="edit-externalId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {t("common.fields.externalId")}
                 </label>
                 <Input
+                  id="edit-externalId"
                   {...register("externalId")}
                   className="h-9 border-border bg-background"
                 />
@@ -670,7 +684,7 @@ export function EditResourceSheet({
                   {t("common.fields.labels")}
                 </label>
                 <LabelsEditor
-                  value={(resource?.labels ?? {})}
+                  value={watch("labels") ?? {}}
                   onChange={(labels) => {
                     setValue("labels", labels, { shouldDirty: true });
                   }}

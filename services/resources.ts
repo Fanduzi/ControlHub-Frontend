@@ -1,4 +1,4 @@
-import { apiClient } from "@/services/api-client";
+import { apiClient, ApiError } from "@/services/api-client";
 import type {
   CreateResourceInput,
   CreateResourceRelationInput,
@@ -95,7 +95,7 @@ export async function getResourceById(
       resource: response as unknown as Resource,
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("404")) {
+    if (error instanceof ApiError && error.status === 404) {
       return null;
     }
 
@@ -111,7 +111,7 @@ export async function getResourceProfileById(
       `/resources/${encodeURIComponent(id)}/profile`,
     );
   } catch (error) {
-    if (error instanceof Error && error.message.includes("404")) {
+    if (error instanceof ApiError && error.status === 404) {
       return null;
     }
 

@@ -3,6 +3,7 @@
     "brand": "ControlHub",
     "loading": "加载中...",
     "notSet": "未设置",
+    "fieldRequired": "此字段为必填项",
     "unknown": "未知",
     "noResults": "未找到结果。",
     "actions": {

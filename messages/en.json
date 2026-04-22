@@ -3,6 +3,7 @@
     "brand": "ControlHub",
     "loading": "Loading...",
     "notSet": "Not set",
+    "fieldRequired": "This field is required",
     "unknown": "Unknown",
     "noResults": "No results found.",
     "actions": {

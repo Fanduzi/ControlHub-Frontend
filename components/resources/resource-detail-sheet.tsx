@@ -224,7 +224,7 @@ export function ResourceDetailSheet({
                     className="rounded-lg border border-border bg-background px-3 py-3"
                   >
                     <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {formatLabel(key)}
+                      {t.has(`profileFields.${key}`) ? t(`profileFields.${key}`) : formatLabel(key)}
                     </dt>
                     <dd className="mt-1 text-sm font-medium text-foreground">
                       {value}

@@ -85,32 +85,33 @@ function savePrefs(environmentId: string, ownerId: string) {
   }
 }
 
-function buildFormSchema(profileFields: { key: string; required: boolean; inputType: string }[]) {
+function buildFormSchema(profileFields: { key: string; required: boolean; inputType: string }[], requiredMessage: string) {
+  const msg = requiredMessage;
   const profileShape: Record<string, z.ZodTypeAny> = {};
   for (const field of profileFields) {
     if (field.inputType === "number") {
       profileShape[field.key] = field.required
-        ? z.coerce.number().min(1).max(65535)
-        : z.union([z.coerce.number().min(1).max(65535), z.literal("")]).optional().transform(
+        ? z.coerce.number().min(1, msg).max(65535)
+        : z.union([z.coerce.number().min(1, msg).max(65535), z.literal("")]).optional().transform(
             (v) => (v === "" ? undefined : v),
           );
     } else {
       profileShape[field.key] = field.required
-        ? z.string().min(1)
+        ? z.string().min(1, msg)
         : z.string().optional();
     }
   }
 
   return z.object({
-    resourceType: z.string().min(1),
+    resourceType: z.string().min(1, msg),
     resourceSubtype: z.string().optional(),
-    name: z.string().min(1),
-    displayName: z.string().min(1),
+    name: z.string().min(1, msg),
+    displayName: z.string().min(1, msg),
     source: z.string(),
-    environmentId: z.string().min(1),
-    ownerId: z.string().min(1),
-    lifecycleStatus: z.string().min(1),
-    healthStatus: z.string().min(1),
+    environmentId: z.string().min(1, msg),
+    ownerId: z.string().min(1, msg),
+    lifecycleStatus: z.string().min(1, msg),
+    healthStatus: z.string().min(1, msg),
     externalId: z.string().optional(),
     labels: z.record(z.string(), z.string()).optional(),
     profile: z.object(profileShape).optional(),
@@ -142,7 +143,7 @@ export function CreateResourceSheet({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<FormValues>({
-    resolver: zodResolver(buildFormSchema([])) as any,
+    resolver: zodResolver(buildFormSchema([], ct("fieldRequired"))) as any,
     defaultValues: {
       resourceType: "",
       resourceSubtype: "",
@@ -166,6 +167,7 @@ export function CreateResourceSheet({
   useEffect(() => {
     if (!open) return;
 
+    let cancelled = false;
     setDictsLoaded(false);
     setDictError(false);
 
@@ -176,6 +178,8 @@ export function CreateResourceSheet({
       listLifecycleStatuses(),
       listHealthStatuses(),
     ]).then(([rt, env, own, lc, hs]) => {
+      if (cancelled) return;
+
       setResourceTypes(rt);
       setEnvironments(env);
       setOwners(own);
@@ -203,6 +207,8 @@ export function CreateResourceSheet({
     });
     setError(null);
     setSuccessState(null);
+
+    return () => { cancelled = true; };
   }, [open, form]);
 
   // Load subtypes when resource type changes
@@ -212,9 +218,11 @@ export function CreateResourceSheet({
       return;
     }
 
+    let cancelled = false;
     listResourceSubtypes(watchResourceType).then((subtypes) => {
-      setResourceSubtypes(subtypes);
+      if (!cancelled) setResourceSubtypes(subtypes);
     });
+    return () => { cancelled = true; };
   }, [watchResourceType]);
 
   // Clear subtype when resource type changes
@@ -235,7 +243,7 @@ export function CreateResourceSheet({
     const schema = getProfileSchema(watchResourceType);
     const fields = schema?.fields ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return zodResolver(buildFormSchema(fields)) as any;
+    return zodResolver(buildFormSchema(fields, ct("fieldRequired"))) as any;
   }, [watchResourceType]);
 
   const profileSchema = useMemo(() => {
@@ -250,8 +258,14 @@ export function CreateResourceSheet({
       setSubmitting(true);
       setError(null);
 
+      const currentSchema = getProfileSchema(values.resourceType);
+      const numberFields = new Set(
+        currentSchema?.fields.filter((f) => f.inputType === "number").map((f) => f.key) ?? [],
+      );
       const profileData = Object.fromEntries(
-        Object.entries(values.profile ?? {}).filter(([, v]) => v !== "" && v !== undefined),
+        Object.entries(values.profile ?? {})
+          .filter(([, v]) => v !== "" && v !== undefined)
+          .map(([k, v]) => [k, numberFields.has(k) ? Number(v) : v]),
       );
 
       const input: CreateResourceInput = {
@@ -341,7 +355,21 @@ export function CreateResourceSheet({
           <SheetDescription>{t("create.description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-6 px-6 py-5">
+        <form
+          className="space-y-6 px-6 py-5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const values = form.getValues();
+            const result = await dynamicResolver(values, {}, { fields: {} as any });
+            if (result.errors && Object.keys(result.errors).length > 0) {
+              Object.entries(result.errors).forEach(([field, err]) => {
+                form.setError(field as any, { message: (err as any)?.message ?? "Invalid" });
+              });
+              return;
+            }
+            handleSubmit(values as any);
+          }}
+        >
           {/* Card A -- Basic Info */}
           <section className="rounded-xl border border-border p-4">
             <h3 className="mb-3 text-sm font-medium text-foreground">
@@ -351,7 +379,7 @@ export function CreateResourceSheet({
               {/* Row 1: resourceType + resourceSubtype */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-resourceType" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.resourceType")} *
                   </label>
                   <Select
@@ -360,7 +388,7 @@ export function CreateResourceSheet({
                       if (v !== null) form.setValue("resourceType", v);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="create-resourceType" aria-required="true" className="h-9 w-full border-border bg-background">
                       <SelectValue placeholder={ct("fields.resourceType")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -373,7 +401,7 @@ export function CreateResourceSheet({
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-resourceSubtype" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.resourceSubtype")}
                   </label>
                   <Select
@@ -382,7 +410,7 @@ export function CreateResourceSheet({
                       if (v !== null) form.setValue("resourceSubtype", v);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="create-resourceSubtype" className="h-9 w-full border-border bg-background">
                       <SelectValue placeholder="--" />
                     </SelectTrigger>
                     <SelectContent>
@@ -399,10 +427,12 @@ export function CreateResourceSheet({
               {/* Row 2: name + displayName */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-name" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.name")} *
                   </label>
                   <Input
+                    id="create-name"
+                    aria-required="true"
                     {...form.register("name")}
                     className="h-9 border-border bg-background"
                   />
@@ -413,10 +443,12 @@ export function CreateResourceSheet({
                   )}
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-displayName" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.displayName")} *
                   </label>
                   <Input
+                    id="create-displayName"
+                    aria-required="true"
                     {...form.register("displayName")}
                     className="h-9 border-border bg-background"
                   />
@@ -430,10 +462,11 @@ export function CreateResourceSheet({
 
               {/* Source (disabled) */}
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="create-source" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {ct("fields.source")}
                 </label>
                 <Input
+                  id="create-source"
                   value="manual"
                   disabled
                   className="h-9 border-border bg-muted"
@@ -469,7 +502,7 @@ export function CreateResourceSheet({
 
                       return (
                         <div key={field.key}>
-                          <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                          <label htmlFor={`create-profile-${field.key}`} className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                             {t(`profileFields.${field.key}`)}
                             {field.required && " *"}
                           </label>
@@ -481,7 +514,7 @@ export function CreateResourceSheet({
                                   form.setValue(fieldName, v);
                               }}
                             >
-                              <SelectTrigger className="h-9 w-full border-border bg-background">
+                              <SelectTrigger id={`create-profile-${field.key}`} aria-required={field.required ? "true" : undefined} className="h-9 w-full border-border bg-background">
                                 <SelectValue placeholder={field.placeholder ?? ""} />
                               </SelectTrigger>
                               <SelectContent>
@@ -494,6 +527,8 @@ export function CreateResourceSheet({
                             </Select>
                           ) : (
                             <Input
+                              id={`create-profile-${field.key}`}
+                              aria-required={field.required ? "true" : undefined}
                               type={field.inputType === "number" ? "number" : "text"}
                               placeholder={field.placeholder ?? ""}
                               {...form.register(fieldName)}
@@ -523,7 +558,7 @@ export function CreateResourceSheet({
               {/* Row 1: environment + owner (with Skeleton) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-environmentId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.environment")} *
                   </label>
                   {dictsLoaded ? (
@@ -533,7 +568,7 @@ export function CreateResourceSheet({
                         if (v !== null) form.setValue("environmentId", v);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-full border-border bg-background">
+                      <SelectTrigger id="create-environmentId" aria-required="true" className="h-9 w-full border-border bg-background">
                         <SelectValue placeholder={ct("fields.environment")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -549,7 +584,7 @@ export function CreateResourceSheet({
                   )}
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-ownerId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.owner")} *
                   </label>
                   {dictsLoaded ? (
@@ -559,7 +594,7 @@ export function CreateResourceSheet({
                         if (v !== null) form.setValue("ownerId", v);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-full border-border bg-background">
+                      <SelectTrigger id="create-ownerId" aria-required="true" className="h-9 w-full border-border bg-background">
                         <SelectValue placeholder={ct("fields.owner")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -579,7 +614,7 @@ export function CreateResourceSheet({
               {/* Row 2: lifecycleStatus + healthStatus */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-lifecycleStatus" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.lifecycleStatus")} *
                   </label>
                   <Select
@@ -588,7 +623,7 @@ export function CreateResourceSheet({
                       if (v !== null) form.setValue("lifecycleStatus", v);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="create-lifecycleStatus" aria-required="true" className="h-9 w-full border-border bg-background">
                       <SelectValue placeholder={ct("fields.lifecycleStatus")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -601,7 +636,7 @@ export function CreateResourceSheet({
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <label htmlFor="create-healthStatus" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     {ct("fields.healthStatus")} *
                   </label>
                   <Select
@@ -610,7 +645,7 @@ export function CreateResourceSheet({
                       if (v !== null) form.setValue("healthStatus", v);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full border-border bg-background">
+                    <SelectTrigger id="create-healthStatus" aria-required="true" className="h-9 w-full border-border bg-background">
                       <SelectValue placeholder={ct("fields.healthStatus")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -626,10 +661,11 @@ export function CreateResourceSheet({
 
               {/* externalId */}
               <div>
-                <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <label htmlFor="create-externalId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {ct("fields.externalId")}
                 </label>
                 <Input
+                  id="create-externalId"
                   {...form.register("externalId")}
                   className="h-9 border-border bg-background"
                 />
@@ -695,25 +731,15 @@ export function CreateResourceSheet({
                 {ct("actions.cancel")}
               </Button>
               <Button
+                type="submit"
                 size="sm"
-                onClick={async () => {
-                  const values = form.getValues();
-                  const result = await dynamicResolver(values, {}, { fields: {} as any });
-                  if (result.errors && Object.keys(result.errors).length > 0) {
-                    Object.entries(result.errors).forEach(([field, err]) => {
-                      form.setError(field as any, { message: (err as any)?.message ?? "Invalid" });
-                    });
-                    return;
-                  }
-                  handleSubmit(values as any);
-                }}
                 disabled={submitting || dictError}
               >
                 {submitting ? t("create.submitting") : ct("actions.save")}
               </Button>
             </div>
           )}
-        </div>
+        </form>
       </SheetContent>
     </Sheet>
   );
