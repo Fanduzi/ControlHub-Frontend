@@ -105,9 +105,11 @@ export type CreateResourceInput = {
   source: string;
   externalId?: string;
   labels?: Record<string, string>;
+  profile?: Record<string, string | number | boolean>;
 };
 
 export type UpdateResourceInput = {
+  name?: string;
   resourceSubtype?: string;
   displayName?: string;
   environmentId?: string;

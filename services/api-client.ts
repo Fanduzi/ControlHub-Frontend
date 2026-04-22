@@ -1,3 +1,15 @@
+export class ApiError extends Error {
+  status: number;
+  details?: Record<string, string>;
+
+  constructor(status: number, message: string, details?: Record<string, string>) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
@@ -30,7 +42,16 @@ export async function apiClient<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let errorBody: Record<string, unknown> = {};
+    try {
+      errorBody = await response.json();
+    } catch {
+      // not JSON
+    }
+    const message = (errorBody?.message as string) || `Request failed: ${response.status}`;
+    const details = (errorBody?.details as Record<string, string>) || undefined;
+    const error = new ApiError(response.status, message, details);
+    throw error;
   }
 
   if (response.status === 204) {

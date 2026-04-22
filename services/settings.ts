@@ -65,6 +65,19 @@ export async function listHealthStatuses(): Promise<DictionaryItem[]> {
   }
 }
 
+export async function listResourceSubtypes(
+  resourceType: string,
+): Promise<DictionaryItem[]> {
+  try {
+    const res = await apiClient<{ subtypes: DictionaryItem[] }>(
+      `/resource-subtypes?resourceType=${encodeURIComponent(resourceType)}`,
+    );
+    return res.subtypes;
+  } catch {
+    return [];
+  }
+}
+
 const fallbackDictionaries: DictionaryRecord[] = [
   {
     key: "resourceType",

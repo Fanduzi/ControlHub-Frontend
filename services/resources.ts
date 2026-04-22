@@ -187,6 +187,16 @@ export async function updateResource(
   });
 }
 
+export async function updateProfile(
+  id: string,
+  fields: Record<string, string | number | boolean>,
+): Promise<void> {
+  await apiClient<void>(`/resources/${encodeURIComponent(id)}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(fields),
+  });
+}
+
 export async function createResourceRelation(
   resourceId: string,
   input: CreateResourceRelationInput,
