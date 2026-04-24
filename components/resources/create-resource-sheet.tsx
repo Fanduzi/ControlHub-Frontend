@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -128,7 +128,7 @@ export function CreateResourceSheet({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successState, setSuccessState] = useState<{ id: string } | null>(null);
+  const [successState, setSuccessState] = useState<{ id: number } | null>(null);
 
   const [resourceTypes, setResourceTypes] = useState<ResourceTypeDefinition[]>([]);
   const [environments, setEnvironments] = useState<Environment[]>([]);
@@ -141,9 +141,8 @@ export function CreateResourceSheet({
 
   const prefs = useMemo(() => loadPrefs(), []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<FormValues>({
-    resolver: zodResolver(buildFormSchema([], ct("fieldRequired"))) as any,
+    resolver: zodResolver(buildFormSchema([], ct("fieldRequired"))) as Resolver<FormValues>,
     defaultValues: {
       resourceType: "",
       resourceSubtype: "",
@@ -238,13 +237,11 @@ export function CreateResourceSheet({
     }
   }, [watchResourceType, watchResourceSubtype, form]);
 
-  // Build dynamic resolver based on current resourceType
-  const dynamicResolver = useMemo(() => {
+  const dynamicResolver = useMemo((): Resolver<FormValues> => {
     const schema = getProfileSchema(watchResourceType);
     const fields = schema?.fields ?? [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return zodResolver(buildFormSchema(fields, ct("fieldRequired"))) as any;
-  }, [watchResourceType]);
+    return zodResolver(buildFormSchema(fields, ct("fieldRequired"))) as Resolver<FormValues>;
+  }, [watchResourceType, ct]);
 
   const profileSchema = useMemo(() => {
     if (!watchResourceType) return null;
@@ -272,8 +269,8 @@ export function CreateResourceSheet({
         resourceType: values.resourceType,
         name: values.name,
         displayName: values.displayName,
-        environmentId: values.environmentId,
-        ownerId: values.ownerId,
+        environmentId: Number(values.environmentId),
+        ownerId: Number(values.ownerId),
         lifecycleStatus: values.lifecycleStatus,
         healthStatus: values.healthStatus,
         source: values.source || "manual",
@@ -360,14 +357,19 @@ export function CreateResourceSheet({
           onSubmit={async (e) => {
             e.preventDefault();
             const values = form.getValues();
-            const result = await dynamicResolver(values, {}, { fields: {} as any });
+            const result = await dynamicResolver(
+              values,
+              undefined,
+              {} as Parameters<Resolver<FormValues>>[2],
+            );
             if (result.errors && Object.keys(result.errors).length > 0) {
-              Object.entries(result.errors).forEach(([field, err]) => {
-                form.setError(field as any, { message: (err as any)?.message ?? "Invalid" });
-              });
+              for (const [field, err] of Object.entries(result.errors)) {
+                const message = (err as { message?: string } | undefined)?.message ?? "Invalid";
+                form.setError(field as keyof FormValues, { message });
+              }
               return;
             }
-            handleSubmit(values as any);
+            handleSubmit(values);
           }}
         >
           {/* Card A -- Basic Info */}
