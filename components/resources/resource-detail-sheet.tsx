@@ -107,6 +107,7 @@ export function ResourceDetailSheet({
                 variant="outline"
                 size="xs"
                 onClick={() => setEditOpen(true)}
+                disabled={!detailResource || loading}
               >
                 {t("common.actions.editResource")}
               </Button>
