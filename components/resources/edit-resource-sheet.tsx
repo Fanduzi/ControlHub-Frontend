@@ -23,6 +23,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LabelsEditor } from "@/components/blocks/labels-editor";
 import { getProfileSchema, hasProfileFields } from "@/lib/profile-field-registry";
@@ -158,8 +168,8 @@ export function EditResourceSheet({
         name: resource.name,
         displayName: resource.displayName,
         resourceSubtype: resource.resourceSubtype ?? "",
-        environmentId: resource.environmentId,
-        ownerId: resource.ownerId,
+        environmentId: String(resource.environmentId),
+        ownerId: String(resource.ownerId),
         lifecycleStatus: resource.lifecycleStatus,
         healthStatus: resource.healthStatus,
         externalId: resource.externalId ?? "",
@@ -172,18 +182,27 @@ export function EditResourceSheet({
   }, [open, resource, reset]);
 
   // Handle close with unsaved changes check
+  const [pendingClose, setPendingClose] = useState(false);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen && isDirty) {
-        const confirmed = window.confirm(
-          "You have unsaved changes. Discard?",
-        );
-        if (!confirmed) return;
+        setPendingClose(true);
+        return;
       }
       onOpenChange(nextOpen);
     },
     [isDirty, onOpenChange],
   );
+
+  const handleDiscardConfirm = useCallback(() => {
+    setPendingClose(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
+
+  const handleDiscardCancel = useCallback(() => {
+    setPendingClose(false);
+  }, []);
 
   const onSubmit = useCallback(
     async (data: EditFormValues) => {
@@ -208,11 +227,18 @@ export function EditResourceSheet({
 
       type BaseFieldKey = (typeof baseFieldKeys)[number];
 
-      const changedBaseFields: Partial<Record<BaseFieldKey, string>> = {};
+      const changedBaseFields: Partial<UpdateResourceInput> = {};
       for (const key of baseFieldKeys) {
-        if (dirtyFields[key]) {
-          changedBaseFields[key] = data[key] as string;
+        if (!dirtyFields[key]) {
+          continue;
         }
+
+        if (key === "environmentId" || key === "ownerId") {
+          changedBaseFields[key] = Number(data[key]);
+          continue;
+        }
+
+        changedBaseFields[key] = data[key] as string;
       }
 
       // Determine changed profile fields
@@ -723,6 +749,22 @@ export function EditResourceSheet({
           </div>
         </form>
       </SheetContent>
+      <AlertDialog open={pendingClose} onOpenChange={(open) => { if (!open) handleDiscardCancel(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("common.unsavedChanges.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("common.unsavedChanges.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardConfirm}>
+              {t("common.unsavedChanges.discard")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }

@@ -24,6 +24,11 @@
       "archived": "已归档",
       "clearAll": "清除全部"
     },
+    "unsavedChanges": {
+      "title": "放弃更改？",
+      "description": "你有未保存的更改，离开后将会丢失。",
+      "discard": "放弃"
+    },
     "fields": {
       "resource": "资源",
       "resourceType": "资源类型",

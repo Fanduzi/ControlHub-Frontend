@@ -24,6 +24,11 @@
       "archived": "Archived",
       "clearAll": "Clear all"
     },
+    "unsavedChanges": {
+      "title": "Discard changes?",
+      "description": "You have unsaved changes that will be lost.",
+      "discard": "Discard"
+    },
     "fields": {
       "resource": "Resource",
       "resourceType": "Resource type",
