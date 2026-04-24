@@ -216,7 +216,16 @@ export function Topbar({ pathname }: TopbarProps) {
             <DropdownMenuItem onClick={() => router.push("/settings")}>
               {t("shell.profile")}
             </DropdownMenuItem>
-            <DropdownMenuItem>{t("shell.signOut")}</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                sessionStorage.removeItem("controlhub.token");
+                sessionStorage.removeItem("controlhub.role");
+                document.cookie = "controlhub.token=; path=/; max-age=0";
+                router.push("/login");
+              }}
+            >
+              {t("shell.signOut")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
