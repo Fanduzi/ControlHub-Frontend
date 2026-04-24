@@ -41,6 +41,7 @@ export default function LoginPage() {
       const result = await login(values);
       window.sessionStorage.setItem("controlhub.token", result.token);
       window.sessionStorage.setItem("controlhub.role", result.role);
+      document.cookie = `controlhub.token=${result.token}; path=/; max-age=86400; SameSite=Strict`;
       router.push("/overview");
     } catch (submitError) {
       const message =
