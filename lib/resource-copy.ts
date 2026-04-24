@@ -1,10 +1,10 @@
-const resourceSummaryKeys: Record<string, string> = {
-  "40000000-0000-0000-0000-000000000001": "orderMysqlClusterProd",
-  "40000000-0000-0000-0000-000000000002": "orderMysqlPrimaryProd",
-  "40000000-0000-0000-0000-000000000003": "orderApiProd",
-  "40000000-0000-0000-0000-000000000004": "prodDbHost01",
+const resourceSummaryKeys: Record<number, string> = {
+  1: "orderMysqlClusterProd",
+  2: "orderMysqlPrimaryProd",
+  3: "orderApiProd",
+  4: "prodDbHost01",
 };
 
-export function getResourceSummaryKey(resourceId: string) {
+export function getResourceSummaryKey(resourceId: number) {
   return resourceSummaryKeys[resourceId] ?? null;
 }

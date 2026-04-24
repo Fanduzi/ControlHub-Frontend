@@ -19,7 +19,7 @@ export type AuditEventViewModelListResponse = {
 };
 
 export type ResourceRelationViewModel = ResourceRelation & {
-  relatedResourceId: string;
+  relatedResourceId: number;
   relatedResourceName: string;
   direction: "incoming" | "outgoing";
   relatedResource?: ResourceRelation["relatedResource"];

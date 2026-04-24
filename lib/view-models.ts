@@ -38,20 +38,20 @@ import type {
   ResourceListViewModelResponse,
 } from "@/types/view-models";
 
-const resourceSummaries: Record<string, string> = {
-  "40000000-0000-0000-0000-000000000001":
+const resourceSummaries: Record<number, string> = {
+  1:
     "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
-  "40000000-0000-0000-0000-000000000002":
+  2:
     "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
-  "40000000-0000-0000-0000-000000000003":
+  3:
     "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
-  "40000000-0000-0000-0000-000000000004":
+  4:
     "Production database host providing compute and storage for the MySQL primary instance.",
 };
 
-const actorLabels: Record<string, string> = {
-  "30000000-0000-0000-0000-000000000001": "ControlHub Admin",
-  "30000000-0000-0000-0000-000000000002": "ControlHub Editor",
+const actorLabels: Record<number, string> = {
+  1: "ControlHub Admin",
+  2: "ControlHub Editor",
 };
 
 function buildFallbackSummary(resource: Resource): string {
@@ -68,12 +68,12 @@ function buildFallbackSummary(resource: Resource): string {
   return parts.length > 0 ? parts.join(" · ") : resource.displayName;
 }
 
-function fallbackLabel(id: string) {
-  return id
-    .split("-")
-    .filter(Boolean)
-    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
-    .join(" ");
+function fallbackLabel(id: number | null) {
+  if (id === null) {
+    return "Unknown";
+  }
+
+  return String(id);
 }
 
 function buildAuditSummary(event: AuditEvent) {
@@ -88,11 +88,11 @@ async function buildLookupMaps() {
   ]);
 
   return {
-    resourceMap: new Map(resources.map((resource) => [resource.id, resource])),
-    environmentMap: new Map(
+    resourceMap: new Map<number, Resource>(resources.map((resource) => [resource.id, resource])),
+    environmentMap: new Map<number, string>(
       environments.map((environment) => [environment.id, environment.name]),
     ),
-    ownerMap: new Map(owners.map((owner) => [owner.id, owner.name])),
+    ownerMap: new Map<number, string>(owners.map((owner) => [owner.id, owner.name])),
   };
 }
 
@@ -103,17 +103,17 @@ async function buildListLookupMaps() {
   ]);
 
   return {
-    environmentMap: new Map(
+    environmentMap: new Map<number, string>(
       environments.map((environment) => [environment.id, environment.name]),
     ),
-    ownerMap: new Map(owners.map((owner) => [owner.id, owner.name])),
+    ownerMap: new Map<number, string>(owners.map((owner) => [owner.id, owner.name])),
   };
 }
 
 function toRelationViewModel(
   relation: ResourceRelation,
-  currentResourceId: string,
-  resourceMap: Map<string, Resource>,
+  currentResourceId: number,
+  resourceMap: Map<number, Resource>,
 ): ResourceRelationViewModel {
   const outgoing = relation.fromResourceId === currentResourceId;
   const relatedResourceId = outgoing
@@ -131,7 +131,7 @@ function toRelationViewModel(
     relatedResourceName:
       related?.displayName ??
       relatedFromMap?.displayName ??
-      relatedResourceId,
+      String(relatedResourceId),
     direction: outgoing ? "outgoing" : "incoming",
     relatedResource: related ?? null,
   };
@@ -139,18 +139,17 @@ function toRelationViewModel(
 
 function toAuditEventViewModel(
   event: AuditEvent,
-  resourceMap: Map<string, Resource>,
-  environmentMap: Map<string, string>,
+  resourceMap: Map<number, Resource>,
+  environmentMap: Map<number, string>,
 ): AuditEventViewModel {
-  const target = resourceMap.get(event.targetResourceId);
+  const target = event.targetResourceId === null ? undefined : resourceMap.get(event.targetResourceId);
 
   return {
     ...event,
-    actorLabel:
-      actorLabels[event.actorUserId] ?? fallbackLabel(event.actorUserId),
-    targetResourceName: target?.displayName ?? event.targetResourceId,
+    actorLabel: fallbackLabel(event.actorUserId),
+    targetResourceName: target?.displayName ?? fallbackLabel(event.targetResourceId),
     environmentLabel: target
-      ? (environmentMap.get(target.environmentId) ?? target.environmentId)
+      ? (environmentMap.get(target.environmentId) ?? String(target.environmentId))
       : "Unknown",
     summary: buildAuditSummary(event),
   };
@@ -190,8 +189,8 @@ function toAuditEventPageInfo(response: AuditEventListResult) {
 
 function toAuditEventViewModels(
   events: AuditEvent[],
-  resourceMap: Map<string, Resource>,
-  environmentMap: Map<string, string>,
+  resourceMap: Map<number, Resource>,
+  environmentMap: Map<number, string>,
 ): AuditEventViewModel[] {
   return events.map((event) =>
     toAuditEventViewModel(event, resourceMap, environmentMap),
@@ -287,8 +286,8 @@ async function toResourceListViewModelResponse(
 
 function toAuditEventViewModelListResponse(
   response: AuditEventListResult,
-  resourceMap: Map<string, Resource>,
-  environmentMap: Map<string, string>,
+  resourceMap: Map<number, Resource>,
+  environmentMap: Map<number, string>,
 ): AuditEventViewModelListResponse {
   return {
     items: toAuditEventViewModels(
@@ -324,8 +323,8 @@ function toResourceListViewModel(
   return {
     ...resource,
     environmentName:
-      environmentMap.get(resource.environmentId) ?? resource.environmentId,
-    ownerName: ownerMap.get(resource.ownerId) ?? resource.ownerId,
+      environmentMap.get(resource.environmentId) ?? String(resource.environmentId),
+    ownerName: ownerMap.get(resource.ownerId) ?? String(resource.ownerId),
     summary: resourceSummaries[resource.id] ?? buildFallbackSummary(resource),
     isArchived: resource.archivedAt !== null && resource.archivedAt !== undefined,
   };
@@ -415,7 +414,7 @@ export async function listAttentionResourceViewModels(): Promise<
 }
 
 export async function getResourceViewModel(
-  resourceId: string,
+  resourceId: number,
 ): Promise<ResourceDetailViewModel | null> {
   const detailResponse = await getResourceById(resourceId);
 

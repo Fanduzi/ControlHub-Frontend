@@ -180,7 +180,7 @@ function compareNodesSemantic(a: TopologyNode, b: TopologyNode): number {
 
   // Deterministic fallback
   if (a.name !== b.name) return a.name.localeCompare(b.name);
-  return a.id.localeCompare(b.id);
+  return a.id - b.id;
 }
 
 // --- Generic fallback comparison ---
@@ -190,14 +190,14 @@ function compareNodesGeneric(a: TopologyNode, b: TopologyNode): number {
   const typeOrderB = TYPE_DISPLAY_ORDER[b.resourceType] ?? 99;
   if (typeOrderA !== typeOrderB) return typeOrderA - typeOrderB;
   if (a.name !== b.name) return a.name.localeCompare(b.name);
-  return a.id.localeCompare(b.id);
+  return a.id - b.id;
 }
 
 function compareEdges(a: TopologyEdge, b: TopologyEdge): number {
   if (a.relationType !== b.relationType) return a.relationType.localeCompare(b.relationType);
-  if (a.fromResourceId !== b.fromResourceId) return a.fromResourceId.localeCompare(b.fromResourceId);
-  if (a.toResourceId !== b.toResourceId) return a.toResourceId.localeCompare(b.toResourceId);
-  return a.id.localeCompare(b.id);
+  if (a.fromResourceId !== b.fromResourceId) return a.fromResourceId - b.fromResourceId;
+  if (a.toResourceId !== b.toResourceId) return a.toResourceId - b.toResourceId;
+  return a.id - b.id;
 }
 
 // --- Generic column index ---
@@ -214,7 +214,7 @@ function layoutLayerRow(
   nodes: TopologyNode[],
   centerX: number,
   baseY: number,
-  positions: Map<string, { x: number; y: number }>,
+  positions: Map<number, { x: number; y: number }>,
 ): number {
   if (nodes.length === 0) return baseY;
 
@@ -236,9 +236,9 @@ function layoutLayerRow(
 
 /** Result of computing group box + replication layout. */
 type DatabaseLayoutResult = {
-  positions: Map<string, { x: number; y: number }>;
+  positions: Map<number, { x: number; y: number }>;
   /** Group box node IDs keyed by the cluster node they replace. */
-  clusterToGroupMap: Map<string, string>;
+  clusterToGroupMap: Map<number, string>;
   /** Group box node data for rendering. */
   groupBoxNodes: Array<{
     id: string;
@@ -248,7 +248,7 @@ type DatabaseLayoutResult = {
     data: GroupBoxData;
   }>;
   /** Root cluster node IDs — used to keep membership edges targeting root directly. */
-  rootClusterNodeIds: Set<string>;
+  rootClusterNodeIds: Set<number>;
 };
 
 /**
@@ -261,10 +261,10 @@ type DatabaseLayoutResult = {
  * replication nodes. The cluster label becomes the group box title.
  */
 function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResult {
-  const positions = new Map<string, { x: number; y: number }>();
-  const clusterToGroupMap = new Map<string, string>();
+  const positions = new Map<number, { x: number; y: number }>();
+  const clusterToGroupMap = new Map<number, string>();
   const groupBoxNodes: DatabaseLayoutResult["groupBoxNodes"] = [];
-  const rootClusterNodeIds = new Set<string>();
+  const rootClusterNodeIds = new Set<number>();
 
   // Group nodes by layer
   const appNodes = sortedNodes.filter((n) => n.topologyLayer === "application");
@@ -395,8 +395,8 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
   return { positions, clusterToGroupMap, groupBoxNodes, rootClusterNodeIds };
 }
 
-function computeGenericLayout(sortedNodes: TopologyNode[]): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
+function computeGenericLayout(sortedNodes: TopologyNode[]): Map<number, { x: number; y: number }> {
+  const positions = new Map<number, { x: number; y: number }>();
 
   const columns = new Map<number, TopologyNode[]>();
   for (const node of sortedNodes) {
@@ -429,7 +429,7 @@ function isBackboneEdge(edge: TopologyEdge): boolean {
 /** Compute unique layer bands for visual grouping. */
 function computeLayerBands(
   sortedNodes: TopologyNode[],
-  positions: Map<string, { x: number; y: number }>,
+  positions: Map<number, { x: number; y: number }>,
 ): LayerBand[] {
   const layerRanges = new Map<string, { minX: number; maxX: number; minY: number; maxY: number }>();
 
@@ -492,10 +492,10 @@ export function mapTopologyToFlow(response: TopologyResponse): {
       .map((n) => n.id),
   );
 
-  let positions: Map<string, { x: number; y: number }>;
-  let clusterToGroupMap = new Map<string, string>();
+  let positions: Map<number, { x: number; y: number }>;
+  let clusterToGroupMap = new Map<number, string>();
   let groupBoxNodes: DatabaseLayoutResult["groupBoxNodes"] = [];
-  let rootClusterNodeIds = new Set<string>();
+  let rootClusterNodeIds = new Set<number>();
 
   if (isDatabase) {
     const result = computeDatabaseLayout(sortedNodes);
@@ -518,7 +518,7 @@ export function mapTopologyToFlow(response: TopologyResponse): {
     if (clusterNodeIds.has(node.id)) continue;
 
     nodes.push({
-      id: node.id,
+      id: String(node.id),
       type: "topologyNode",
       position: positions.get(node.id) ?? { x: 0, y: 0 },
       data: {
@@ -547,22 +547,22 @@ export function mapTopologyToFlow(response: TopologyResponse): {
   const edges: Edge[] = [];
 
   for (const edge of sortedEdges) {
-    let sourceId = edge.fromResourceId;
-    let targetId = edge.toResourceId;
+    let sourceId = String(edge.fromResourceId);
+    let targetId = String(edge.toResourceId);
 
     // Retarget cluster node references to group box
-    if (clusterToGroupMap.has(sourceId)) {
-      sourceId = clusterToGroupMap.get(sourceId)!;
+    if (clusterToGroupMap.has(edge.fromResourceId)) {
+      sourceId = clusterToGroupMap.get(edge.fromResourceId)!;
     }
-    if (clusterToGroupMap.has(targetId)) {
-      targetId = clusterToGroupMap.get(targetId)!;
+    if (clusterToGroupMap.has(edge.toResourceId)) {
+      targetId = clusterToGroupMap.get(edge.toResourceId)!;
     }
 
     // Membership edges: if target was retargeted from a root cluster node,
     // keep targeting the root node directly (shows internal replica→cluster
     // relationship inside the group box).
     if (isDatabase && edge.semanticType === "membership" && rootClusterNodeIds.has(edge.toResourceId)) {
-      targetId = edge.toResourceId;
+      targetId = String(edge.toResourceId);
     }
 
     const backbone = isDatabase && isBackboneEdge(edge);
@@ -580,7 +580,7 @@ export function mapTopologyToFlow(response: TopologyResponse): {
       : {};
 
     edges.push({
-      id: edge.id,
+      id: String(edge.id),
       source: sourceId,
       target: targetId,
       label: backbone ? edge.relationType : undefined,

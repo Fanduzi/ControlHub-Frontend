@@ -23,7 +23,7 @@ import type { Resource } from "@/types/resource";
 
 interface ResourceSearchComboboxProps {
   onSelect: (resource: Resource) => void;
-  excludeIds?: string[];
+  excludeIds?: number[];
 }
 
 export function ResourceSearchCombobox({
@@ -91,7 +91,7 @@ export function ResourceSearchCombobox({
               {results.map((resource) => (
                 <CommandItem
                   key={resource.id}
-                  value={resource.id}
+                  value={String(resource.id)}
                   onSelect={() => {
                     onSelect(resource);
                     setOpen(false);

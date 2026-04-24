@@ -10,7 +10,7 @@ const push = vi.fn();
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
-  usePathname: () => "/resources/cluster-1",
+  usePathname: () => "/resources/1",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -61,18 +61,18 @@ function renderWithProviders(
 }
 
 const mockTopologyResponse: TopologyResponse = {
-  rootResourceId: "cluster-1",
+  rootResourceId: 1,
   depth: 1,
   direction: "both",
   nodes: [
     {
-      id: "cluster-1",
+      id: 1,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       name: "order-mysql-cluster-prod",
       displayName: "Order MySQL Cluster Prod",
-      environmentId: "env-1",
-      ownerId: "owner-1",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       isRoot: true,
@@ -83,16 +83,16 @@ const mockTopologyResponse: TopologyResponse = {
       visualImportance: 0,
       isDatabaseTopology: true,
       replicationDepth: 0,
-      replicationParentId: "",
+      replicationParentId: undefined,
     },
     {
-      id: "instance-1",
+      id: 2,
       resourceType: "database_instance",
       resourceSubtype: "mysql",
       name: "order-mysql-primary-prod",
       displayName: "Order MySQL Primary Prod",
-      environmentId: "env-1",
-      ownerId: "owner-1",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       isRoot: false,
@@ -103,14 +103,14 @@ const mockTopologyResponse: TopologyResponse = {
       visualImportance: 0,
       isDatabaseTopology: true,
       replicationDepth: 0,
-      replicationParentId: "",
+      replicationParentId: undefined,
     },
   ],
   edges: [
     {
-      id: "edge-1",
-      fromResourceId: "instance-1",
-      toResourceId: "cluster-1",
+      id: 1,
+      fromResourceId: 2,
+      toResourceId: 1,
       relationType: "member_of",
       semanticType: "membership",
     },
@@ -127,14 +127,14 @@ describe("TopologyPanel", () => {
   it("renders loading state initially", () => {
     mockGetTopology.mockReturnValue(new Promise(() => {}));
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     expect(screen.getByTestId("topology-loading")).toBeInTheDocument();
   });
 
   it("renders empty state when topology has no edges", async () => {
     mockGetTopology.mockResolvedValueOnce({
-      rootResourceId: "cluster-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [mockTopologyResponse.nodes[0]],
@@ -143,7 +143,7 @@ describe("TopologyPanel", () => {
       isDatabaseTopology: true,
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-empty")).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("TopologyPanel", () => {
   it("renders error state on backend failure", async () => {
     mockGetTopology.mockRejectedValueOnce(new Error("500"));
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-error")).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe("TopologyPanel", () => {
   it("renders unavailable state when endpoint not implemented", async () => {
     mockGetTopology.mockRejectedValueOnce(new TopologyNotAvailableError());
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-unavailable")).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe("TopologyPanel", () => {
   it("renders topology graph when data is available", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-graph")).toBeInTheDocument();
@@ -183,18 +183,18 @@ describe("TopologyPanel", () => {
   it("calls service on mount with resource id", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(mockGetTopology).toHaveBeenCalledTimes(1);
-      expect(mockGetTopology).toHaveBeenCalledWith("cluster-1", expect.anything());
+      expect(mockGetTopology).toHaveBeenCalledWith(1, expect.anything());
     });
   });
 
   it("depth selector renders with options", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-depth-select")).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe("TopologyPanel", () => {
   it("direction selector renders with both options", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-direction-select")).toBeInTheDocument();
@@ -222,14 +222,14 @@ describe("TopologyPanel", () => {
       ...mockTopologyResponse,
       nodes: mockTopologyResponse.nodes.map((node) => ({
         ...node,
-        healthStatus: node.id === "instance-1" ? "degraded" : node.healthStatus,
+        healthStatus: node.id === 2 ? "degraded" : node.healthStatus,
       })),
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+    renderWithProviders(<TopologyPanel resourceId={1} />, "zh-CN");
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     expect(screen.getByText("降级")).toBeInTheDocument();
@@ -240,7 +240,7 @@ describe("TopologyPanel", () => {
     mockGetTopology.mockResolvedValueOnce({
       ...mockTopologyResponse,
       nodes: mockTopologyResponse.nodes.map((node) => {
-        if (node.id === "instance-1") {
+        if (node.id === 2) {
           return {
             ...node,
             healthStatus: "unknown",
@@ -252,10 +252,10 @@ describe("TopologyPanel", () => {
       }),
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+    renderWithProviders(<TopologyPanel resourceId={1} />, "zh-CN");
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     expect(screen.getByText("未知")).toBeInTheDocument();
@@ -281,26 +281,26 @@ describe("TopologyPanel", () => {
       edges: [mockTopologyResponse.edges[0]],
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
-    const rootNode = screen.getByTestId("topology-node-instance-1");
+    const rootNode = screen.getByTestId("topology-node-2");
     expect(rootNode.getAttribute("data-is-root")).toBe("true");
   });
 
   it("non-root nodes are not marked as root", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
-    const instanceNode = screen.getByTestId("topology-node-instance-1");
+    const instanceNode = screen.getByTestId("topology-node-2");
     expect(instanceNode.getAttribute("data-is-root")).toBe("false");
   });
 
@@ -308,7 +308,7 @@ describe("TopologyPanel", () => {
     mockGetTopology.mockRejectedValueOnce(new Error("500"));
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-error")).toBeInTheDocument();
@@ -326,14 +326,14 @@ describe("TopologyPanel", () => {
   it("node click triggers navigation", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     await act(async () => {
-      screen.getByTestId("topology-node-instance-1").click();
+      screen.getByTestId("topology-node-2").click();
     });
 
     // Node click is handled by ReactFlow's onNodeClick, which requires
@@ -348,14 +348,14 @@ describe("TopologyPanel", () => {
   it("renders semantic role badge on non-root database topology nodes", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     // The primary node should have a role badge
-    const instanceNode = screen.getByTestId("topology-node-instance-1");
+    const instanceNode = screen.getByTestId("topology-node-2");
     expect(instanceNode.getAttribute("data-topology-role")).toBe("primary");
     expect(screen.getByText("Primary")).toBeInTheDocument();
   });
@@ -377,14 +377,14 @@ describe("TopologyPanel", () => {
       edges: [mockTopologyResponse.edges[0]],
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     // Root node should show "Root" label, not a role badge
-    const rootNode = screen.getByTestId("topology-node-instance-1");
+    const rootNode = screen.getByTestId("topology-node-2");
     expect(rootNode.getAttribute("data-topology-role")).toBe("primary");
     // "Root" label is shown instead of role badge
     expect(screen.getByText("Root")).toBeInTheDocument();
@@ -393,10 +393,10 @@ describe("TopologyPanel", () => {
   it("localizes role labels in Chinese", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />, "zh-CN");
+    renderWithProviders(<TopologyPanel resourceId={1} />, "zh-CN");
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     expect(screen.getByText("主库")).toBeInTheDocument();
@@ -407,7 +407,7 @@ describe("TopologyPanel", () => {
   it("renders expand button when graph has edges", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-expand-button")).toBeInTheDocument();
@@ -422,7 +422,7 @@ describe("TopologyPanel", () => {
       edges: [],
     });
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("topology-empty")).toBeInTheDocument();
@@ -436,10 +436,10 @@ describe("TopologyPanel", () => {
   it("renders localized type labels on topology nodes", async () => {
     mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
 
-    renderWithProviders(<TopologyPanel resourceId="cluster-1" />);
+    renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-node-instance-1")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-node-2")).toBeInTheDocument();
     });
 
     // Instance-1 is a database_instance → "DB Instance"

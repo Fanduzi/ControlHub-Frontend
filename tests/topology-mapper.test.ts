@@ -4,13 +4,13 @@ import { mapTopologyToFlow } from "@/lib/topology-mapper";
 
 function makeNode(overrides: Partial<TopologyNode> = {}): TopologyNode {
   return {
-    id: "node-1",
+    id: 1,
     resourceType: "database_cluster",
     resourceSubtype: "mysql",
     name: "test-cluster",
     displayName: "Test Cluster",
-    environmentId: "env-1",
-    ownerId: "owner-1",
+    environmentId: 1,
+    ownerId: 1,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     isRoot: false,
@@ -21,16 +21,16 @@ function makeNode(overrides: Partial<TopologyNode> = {}): TopologyNode {
     visualImportance: 0,
     isDatabaseTopology: true,
     replicationDepth: 0,
-    replicationParentId: "",
+    replicationParentId: undefined,
     ...overrides,
   };
 }
 
 function makeEdge(overrides: Partial<TopologyEdge> = {}): TopologyEdge {
   return {
-    id: "edge-1",
-    fromResourceId: "node-2",
-    toResourceId: "node-1",
+    id: 1,
+    fromResourceId: 2,
+    toResourceId: 1,
     relationType: "member_of",
     semanticType: "membership",
     ...overrides,
@@ -44,12 +44,12 @@ const DB_TOPOLOGY: Pick<TopologyResponse, "isDatabaseTopology"> = {
 describe("mapTopologyToFlow", () => {
   it("maps nodes with stable ids", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-1", isRoot: true, distance: 0, topologyRole: "service", topologyLayer: "application" }),
-        makeNode({ id: "node-2", name: "instance-1", displayName: "Instance 1", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
+        makeNode({ id: 1, isRoot: true, distance: 0, topologyRole: "service", topologyLayer: "application" }),
+        makeNode({ id: 2, name: "instance-1", displayName: "Instance 1", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
       ],
       edges: [],
       groups: [],
@@ -59,16 +59,16 @@ describe("mapTopologyToFlow", () => {
     const { nodes } = mapTopologyToFlow(response);
 
     expect(nodes).toHaveLength(2);
-    expect(nodes[0].id).toBe("node-1");
-    expect(nodes[1].id).toBe("node-2");
+    expect(nodes[0].id).toBe("1");
+    expect(nodes[1].id).toBe("2");
   });
 
   it("marks root node visually with isRoot data", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
-      nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
+      nodes: [makeNode({ id: 1, isRoot: true, distance: 0 })],
       edges: [],
       groups: [],
       ...DB_TOPOLOGY,
@@ -81,15 +81,15 @@ describe("mapTopologyToFlow", () => {
 
   it("maps edges with source and target from relation fields", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-1" }),
-        makeNode({ id: "node-2" }),
+        makeNode({ id: 1 }),
+        makeNode({ id: 2 }),
       ],
       edges: [
-        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "depends_on", semanticType: "dependency" }),
+        makeEdge({ id: 1, fromResourceId: 2, toResourceId: 1, relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
       ...DB_TOPOLOGY,
@@ -98,20 +98,20 @@ describe("mapTopologyToFlow", () => {
     const { edges } = mapTopologyToFlow(response);
 
     expect(edges).toHaveLength(1);
-    expect(edges[0].id).toBe("edge-1");
-    expect(edges[0].source).toBe("node-2");
-    expect(edges[0].target).toBe("node-1");
+    expect(edges[0].id).toBe("1");
+    expect(edges[0].source).toBe("2");
+    expect(edges[0].target).toBe("1");
   });
 
   it("orders nodes deterministically", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-3", name: "b-host", resourceType: "host", distance: 1, topologyRole: "host", topologyLayer: "host" }),
-        makeNode({ id: "node-1", name: "a-service", resourceType: "service", distance: 0, isRoot: true, topologyRole: "service", topologyLayer: "application" }),
-        makeNode({ id: "node-2", name: "a-instance", resourceType: "database_instance", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
+        makeNode({ id: 3, name: "b-host", resourceType: "host", distance: 1, topologyRole: "host", topologyLayer: "host" }),
+        makeNode({ id: 1, name: "a-service", resourceType: "service", distance: 0, isRoot: true, topologyRole: "service", topologyLayer: "application" }),
+        makeNode({ id: 2, name: "a-instance", resourceType: "database_instance", distance: 1, topologyRole: "primary", topologyLayer: "replication" }),
       ],
       edges: [],
       groups: [],
@@ -120,22 +120,22 @@ describe("mapTopologyToFlow", () => {
 
     const { nodes } = mapTopologyToFlow(response);
 
-    expect(nodes[0].id).toBe("node-1");
+    expect(nodes[0].id).toBe("1");
   });
 
   it("orders edges by relationType, source, target, id", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [
-        makeNode({ id: "node-1" }),
-        makeNode({ id: "node-2" }),
-        makeNode({ id: "node-3" }),
+        makeNode({ id: 1 }),
+        makeNode({ id: 2 }),
+        makeNode({ id: 3 }),
       ],
       edges: [
-        makeEdge({ id: "edge-2", fromResourceId: "node-3", toResourceId: "node-1", relationType: "runs_on", semanticType: "placement" }),
-        makeEdge({ id: "edge-1", fromResourceId: "node-2", toResourceId: "node-1", relationType: "depends_on", semanticType: "dependency" }),
+        makeEdge({ id: 2, fromResourceId: 3, toResourceId: 1, relationType: "runs_on", semanticType: "placement" }),
+        makeEdge({ id: 1, fromResourceId: 2, toResourceId: 1, relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
       ...DB_TOPOLOGY,
@@ -143,18 +143,18 @@ describe("mapTopologyToFlow", () => {
 
     const { edges } = mapTopologyToFlow(response);
 
-    expect(edges[0].id).toBe("edge-1"); // depends_on < runs_on
-    expect(edges[1].id).toBe("edge-2");
+    expect(edges[0].id).toBe("1"); // depends_on < runs_on
+    expect(edges[1].id).toBe("2");
   });
 
   it("includes node metadata in data field", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
       nodes: [
         makeNode({
-          id: "node-1",
+          id: 1,
           resourceType: "database_cluster",
           resourceSubtype: "mysql",
           name: "test-cluster",
@@ -185,10 +185,10 @@ describe("mapTopologyToFlow", () => {
 
   it("handles empty topology (root only, no edges)", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
-      nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
+      nodes: [makeNode({ id: 1, isRoot: true, distance: 0 })],
       edges: [],
       groups: [],
       ...DB_TOPOLOGY,
@@ -202,10 +202,10 @@ describe("mapTopologyToFlow", () => {
 
   it("produces memoization-safe references (new arrays each call)", () => {
     const response: TopologyResponse = {
-      rootResourceId: "node-1",
+      rootResourceId: 1,
       depth: 1,
       direction: "both",
-      nodes: [makeNode({ id: "node-1", isRoot: true, distance: 0 })],
+      nodes: [makeNode({ id: 1, isRoot: true, distance: 0 })],
       edges: [],
       groups: [],
       ...DB_TOPOLOGY,
@@ -220,13 +220,13 @@ describe("mapTopologyToFlow", () => {
 
   it("produces deterministic layout (same input = same output)", () => {
     const response: TopologyResponse = {
-      rootResourceId: "root",
+      rootResourceId: 10,
       depth: 2,
       direction: "both",
       nodes: [
-        makeNode({ id: "root", isRoot: true, distance: 0 }),
-        makeNode({ id: "n-2", distance: 1, name: "a", resourceType: "database_cluster" }),
-        makeNode({ id: "n-3", distance: 2, name: "b", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication" }),
+        makeNode({ id: 10, isRoot: true, distance: 0 }),
+        makeNode({ id: 11, distance: 1, name: "a", resourceType: "database_cluster" }),
+        makeNode({ id: 12, distance: 2, name: "b", resourceType: "database_instance", topologyRole: "replica", topologyLayer: "replication" }),
       ],
       edges: [],
       groups: [],
@@ -243,15 +243,15 @@ describe("mapTopologyToFlow", () => {
 
   it("does not produce overlapping positions for any two nodes", () => {
     const response: TopologyResponse = {
-      rootResourceId: "root",
+      rootResourceId: 10,
       depth: 2,
       direction: "both",
       nodes: [
-        makeNode({ id: "root", isRoot: true, distance: 0 }),
-        makeNode({ id: "n-2", distance: 1, name: "alpha", resourceType: "database_cluster" }),
-        makeNode({ id: "n-3", distance: 1, name: "beta", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication" }),
-        makeNode({ id: "n-4", distance: 2, name: "gamma", resourceType: "host", topologyRole: "host", topologyLayer: "host" }),
-        makeNode({ id: "n-5", distance: 2, name: "delta", resourceType: "service", topologyRole: "service", topologyLayer: "application" }),
+        makeNode({ id: 10, isRoot: true, distance: 0 }),
+        makeNode({ id: 11, distance: 1, name: "alpha", resourceType: "database_cluster" }),
+        makeNode({ id: 12, distance: 1, name: "beta", resourceType: "database_instance", topologyRole: "primary", topologyLayer: "replication" }),
+        makeNode({ id: 13, distance: 2, name: "gamma", resourceType: "host", topologyRole: "host", topologyLayer: "host" }),
+        makeNode({ id: 14, distance: 2, name: "delta", resourceType: "service", topologyRole: "service", topologyLayer: "application" }),
       ],
       edges: [],
       groups: [],

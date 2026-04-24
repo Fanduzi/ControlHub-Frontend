@@ -12,9 +12,9 @@ import {
 test.describe("Resource archive lifecycle", () => {
   let token: string;
   let activeName: string;
-  let activeId: string;
+  let activeId: number;
   let archivedName: string;
-  let archivedId: string;
+  let archivedId: number;
 
   test.beforeAll(async () => {
     token = await getAuthToken();

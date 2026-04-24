@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/blocks/topology-panel", () => ({
-  TopologyPanel: ({ resourceId }: { resourceId: string }) => (
+  TopologyPanel: ({ resourceId }: { resourceId: number }) => (
     <div data-testid="topology-panel-mock">{resourceId}</div>
   ),
 }));
@@ -20,7 +20,7 @@ vi.mock("@/components/resources/edit-resource-sheet", () => ({
 }));
 
 vi.mock("@/components/blocks/resource-relation-panel", () => ({
-  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: string; relatedResourceName: string }> }) => (
+  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: number; relatedResourceName: string }> }) => (
     <div>
       {relations.map((r) => (
         <div key={r.id}>{r.relatedResourceName}</div>
@@ -31,14 +31,14 @@ vi.mock("@/components/blocks/resource-relation-panel", () => ({
 import type { ResourceDetailViewModel } from "@/types/view-models";
 
 const resource: ResourceDetailViewModel = {
-  id: "res-db-primary",
+  id: 101,
   resourceType: "database_instance",
   resourceSubtype: "mysql",
   name: "orders-db-primary",
   displayName: "Orders DB Primary",
-  environmentId: "env-prod",
+  environmentId: 1,
   environmentName: "Production",
-  ownerId: "owner-dba",
+  ownerId: 1,
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "degraded",
@@ -62,21 +62,21 @@ const resource: ResourceDetailViewModel = {
   },
   relations: [
     {
-      id: "rel-cluster",
-      fromResourceId: "res-db-primary",
-      toResourceId: "res-db-cluster-orders",
+      id: 201,
+      fromResourceId: 101,
+      toResourceId: 202,
       relationType: "member_of",
       createdAt: "2026-04-11T13:00:00Z",
-      relatedResourceId: "res-db-cluster-orders",
+      relatedResourceId: 202,
       relatedResourceName: "orders-cluster",
       direction: "outgoing",
     },
   ],
   auditEvents: [
     {
-      id: "audit-1",
-      actorUserId: "user-admin",
-      targetResourceId: "res-db-primary",
+      id: 301,
+      actorUserId: 1,
+      targetResourceId: 101,
       eventType: "resource.updated",
       result: "success",
       createdAt: "2026-04-11T13:00:00Z",
@@ -111,7 +111,7 @@ describe("ResourceDetailSheet", () => {
     expect(screen.getByText("Admin User")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /open full detail/i }),
-    ).toHaveAttribute("href", "/resources/res-db-primary");
+    ).toHaveAttribute("href", "/resources/101");
     expect(consoleError).not.toHaveBeenCalled();
 
     consoleError.mockRestore();
@@ -145,13 +145,15 @@ describe("ResourceDetailSheet", () => {
     // Resource with no explicit resourceSummaries key — triggers fallback path
     const fallbackResource: ResourceDetailViewModel = {
       ...resource,
-      id: "41000000-0000-0000-0000-000000000010",
+      id: 4100001,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       lifecycleStatus: "running",
       // English fallback from buildFallbackSummary — should NOT appear
       summary: "Database Cluster · Mysql · Running",
     };
+
+    expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);
 
     render(
       <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
@@ -181,12 +183,14 @@ describe("ResourceDetailSheet", () => {
 
     const fallbackResource: ResourceDetailViewModel = {
       ...resource,
-      id: "41000000-0000-0000-0000-000000000013",
+      id: 4100002,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       lifecycleStatus: "degraded",
       summary: "Database Cluster · Mysql · Degraded",
     };
+
+    expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);
 
     render(
       <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
@@ -212,11 +216,13 @@ describe("ResourceDetailSheet", () => {
 
     const fallbackResource: ResourceDetailViewModel = {
       ...resource,
-      id: "41000000-0000-0000-0000-000000000010",
+      id: 4100001,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       summary: "Database Cluster · Mysql · Running",
     };
+
+    expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);
 
     render(
       <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>

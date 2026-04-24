@@ -11,12 +11,12 @@ const API_BASE =
 // ── Types ────────────────────────────────────────────────────────────
 
 type Resource = {
-  id: string;
+  id: number;
   resourceType: string;
   name: string;
   displayName: string;
-  environmentId: string;
-  ownerId: string;
+  environmentId: number;
+  ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
   source: string;
@@ -28,9 +28,9 @@ type Resource = {
 };
 
 type ResourceRelation = {
-  id: string;
-  fromResourceId: string;
-  toResourceId: string;
+  id: number;
+  fromResourceId: number;
+  toResourceId: number;
   relationType: string;
   createdAt: string;
 };
@@ -40,8 +40,8 @@ type CreateResourceInput = {
   resourceSubtype?: string;
   name: string;
   displayName: string;
-  environmentId: string;
-  ownerId: string;
+  environmentId: number;
+  ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
   source: string;
@@ -50,7 +50,7 @@ type CreateResourceInput = {
 };
 
 type CreateRelationInput = {
-  toResourceId: string;
+  toResourceId: number;
   relationType: string;
 };
 
@@ -116,7 +116,7 @@ export async function createTestResource(
 
 export async function getTestResource(
   token: string,
-  id: string,
+  id: number,
 ): Promise<Resource | null> {
   try {
     return await apiFetch<Resource>(`/resources/${encodeURIComponent(id)}`, {
@@ -132,7 +132,7 @@ export async function getTestResource(
 
 export async function updateTestResource(
   token: string,
-  id: string,
+  id: number,
   patch: Partial<CreateResourceInput>,
 ): Promise<Resource> {
   return apiFetch<Resource>(`/resources/${encodeURIComponent(id)}`, {
@@ -146,7 +146,7 @@ export async function updateTestResource(
 
 export async function createTestRelation(
   token: string,
-  fromResourceId: string,
+  fromResourceId: number,
   input: CreateRelationInput,
 ): Promise<ResourceRelation> {
   return apiFetch<ResourceRelation>(
@@ -161,7 +161,7 @@ export async function createTestRelation(
 
 export async function deleteTestRelation(
   token: string,
-  relationId: string,
+  relationId: number,
 ): Promise<void> {
   await apiFetch<void>(`/resource-relations/${encodeURIComponent(relationId)}`, {
     method: "DELETE",
@@ -181,7 +181,7 @@ export async function deleteTestRelation(
  */
 export async function archiveTestResource(
   token: string,
-  id: string,
+  id: number,
   reason = "e2e cleanup",
 ): Promise<Resource> {
   return apiFetch<Resource>(
@@ -218,8 +218,8 @@ export function defaultResourceInput(
     resourceType: "service",
     resourceSubtype: "e2e-test",
     displayName: overrides.name,
-    environmentId: "10000000-0000-0000-0000-000000000001",
-    ownerId: "20000000-0000-0000-0000-000000000001",
+    environmentId: 1,
+    ownerId: 1,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     source: "manual",

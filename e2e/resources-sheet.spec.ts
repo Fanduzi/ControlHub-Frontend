@@ -12,7 +12,7 @@ import {
 test.describe("Resources detail sheet", () => {
   let token: string;
   let resourceName: string;
-  let resourceId: string;
+  let resourceId: number;
 
   test.beforeAll(async () => {
     token = await getAuthToken();

@@ -18,8 +18,8 @@ import {
 
 type EnvironmentContextValue = {
   environments: Environment[];
-  currentEnvironmentId: string;
-  setEnvironmentId: (id: string) => void;
+  currentEnvironmentId: number | null;
+  setEnvironmentId: (id: number | null) => void;
   loading: boolean;
 };
 
@@ -29,7 +29,7 @@ const emptySubscribe = () => () => {};
 export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [envId, setEnvIdState] = useState("");
+  const [envId, setEnvIdState] = useState<number | null>(null);
 
   const mounted = useSyncExternalStore(
     emptySubscribe,
@@ -52,7 +52,7 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  function setEnvironmentId(id: string) {
+  function setEnvironmentId(id: number | null) {
     persistEnvironmentId(id);
     setEnvIdState(id);
   }

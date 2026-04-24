@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listAuditEvents, listRecentAuditEvents } from "@/services/audits";
+import { listAuditEvents, listRecentAuditEvents, listResourceAuditEvents } from "@/services/audits";
 import type { AuditEventListResponse } from "@/types/audit";
 
 const { apiClientMock } = vi.hoisted(() => ({
@@ -20,17 +20,17 @@ describe("listAuditEvents", () => {
     const response: AuditEventListResponse = {
       items: [
         {
-          id: "audit-older",
-          actorUserId: "user-1",
-          targetResourceId: "res-1",
+          id: 1001,
+          actorUserId: 11,
+          targetResourceId: 1,
           eventType: "resource.updated",
           result: "success",
           createdAt: "2026-04-14T00:00:00Z",
         },
         {
-          id: "audit-newer",
-          actorUserId: "user-2",
-          targetResourceId: "res-2",
+          id: 1002,
+          actorUserId: 12,
+          targetResourceId: 2,
           eventType: "resource.created",
           result: "success",
           createdAt: "2026-04-15T00:00:00Z",
@@ -49,13 +49,13 @@ describe("listAuditEvents", () => {
     const result = await listAuditEvents({
       page: 3,
       pageSize: 5,
-      targetResourceId: "res-1",
+      targetResourceId: 1,
       eventType: "resource.updated",
       result: "success",
     });
 
     expect(apiClientMock).toHaveBeenCalledWith(
-      "/audit-events?page=3&pageSize=5&targetResourceId=res-1&eventType=resource.updated&result=success",
+      "/audit-events?page=3&pageSize=5&targetResourceId=1&eventType=resource.updated&result=success",
     );
     expect(result.pageInfo).toEqual(response.pageInfo);
     expect(result.items).toEqual(response.items);
@@ -65,17 +65,17 @@ describe("listAuditEvents", () => {
     apiClientMock.mockResolvedValue({
       items: [
         {
-          id: "audit-older",
-          actorUserId: "user-1",
-          targetResourceId: "res-1",
+          id: 1001,
+          actorUserId: 11,
+          targetResourceId: 1,
           eventType: "resource.updated",
           result: "success",
           createdAt: "2026-04-14T00:00:00Z",
         },
         {
-          id: "audit-newer",
-          actorUserId: "user-2",
-          targetResourceId: "res-2",
+          id: 1002,
+          actorUserId: 12,
+          targetResourceId: 2,
           eventType: "resource.created",
           result: "success",
           createdAt: "2026-04-15T00:00:00Z",
@@ -93,9 +93,9 @@ describe("listAuditEvents", () => {
 
     expect(result).toEqual([
       {
-        id: "audit-newer",
-        actorUserId: "user-2",
-        targetResourceId: "res-2",
+        id: 1002,
+        actorUserId: 12,
+        targetResourceId: 2,
         eventType: "resource.created",
         result: "success",
         createdAt: "2026-04-15T00:00:00Z",
@@ -108,9 +108,9 @@ describe("listAuditEvents", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "audit-middle",
-            actorUserId: "user-1",
-            targetResourceId: "res-1",
+            id: 1003,
+            actorUserId: 11,
+            targetResourceId: 1,
             eventType: "resource.updated",
             result: "success",
             createdAt: "2026-04-14T00:00:00Z",
@@ -126,9 +126,9 @@ describe("listAuditEvents", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "audit-newest",
-            actorUserId: "user-2",
-            targetResourceId: "res-2",
+            id: 1004,
+            actorUserId: 12,
+            targetResourceId: 2,
             eventType: "resource.created",
             result: "success",
             createdAt: "2026-04-15T00:00:00Z",
@@ -146,13 +146,34 @@ describe("listAuditEvents", () => {
 
     expect(result).toEqual([
       {
-        id: "audit-newest",
-        actorUserId: "user-2",
-        targetResourceId: "res-2",
+        id: 1004,
+        actorUserId: 12,
+        targetResourceId: 2,
         eventType: "resource.created",
         result: "success",
         createdAt: "2026-04-15T00:00:00Z",
       },
     ]);
+  });
+
+  it("builds resource audit paths with numeric resource ids", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [
+        {
+          id: 1005,
+          actorUserId: 13,
+          targetResourceId: 7,
+          eventType: "resource.archived",
+          result: "success",
+          createdAt: "2026-04-16T00:00:00Z",
+        },
+      ],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+    } satisfies AuditEventListResponse);
+
+    const result = await listResourceAuditEvents(7);
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/7/audit-events");
+    expect(result[0]?.targetResourceId).toBe(7);
   });
 });

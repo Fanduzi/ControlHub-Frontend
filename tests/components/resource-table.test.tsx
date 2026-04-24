@@ -14,7 +14,7 @@ const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   usePathname: () => "/resources",
-  useSearchParams: () => new URLSearchParams("environmentId=env-prod&page=3"),
+  useSearchParams: () => new URLSearchParams("environmentId=1&page=3"),
 }));
 
 vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
@@ -24,13 +24,13 @@ vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
 function renderTable(availableSubtypes = ["api", "mysql"]) {
   const resources: ResourceListViewModel[] = [
     {
-      id: "resource-1",
+      id: 101,
       resourceType: "service",
       resourceSubtype: "api",
       name: "orders-api",
       displayName: "Orders API",
-      environmentId: "env-prod",
-      ownerId: "owner-app",
+      environmentId: 1,
+      ownerId: 1,
       ownerName: "Applications",
       environmentName: "Production",
       lifecycleStatus: "running",
@@ -47,13 +47,13 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       summary: "Orders API summary",
     },
     {
-      id: "resource-2",
+      id: 102,
       resourceType: "database_instance",
       resourceSubtype: "mysql",
       name: "orders-mysql-primary",
       displayName: "Orders MySQL Primary",
-      environmentId: "env-prod",
-      ownerId: "owner-app",
+      environmentId: 1,
+      ownerId: 1,
       ownerName: "Applications",
       environmentName: "Production",
       lifecycleStatus: "running",
@@ -119,7 +119,7 @@ describe("ResourceTable", () => {
     // Wait for the 300ms debounce to fire
     await waitFor(() => {
       expect(replace).toHaveBeenLastCalledWith(
-        "/resources?environmentId=env-prod&page=1&q=billing",
+        "/resources?environmentId=1&page=1&q=billing",
       );
     }, { timeout: 2000 });
   });
@@ -133,7 +133,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Service" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&resourceType=service",
+      "/resources?environmentId=1&page=1&resourceType=service",
     );
   });
 
@@ -149,7 +149,7 @@ describe("ResourceTable", () => {
     // In the real component, readMultiSelectValues would return ["service"] after the first click.
     // For this test we just verify the single-select still uses repeated param format.
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&resourceType=service",
+      "/resources?environmentId=1&page=1&resourceType=service",
     );
   });
 
@@ -162,7 +162,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Running" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&lifecycleStatus=running",
+      "/resources?environmentId=1&page=1&lifecycleStatus=running",
     );
   });
 
@@ -175,7 +175,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Warning" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&healthStatus=warning",
+      "/resources?environmentId=1&page=1&healthStatus=warning",
     );
   });
 
@@ -204,7 +204,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Mysql" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&resourceSubtype=mysql",
+      "/resources?environmentId=1&page=1&resourceSubtype=mysql",
     );
   });
 
@@ -227,7 +227,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("option", { name: "Include archived" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&archiveFilter=includeArchived",
+      "/resources?environmentId=1&page=1&archiveFilter=includeArchived",
     );
   });
 
@@ -240,7 +240,7 @@ describe("ResourceTable", () => {
     await user.click(await screen.findByRole("option", { name: "Archived only" }));
 
     expect(replace).toHaveBeenLastCalledWith(
-      "/resources?environmentId=env-prod&page=1&archiveFilter=archivedOnly",
+      "/resources?environmentId=1&page=1&archiveFilter=archivedOnly",
     );
   });
 
@@ -255,13 +255,13 @@ describe("ResourceTable", () => {
 
   it("renders Archived badge for archived resources", () => {
     const archivedResource: ResourceListViewModel = {
-      id: "resource-archived",
+      id: 103,
       resourceType: "service",
       resourceSubtype: "api",
       name: "old-api",
       displayName: "Old API",
-      environmentId: "env-prod",
-      ownerId: "owner-app",
+      environmentId: 1,
+      ownerId: 1,
       ownerName: "Applications",
       environmentName: "Production",
       lifecycleStatus: "retired",
@@ -272,7 +272,7 @@ describe("ResourceTable", () => {
       createdAt: "2026-04-14T10:00:00Z",
       updatedAt: "2026-04-14T10:00:00Z",
       archivedAt: "2026-04-14T12:00:00Z",
-      archivedBy: "admin",
+      archivedBy: 1,
       archiveReason: "Retired",
       isArchived: true,
       summary: "Old API summary",

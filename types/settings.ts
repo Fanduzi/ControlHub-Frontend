@@ -1,5 +1,5 @@
 export type Environment = {
-  id: string;
+  id: number;
   name: string;
   slug: string;
   description: string;
@@ -11,7 +11,7 @@ export type EnvironmentListResponse = {
 };
 
 export type Owner = {
-  id: string;
+  id: number;
   name: string;
   email: string;
   createdAt: string;
@@ -22,7 +22,7 @@ export type OwnerListResponse = {
 };
 
 export type Role = {
-  id: string;
+  id: number;
   name: string;
   description: string;
   createdAt: string;

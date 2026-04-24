@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/blocks/topology-panel", () => ({
-  TopologyPanel: ({ resourceId }: { resourceId: string }) => (
+  TopologyPanel: ({ resourceId }: { resourceId: number }) => (
     <div data-testid="topology-panel-mock">{resourceId}</div>
   ),
 }));
@@ -24,7 +24,7 @@ vi.mock("@/components/resources/edit-resource-sheet", () => ({
 }));
 
 vi.mock("@/components/blocks/resource-relation-panel", () => ({
-  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: string; relatedResourceName: string }> }) => (
+  ResourceRelationPanel: ({ relations }: { relations: Array<{ id: number; relatedResourceName: string }> }) => (
     <div>
       {relations.map((r) => (
         <div key={r.id}>{r.relatedResourceName}</div>
@@ -36,14 +36,14 @@ vi.mock("@/components/blocks/resource-relation-panel", () => ({
 const mockedGetResourceViewModel = vi.mocked(getResourceViewModel);
 
 const resource = {
-  id: "res-db-primary",
+  id: 101,
   resourceType: "database_instance" as const,
   resourceSubtype: "mysql",
   name: "orders-db-primary",
   displayName: "Orders DB Primary",
-  environmentId: "env-prod",
+  environmentId: 1,
   environmentName: "Production",
-  ownerId: "owner-dba",
+  ownerId: 1,
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "degraded",

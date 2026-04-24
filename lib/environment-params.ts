@@ -1,7 +1,7 @@
 import { listEnvironments } from "@/services/settings";
 import type { ResourceListParams } from "@/types/resource";
 
-const UNKNOWN_ENVIRONMENT_ID = "00000000-0000-0000-0000-000000000000";
+const UNKNOWN_ENVIRONMENT_ID = 0;
 
 export async function resolveEnvironmentSlugToId(
   params: ResourceListParams,

@@ -11,7 +11,7 @@ import type { TopologyResponse } from "@/types/resource";
 const mockApiClient = vi.mocked(apiClient);
 
 const minimalResponse = (overrides: Partial<TopologyResponse> = {}): TopologyResponse => ({
-  rootResourceId: "res-1",
+  rootResourceId: 1,
   depth: 1,
   direction: "both",
   nodes: [],
@@ -30,13 +30,13 @@ describe("getResourceTopology", () => {
     const mockResponse = minimalResponse({
       nodes: [
         {
-          id: "res-1",
+          id: 1,
           resourceType: "database_cluster",
           resourceSubtype: "mysql",
           name: "test-cluster",
           displayName: "Test Cluster",
-          environmentId: "env-1",
-          ownerId: "owner-1",
+          environmentId: 1,
+          ownerId: 1,
           lifecycleStatus: "running",
           healthStatus: "healthy",
           isRoot: true,
@@ -47,7 +47,6 @@ describe("getResourceTopology", () => {
           visualImportance: 0,
           isDatabaseTopology: true,
           replicationDepth: 0,
-          replicationParentId: "",
         },
       ],
       isDatabaseTopology: true,
@@ -55,11 +54,11 @@ describe("getResourceTopology", () => {
 
     mockApiClient.mockResolvedValueOnce(mockResponse);
 
-    const result = await getResourceTopology("res-1");
+    const result = await getResourceTopology(1);
 
     expect(mockApiClient).toHaveBeenCalledTimes(1);
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/resources/res-1/topology",
+      "/resources/1/topology",
     );
     expect(result).toEqual(mockResponse);
   });
@@ -67,30 +66,30 @@ describe("getResourceTopology", () => {
   it("includes depth query parameter", async () => {
     mockApiClient.mockResolvedValueOnce(minimalResponse({ depth: 2 }));
 
-    await getResourceTopology("res-1", { depth: 2 });
+    await getResourceTopology(1, { depth: 2 });
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/resources/res-1/topology?depth=2",
+      "/resources/1/topology?depth=2",
     );
   });
 
   it("includes direction query parameter", async () => {
     mockApiClient.mockResolvedValueOnce(minimalResponse({ direction: "upstream" }));
 
-    await getResourceTopology("res-1", { direction: "upstream" });
+    await getResourceTopology(1, { direction: "upstream" });
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/resources/res-1/topology?direction=upstream",
+      "/resources/1/topology?direction=upstream",
     );
   });
 
   it("includes relationType query parameter", async () => {
     mockApiClient.mockResolvedValueOnce(minimalResponse());
 
-    await getResourceTopology("res-1", { relationType: "member_of" });
+    await getResourceTopology(1, { relationType: "member_of" });
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/resources/res-1/topology?relationType=member_of",
+      "/resources/1/topology?relationType=member_of",
     );
   });
 
@@ -100,33 +99,33 @@ describe("getResourceTopology", () => {
       direction: "downstream",
     }));
 
-    await getResourceTopology("res-1", {
+    await getResourceTopology(1, {
       depth: 2,
       direction: "downstream",
       relationType: "runs_on",
     });
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/resources/res-1/topology?depth=2&direction=downstream&relationType=runs_on",
+      "/resources/1/topology?depth=2&direction=downstream&relationType=runs_on",
     );
   });
 
   it("propagates 404 as error (resource not found)", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("404"));
 
-    await expect(getResourceTopology("nonexistent")).rejects.toThrow("404");
+    await expect(getResourceTopology(1)).rejects.toThrow("404");
   });
 
   it("propagates non-404/501 errors", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("500"));
 
-    await expect(getResourceTopology("res-1")).rejects.toThrow("500");
+    await expect(getResourceTopology(1)).rejects.toThrow("500");
   });
 
   it("throws TopologyNotAvailableError on 501 (endpoint not implemented)", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("501"));
 
-    await expect(getResourceTopology("res-1")).rejects.toThrow(TopologyNotAvailableError);
+    await expect(getResourceTopology(1)).rejects.toThrow(TopologyNotAvailableError);
   });
 
   it("TopologyNotAvailableError has correct name", () => {

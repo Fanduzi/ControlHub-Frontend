@@ -1,16 +1,16 @@
 import type { PageInfo } from "@/types/resource";
 
 export type AuditEvent = {
-  id: string;
-  actorUserId: string;
-  targetResourceId: string;
+  id: number;
+  actorUserId: number | null;
+  targetResourceId: number | null;
   eventType: string;
   result: string;
   createdAt: string;
 };
 
 export type AuditEventListParams = {
-  targetResourceId?: string;
+  targetResourceId?: number;
   eventType?: string | string[];
   result?: string | string[];
   page?: number;

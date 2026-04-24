@@ -12,7 +12,7 @@ const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   usePathname: () => "/databases",
-  useSearchParams: () => new URLSearchParams("environmentId=env-prod&page=1"),
+  useSearchParams: () => new URLSearchParams("page=1"),
 }));
 
 vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
@@ -23,13 +23,13 @@ describe("DatabaseTable", () => {
   it("renders updated timestamps using the active locale", () => {
     const resources: ResourceListViewModel[] = [
       {
-        id: "resource-1",
+        id: 1,
         resourceType: "database_instance",
         resourceSubtype: "mysql",
         name: "orders-primary",
         displayName: "Orders MySQL Primary",
-        environmentId: "env-prod",
-        ownerId: "owner-dba",
+        environmentId: 100,
+        ownerId: 200,
         ownerName: "DBA Team",
         environmentName: "Production",
         lifecycleStatus: "running",
@@ -51,7 +51,8 @@ describe("DatabaseTable", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <DatabaseTable
           resources={resources}
-          pageInfo={{ page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }}
+          totalClusters={0}
+          totalInstances={1}
         />
       </NextIntlClientProvider>,
     );

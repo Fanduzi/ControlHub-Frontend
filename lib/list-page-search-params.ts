@@ -7,6 +7,12 @@ type PageSearchParamsProp = Promise<RawSearchParams>;
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
+const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+
+function parseSafePositiveInt(raw: string) {
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
 
 function readFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -34,8 +40,21 @@ function normalizePositiveInt(
   value: string | string[] | undefined,
   fallback: number,
 ) {
-  const parsed = Number.parseInt(readFirst(value) ?? "", 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  const raw = readFirst(value)?.trim() ?? "";
+  if (!POSITIVE_INTEGER_PATTERN.test(raw)) {
+    return fallback;
+  }
+
+  return parseSafePositiveInt(raw) ?? fallback;
+}
+
+function normalizeOptionalPositiveInt(value: string | string[] | undefined) {
+  const raw = readFirst(value)?.trim() ?? "";
+  if (!POSITIVE_INTEGER_PATTERN.test(raw)) {
+    return undefined;
+  }
+
+  return parseSafePositiveInt(raw);
 }
 
 function toSingleOrArray(values: string[] | undefined): string | string[] | undefined {
@@ -67,7 +86,7 @@ export async function parseResourceListSearchParams(
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     resourceType,
     resourceSubtype,
-    environmentId: normalizeText(resolved.environmentId),
+    environmentId: normalizeOptionalPositiveInt(resolved.environmentId),
     environmentSlug: normalizeText(resolved.environment),
     lifecycleStatus,
     healthStatus,
@@ -89,7 +108,7 @@ export async function parseAuditListSearchParams(
   return {
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
-    targetResourceId: normalizeText(resolved.targetResourceId),
+    targetResourceId: normalizeOptionalPositiveInt(resolved.targetResourceId),
     eventType,
     result,
   };

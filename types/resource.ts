@@ -17,23 +17,24 @@ export type ProfileSummary = {
 };
 
 export type Resource = {
-  id: string;
+  id: number;
   resourceType: ResourceType;
   resourceSubtype: string;
   name: string;
   displayName: string;
-  environmentId: string;
-  ownerId: string;
+  environmentId: number;
+  ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
   source: string;
   externalId: string;
   labels: Record<string, string>;
   profileSummary?: ProfileSummary | null;
+  clusterId?: number | null;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
-  archivedBy: string | null;
+  archivedBy: number | null;
   archiveReason: string | null;
 };
 
@@ -47,7 +48,7 @@ export type PageInfo = {
 export type ResourceListParams = {
   resourceType?: string | string[];
   resourceSubtype?: string | string[];
-  environmentId?: string;
+  environmentId?: number;
   environmentSlug?: string;
   lifecycleStatus?: string | string[];
   healthStatus?: string | string[];
@@ -66,14 +67,14 @@ export type ResourceListResponse = {
 export type ResourceProfileValue = string | number | boolean | null;
 
 export type ResourceProfileResponse = {
-  resourceId: string;
+  resourceId: number;
   resourceType: ResourceType;
   resourceSubtype: string;
   profile: Record<string, ResourceProfileValue>;
 };
 
 export type RelatedResourceSummary = {
-  id: string;
+  id: number;
   displayName: string;
   resourceType: ResourceType;
   resourceSubtype?: string;
@@ -81,9 +82,9 @@ export type RelatedResourceSummary = {
 };
 
 export type ResourceRelation = {
-  id: string;
-  fromResourceId: string;
-  toResourceId: string;
+  id: number;
+  fromResourceId: number;
+  toResourceId: number;
   relationType: string;
   createdAt: string;
   relatedResource?: RelatedResourceSummary | null;
@@ -98,8 +99,8 @@ export type CreateResourceInput = {
   resourceSubtype?: string;
   name: string;
   displayName: string;
-  environmentId: string;
-  ownerId: string;
+  environmentId: number;
+  ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
   source: string;
@@ -112,8 +113,8 @@ export type UpdateResourceInput = {
   name?: string;
   resourceSubtype?: string;
   displayName?: string;
-  environmentId?: string;
-  ownerId?: string;
+  environmentId?: number;
+  ownerId?: number;
   lifecycleStatus?: string;
   healthStatus?: string;
   source?: string;
@@ -122,7 +123,7 @@ export type UpdateResourceInput = {
 };
 
 export type CreateResourceRelationInput = {
-  toResourceId: string;
+  toResourceId: number;
   relationType: string;
 };
 
@@ -162,13 +163,13 @@ export type EdgeSemanticType =
   | "monitoring";
 
 export type TopologyNode = {
-  id: string;
+  id: number;
   resourceType: string;
   resourceSubtype: string;
   name: string;
   displayName: string;
-  environmentId: string;
-  ownerId: string;
+  environmentId: number;
+  ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
   isRoot: boolean;
@@ -179,7 +180,7 @@ export type TopologyNode = {
   visualImportance: number;
   isDatabaseTopology: boolean;
   replicationDepth: number;
-  replicationParentId: string;
+  replicationParentId?: number;
   hostname?: string;
   ip?: string;
   port?: number;
@@ -188,9 +189,9 @@ export type TopologyNode = {
 };
 
 export type TopologyEdge = {
-  id: string;
-  fromResourceId: string;
-  toResourceId: string;
+  id: number;
+  fromResourceId: number;
+  toResourceId: number;
   relationType: string;
   semanticType: EdgeSemanticType;
 };
@@ -199,11 +200,11 @@ export type TopologyGroup = {
   id: string;
   label: string;
   resourceType: string;
-  nodeIds: string[];
+  nodeIds: number[];
 };
 
 export type TopologyResponse = {
-  rootResourceId: string;
+  rootResourceId: number;
   depth: number;
   direction: string;
   nodes: TopologyNode[];
@@ -220,7 +221,7 @@ export type TopologyProblem = {
 };
 
 export type TopologyProblemSummary = {
-  resourceId: string;
+  resourceId: number;
   resourceName: string;
   resourceType: string;
   severity: "warning" | "critical";
@@ -236,7 +237,7 @@ export type TopologyParams = {
 // Cluster member types — matches backend database_cluster detail response
 
 export type ClusterMember = {
-  id: string;
+  id: number;
   displayName: string;
   resourceSubtype: string;
   profileSummary?: {

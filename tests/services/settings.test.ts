@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  listEnvironments,
   listHealthStatuses,
   listLifecycleStatuses,
 } from "@/services/settings";
-import type { DictionaryItemListResponse } from "@/types/settings";
+import type { DictionaryItemListResponse, EnvironmentListResponse } from "@/types/settings";
 
 const { apiClientMock } = vi.hoisted(() => ({
   apiClientMock: vi.fn(),
@@ -13,6 +14,33 @@ const { apiClientMock } = vi.hoisted(() => ({
 vi.mock("@/services/api-client", () => ({
   apiClient: apiClientMock,
 }));
+
+describe("listEnvironments", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns numeric environment ids from GET /environments", async () => {
+    const response: EnvironmentListResponse = {
+      items: [
+        {
+          id: 101,
+          name: "Production",
+          slug: "prod",
+          description: "Production environment",
+          createdAt: "2026-04-14T00:00:00Z",
+        },
+      ],
+    };
+
+    apiClientMock.mockResolvedValue(response);
+
+    const result = await listEnvironments();
+
+    expect(apiClientMock).toHaveBeenCalledWith("/environments");
+    expect(result[0]?.id).toBe(101);
+  });
+});
 
 describe("listLifecycleStatuses", () => {
   beforeEach(() => {

@@ -2,51 +2,100 @@ import { describe, expect, it } from "vitest";
 import type { TopologyEdge, TopologyNode, TopologyResponse } from "@/types/resource";
 import { mapTopologyToFlow, SOURCE_HANDLE_IDS, TARGET_HANDLE_IDS } from "@/lib/topology-mapper";
 
-function makeNode(overrides: Partial<TopologyNode> = {}): TopologyNode {
+type TestIdInput = string | number | undefined;
+
+type TestNodeOverrides = Omit<Partial<TopologyNode>, "id" | "environmentId" | "ownerId" | "replicationParentId"> & {
+  id?: TestIdInput;
+  environmentId?: TestIdInput;
+  ownerId?: TestIdInput;
+  replicationParentId?: TestIdInput;
+};
+
+type TestEdgeOverrides = Omit<Partial<TopologyEdge>, "id" | "fromResourceId" | "toResourceId"> & {
+  id?: TestIdInput;
+  fromResourceId?: TestIdInput;
+  toResourceId?: TestIdInput;
+};
+
+type TestResponseOverrides = Omit<Partial<TopologyResponse>, "rootResourceId"> & {
+  rootResourceId?: TestIdInput;
+};
+
+const testIdMap = new Map<string, number>();
+let nextTestId = 1;
+
+function toTestId(value: TestIdInput): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "number") {
+    return value;
+  }
+
+  const existing = testIdMap.get(value);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const assigned = nextTestId;
+  nextTestId += 1;
+  testIdMap.set(value, assigned);
+  return assigned;
+}
+
+function flowId(value: TestIdInput): string {
+  return String(toTestId(value)!);
+}
+
+function makeNode(overrides: TestNodeOverrides = {}): TopologyNode {
   return {
-    id: "node-1",
-    resourceType: "database_cluster",
-    resourceSubtype: "mysql",
-    name: "test-cluster",
-    displayName: "Test Cluster",
-    environmentId: "env-1",
-    ownerId: "owner-1",
-    lifecycleStatus: "running",
-    healthStatus: "healthy",
-    isRoot: false,
-    distance: 1,
-    topologyRole: "cluster",
-    topologyLayer: "cluster",
-    groupKey: "",
-    visualImportance: 0,
-    isDatabaseTopology: true,
-    replicationDepth: 0,
-    replicationParentId: "",
-    ...overrides,
+    id: toTestId(overrides.id ?? 1)!,
+    resourceType: overrides.resourceType ?? "database_cluster",
+    resourceSubtype: overrides.resourceSubtype ?? "mysql",
+    name: overrides.name ?? "test-cluster",
+    displayName: overrides.displayName ?? "Test Cluster",
+    environmentId: toTestId(overrides.environmentId ?? 1)!,
+    ownerId: toTestId(overrides.ownerId ?? 1)!,
+    lifecycleStatus: overrides.lifecycleStatus ?? "running",
+    healthStatus: overrides.healthStatus ?? "healthy",
+    isRoot: overrides.isRoot ?? false,
+    distance: overrides.distance ?? 1,
+    topologyRole: overrides.topologyRole ?? "cluster",
+    topologyLayer: overrides.topologyLayer ?? "cluster",
+    groupKey: overrides.groupKey ?? "",
+    visualImportance: overrides.visualImportance ?? 0,
+    isDatabaseTopology: overrides.isDatabaseTopology ?? true,
+    replicationDepth: overrides.replicationDepth ?? 0,
+    replicationParentId: toTestId(overrides.replicationParentId),
+    hostname: overrides.hostname,
+    ip: overrides.ip,
+    port: overrides.port,
+    problems: overrides.problems,
+    labels: overrides.labels,
   };
 }
 
-function makeEdge(overrides: Partial<TopologyEdge> = {}): TopologyEdge {
+function makeEdge(overrides: TestEdgeOverrides = {}): TopologyEdge {
   return {
-    id: "edge-1",
-    fromResourceId: "node-2",
-    toResourceId: "node-1",
-    relationType: "member_of",
-    semanticType: "membership",
-    ...overrides,
+    id: toTestId(overrides.id ?? 1)!,
+    fromResourceId: toTestId(overrides.fromResourceId ?? 2)!,
+    toResourceId: toTestId(overrides.toResourceId ?? 1)!,
+    relationType: overrides.relationType ?? "member_of",
+    semanticType: overrides.semanticType ?? "membership",
   };
 }
 
-function makeResponse(overrides: Partial<TopologyResponse> = {}): TopologyResponse {
+function makeResponse(overrides: TestResponseOverrides = {}): TopologyResponse {
   return {
-    rootResourceId: "cluster-1",
-    depth: 2,
-    direction: "both",
-    nodes: [],
-    edges: [],
-    groups: [],
-    isDatabaseTopology: true,
-    ...overrides,
+    rootResourceId: toTestId(overrides.rootResourceId ?? 1)!,
+    depth: overrides.depth ?? 2,
+    direction: overrides.direction ?? "both",
+    nodes: overrides.nodes ?? [],
+    edges: overrides.edges ?? [],
+    groups: overrides.groups ?? [],
+    isDatabaseTopology: overrides.isDatabaseTopology ?? true,
+    problems: overrides.problems,
   };
 }
 
@@ -71,13 +120,13 @@ describe("database semantic topology layout", () => {
     const xPos = new Map(nodes.map((n) => [n.id, n.position.x]));
 
     // Vertical layer order: application (top) → entry → replication → control_plane → host (bottom)
-    const svcY = yPos.get("svc-1")!;
-    const domainY = yPos.get("domain-1")!;
-    const proxyY = yPos.get("proxy-1")!;
-    const primaryY = yPos.get("primary-1")!;
-    const replicaY = yPos.get("replica-1")!;
-    const orchY = yPos.get("orch-1")!;
-    const hostY = yPos.get("host-1")!;
+    const svcY = yPos.get(flowId("svc-1"))!;
+    const domainY = yPos.get(flowId("domain-1"))!;
+    const proxyY = yPos.get(flowId("proxy-1"))!;
+    const primaryY = yPos.get(flowId("primary-1"))!;
+    const replicaY = yPos.get(flowId("replica-1"))!;
+    const orchY = yPos.get(flowId("orch-1"))!;
+    const hostY = yPos.get(flowId("host-1"))!;
 
     // Application layer topmost (lowest y)
     expect(svcY).toBeLessThan(domainY);
@@ -90,8 +139,8 @@ describe("database semantic topology layout", () => {
     expect(orchY).toBeLessThanOrEqual(hostY);
 
     // Horizontal: primary at x=0, replica expands right by depth
-    const primaryX = xPos.get("primary-1")!;
-    const replicaX = xPos.get("replica-1")!;
+    const primaryX = xPos.get(flowId("primary-1"))!;
+    const replicaX = xPos.get(flowId("replica-1"))!;
     expect(primaryX).toBeLessThan(replicaX);
   });
 
@@ -108,10 +157,10 @@ describe("database semantic topology layout", () => {
     const { nodes } = mapTopologyToFlow(response);
     const positions = new Map(nodes.map((n) => [n.id, n.position.x]));
 
-    const primaryX = positions.get("primary-1")!;
-    const r1X = positions.get("replica-1")!;
-    const r2X = positions.get("replica-2")!;
-    const r2aX = positions.get("replica-2a")!;
+    const primaryX = positions.get(flowId("primary-1"))!;
+    const r1X = positions.get(flowId("replica-1"))!;
+    const r2X = positions.get(flowId("replica-2"))!;
+    const r2aX = positions.get(flowId("replica-2a"))!;
 
     // Primary is leftmost in the replication band
     expect(primaryX).toBeLessThan(r1X);
@@ -136,8 +185,8 @@ describe("database semantic topology layout", () => {
     const { nodes } = mapTopologyToFlow(response);
 
     // Active proxy sorts before standby proxy
-    expect(nodes[0].id).toBe("proxy-ac");
-    expect(nodes[1].id).toBe("proxy-sb");
+    expect(nodes[0].id).toBe(flowId("proxy-ac"));
+    expect(nodes[1].id).toBe(flowId("proxy-sb"));
   });
 
   it("sorts replica_intermediate before leaf replica at same depth", () => {
@@ -151,8 +200,8 @@ describe("database semantic topology layout", () => {
     const { nodes } = mapTopologyToFlow(response);
 
     // Intermediate (has children) sorts before leaf replica
-    expect(nodes[0].id).toBe("inter-replica");
-    expect(nodes[1].id).toBe("leaf-replica");
+    expect(nodes[0].id).toBe(flowId("inter-replica"));
+    expect(nodes[1].id).toBe(flowId("leaf-replica"));
   });
 
   it("does not place host nodes in the middle of the replication chain", () => {
@@ -167,9 +216,9 @@ describe("database semantic topology layout", () => {
     const { nodes } = mapTopologyToFlow(response);
     const yPos = new Map(nodes.map((n) => [n.id, n.position.y]));
 
-    const primaryY = yPos.get("primary-1")!;
-    const hostY = yPos.get("host-1")!;
-    const replicaY = yPos.get("replica-1")!;
+    const primaryY = yPos.get(flowId("primary-1"))!;
+    const hostY = yPos.get(flowId("host-1"))!;
+    const replicaY = yPos.get(flowId("replica-1"))!;
 
     // Host is in a separate layer below replication, never between primary and replica in y
     // Both primary and replica are in the replication layer (same or similar y)
@@ -233,8 +282,8 @@ describe("semantic edge types", () => {
 
     const { edges } = mapTopologyToFlow(response);
 
-    const replEdge = edges.find((e) => e.id === "e-repl")!;
-    const placeEdge = edges.find((e) => e.id === "e-place")!;
+    const replEdge = edges.find((e) => e.id === flowId("e-repl"))!;
+    const placeEdge = edges.find((e) => e.id === flowId("e-place"))!;
 
     // Replication edges are the backbone
     expect(replEdge.type).toBe("smoothstep");
@@ -245,7 +294,7 @@ describe("semantic edge types", () => {
 
 describe("generic topology fallback", () => {
   it("uses distance-based ordering for non-database topology", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 2,
       direction: "both",
@@ -272,17 +321,17 @@ describe("generic topology fallback", () => {
       ],
       edges: [],
       groups: [],
-    };
+    });
 
     const { nodes } = mapTopologyToFlow(response);
 
-    expect(nodes[0].id).toBe("root-1");
-    expect(nodes[1].id).toBe("n-2");
-    expect(nodes[2].id).toBe("n-3");
+    expect(nodes[0].id).toBe(flowId("root-1"));
+    expect(nodes[1].id).toBe(flowId("n-2"));
+    expect(nodes[2].id).toBe(flowId("n-3"));
   });
 
   it("positions generic nodes by distance columns, not semantic layers", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 2,
       direction: "both",
@@ -309,17 +358,17 @@ describe("generic topology fallback", () => {
       ],
       edges: [],
       groups: [],
-    };
+    });
 
     const { nodes } = mapTopologyToFlow(response);
     const positions = new Map(nodes.map((n) => [n.id, n.position.x]));
 
-    expect(positions.get("root-1")!).toBeLessThan(positions.get("n-2")!);
-    expect(positions.get("n-2")!).toBeLessThan(positions.get("n-3")!);
+    expect(positions.get(flowId("root-1"))!).toBeLessThan(positions.get(flowId("n-2"))!);
+    expect(positions.get(flowId("n-2"))!).toBeLessThan(positions.get(flowId("n-3"))!);
   });
 
   it("generic fallback preserves type-then-name ordering", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 1,
       direction: "both",
@@ -340,13 +389,13 @@ describe("generic topology fallback", () => {
       ],
       edges: [],
       groups: [],
-    };
+    });
 
     const { nodes } = mapTopologyToFlow(response);
 
     // host has lower type order than service in generic mode
-    expect(nodes[0].id).toBe("n-3"); // host "alpha"
-    expect(nodes[1].id).toBe("n-2"); // service "beta"
+    expect(nodes[0].id).toBe(flowId("n-3")); // host "alpha"
+    expect(nodes[1].id).toBe(flowId("n-2")); // service "beta"
   });
 });
 
@@ -508,7 +557,7 @@ describe("warning regression tests", () => {
   });
 
   it("generic fallback also produces no handle references and no NaN positions", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 1,
       direction: "both",
@@ -528,10 +577,10 @@ describe("warning regression tests", () => {
         },
       ],
       edges: [
-        { id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" },
+        makeEdge({ id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
-    };
+    });
 
     const { nodes, edges } = mapTopologyToFlow(response);
 
@@ -564,7 +613,7 @@ describe("warning regression tests", () => {
   });
 
   it("handles generic nodes with undefined distance without NaN positions", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 1,
       direction: "both",
@@ -579,7 +628,7 @@ describe("warning regression tests", () => {
       ],
       edges: [],
       groups: [],
-    };
+    });
 
     const { nodes } = mapTopologyToFlow(response);
 
@@ -618,7 +667,7 @@ describe("semantic field propagation", () => {
           topologyRole: "primary",
           topologyLayer: "replication",
           replicationDepth: 0,
-          replicationParentId: "",
+          replicationParentId: undefined,
           resourceType: "database_instance",
         }),
         makeNode({
@@ -633,11 +682,11 @@ describe("semantic field propagation", () => {
     });
 
     const { nodes } = mapTopologyToFlow(response);
-    const replica = nodes.find((n) => n.id === "replica-1")!;
+    const replica = nodes.find((n) => n.id === flowId("replica-1"))!;
     const replicaData = replica.data as import("@/lib/topology-mapper").TopologyNodeData;
 
     expect(replicaData.replicationDepth).toBe(1);
-    expect(replicaData.replicationParentId).toBe("primary-1");
+    expect(replicaData.replicationParentId).toBe(toTestId("primary-1"));
   });
 });
 
@@ -703,8 +752,8 @@ describe("named handles for semantic edge routing", () => {
     });
 
     const { edges } = mapTopologyToFlow(response);
-    const mgmtEdge = edges.find((e) => e.id === "e-mgmt")!;
-    const monEdge = edges.find((e) => e.id === "e-mon")!;
+    const mgmtEdge = edges.find((e) => e.id === flowId("e-mgmt"))!;
+    const monEdge = edges.find((e) => e.id === flowId("e-mon"))!;
 
     expect(mgmtEdge.sourceHandle).toBe("source-top");
     expect(mgmtEdge.targetHandle).toBe("target-bottom");
@@ -729,7 +778,7 @@ describe("named handles for semantic edge routing", () => {
   });
 
   it("generic topology does not set explicit handles", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 1,
       direction: "both",
@@ -749,10 +798,10 @@ describe("named handles for semantic edge routing", () => {
         },
       ],
       edges: [
-        { id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" },
+        makeEdge({ id: "e-1", fromResourceId: "root-1", toResourceId: "n-2", relationType: "depends_on", semanticType: "dependency" }),
       ],
       groups: [],
-    };
+    });
 
     const { edges } = mapTopologyToFlow(response);
     for (const edge of edges) {
@@ -795,7 +844,7 @@ describe("layer bands for visual grouping", () => {
   });
 
   it("generic topology produces no layer bands", () => {
-    const response: TopologyResponse = {
+    const response = makeResponse({
       rootResourceId: "root-1",
       depth: 1,
       direction: "both",
@@ -810,7 +859,7 @@ describe("layer bands for visual grouping", () => {
       ],
       edges: [],
       groups: [],
-    };
+    });
 
     const { layerBands } = mapTopologyToFlow(response);
     expect(layerBands).toHaveLength(0);
@@ -867,9 +916,9 @@ describe("Phase 15B: vertical layer layout", () => {
   it("application nodes have lower y (higher on screen) than entry/proxy nodes", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const svcY = pos.get("svc-1")!.y;
-    const domainY = pos.get("domain-1")!.y;
-    const proxyY = pos.get("proxy-ac")!.y;
+    const svcY = pos.get(flowId("svc-1"))!.y;
+    const domainY = pos.get(flowId("domain-1"))!.y;
+    const proxyY = pos.get(flowId("proxy-ac"))!.y;
 
     expect(svcY).toBeLessThan(domainY);
     expect(svcY).toBeLessThan(proxyY);
@@ -878,8 +927,8 @@ describe("Phase 15B: vertical layer layout", () => {
   it("entry/proxy nodes have lower y than replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const proxyY = pos.get("proxy-ac")!.y;
-    const primaryY = pos.get("primary-1")!.y;
+    const proxyY = pos.get(flowId("proxy-ac"))!.y;
+    const primaryY = pos.get(flowId("primary-1"))!.y;
 
     expect(proxyY).toBeLessThan(primaryY);
   });
@@ -889,7 +938,7 @@ describe("Phase 15B: vertical layer layout", () => {
     const nodeIds = new Set(nodes.map((n) => n.id));
 
     // Root cluster node IS kept visible
-    expect(nodeIds.has("cluster-1")).toBe(true);
+    expect(nodeIds.has(flowId("cluster-1"))).toBe(true);
 
     // Group box node should also exist
     const groupBox = nodes.find((n) => n.id === "group-box");
@@ -900,9 +949,9 @@ describe("Phase 15B: vertical layer layout", () => {
   it("primary x-position is left of all replicas", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const primaryX = pos.get("primary-1")!.x;
-    const r1X = pos.get("replica-1")!.x;
-    const r2X = pos.get("replica-2")!.x;
+    const primaryX = pos.get(flowId("primary-1"))!.x;
+    const r1X = pos.get(flowId("replica-1"))!.x;
+    const r2X = pos.get(flowId("replica-2"))!.x;
 
     expect(primaryX).toBeLessThan(r1X);
     expect(primaryX).toBeLessThan(r2X);
@@ -911,9 +960,9 @@ describe("Phase 15B: vertical layer layout", () => {
   it("replica x-position increases with replicationDepth", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const primaryX = pos.get("primary-1")!.x;
-    const r1X = pos.get("replica-1")!.x;   // depth 1
-    const r2aX = pos.get("replica-2a")!.x;  // depth 2
+    const primaryX = pos.get(flowId("primary-1"))!.x;
+    const r1X = pos.get(flowId("replica-1"))!.x;   // depth 1
+    const r2aX = pos.get(flowId("replica-2a"))!.x;  // depth 2
 
     expect(r1X).toBeGreaterThan(primaryX);
     expect(r2aX).toBeGreaterThan(r1X);
@@ -922,8 +971,8 @@ describe("Phase 15B: vertical layer layout", () => {
   it("same-depth replicas share the same x band and stack vertically", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const r1Pos = pos.get("replica-1")!;
-    const r2Pos = pos.get("replica-2")!;  // both depth 1
+    const r1Pos = pos.get(flowId("replica-1"))!;
+    const r2Pos = pos.get(flowId("replica-2"))!;  // both depth 1
 
     // Same x band (same replication depth = same column)
     expect(r1Pos.x).toBe(r2Pos.x);
@@ -934,8 +983,8 @@ describe("Phase 15B: vertical layer layout", () => {
   it("control plane nodes have higher y (lower on screen) than replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const primaryY = pos.get("primary-1")!.y;
-    const orchY = pos.get("orch-1")!.y;
+    const primaryY = pos.get(flowId("primary-1"))!.y;
+    const orchY = pos.get(flowId("orch-1"))!.y;
 
     expect(orchY).toBeGreaterThan(primaryY);
   });
@@ -943,8 +992,8 @@ describe("Phase 15B: vertical layer layout", () => {
   it("host nodes have higher y (lower on screen) than replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
-    const primaryY = pos.get("primary-1")!.y;
-    const hostY = pos.get("host-1")!.y;
+    const primaryY = pos.get(flowId("primary-1"))!.y;
+    const hostY = pos.get(flowId("host-1"))!.y;
 
     expect(hostY).toBeGreaterThan(primaryY);
   });
@@ -954,7 +1003,7 @@ describe("Phase 15B: vertical layer layout", () => {
     const pos = new Map(nodes.map((n) => [n.id, n.position]));
 
     // Entry layer nodes should have their x centered relative to the replication area
-    const proxyX = pos.get("proxy-ac")!.x;
+    const proxyX = pos.get(flowId("proxy-ac"))!.x;
 
     // Proxy should NOT be far to the left of primary (old broken layout had proxy on far left)
     // Instead proxy should be roughly centered above the replication area
@@ -965,8 +1014,8 @@ describe("Phase 15B: vertical layer layout", () => {
   it("active proxy is positioned before standby proxy (deterministic order)", () => {
     const { nodes } = mapTopologyToFlow(fullDbResponse());
 
-    const proxyAc = nodes.find((n) => n.id === "proxy-ac")!;
-    const proxySb = nodes.find((n) => n.id === "proxy-sb")!;
+    const proxyAc = nodes.find((n) => n.id === flowId("proxy-ac"))!;
+    const proxySb = nodes.find((n) => n.id === flowId("proxy-sb"))!;
 
     // Active proxy should sort before standby (by role importance)
     const acIdx = nodes.indexOf(proxyAc);
@@ -1018,7 +1067,7 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
 
   it("root cluster node is kept visible (not removed)", () => {
     const { nodes } = mapTopologyToFlow(fullResponse());
-    const rootCluster = nodes.find((n) => n.id === "cluster-1");
+    const rootCluster = nodes.find((n) => n.id === flowId("cluster-1"));
     expect(rootCluster).toBeDefined();
     expect(rootCluster!.type).toBe("topologyNode");
   });
@@ -1039,9 +1088,9 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
 
     const { nodes } = mapTopologyToFlow(resp);
     // Root cluster is kept
-    expect(nodes.find((n) => n.id === "cluster-1")).toBeDefined();
+    expect(nodes.find((n) => n.id === flowId("cluster-1"))).toBeDefined();
     // Non-root cluster is removed
-    expect(nodes.find((n) => n.id === "cluster-2")).toBeUndefined();
+    expect(nodes.find((n) => n.id === flowId("cluster-2"))).toBeUndefined();
     // Group box for non-root cluster exists
     expect(nodes.find((n) => n.id === "group-box")).toBeDefined();
   });
@@ -1057,9 +1106,9 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
   it("group box wraps root cluster and replication nodes", () => {
     const { nodes } = mapTopologyToFlow(fullResponse());
     const gb = nodes.find((n) => n.id === "group-box")!;
-    const rootCluster = nodes.find((n) => n.id === "cluster-1")!;
-    const primary = nodes.find((n) => n.id === "primary-1")!;
-    const replica = nodes.find((n) => n.id === "replica-1")!;
+    const rootCluster = nodes.find((n) => n.id === flowId("cluster-1"))!;
+    const primary = nodes.find((n) => n.id === flowId("primary-1"))!;
+    const replica = nodes.find((n) => n.id === flowId("replica-1"))!;
 
     // Group box should contain root cluster, primary and replica within its bounds
     const gbRight = gb.position.x + (gb.style?.width as number || 0);
@@ -1085,8 +1134,8 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     });
     expect(membershipEdges).toHaveLength(1);
     // Membership edge connects primary to root cluster (not retargeted to group box)
-    expect(membershipEdges[0].source).toBe("primary-1");
-    expect(membershipEdges[0].target).toBe("cluster-1");
+    expect(membershipEdges[0].source).toBe(flowId("primary-1"));
+    expect(membershipEdges[0].target).toBe(flowId("cluster-1"));
   });
 
   it("membership edges use source-top → target-bottom handles", () => {
@@ -1109,7 +1158,7 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     expect(trafficEdge).toBeDefined();
     // External edges (traffic) target the group box, not root node
     expect(trafficEdge!.target).toBe("group-box");
-    expect(trafficEdge!.source).toBe("proxy-1");
+    expect(trafficEdge!.source).toBe(flowId("proxy-1"));
   });
 
   it("monitoring edges targeting root cluster are retargeted to group box", () => {
@@ -1121,7 +1170,7 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
     expect(monEdge).toBeDefined();
     // External edges (monitoring) target the group box, not root node
     expect(monEdge!.target).toBe("group-box");
-    expect(monEdge!.source).toBe("orch-1");
+    expect(monEdge!.source).toBe(flowId("orch-1"));
   });
 
   it("replication and placement edges remain unchanged", () => {
@@ -1135,10 +1184,10 @@ describe("Phase 15B-fix: group box replaces cluster node", () => {
       return st === "placement";
     });
 
-    expect(replEdge!.source).toBe("primary-1");
-    expect(replEdge!.target).toBe("replica-1");
-    expect(placeEdge!.source).toBe("primary-1");
-    expect(placeEdge!.target).toBe("host-1");
+    expect(replEdge!.source).toBe(flowId("primary-1"));
+    expect(replEdge!.target).toBe(flowId("replica-1"));
+    expect(placeEdge!.source).toBe(flowId("primary-1"));
+    expect(placeEdge!.target).toBe(flowId("host-1"));
   });
 
   it("dependency edges use bottom→top handles", () => {

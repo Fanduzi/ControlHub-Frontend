@@ -13,9 +13,9 @@ import {
 
 test.describe("Resource topology view", () => {
   let token: string;
-  let rootResourceId: string;
-  let relatedResourceId: string;
-  let relationId: string;
+  let rootResourceId: number;
+  let relatedResourceId: number;
+  let relationId: number;
   let rootResourceName: string;
 
   test.beforeAll(async () => {
@@ -68,7 +68,7 @@ test.describe("Resource topology view", () => {
   }) => {
     // Navigate directly to the API-created resource detail page
     await page.goto(`/resources/${rootResourceId}`);
-    await expect(page).toHaveURL(/\/resources\/[\w-]+/);
+    await expect(page).toHaveURL(/\/resources\/\d+$/);
 
     // Verify the topology section exists
     await expect(page.getByText("Resource topology").first()).toBeVisible({

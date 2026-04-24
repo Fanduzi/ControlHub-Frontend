@@ -38,13 +38,13 @@ describe("listResources", () => {
     const response: ResourceListResponse = {
       items: [
         {
-          id: "res-1",
+          id: 1,
           resourceType: "database_instance",
           resourceSubtype: "mysql",
           name: "orders-db-primary",
           displayName: "Orders DB Primary",
-          environmentId: "env-prod",
-          ownerId: "owner-dba",
+          environmentId: 101,
+          ownerId: 201,
           lifecycleStatus: "running",
           healthStatus: "healthy",
           source: "manual",
@@ -71,14 +71,14 @@ describe("listResources", () => {
       page: 2,
       pageSize: 10,
       resourceType: "database_instance",
-      environmentId: "env-prod",
+      environmentId: 101,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       q: "orders",
     });
 
     expect(apiClientMock).toHaveBeenCalledWith(
-      "/resources?page=2&pageSize=10&resourceType=database_instance&environmentId=env-prod&lifecycleStatus=running&healthStatus=healthy&q=orders",
+      "/resources?page=2&pageSize=10&resourceType=database_instance&environmentId=101&lifecycleStatus=running&healthStatus=healthy&q=orders",
     );
     expect(result.pageInfo).toEqual(response.pageInfo);
     expect(result.items).toHaveLength(1);
@@ -88,13 +88,13 @@ describe("listResources", () => {
     apiClientMock.mockResolvedValue({
       items: [
         {
-          id: "res-1",
+          id: 1,
           resourceType: "database_instance",
           resourceSubtype: "mysql",
           name: "orders-db-primary",
           displayName: "Orders DB Primary",
-          environmentId: "env-prod",
-          ownerId: "owner-dba",
+          environmentId: 101,
+          ownerId: 201,
           lifecycleStatus: "running",
           healthStatus: "healthy",
           source: "manual",
@@ -107,13 +107,13 @@ describe("listResources", () => {
           archiveReason: null,
         },
         {
-          id: "res-2",
+          id: 2,
           resourceType: "service",
           resourceSubtype: "api",
           name: "orders-api",
           displayName: "Orders API",
-          environmentId: "env-prod",
-          ownerId: "owner-app",
+          environmentId: 101,
+          ownerId: 202,
           lifecycleStatus: "running",
           healthStatus: "healthy",
           source: "manual",
@@ -137,20 +137,20 @@ describe("listResources", () => {
     const result = await listDatabaseResources();
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("res-1");
+    expect(result[0].id).toBe(1);
   });
 
   it("filters attention resources from paginated response items", async () => {
     apiClientMock.mockResolvedValue({
       items: [
         {
-          id: "res-1",
+          id: 1,
           resourceType: "database_instance",
           resourceSubtype: "mysql",
           name: "orders-db-primary",
           displayName: "Orders DB Primary",
-          environmentId: "env-prod",
-          ownerId: "owner-dba",
+          environmentId: 101,
+          ownerId: 201,
           lifecycleStatus: "running",
           healthStatus: "healthy",
           source: "manual",
@@ -163,13 +163,13 @@ describe("listResources", () => {
           archiveReason: null,
         },
         {
-          id: "res-2",
+          id: 2,
           resourceType: "service",
           resourceSubtype: "api",
           name: "orders-api",
           displayName: "Orders API",
-          environmentId: "env-prod",
-          ownerId: "owner-app",
+          environmentId: 101,
+          ownerId: 202,
           lifecycleStatus: "stopped",
           healthStatus: "warning",
           source: "manual",
@@ -193,20 +193,20 @@ describe("listResources", () => {
     const result = await listAttentionResources();
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("res-2");
+    expect(result[0].id).toBe(2);
   });
 
   it("derives overview metrics from paginated response items", async () => {
     apiClientMock.mockResolvedValue({
       items: [
         {
-          id: "res-1",
+          id: 1,
           resourceType: "database_instance",
           resourceSubtype: "mysql",
           name: "orders-db-primary",
           displayName: "Orders DB Primary",
-          environmentId: "env-prod",
-          ownerId: "owner-dba",
+          environmentId: 101,
+          ownerId: 201,
           lifecycleStatus: "running",
           healthStatus: "degraded",
           source: "manual",
@@ -219,13 +219,13 @@ describe("listResources", () => {
           archiveReason: null,
         },
         {
-          id: "res-2",
+          id: 2,
           resourceType: "service",
           resourceSubtype: "api",
           name: "orders-api",
           displayName: "Orders API",
-          environmentId: "env-prod",
-          ownerId: "owner-app",
+          environmentId: 101,
+          ownerId: 202,
           lifecycleStatus: "stopped",
           healthStatus: "warning",
           source: "manual",
@@ -261,13 +261,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-1",
+            id: 1,
             resourceType: "database_instance",
             resourceSubtype: "mysql",
             name: "orders-db-primary",
             displayName: "Orders DB Primary",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "running",
             healthStatus: "healthy",
             source: "manual",
@@ -290,13 +290,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-2",
+            id: 2,
             resourceType: "database_cluster",
             resourceSubtype: "mysql_cluster",
             name: "orders-db-cluster",
             displayName: "Orders DB Cluster",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "stopped",
             healthStatus: "warning",
             source: "manual",
@@ -319,13 +319,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-1",
+            id: 1,
             resourceType: "database_instance",
             resourceSubtype: "mysql",
             name: "orders-db-primary",
             displayName: "Orders DB Primary",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "running",
             healthStatus: "healthy",
             source: "manual",
@@ -348,13 +348,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-2",
+            id: 2,
             resourceType: "database_cluster",
             resourceSubtype: "mysql_cluster",
             name: "orders-db-cluster",
             displayName: "Orders DB Cluster",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "stopped",
             healthStatus: "warning",
             source: "manual",
@@ -377,13 +377,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-1",
+            id: 1,
             resourceType: "database_instance",
             resourceSubtype: "mysql",
             name: "orders-db-primary",
             displayName: "Orders DB Primary",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "running",
             healthStatus: "healthy",
             source: "manual",
@@ -406,13 +406,13 @@ describe("listResources", () => {
       .mockResolvedValueOnce({
         items: [
           {
-            id: "res-2",
+            id: 2,
             resourceType: "database_cluster",
             resourceSubtype: "mysql_cluster",
             name: "orders-db-cluster",
             displayName: "Orders DB Cluster",
-            environmentId: "env-prod",
-            ownerId: "owner-dba",
+            environmentId: 101,
+            ownerId: 201,
             lifecycleStatus: "stopped",
             healthStatus: "warning",
             source: "manual",
@@ -435,7 +435,7 @@ describe("listResources", () => {
 
     await expect(listDatabaseResources()).resolves.toHaveLength(2);
     await expect(listAttentionResources()).resolves.toEqual([
-      expect.objectContaining({ id: "res-2" }),
+      expect.objectContaining({ id: 2 }),
     ]);
     await expect(getOverviewMetrics()).resolves.toEqual({
       total: 2,
@@ -452,13 +452,13 @@ describe("createResource", () => {
   });
 
   const createdResource = {
-    id: "res-new-1",
+    id: 3,
     resourceType: "database_instance" as const,
     resourceSubtype: "mysql",
     name: "order-mysql-02-prod",
     displayName: "Order MySQL 02 Prod",
-    environmentId: "env-prod",
-    ownerId: "owner-dba",
+    environmentId: 101,
+    ownerId: 201,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     source: "manual",
@@ -479,8 +479,8 @@ describe("createResource", () => {
       resourceSubtype: "mysql",
       name: "order-mysql-02-prod",
       displayName: "Order MySQL 02 Prod",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 101,
+      ownerId: 201,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -494,7 +494,7 @@ describe("createResource", () => {
       method: "POST",
       body: JSON.stringify(input),
     });
-    expect(result.id).toBe("res-new-1");
+    expect(result.id).toBe(3);
     expect(result.name).toBe("order-mysql-02-prod");
   });
 
@@ -507,8 +507,8 @@ describe("createResource", () => {
       resourceType: "invalid_type",
       name: "test",
       displayName: "Test",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 101,
+      ownerId: 201,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -526,8 +526,8 @@ describe("createResource", () => {
       resourceType: "database_instance",
       name: "duplicate-name",
       displayName: "Duplicate",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 101,
+      ownerId: 201,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -543,13 +543,13 @@ describe("updateResource", () => {
   });
 
   const updatedResource = {
-    id: "res-1",
+    id: 1,
     resourceType: "database_instance" as const,
     resourceSubtype: "mysql",
     name: "orders-db-primary",
     displayName: "Orders DB Primary (Updated)",
-    environmentId: "env-prod",
-    ownerId: "owner-dba",
+    environmentId: 101,
+    ownerId: 201,
     lifecycleStatus: "running",
     healthStatus: "warning",
     source: "manual",
@@ -570,9 +570,9 @@ describe("updateResource", () => {
       healthStatus: "warning",
     };
 
-    const result = await updateResource("res-1", input);
+    const result = await updateResource(1, input);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1", {
       method: "PATCH",
       body: JSON.stringify(input),
     });
@@ -586,7 +586,7 @@ describe("updateResource", () => {
     );
 
     await expect(
-      updateResource("nonexistent", { displayName: "X" }),
+      updateResource(999, { displayName: "X" }),
     ).rejects.toThrow("Request failed: 404");
   });
 
@@ -596,7 +596,7 @@ describe("updateResource", () => {
     );
 
     await expect(
-      updateResource("res-1", { displayName: "X" }),
+      updateResource(1, { displayName: "X" }),
     ).rejects.toThrow("Request failed: 401");
   });
 });
@@ -607,9 +607,9 @@ describe("createResourceRelation", () => {
   });
 
   const createdRelation = {
-    id: "rel-new-1",
-    fromResourceId: "res-1",
-    toResourceId: "res-2",
+    id: 501,
+    fromResourceId: 1,
+    toResourceId: 2,
     relationType: "depends_on",
     createdAt: "2026-04-14T12:00:00Z",
   };
@@ -618,17 +618,17 @@ describe("createResourceRelation", () => {
     apiClientMock.mockResolvedValue(createdRelation);
 
     const input: CreateResourceRelationInput = {
-      toResourceId: "res-2",
+      toResourceId: 2,
       relationType: "depends_on",
     };
 
-    const result = await createResourceRelation("res-1", input);
+    const result = await createResourceRelation(1, input);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/relations", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/relations", {
       method: "POST",
       body: JSON.stringify(input),
     });
-    expect(result.id).toBe("rel-new-1");
+    expect(result.id).toBe(501);
     expect(result.relationType).toBe("depends_on");
   });
 
@@ -638,8 +638,8 @@ describe("createResourceRelation", () => {
     );
 
     await expect(
-      createResourceRelation("res-1", {
-        toResourceId: "res-2",
+      createResourceRelation(1, {
+        toResourceId: 2,
         relationType: "depends_on",
       }),
     ).rejects.toThrow("Request failed: 409");
@@ -651,8 +651,8 @@ describe("createResourceRelation", () => {
     );
 
     await expect(
-      createResourceRelation("res-1", {
-        toResourceId: "nonexistent",
+      createResourceRelation(1, {
+        toResourceId: 999,
         relationType: "depends_on",
       }),
     ).rejects.toThrow("Request failed: 404");
@@ -667,9 +667,9 @@ describe("deleteResourceRelation", () => {
   it("sends DELETE /resource-relations/{id}", async () => {
     apiClientMock.mockResolvedValue(undefined);
 
-    await deleteResourceRelation("rel-1");
+    await deleteResourceRelation(501);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resource-relations/rel-1", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resource-relations/501", {
       method: "DELETE",
     });
   });
@@ -679,7 +679,7 @@ describe("deleteResourceRelation", () => {
       new Error("Request failed: 404"),
     );
 
-    await expect(deleteResourceRelation("nonexistent")).rejects.toThrow(
+    await expect(deleteResourceRelation(999)).rejects.toThrow(
       "Request failed: 404",
     );
   });
@@ -747,13 +747,13 @@ describe("archiveResource", () => {
   });
 
   const archivedResource = {
-    id: "res-1",
+    id: 1,
     resourceType: "database_instance" as const,
     resourceSubtype: "mysql",
     name: "orders-db-primary",
     displayName: "Orders DB Primary",
-    environmentId: "env-prod",
-    ownerId: "owner-dba",
+    environmentId: 101,
+    ownerId: 201,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     source: "manual",
@@ -762,16 +762,16 @@ describe("archiveResource", () => {
     createdAt: "2026-04-14T00:00:00Z",
     updatedAt: "2026-04-14T12:00:00Z",
     archivedAt: "2026-04-14T12:00:00Z",
-    archivedBy: "admin",
+    archivedBy: 999,
     archiveReason: "Retired from production",
   };
 
   it("sends POST /resources/{id}/archive with reason", async () => {
     apiClientMock.mockResolvedValue(archivedResource);
 
-    const result = await archiveResource("res-1", "Retired from production");
+    const result = await archiveResource(1, "Retired from production");
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/archive", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/archive", {
       method: "POST",
       body: JSON.stringify({ reason: "Retired from production" }),
     });
@@ -782,9 +782,9 @@ describe("archiveResource", () => {
   it("sends POST /resources/{id}/archive without reason", async () => {
     apiClientMock.mockResolvedValue({ ...archivedResource, archiveReason: null });
 
-    await archiveResource("res-1");
+    await archiveResource(1);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/archive", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/archive", {
       method: "POST",
       body: JSON.stringify({}),
     });
@@ -793,7 +793,7 @@ describe("archiveResource", () => {
   it("propagates 404 for unknown resource", async () => {
     apiClientMock.mockRejectedValue(new Error("Request failed: 404"));
 
-    await expect(archiveResource("nonexistent")).rejects.toThrow(
+    await expect(archiveResource(999)).rejects.toThrow(
       "Request failed: 404",
     );
   });
@@ -801,7 +801,7 @@ describe("archiveResource", () => {
   it("propagates 409 for archived resource conflict", async () => {
     apiClientMock.mockRejectedValue(new Error("Request failed: 409"));
 
-    await expect(archiveResource("res-1")).rejects.toThrow(
+    await expect(archiveResource(1)).rejects.toThrow(
       "Request failed: 409",
     );
   });
@@ -813,13 +813,13 @@ describe("unarchiveResource", () => {
   });
 
   const unarchivedResource = {
-    id: "res-1",
+    id: 1,
     resourceType: "database_instance" as const,
     resourceSubtype: "mysql",
     name: "orders-db-primary",
     displayName: "Orders DB Primary",
-    environmentId: "env-prod",
-    ownerId: "owner-dba",
+    environmentId: 101,
+    ownerId: 201,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     source: "manual",
@@ -835,9 +835,9 @@ describe("unarchiveResource", () => {
   it("sends POST /resources/{id}/unarchive", async () => {
     apiClientMock.mockResolvedValue(unarchivedResource);
 
-    const result = await unarchiveResource("res-1");
+    const result = await unarchiveResource(1);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/res-1/unarchive", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/unarchive", {
       method: "POST",
     });
     expect(result.archivedAt).toBeNull();
@@ -846,7 +846,7 @@ describe("unarchiveResource", () => {
   it("propagates 404 for unknown resource", async () => {
     apiClientMock.mockRejectedValue(new Error("Request failed: 404"));
 
-    await expect(unarchiveResource("nonexistent")).rejects.toThrow(
+    await expect(unarchiveResource(999)).rejects.toThrow(
       "Request failed: 404",
     );
   });

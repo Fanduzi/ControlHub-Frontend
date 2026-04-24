@@ -54,13 +54,13 @@ const mockedListResourceAuditEvents = vi.mocked(listResourceAuditEvents);
 const mockedListAuditEvents = vi.mocked(listAuditEvents);
 
 const resource = {
-  id: "40000000-0000-0000-0000-000000000002",
+  id: 2,
   resourceType: "database_instance" as const,
   resourceSubtype: "mysql",
   name: "orders-db-primary",
   displayName: "Orders DB Primary",
-  environmentId: "env-prod",
-  ownerId: "owner-dba",
+  environmentId: 1,
+  ownerId: 1,
   lifecycleStatus: "running",
   healthStatus: "degraded",
   source: "manual",
@@ -84,7 +84,7 @@ describe("getResourceViewModel", () => {
     mockedListAllResources.mockResolvedValue([resource] as never);
     mockedListEnvironments.mockResolvedValue([
       {
-        id: "env-prod",
+        id: 1,
         name: "Production",
         slug: "production",
         description: "Production environment",
@@ -93,7 +93,7 @@ describe("getResourceViewModel", () => {
     ]);
     mockedListOwners.mockResolvedValue([
       {
-        id: "owner-dba",
+        id: 1,
         name: "DBA Team",
         email: "dba@example.com",
         createdAt: "2026-04-12T12:00:00Z",
@@ -147,7 +147,7 @@ describe("getResourceViewModel", () => {
   it("does not generate title-cased English fallback summaries for resources without curated copy", async () => {
     const uncopiedResource = {
       ...resource,
-      id: "41000000-0000-0000-0000-000000000099",
+      id: 99,
       resourceType: "database_cluster" as const,
       resourceSubtype: "mysql",
       lifecycleStatus: "running",
@@ -248,10 +248,10 @@ describe("getResourceViewModel", () => {
       },
     });
 
-    await listResourceViewModels({ environmentId: "env-prod", page: 1, pageSize: 15 });
+    await listResourceViewModels({ environmentId: 1, page: 1, pageSize: 15 });
 
     expect(mockedListResources).toHaveBeenCalledWith({
-      environmentId: "env-prod",
+      environmentId: 1,
       page: 1,
       pageSize: 15,
     });
@@ -260,19 +260,19 @@ describe("getResourceViewModel", () => {
   it("composes exact backend database type pages for paginated database view models", async () => {
     const firstInstance = {
       ...resource,
-      id: "db-instance-a",
+      id: 201,
       name: "a-instance",
       displayName: "A Instance",
     };
     const secondInstance = {
       ...resource,
-      id: "db-instance-d",
+      id: 204,
       name: "d-instance",
       displayName: "D Instance",
     };
     const firstCluster = {
       ...resource,
-      id: "db-cluster-b",
+      id: 202,
       resourceType: "database_cluster" as const,
       resourceSubtype: "mysql_cluster",
       name: "b-cluster",
@@ -280,7 +280,7 @@ describe("getResourceViewModel", () => {
     };
     const secondCluster = {
       ...firstCluster,
-      id: "db-cluster-c",
+      id: 203,
       name: "c-cluster",
       displayName: "C Cluster",
     };
@@ -334,7 +334,7 @@ describe("getResourceViewModel", () => {
     // Frontend must NOT use items.length as totalItems.
     const instances = Array.from({ length: 10 }, (_, i) => ({
       ...resource,
-      id: `db-inst-${i}`,
+      id: i + 300,
       name: `instance-${String(i).padStart(2, "0")}`,
       displayName: `Instance ${String(i).padStart(2, "0")}`,
       resourceSubtype: "mysql",
@@ -373,10 +373,10 @@ describe("getResourceViewModel", () => {
   });
 
   it("passes resourceSubtype to backend and uses backend pageInfo for merged types", async () => {
-    const instance = { ...resource, id: "mysql-inst-1", resourceSubtype: "mysql" };
+    const instance = { ...resource, id: 401, resourceSubtype: "mysql" };
     const cluster = {
       ...resource,
-      id: "mysql-cluster-1",
+      id: 402,
       resourceType: "database_cluster" as const,
       resourceSubtype: "mysql",
     };
@@ -420,8 +420,8 @@ describe("getResourceViewModel", () => {
     mockedListAuditEvents.mockResolvedValue({
       items: [
         {
-          id: "audit-1",
-          actorUserId: "30000000-0000-0000-0000-000000000001",
+          id: 1,
+          actorUserId: 1,
           targetResourceId: resource.id,
           eventType: "resource.updated",
           result: "success",

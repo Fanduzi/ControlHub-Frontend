@@ -34,6 +34,15 @@ type TopbarProps = {
   pathname: string;
 };
 
+function parsePositiveInt(value: string | null) {
+  if (!value || !/^[1-9]\d*$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 export function Topbar({ pathname }: TopbarProps) {
   const t = useTranslations();
   const router = useRouter();
@@ -58,7 +67,7 @@ export function Topbar({ pathname }: TopbarProps) {
   const { environments, currentEnvironmentId, setEnvironmentId } =
     useEnvironment();
   const urlEnvironmentSlug = searchParams.get("environment");
-  const urlEnvironmentId = searchParams.get("environmentId");
+  const urlEnvironmentId = parsePositiveInt(searchParams.get("environmentId"));
   const selectedEnvironmentFromUrl = environments.find(
     (environment) => environment.slug === urlEnvironmentSlug,
   )?.id;
@@ -69,7 +78,7 @@ export function Topbar({ pathname }: TopbarProps) {
       !urlEnvironmentId,
   );
   const selectedEnvironmentId = supportsEnvironment
-    ? (selectedEnvironmentFromUrl ?? urlEnvironmentId ?? (hasUnknownEnvironmentSlug ? "" : currentEnvironmentId))
+    ? (selectedEnvironmentFromUrl ?? urlEnvironmentId ?? (hasUnknownEnvironmentSlug ? null : currentEnvironmentId))
     : currentEnvironmentId;
 
   useEffect(() => {
@@ -88,7 +97,9 @@ export function Topbar({ pathname }: TopbarProps) {
   ]);
 
   function handleEnvironmentChange(value: string | null) {
-    const nextEnvironmentId = value === "all" ? "" : (value ?? "");
+    const nextEnvironmentId = value === "all" || !value
+      ? null
+      : parsePositiveInt(value);
     const params = new URLSearchParams(searchParams.toString());
     const nextEnvironment = environments.find(
       (environment) => environment.id === nextEnvironmentId,
@@ -130,21 +141,21 @@ export function Topbar({ pathname }: TopbarProps) {
 
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
         <Select
-          value={selectedEnvironmentId || "all"}
+          value={selectedEnvironmentId === null ? "all" : String(selectedEnvironmentId)}
           onValueChange={handleEnvironmentChange}
         >
           <SelectTrigger className="h-8 min-w-28 border-border text-xs">
             {hasUnknownEnvironmentSlug
               ? t("common.unknown")
-              : selectedEnvironmentId
+              : selectedEnvironmentId !== null
                 ? (environments.find((e) => e.id === selectedEnvironmentId)
-                    ?.name ?? selectedEnvironmentId)
+                    ?.name ?? String(selectedEnvironmentId))
                 : t("environments.all")}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("environments.all")}</SelectItem>
             {environments.map((env) => (
-              <SelectItem key={env.id} value={env.id}>
+              <SelectItem key={env.id} value={String(env.id)}>
                 {env.name}
               </SelectItem>
             ))}

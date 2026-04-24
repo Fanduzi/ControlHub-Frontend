@@ -223,7 +223,7 @@ export function DatabaseTable({
             }}
             aria-label={row.getIsExpanded() ? `Collapse ${row.original.displayName}` : `Expand ${row.original.displayName}`}
             aria-expanded={row.getIsExpanded()}
-            className="flex size-11 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded text-muted-foreground hover:text-foreground"
           >
             {row.getIsExpanded() ? (
               <ChevronDown className="size-4" />
@@ -463,6 +463,7 @@ export function DatabaseTable({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
+                        className="py-1"
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

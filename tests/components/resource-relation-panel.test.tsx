@@ -24,21 +24,51 @@ vi.mock("@/services/settings", () => ({
   listRelationTypes: vi.fn(),
 }));
 
+const mockedCreateRelation = vi.mocked(relationService.createResourceRelation);
 const mockedDeleteRelation = vi.mocked(relationService.deleteResourceRelation);
 const mockedListRelationTypes = vi.mocked(settingsService.listRelationTypes);
 
+vi.mock("@/components/blocks/resource-search-combobox", () => ({
+  ResourceSearchCombobox: ({
+    onSelect,
+    excludeIds,
+  }: {
+    onSelect: (resource: {
+      id: number;
+      displayName: string;
+      resourceType: string;
+    }) => void;
+    excludeIds?: number[];
+  }) => (
+    <button
+      type="button"
+      data-testid="resource-search-combobox"
+      data-exclude-ids={excludeIds?.join(",") ?? ""}
+      onClick={() =>
+        onSelect({
+          id: 9,
+          displayName: "orders-replica",
+          resourceType: "database_instance",
+        })
+      }
+    >
+      pick resource
+    </button>
+  ),
+}));
+
 const relations: ResourceRelationViewModel[] = [
   {
-    id: "rel-1",
-    fromResourceId: "res-1",
-    toResourceId: "res-2",
+    id: 1,
+    fromResourceId: 1,
+    toResourceId: 2,
     relationType: "member_of",
     createdAt: "2026-04-11T13:00:00Z",
-    relatedResourceId: "res-2",
+    relatedResourceId: 2,
     relatedResourceName: "orders-cluster",
     direction: "outgoing",
     relatedResource: {
-      id: "res-2",
+      id: 2,
       displayName: "orders-cluster",
       resourceType: "database_cluster",
       healthStatus: "healthy",
@@ -67,7 +97,7 @@ describe("ResourceRelationPanel", () => {
     // Name is rendered as a link to the resource detail page
     const link = screen.getByRole("link", { name: "orders-cluster" });
     expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("href", "/resources/res-2");
+    expect(link).toHaveAttribute("href", "/resources/2");
 
     // Relation type and direction are still shown
     expect(screen.getByText(/Member Of/)).toBeInTheDocument();
@@ -91,7 +121,7 @@ describe("ResourceRelationPanel", () => {
   it("shows add-relation button when resourceId is provided", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <ResourceRelationPanel relations={[]} resourceId="res-1" />
+        <ResourceRelationPanel relations={[]} resourceId={1} />
       </NextIntlClientProvider>,
     );
 
@@ -103,7 +133,7 @@ describe("ResourceRelationPanel", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <ResourceRelationPanel relations={[]} resourceId="res-1" />
+        <ResourceRelationPanel relations={[]} resourceId={1} />
       </NextIntlClientProvider>,
     );
 
@@ -115,8 +145,39 @@ describe("ResourceRelationPanel", () => {
       expect(screen.getByText("Relation type")).toBeInTheDocument();
     });
 
+    expect(screen.getByTestId("resource-search-combobox")).toHaveAttribute(
+      "data-exclude-ids",
+      "1",
+    );
+
     // Button text changes to Cancel
     expect(screen.getByText("Cancel")).toBeInTheDocument();
+  });
+
+  it("creates a relation with numeric source and target ids", async () => {
+    const user = userEvent.setup();
+    mockedCreateRelation.mockResolvedValue(undefined);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={[]} resourceId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByTestId("resource-search-combobox"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByText("Member of"));
+    await user.click(screen.getByRole("button", { name: "Add relation" }));
+
+    await waitFor(() => {
+      expect(mockedCreateRelation).toHaveBeenCalledWith(1, {
+        toResourceId: 9,
+        relationType: "member_of",
+      });
+    });
+
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("deletes a relation when the remove button is clicked", async () => {
@@ -127,7 +188,7 @@ describe("ResourceRelationPanel", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceRelationPanel
           relations={relations}
-          resourceId="res-1"
+          resourceId={1}
         />
       </NextIntlClientProvider>,
     );
@@ -141,7 +202,7 @@ describe("ResourceRelationPanel", () => {
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockedDeleteRelation).toHaveBeenCalledWith("rel-1");
+      expect(mockedDeleteRelation).toHaveBeenCalledWith(1);
     });
 
     expect(refresh).toHaveBeenCalledOnce();
@@ -155,7 +216,7 @@ describe("ResourceRelationPanel", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceRelationPanel
           relations={relations}
-          resourceId="res-1"
+          resourceId={1}
         />
       </NextIntlClientProvider>,
     );
@@ -168,7 +229,7 @@ describe("ResourceRelationPanel", () => {
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockedDeleteRelation).toHaveBeenCalledWith("rel-1");
+      expect(mockedDeleteRelation).toHaveBeenCalledWith(1);
     });
 
     expect(refresh).toHaveBeenCalledOnce();
@@ -189,7 +250,7 @@ describe("ResourceRelationPanel", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceRelationPanel
           relations={relations}
-          resourceId="res-1"
+          resourceId={1}
         />
       </NextIntlClientProvider>,
     );
@@ -218,7 +279,7 @@ describe("ResourceRelationPanel", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceRelationPanel
           relations={relations}
-          resourceId="res-1"
+          resourceId={1}
         />
       </NextIntlClientProvider>,
     );

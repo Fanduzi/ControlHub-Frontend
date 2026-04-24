@@ -1,7 +1,7 @@
 import { apiClient } from "@/services/api-client";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
-function buildTopologyPath(resourceId: string, params: TopologyParams = {}) {
+function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
   const searchParams = new URLSearchParams();
 
   if (params.depth) {
@@ -14,9 +14,8 @@ function buildTopologyPath(resourceId: string, params: TopologyParams = {}) {
     searchParams.set("relationType", params.relationType);
   }
 
-  const encodedId = encodeURIComponent(resourceId);
   const query = searchParams.toString();
-  return query ? `/resources/${encodedId}/topology?${query}` : `/resources/${encodedId}/topology`;
+  return query ? `/resources/${resourceId}/topology?${query}` : `/resources/${resourceId}/topology`;
 }
 
 export class TopologyNotAvailableError extends Error {
@@ -27,7 +26,7 @@ export class TopologyNotAvailableError extends Error {
 }
 
 export async function getResourceTopology(
-  resourceId: string,
+  resourceId: number,
   params?: TopologyParams,
 ): Promise<TopologyResponse | null> {
   try {

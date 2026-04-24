@@ -19,11 +19,11 @@ describe("parseResourceListSearchParams", () => {
   it("reads legacy environmentId param when environment slug is absent", async () => {
     const result = await parseResourceListSearchParams(
       Promise.resolve({
-        environmentId: "10000000-0000-0000-0000-000000000001",
+        environmentId: "10000000",
       }),
     );
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000001");
+    expect(result.environmentId).toBe(10000000);
     expect(result.environmentSlug).toBeUndefined();
   });
 
@@ -31,12 +31,32 @@ describe("parseResourceListSearchParams", () => {
     const result = await parseResourceListSearchParams(
       Promise.resolve({
         environment: "prod",
-        environmentId: "10000000-0000-0000-0000-000000000001",
+        environmentId: "10000000",
       }),
     );
 
     expect(result.environmentSlug).toBe("prod");
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000001");
+    expect(result.environmentId).toBe(10000000);
+  });
+
+  it("rejects malformed numeric environmentId values", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({
+        environmentId: "10000000x",
+      }),
+    );
+
+    expect(result.environmentId).toBeUndefined();
+  });
+
+  it("rejects unsafe numeric environmentId values", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({
+        environmentId: "9007199254740992",
+      }),
+    );
+
+    expect(result.environmentId).toBeUndefined();
   });
 
   it("preserves pagination params", async () => {
@@ -117,6 +137,22 @@ describe("parseResourceListSearchParams", () => {
 });
 
 describe("parseAuditListSearchParams", () => {
+  it("rejects malformed numeric targetResourceId values", async () => {
+    const result = await parseAuditListSearchParams(
+      Promise.resolve({ targetResourceId: "9oops" }),
+    );
+
+    expect(result.targetResourceId).toBeUndefined();
+  });
+
+  it("rejects unsafe numeric targetResourceId values", async () => {
+    const result = await parseAuditListSearchParams(
+      Promise.resolve({ targetResourceId: "9007199254740992" }),
+    );
+
+    expect(result.targetResourceId).toBeUndefined();
+  });
+
   it("reads multi-select eventType values", async () => {
     const result = await parseAuditListSearchParams(
       Promise.resolve({ eventType: ["resource.created", "resource.updated"] }),

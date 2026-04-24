@@ -13,6 +13,28 @@ export class ApiError extends Error {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
+function assertNoUnsafeIntegers(value: unknown) {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+      throw new Error("API response contains unsafe integer value");
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      assertNoUnsafeIntegers(item);
+    }
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value)) {
+      assertNoUnsafeIntegers(nested);
+    }
+  }
+}
+
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") {
     return {};
@@ -58,5 +80,7 @@ export async function apiClient<T>(
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const payload = await response.json();
+  assertNoUnsafeIntegers(payload);
+  return payload as T;
 }

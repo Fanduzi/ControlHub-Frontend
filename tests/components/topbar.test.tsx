@@ -9,17 +9,17 @@ import messages from "@/messages/en.json";
 const replace = vi.fn();
 const setEnvironmentId = vi.fn();
 const searchParams = new URLSearchParams("page=3&q=orders");
-let currentEnvironmentId = "";
+let currentEnvironmentId: number | null = null;
 let environments = [
   {
-    id: "env-prod",
+    id: 10000000,
     name: "Production",
     slug: "prod",
     description: "",
     createdAt: "",
   },
   {
-    id: "env-stage",
+    id: 10000001,
     name: "Staging",
     slug: "stage",
     description: "",
@@ -57,17 +57,17 @@ describe("Topbar", () => {
   beforeEach(() => {
     replace.mockClear();
     setEnvironmentId.mockClear();
-    currentEnvironmentId = "";
+    currentEnvironmentId = null;
     environments = [
       {
-        id: "env-prod",
+        id: 10000000,
         name: "Production",
         slug: "prod",
         description: "",
         createdAt: "",
       },
       {
-        id: "env-stage",
+        id: 10000001,
         name: "Staging",
         slug: "stage",
         description: "",
@@ -92,14 +92,14 @@ describe("Topbar", () => {
     await user.click(screen.getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: "Production" }));
 
-    expect(setEnvironmentId).toHaveBeenCalledWith("env-prod");
+    expect(setEnvironmentId).toHaveBeenCalledWith(10000000);
     expect(replace).toHaveBeenCalledWith(
       "/resources?page=1&q=orders&environment=prod",
     );
   });
 
   it("prefers readable environment slug from the URL over provider state for the selected value", () => {
-    currentEnvironmentId = "env-stage";
+    currentEnvironmentId = 10000001;
     searchParams.set("environment", "prod");
 
     render(
@@ -112,7 +112,7 @@ describe("Topbar", () => {
   });
 
   it("does not fall back to provider environment when URL slug is unknown", () => {
-    currentEnvironmentId = "env-stage";
+    currentEnvironmentId = 10000001;
     searchParams.set("environment", "missing");
 
     render(
@@ -122,6 +122,34 @@ describe("Topbar", () => {
     );
 
     expect(screen.getByRole("combobox")).toHaveTextContent("Unknown");
+    expect(setEnvironmentId).not.toHaveBeenCalled();
+  });
+
+  it("ignores malformed numeric environmentId values from the URL", () => {
+    currentEnvironmentId = 10000001;
+    searchParams.set("environmentId", "10000000x");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Staging");
+    expect(setEnvironmentId).not.toHaveBeenCalled();
+  });
+
+  it("ignores unsafe numeric environmentId values from the URL", () => {
+    currentEnvironmentId = 10000001;
+    searchParams.set("environmentId", "9007199254740992");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("Staging");
     expect(setEnvironmentId).not.toHaveBeenCalled();
   });
 
@@ -137,7 +165,7 @@ describe("Topbar", () => {
     await user.click(screen.getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: "Production" }));
 
-    expect(setEnvironmentId).toHaveBeenCalledWith("env-prod");
+    expect(setEnvironmentId).toHaveBeenCalledWith(10000000);
     expect(replace).toHaveBeenCalledWith("/audits?page=1&q=orders");
   });
 
@@ -145,21 +173,21 @@ describe("Topbar", () => {
     const user = userEvent.setup();
     environments = [
       {
-        id: "10000000-0000-0000-0000-000000000001",
+        id: 10000000,
         name: "Production",
         slug: "prod",
         description: "Production environment",
         createdAt: "2026-04-12T12:57:30Z",
       },
       {
-        id: "10000000-0000-0000-0000-000000000002",
+        id: 10000001,
         name: "Staging",
         slug: "staging",
         description: "Staging environment",
         createdAt: "2026-04-12T12:57:30Z",
       },
     ];
-    currentEnvironmentId = "production";
+    currentEnvironmentId = 10000001;
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -171,7 +199,7 @@ describe("Topbar", () => {
     await user.click(await screen.findByRole("option", { name: "Production" }));
 
     expect(setEnvironmentId).toHaveBeenLastCalledWith(
-      "10000000-0000-0000-0000-000000000001",
+      10000000,
     );
     expect(replace).toHaveBeenLastCalledWith(
       "/resources?page=1&q=orders&environment=prod",

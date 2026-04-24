@@ -6,7 +6,9 @@ import type { ResourceDetailViewModel } from "@/types/view-models";
 const getTranslationsMock = vi.fn();
 const getLocaleMock = vi.fn();
 const getResourceViewModelMock = vi.fn();
-const notFoundMock = vi.fn();
+const notFoundMock = vi.fn(() => {
+  throw new Error("NEXT_NOT_FOUND");
+});
 
 vi.mock("next-intl/server", () => ({
   getTranslations: getTranslationsMock,
@@ -44,7 +46,7 @@ vi.mock("@/components/blocks/status-badge", () => ({
 }));
 
 vi.mock("@/components/blocks/topology-panel", () => ({
-  TopologyPanel: ({ resourceId }: { resourceId: string }) => <div>topology:{resourceId}</div>,
+  TopologyPanel: ({ resourceId }: { resourceId: number }) => <div>topology:{resourceId}</div>,
 }));
 
 vi.mock("@/components/resources/resource-detail-edit-button", () => ({
@@ -75,14 +77,14 @@ function t(key: string) {
 t.has = () => false;
 
 const resource: ResourceDetailViewModel = {
-  id: "res-db-primary",
+  id: 101,
   resourceType: "database_instance",
   resourceSubtype: "mysql",
   name: "orders-db-primary",
   displayName: "Orders DB Primary",
-  environmentId: "env-prod",
+  environmentId: 1,
   environmentName: "Production",
-  ownerId: "owner-dba",
+  ownerId: 1,
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "degraded",
@@ -109,11 +111,37 @@ describe("ResourceDetailPage", () => {
     getResourceViewModelMock.mockResolvedValue(resource);
   });
 
+  it("rejects malformed numeric route params", async () => {
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    await expect(
+      ResourceDetailPage({
+        params: Promise.resolve({ id: "101oops" }),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(notFoundMock).toHaveBeenCalled();
+    expect(getResourceViewModelMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe numeric route params", async () => {
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    await expect(
+      ResourceDetailPage({
+        params: Promise.resolve({ id: "9007199254740992" }),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(notFoundMock).toHaveBeenCalled();
+    expect(getResourceViewModelMock).not.toHaveBeenCalled();
+  });
+
   it("elevates topology into a prominent full-width surface after profile content", async () => {
     const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
 
     const element = await ResourceDetailPage({
-      params: Promise.resolve({ id: resource.id }),
+      params: Promise.resolve({ id: String(resource.id) }),
     });
 
     const { container } = render(element);

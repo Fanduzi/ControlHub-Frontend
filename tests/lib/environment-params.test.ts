@@ -4,9 +4,9 @@ import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import type { ResourceListParams } from "@/types/resource";
 
 const MOCK_ENVIRONMENTS = [
-  { id: "10000000-0000-0000-0000-000000000001", name: "Production", slug: "prod" },
-  { id: "10000000-0000-0000-0000-000000000002", name: "Staging", slug: "staging" },
-  { id: "10000000-0000-0000-0000-000000000003", name: "Development", slug: "dev" },
+  { id: 1, name: "Production", slug: "prod" },
+  { id: 2, name: "Staging", slug: "staging" },
+  { id: 3, name: "Development", slug: "dev" },
 ];
 
 const { listEnvironmentsMock } = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ describe("resolveEnvironmentSlugToId", () => {
     const params: ResourceListParams = { environmentSlug: "prod" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000001");
+    expect(result.environmentId).toBe(1);
     expect(result.environmentSlug).toBe("prod");
   });
 
@@ -35,32 +35,32 @@ describe("resolveEnvironmentSlugToId", () => {
     const params: ResourceListParams = { environmentSlug: "staging" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000002");
+    expect(result.environmentId).toBe(2);
   });
 
   it("returns unknown ID for an unrecognized slug", async () => {
     const params: ResourceListParams = { environmentSlug: "nonexistent" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("00000000-0000-0000-0000-000000000000");
+    expect(result.environmentId).toBe(0);
   });
 
   it("skips resolution when environmentSlug is absent", async () => {
-    const params: ResourceListParams = { environmentId: "10000000-0000-0000-0000-000000000001" };
+    const params: ResourceListParams = { environmentId: 1 };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000001");
+    expect(result.environmentId).toBe(1);
     expect(listEnvironmentsMock).not.toHaveBeenCalled();
   });
 
   it("skips resolution when environmentId is already set alongside slug", async () => {
     const params: ResourceListParams = {
       environmentSlug: "prod",
-      environmentId: "10000000-0000-0000-0000-000000000001",
+      environmentId: 1,
     };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000001");
+    expect(result.environmentId).toBe(1);
     expect(listEnvironmentsMock).not.toHaveBeenCalled();
   });
 
@@ -74,7 +74,7 @@ describe("resolveEnvironmentSlugToId", () => {
     };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe("10000000-0000-0000-0000-000000000003");
+    expect(result.environmentId).toBe(3);
     expect(result.page).toBe(2);
     expect(result.pageSize).toBe(50);
     expect(result.q).toBe("orders");

@@ -36,7 +36,7 @@ type ResourceRelationPanelProps = {
   relations: ResourceRelationViewModel[];
   emptyTitle?: string;
   emptyDescription?: string;
-  resourceId?: string;
+  resourceId?: number;
 };
 
 export function ResourceRelationPanel({
@@ -51,12 +51,12 @@ export function ResourceRelationPanel({
   const router = useRouter();
 
   const [showAddForm, setShowAddForm] = useState(false);
-  const [targetId, setTargetId] = useState("");
+  const [targetId, setTargetId] = useState<number | null>(null);
   const [relationType, setRelationType] = useState("");
   const [relationTypes, setRelationTypes] = useState<RelationTypeDefinition[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export function ResourceRelationPanel({
       });
       router.refresh();
       setShowAddForm(false);
-      setTargetId("");
+      setTargetId(null);
       setRelationType("");
     } catch (err) {
       if (err instanceof Error) {
@@ -97,7 +97,7 @@ export function ResourceRelationPanel({
   }, [resourceId, targetId, relationType, router, mt]);
 
   const handleDeleteRelation = useCallback(
-    async (relationId: string) => {
+    async (relationId: number) => {
       setDeletingId(relationId);
       setError(null);
 
@@ -259,7 +259,7 @@ export function ResourceRelationPanel({
             <AlertDialogCancel>{ct("actions.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingDeleteId) handleDeleteRelation(pendingDeleteId);
+                if (pendingDeleteId !== null) handleDeleteRelation(pendingDeleteId);
                 setPendingDeleteId(null);
               }}
             >

@@ -238,12 +238,15 @@ describe("list pages pagination contracts", () => {
       }),
     });
 
-    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(1, {
-      page: 1,
-      pageSize: 10,
-      environmentId: "00000000-0000-0000-0000-000000000000",
-      environmentSlug: "missing",
-    });
+    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+        environmentId: 0,
+        environmentSlug: "missing",
+      }),
+    );
   });
 
   it("passes normalized page params to databases", async () => {
@@ -253,17 +256,19 @@ describe("list pages pagination contracts", () => {
       searchParams: Promise.resolve({
         page: "3",
         pageSize: "10",
-        environmentId: "env-prod",
+        environmentId: "42",
         q: "  mysql  ",
       }),
     });
 
-    expect(listDatabaseResourceViewModelsMock).toHaveBeenCalledWith({
-      page: 3,
-      pageSize: 10,
-      environmentId: "env-prod",
-      q: "mysql",
-    });
+    expect(listDatabaseResourceViewModelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 3,
+        pageSize: 10,
+        environmentId: 42,
+        q: "mysql",
+      }),
+    );
   });
 
   it("passes normalized audit filters and page params", async () => {
@@ -273,7 +278,7 @@ describe("list pages pagination contracts", () => {
       searchParams: Promise.resolve({
         page: "4",
         pageSize: "25",
-        targetResourceId: "resource-2",
+        targetResourceId: "2",
         eventType: "resource.updated",
         result: "success",
       }),
@@ -282,7 +287,7 @@ describe("list pages pagination contracts", () => {
     expect(listAuditEventViewModelsMock).toHaveBeenCalledWith({
       page: 4,
       pageSize: 25,
-      targetResourceId: "resource-2",
+      targetResourceId: 2,
       eventType: "resource.updated",
       result: "success",
     });

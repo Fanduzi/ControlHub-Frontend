@@ -26,8 +26,8 @@ function buildAuditListPath(params: AuditEventListParams = {}) {
   if (params.pageSize) {
     searchParams.set("pageSize", String(params.pageSize));
   }
-  if (params.targetResourceId) {
-    searchParams.set("targetResourceId", params.targetResourceId);
+  if (params.targetResourceId !== undefined) {
+    searchParams.set("targetResourceId", String(params.targetResourceId));
   }
   appendRepeated(searchParams, "eventType", params.eventType);
   appendRepeated(searchParams, "result", params.result);
@@ -60,10 +60,10 @@ async function listAllAuditEvents(params: AuditEventListParams = {}): Promise<Au
 }
 
 export async function listResourceAuditEvents(
-  resourceId: string,
+  resourceId: number,
 ): Promise<AuditEvent[]> {
   const response = await apiClient<AuditEventListResponse>(
-    `/resources/${encodeURIComponent(resourceId)}/audit-events`,
+    `/resources/${resourceId}/audit-events`,
   );
 
   return [...response.items].sort((left, right) =>

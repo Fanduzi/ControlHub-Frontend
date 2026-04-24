@@ -35,8 +35,8 @@ function buildResourceListPath(params: ResourceListParams = {}) {
   }
   appendRepeated(searchParams, "resourceType", params.resourceType);
   appendRepeated(searchParams, "resourceSubtype", params.resourceSubtype);
-  if (params.environmentId) {
-    searchParams.set("environmentId", params.environmentId);
+  if (params.environmentId !== undefined) {
+    searchParams.set("environmentId", String(params.environmentId));
   }
   appendRepeated(searchParams, "lifecycleStatus", params.lifecycleStatus);
   appendRepeated(searchParams, "healthStatus", params.healthStatus);
@@ -78,11 +78,11 @@ export async function listAllResources(params: ResourceListParams = {}): Promise
 }
 
 export async function getResourceById(
-  id: string,
+  id: number,
 ): Promise<ResourceDetailResponse | null> {
   try {
     const response = await apiClient<ResourceDetailResponse>(
-      `/resources/${encodeURIComponent(id)}`,
+      `/resources/${id}`,
     );
 
     // Handle both the new wrapped response and the legacy flat response
@@ -104,11 +104,11 @@ export async function getResourceById(
 }
 
 export async function getResourceProfileById(
-  id: string,
+  id: number,
 ): Promise<ResourceProfileResponse | null> {
   try {
     return await apiClient<ResourceProfileResponse>(
-      `/resources/${encodeURIComponent(id)}/profile`,
+      `/resources/${id}/profile`,
     );
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
@@ -120,10 +120,10 @@ export async function getResourceProfileById(
 }
 
 export async function listResourceRelations(
-  resourceId: string,
+  resourceId: number,
 ): Promise<ResourceRelation[]> {
   const response = await apiClient<ResourceRelationListResponse>(
-    `/resources/${encodeURIComponent(resourceId)}/relations`,
+    `/resources/${resourceId}/relations`,
   );
 
   return response.items;
@@ -178,31 +178,31 @@ export async function createResource(
 }
 
 export async function updateResource(
-  id: string,
+  id: number,
   input: UpdateResourceInput,
 ): Promise<Resource> {
-  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}`, {
+  return apiClient<Resource>(`/resources/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
 export async function updateProfile(
-  id: string,
+  id: number,
   fields: Record<string, string | number | boolean>,
 ): Promise<void> {
-  await apiClient<void>(`/resources/${encodeURIComponent(id)}/profile`, {
+  await apiClient<void>(`/resources/${id}/profile`, {
     method: "PATCH",
     body: JSON.stringify(fields),
   });
 }
 
 export async function createResourceRelation(
-  resourceId: string,
+  resourceId: number,
   input: CreateResourceRelationInput,
 ): Promise<ResourceRelation> {
   return apiClient<ResourceRelation>(
-    `/resources/${encodeURIComponent(resourceId)}/relations`,
+    `/resources/${resourceId}/relations`,
     {
       method: "POST",
       body: JSON.stringify(input),
@@ -211,25 +211,25 @@ export async function createResourceRelation(
 }
 
 export async function deleteResourceRelation(
-  relationId: string,
+  relationId: number,
 ): Promise<void> {
-  await apiClient<void>(`/resource-relations/${encodeURIComponent(relationId)}`, {
+  await apiClient<void>(`/resource-relations/${relationId}`, {
     method: "DELETE",
   });
 }
 
 export async function archiveResource(
-  id: string,
+  id: number,
   reason?: string,
 ): Promise<Resource> {
-  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}/archive`, {
+  return apiClient<Resource>(`/resources/${id}/archive`, {
     method: "POST",
     body: JSON.stringify(reason ? { reason } : {}),
   });
 }
 
-export async function unarchiveResource(id: string): Promise<Resource> {
-  return apiClient<Resource>(`/resources/${encodeURIComponent(id)}/unarchive`, {
+export async function unarchiveResource(id: number): Promise<Resource> {
+  return apiClient<Resource>(`/resources/${id}/unarchive`, {
     method: "POST",
   });
 }

@@ -29,22 +29,28 @@ export function applyAccentToDocument(accent: AccentName) {
 
 export const ENVIRONMENT_STORAGE_KEY = "controlhub.environmentId";
 
-/** Empty string = "all environments" (no filter). */
-export function readStoredEnvironmentId(): string {
+/** Null = "all environments" (no filter). */
+export function readStoredEnvironmentId(): number | null {
   if (typeof window === "undefined") {
-    return "";
+    return null;
   }
 
-  return window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY) ?? "";
+  const value = window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY);
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-export function persistEnvironmentId(id: string): void {
+export function persistEnvironmentId(id: number | null): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  if (id) {
-    window.localStorage.setItem(ENVIRONMENT_STORAGE_KEY, id);
+  if (id !== null) {
+    window.localStorage.setItem(ENVIRONMENT_STORAGE_KEY, String(id));
   } else {
     window.localStorage.removeItem(ENVIRONMENT_STORAGE_KEY);
   }
