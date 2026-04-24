@@ -48,6 +48,8 @@ import type { ResourceTypeDefinition } from "@/types/settings";
 
 import { Columns3 } from "lucide-react";
 
+import { saveResourceListUrl } from "@/lib/resource-list-persistence";
+
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 import { CreateResourceSheet } from "./create-resource-sheet";
 
@@ -143,7 +145,10 @@ export function ResourceTable({
       cell: ({ row }) => (
         <ResourceLink
           href={`/resources/${row.original.id}`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            saveResourceListUrl(`${pathname}?${searchParams.toString()}`);
+          }}
         >
           {row.original.displayName}
         </ResourceLink>

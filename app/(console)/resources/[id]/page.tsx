@@ -15,10 +15,10 @@ import { ResourceArchiveButton } from "@/components/resources/resource-archive-b
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { ResourcesBreadcrumbLink } from "@/components/resources/resources-breadcrumb-link";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
 import {
@@ -43,7 +43,18 @@ export default async function ResourceDetailPage({
   ]);
   const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
   const { id } = await params;
-  const resource = await getResourceViewModel(id);
+
+  if (!/^[1-9]\d*$/.test(id)) {
+    notFound();
+  }
+
+  const resourceId = Number(id);
+
+  if (!Number.isSafeInteger(resourceId)) {
+    notFound();
+  }
+
+  const resource = await getResourceViewModel(resourceId);
 
   if (!resource) {
     notFound();
@@ -61,7 +72,7 @@ export default async function ResourceDetailPage({
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/resources">{t("navigation.resources.title")}</BreadcrumbLink>
+            <ResourcesBreadcrumbLink label={t("navigation.resources.title")} />
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
