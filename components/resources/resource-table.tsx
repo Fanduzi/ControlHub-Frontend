@@ -125,7 +125,7 @@ export function ResourceTable({
     setSearchDraft(search);
   }, [search]);
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       id: "icon",
       size: 36,
@@ -261,7 +261,7 @@ export function ResourceTable({
         return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
       },
     }),
-  ];
+  ], [t, locale, searchParams, pathname]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({

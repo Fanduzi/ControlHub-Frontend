@@ -384,21 +384,24 @@ export function DatabaseTable({
     onExpandedChange: setExpanded,
   });
 
-  function replaceSearchParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
+  const replaceSearchParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null) {
-        params.delete(key);
-        return;
-      }
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null) {
+          params.delete(key);
+          return;
+        }
 
-      params.set(key, value);
-    });
+        params.set(key, value);
+      });
 
-    params.set("page", "1");
-    router.replace(`${pathname}?${params.toString()}`);
-  }
+      params.set("page", "1");
+      router.replace(`${pathname}?${params.toString()}`);
+    },
+    [searchParams, router, pathname],
+  );
 
   const debouncedSearch = useDebounceCallback(
     (value: string) => {

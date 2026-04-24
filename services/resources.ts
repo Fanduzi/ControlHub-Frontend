@@ -1,4 +1,5 @@
 import { apiClient, ApiError } from "@/services/api-client";
+import { appendRepeated } from "@/lib/pagination";
 import type {
   CreateResourceInput,
   CreateResourceRelationInput,
@@ -11,18 +12,6 @@ import type {
   ResourceRelationListResponse,
   UpdateResourceInput,
 } from "@/types/resource";
-
-function appendRepeated(
-  searchParams: URLSearchParams,
-  key: string,
-  value: string | string[] | undefined,
-) {
-  if (!value) return;
-  const values = Array.isArray(value) ? value : [value];
-  for (const v of values) {
-    searchParams.append(key, v);
-  }
-}
 
 function buildResourceListPath(params: ResourceListParams = {}) {
   const searchParams = new URLSearchParams();
