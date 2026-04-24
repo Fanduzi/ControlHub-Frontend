@@ -81,24 +81,11 @@ export async function getResourceById(
   id: number,
 ): Promise<ResourceDetailResponse | null> {
   try {
-    const response = await apiClient<ResourceDetailResponse>(
-      `/resources/${id}`,
-    );
-
-    // Handle both the new wrapped response and the legacy flat response
-    if ("resource" in response && response.resource) {
-      return response;
-    }
-
-    // Legacy: response is a flat Resource — wrap it
-    return {
-      resource: response as unknown as Resource,
-    };
+    return await apiClient<ResourceDetailResponse>(`/resources/${id}`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return null;
     }
-
     throw error;
   }
 }
