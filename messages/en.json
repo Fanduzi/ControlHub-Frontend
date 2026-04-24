@@ -501,7 +501,9 @@
     "emptyDescription": "This resource has no linked resources to visualize.",
     "errorTitle": "Failed to load topology",
     "unavailableTitle": "Topology not available",
-    "unavailableDescription": "The backend topology endpoint is not yet available. Check back after the backend is updated."
+    "unavailableDescription": "The backend topology endpoint is not yet available. Check back after the backend is updated.",
+    "severityCritical": "Critical",
+    "severityWarning": "Warning"
   },
   "pagination": {
     "previous": "Previous page",

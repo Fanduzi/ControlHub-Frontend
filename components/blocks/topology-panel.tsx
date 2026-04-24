@@ -490,7 +490,7 @@ function TopologyPanelInner({
                 onClick={() => highlightNode(p.resourceId)}
                 data-testid={`topology-problem-${p.resourceId}`}
               >
-                <span className={cn("size-2 rounded-full shrink-0", p.severity === "critical" ? "bg-red-500" : "bg-amber-500")} />
+                <span className={cn("size-2 rounded-full shrink-0", p.severity === "critical" ? "bg-red-500" : "bg-amber-500")} aria-label={p.severity === "critical" ? t("topology.severityCritical") : t("topology.severityWarning")} role="img" />
                 <span className="font-medium text-foreground">{p.resourceName}</span>
                 <span className="text-muted-foreground truncate">
                   {p.problems.map((pr) => {

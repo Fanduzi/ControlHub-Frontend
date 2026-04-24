@@ -501,7 +501,9 @@
     "emptyDescription": "此资源没有可可视化的关联资源。",
     "errorTitle": "拓扑加载失败",
     "unavailableTitle": "拓扑不可用",
-    "unavailableDescription": "后端拓扑接口尚未上线，请等待后端更新后重试。"
+    "unavailableDescription": "后端拓扑接口尚未上线，请等待后端更新后重试。",
+    "severityCritical": "严重",
+    "severityWarning": "警告"
   },
   "pagination": {
     "previous": "上一页",
