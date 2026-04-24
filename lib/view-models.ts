@@ -38,22 +38,6 @@ import type {
   ResourceListViewModelResponse,
 } from "@/types/view-models";
 
-const resourceSummaries: Record<number, string> = {
-  1:
-    "Logical MySQL cluster boundary for the order domain, grouping writer and replica resources across the production data plane.",
-  2:
-    "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
-  3:
-    "Customer-facing order service with direct dependency on the MySQL data plane for order lifecycle management.",
-  4:
-    "Production database host providing compute and storage for the MySQL primary instance.",
-};
-
-const actorLabels: Record<number, string> = {
-  1: "ControlHub Admin",
-  2: "ControlHub Editor",
-};
-
 function buildFallbackSummary(resource: Resource): string {
   const parts: string[] = [];
   if (resource.resourceType) {
@@ -325,7 +309,7 @@ function toResourceListViewModel(
     environmentName:
       environmentMap.get(resource.environmentId) ?? String(resource.environmentId),
     ownerName: ownerMap.get(resource.ownerId) ?? String(resource.ownerId),
-    summary: resourceSummaries[resource.id] ?? buildFallbackSummary(resource),
+    summary: buildFallbackSummary(resource),
     isArchived: resource.archivedAt !== null && resource.archivedAt !== undefined,
   };
 }
