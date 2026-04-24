@@ -92,10 +92,143 @@ function getZoneColor(zoneKey: string) {
 }
 
 type TopologyPanelProps = {
-  resourceId: string;
+  resourceId: number;
   className?: string;
   compact?: boolean;
   urlSync?: boolean;
+};
+
+// --- Standalone node components (stable references for ReactFlow nodeTypes) ---
+
+function TopologyNodeComponent({ data }: { data: TopologyNodeData }) {
+  const t = useTranslations();
+  const getRoleLabel = (role: string): string | null => {
+    const key = `topology.roles.${role}`;
+    return t.has(key) ? t(key) : null;
+  };
+  const getTypeLabel = (resourceType: string): string => {
+    const key = `topology.types.${resourceType}`;
+    return t.has(key) ? t(key) : resourceType.replace(/_/g, " ");
+  };
+  const roleLabel = getRoleLabel(data.topologyRole);
+  const roleBorder = ROLE_BORDER[data.topologyRole] ?? "border-border";
+  const roleBg = ROLE_BG[data.topologyRole] ?? "bg-card";
+  const statusStyle = getNodeStatusStyle(data);
+  const handleClass = "!w-2 !h-2 !bg-muted-foreground/40 !border-0";
+
+  const addressParts: string[] = [];
+  if (data.ip) addressParts.push(data.ip);
+  if (data.port) addressParts.push(String(data.port));
+  const address = addressParts.join(":");
+  const isDb = data.resourceType === "database_instance" ||
+    data.resourceType === "database_cluster" ||
+    data.resourceType === "database_proxy";
+  const isDatabase = data.isDatabaseTopology ?? false;
+
+  return (
+    <div
+      data-testid={`topology-node-${data.id}`}
+      data-is-root={data.isRoot ? "true" : "false"}
+      data-topology-role={data.topologyRole}
+      className={cn(
+        "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors min-w-[140px] max-w-[220px]",
+        data.isRoot
+          ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
+          : statusStyle
+            ? cn(statusStyle.border, statusStyle.bg)
+            : cn(roleBorder, roleBg),
+      )}
+    >
+      <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
+      <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
+      <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
+      <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
+      <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
+      <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
+
+      {/* Line 1: Icon + Name + Role */}
+      <div className="flex items-center gap-1.5">
+        {isDb && data.resourceSubtype && (
+          <DbTypeIcon subtype={data.resourceSubtype} className="size-3.5 shrink-0" />
+        )}
+        <span className="font-medium text-foreground truncate">
+          {data.displayName || data.name}
+        </span>
+        {data.isRoot && (
+          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary shrink-0">
+            {t("topology.rootLabel")}
+          </span>
+        )}
+        {roleLabel && !data.isRoot && isDatabase && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
+            {roleLabel}
+          </span>
+        )}
+      </div>
+
+      {/* Line 2: IP:port (for DB instances and hosts) */}
+      {address && (
+        <div className="mt-0.5 text-[11px] font-mono text-foreground/80">
+          {address}
+        </div>
+      )}
+
+      {/* Line 3: Hostname (if different from IP) */}
+      {data.hostname && data.hostname !== data.ip && (
+        <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+          {data.hostname}
+        </div>
+      )}
+
+      {/* Fallback: show type if no IP */}
+      {!address && (
+        <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+          <span>{getTypeLabel(data.resourceType)}</span>
+          {data.resourceSubtype && !isDb && (
+            <>
+              <span>·</span>
+              <span>{data.resourceSubtype}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Line 4: Status badges */}
+      <div className="mt-1 flex gap-1">
+        <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />
+        <StatusBadge status={data.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
+      </div>
+    </div>
+  );
+}
+
+function TopologyGroupComponent({ data }: { data: GroupBoxData }) {
+  const handleClass = "!w-2 !h-2 !bg-muted-foreground/30 !border-0";
+  const zoneColor = getZoneColor(data.label || "default");
+
+  return (
+    <div className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}>
+      <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
+      <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
+      <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
+      <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
+      <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
+      <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
+      <div className={cn("absolute -top-3 left-3 rounded bg-background px-2 py-0.5 text-[10px] font-medium", zoneColor.label)}>
+        {data.label}
+      </div>
+    </div>
+  );
+}
+
+// Stable nodeTypes reference — components are defined above as top-level functions.
+const NODE_TYPES = {
+  topologyNode: TopologyNodeComponent,
+  topologyGroup: TopologyGroupComponent,
 };
 
 function TopologyPanelInner({
@@ -292,136 +425,21 @@ function TopologyPanelInner({
 
   // Highlight a node in the graph (used by problem panel)
   const highlightNode = useCallback(
-    (nodeId: string) => {
+    (nodeId: number) => {
+      const normalizedNodeId = String(nodeId);
       setNodes((nds) =>
         nds.map((n) => ({
           ...n,
-          className: n.id === nodeId ? "ring-2 ring-primary/50" : undefined,
+          className: n.id === normalizedNodeId ? "ring-2 ring-primary/50" : undefined,
         })),
       );
     },
     [setNodes],
   );
 
-  // --- Custom node component: Orchestrator-style ---
-  const nodeTypes = useMemo(
-    () => ({
-      topologyNode: ({ data }: { data: TopologyNodeData }) => {
-        const roleLabel = getRoleLabel(data.topologyRole);
-        const roleBorder = ROLE_BORDER[data.topologyRole] ?? "border-border";
-        const roleBg = ROLE_BG[data.topologyRole] ?? "bg-card";
-        const statusStyle = getNodeStatusStyle(data);
-        const handleClass = "!w-2 !h-2 !bg-muted-foreground/40 !border-0";
-
-        const addressParts: string[] = [];
-        if (data.ip) addressParts.push(data.ip);
-        if (data.port) addressParts.push(String(data.port));
-        const address = addressParts.join(":");
-        const isDb = data.resourceType === "database_instance" ||
-          data.resourceType === "database_cluster" ||
-          data.resourceType === "database_proxy";
-
-        return (
-          <div
-            data-testid={`topology-node-${data.id}`}
-            data-is-root={data.isRoot ? "true" : "false"}
-            data-topology-role={data.topologyRole}
-            className={cn(
-              "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors min-w-[140px] max-w-[220px]",
-              data.isRoot
-                ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
-                : statusStyle
-                  ? cn(statusStyle.border, statusStyle.bg)
-                  : cn(roleBorder, roleBg),
-            )}
-          >
-            <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
-            <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
-            <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
-            <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
-            <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
-            <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
-            <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
-            <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
-
-            {/* Line 1: Icon + Name + Role */}
-            <div className="flex items-center gap-1.5">
-              {isDb && data.resourceSubtype && (
-                <DbTypeIcon subtype={data.resourceSubtype} className="size-3.5 shrink-0" />
-              )}
-              <span className="font-medium text-foreground truncate">
-                {data.displayName || data.name}
-              </span>
-              {data.isRoot && (
-                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary shrink-0">
-                  {t("topology.rootLabel")}
-                </span>
-              )}
-              {roleLabel && !data.isRoot && isDatabase && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
-                  {roleLabel}
-                </span>
-              )}
-            </div>
-
-            {/* Line 2: IP:port (for DB instances and hosts) */}
-            {address && (
-              <div className="mt-0.5 text-[11px] font-mono text-foreground/80">
-                {address}
-              </div>
-            )}
-
-            {/* Line 3: Hostname (if different from IP) */}
-            {data.hostname && data.hostname !== data.ip && (
-              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                {data.hostname}
-              </div>
-            )}
-
-            {/* Fallback: show type if no IP */}
-            {!address && (
-              <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
-                <span>{getTypeLabel(data.resourceType)}</span>
-                {data.resourceSubtype && !isDb && (
-                  <>
-                    <span>·</span>
-                    <span>{data.resourceSubtype}</span>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Line 4: Status badges */}
-            <div className="mt-1 flex gap-1">
-              <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />
-              <StatusBadge status={data.lifecycleStatus} tone="lifecycle" className="text-[10px]" />
-            </div>
-          </div>
-        );
-      },
-      topologyGroup: ({ data }: { data: GroupBoxData }) => {
-        const handleClass = "!w-2 !h-2 !bg-muted-foreground/30 !border-0";
-        const zoneColor = getZoneColor(data.label || "default");
-
-        return (
-          <div className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}>
-            <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
-            <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
-            <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
-            <Handle type="target" position={Position.Top} id="target-top" className={handleClass} />
-            <Handle type="source" position={Position.Right} id="source-right" className={handleClass} />
-            <Handle type="target" position={Position.Right} id="target-right" className={handleClass} />
-            <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
-            <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
-            <div className={cn("absolute -top-3 left-3 rounded bg-background px-2 py-0.5 text-[10px] font-medium", zoneColor.label)}>
-              {data.label}
-            </div>
-          </div>
-        );
-      },
-    }),
-    [t, getTypeLabel, getRoleLabel, isDatabase],
-  );
+  // nodeTypes is a stable module-level constant (NODE_TYPES).
+  // Defined outside TopologyPanelInner so ReactFlow never remounts nodes.
+  const nodeTypes = NODE_TYPES;
 
   // Build edges with localized semantic labels
   const displayEdges = useMemo(
@@ -512,12 +530,17 @@ function TopologyPanelInner({
       <div
         className="fixed inset-0 z-50"
         onClick={() => setSelectedNodePopup(null)}
+        onKeyDown={(e) => { if (e.key === "Escape") setSelectedNodePopup(null); }}
+        role="presentation"
         data-testid="topology-node-popup-overlay"
       >
         <div
           className="absolute rounded-xl border border-border bg-card shadow-lg p-4 min-w-[280px] max-w-[340px]"
           style={{ left: px, top: py }}
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${d.displayName || d.name} details`}
           data-testid="topology-node-popup"
         >
           <div className="flex items-start justify-between gap-2 mb-3">
@@ -737,7 +760,7 @@ function TopologyPanelInner({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {renderControls()}
+      {!expanded && renderControls()}
 
       {loading && (
         <div data-testid="topology-loading" className="space-y-3">
