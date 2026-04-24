@@ -1,4 +1,4 @@
-import { apiClient } from "@/services/api-client";
+import { ApiError, apiClient } from "@/services/api-client";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
 function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
@@ -33,7 +33,7 @@ export async function getResourceTopology(
     return await apiClient<TopologyResponse>(buildTopologyPath(resourceId, params));
   } catch (error) {
     // 501 = endpoint not implemented → signal unavailable state
-    if (error instanceof Error && /\b501\b/.test(error.message)) {
+    if (error instanceof ApiError && error.status === 501) {
       throw new TopologyNotAvailableError();
     }
 

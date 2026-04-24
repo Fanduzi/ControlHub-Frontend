@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ApiError } from "@/services/api-client";
 import { archiveResource, unarchiveResource } from "@/services/resources";
 import type { ResourceListViewModel } from "@/types/view-models";
 
@@ -38,9 +39,7 @@ export function ResourceArchiveButton({
       setReason("");
       onArchiveChange?.();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : String(err);
-      if (message.includes("404")) {
+      if (err instanceof ApiError && err.status === 404) {
         setError(t("mutations.errors.notFound"));
       } else {
         setError(t("mutations.errors.backend"));
@@ -58,9 +57,7 @@ export function ResourceArchiveButton({
       await unarchiveResource(resource.id);
       onArchiveChange?.();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : String(err);
-      if (message.includes("404")) {
+      if (err instanceof ApiError && err.status === 404) {
         setError(t("mutations.errors.notFound"));
       } else {
         setError(t("mutations.errors.backend"));
