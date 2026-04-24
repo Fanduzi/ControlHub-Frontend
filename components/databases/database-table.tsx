@@ -164,12 +164,39 @@ export function DatabaseTable({
   }, [search]);
 
   const fullTree = useMemo(() => buildTree(resources), [resources]);
+
+  const filteredTree = useMemo(() => {
+    let tree = fullTree;
+
+    if (search.trim().length > 0) {
+      const q = search.toLowerCase();
+      tree = tree.filter((row) => {
+        if (row.displayName.toLowerCase().includes(q)) return true;
+        if (row.name.toLowerCase().includes(q)) return true;
+        if (row.subRows?.some((child) => child.displayName.toLowerCase().includes(q))) return true;
+        return false;
+      });
+    }
+
+    if (selectedEngines.length > 0) {
+      tree = tree.filter((row) => {
+        if (row.resourceType === "database_cluster") {
+          const clusterMembers = row.subRows ?? [];
+          return clusterMembers.some((child) => selectedEngines.includes(child.resourceSubtype));
+        }
+        return selectedEngines.includes(row.resourceSubtype);
+      });
+    }
+
+    return tree;
+  }, [fullTree, search, selectedEngines]);
+
   const { pagedTree, totalPages, safePage } = useMemo(
-    () => paginateTree(fullTree, page, clustersPerPage),
-    [fullTree, page, clustersPerPage],
+    () => paginateTree(filteredTree, page, clustersPerPage),
+    [filteredTree, page, clustersPerPage],
   );
 
-  const totalTopLevels = fullTree.filter((r) => !r.clusterId).length;
+  const totalTopLevels = filteredTree.filter((r) => !r.clusterId).length;
 
   const clusterPageInfo = useMemo((): PageInfo => ({
     page: safePage,
