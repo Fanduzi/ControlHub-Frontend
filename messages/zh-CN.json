@@ -57,7 +57,8 @@
       "archiveReason": "归档原因",
       "hostname": "主机名",
       "port": "端口",
-      "nodes": "节点数"
+      "nodes": "节点数",
+      "cluster": "集群"
     }
   },
   "statusValues": {
@@ -397,7 +398,9 @@
       "searchPlaceholder": "搜索数据库名称或 ID",
       "allEngines": "全部引擎",
       "emptyTitle": "暂无数据库资源",
-      "emptyDescription": "尚未登记任何数据库实例或集群。"
+      "emptyDescription": "尚未登记任何数据库实例或集群。",
+      "emptyFilterTitle": "未找到匹配的数据库",
+      "emptyFilterDescription": "当前搜索或筛选条件下没有匹配的数据库。请尝试不同的关键词或清除筛选条件。"
     },
     "audits": {
       "title": "审计流",

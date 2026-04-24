@@ -33,7 +33,7 @@ export function DbTypeIcon({ subtype, className }: DbTypeIconProps) {
       alt={subtype ?? "database"}
       width={20}
       height={20}
-      className={cn("shrink-0", className)}
+      className={cn("shrink-0 object-contain", className)}
     />
   );
 }

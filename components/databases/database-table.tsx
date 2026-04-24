@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDebounceCallback } from "@/hooks/use-debounce";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -10,13 +10,14 @@ import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
 import { DataTableShell } from "@/components/blocks/data-table-shell";
+import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { MultiSelectFilter, readMultiSelectValues, buildMultiSelectParams } from "@/components/blocks/multi-select-filter";
-import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
@@ -34,13 +35,19 @@ import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 import { ResourceDetailSheetLoader } from "@/components/resources/resource-detail-sheet-loader";
+import { ChevronRight, ChevronDown } from "lucide-react";
 
 type DatabaseTableProps = {
   resources: ResourceListViewModel[];
-  pageInfo: PageInfo;
+  totalClusters: number;
+  totalInstances: number;
 };
 
-const columnHelper = createColumnHelper<ResourceListViewModel>();
+type TreeRow = ResourceListViewModel & {
+  subRows?: TreeRow[];
+};
+
+const columnHelper = createColumnHelper<TreeRow>();
 
 const ENGINE_OPTIONS = [
   "mysql",
@@ -52,6 +59,68 @@ const ENGINE_OPTIONS = [
   "proxysql",
   "chproxy",
 ] as const;
+
+function buildTree(resources: ResourceListViewModel[]): TreeRow[] {
+  const clusterMap = new Map<number, TreeRow>();
+  const orphans: TreeRow[] = [];
+  const memberMap = new Map<number, ResourceListViewModel[]>();
+
+  for (const r of resources) {
+    if (r.resourceType === "database_cluster") {
+      clusterMap.set(r.id, { ...r, subRows: [] });
+    }
+  }
+
+  for (const r of resources) {
+    if (r.resourceType !== "database_instance") {
+      continue;
+    }
+    const parentId = r.clusterId;
+    if (parentId && clusterMap.has(parentId)) {
+      const list = memberMap.get(parentId) ?? [];
+      list.push(r);
+      memberMap.set(parentId, list);
+    } else {
+      orphans.push({ ...r, clusterId: undefined });
+    }
+  }
+
+  for (const [clusterId, members] of memberMap) {
+    const cluster = clusterMap.get(clusterId);
+    if (cluster) {
+      cluster.subRows = members.sort((a, b) =>
+        a.displayName.localeCompare(b.displayName),
+      );
+    }
+  }
+
+  const sortedClusters = [...clusterMap.values()].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
+  const sortedOrphans = orphans.sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
+
+  return [...sortedClusters, ...sortedOrphans];
+}
+
+function paginateTree(tree: TreeRow[], page: number, perPage: number) {
+  const topLevels = tree.filter((row) => !row.clusterId);
+  const totalPages = Math.max(1, Math.ceil(topLevels.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * perPage;
+  const slice = topLevels.slice(offset, offset + perPage);
+
+  const pageIds = new Set(slice.map((r) => r.id));
+  const pagedTree: TreeRow[] = [];
+  for (const node of tree) {
+    if (pageIds.has(node.id)) {
+      pagedTree.push(node);
+    }
+  }
+
+  return { pagedTree, totalPages, safePage };
+}
 
 function updateMultiSelectParams(
   pathname: string,
@@ -66,7 +135,8 @@ function updateMultiSelectParams(
 
 export function DatabaseTable({
   resources,
-  pageInfo,
+  totalClusters,
+  totalInstances,
 }: DatabaseTableProps) {
   const t = useTranslations();
   const localeValue = useLocale();
@@ -76,39 +146,134 @@ export function DatabaseTable({
   const searchParams = useSearchParams();
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean> | true>({});
 
   const search = searchParams.get("q") ?? "";
+  const page = parseInt(searchParams.get("page") ?? "1", 10) || 1;
+  const clustersPerPage = parseInt(searchParams.get("pageSize") ?? "10", 10) || 10;
+
+  useEffect(() => {
+    setExpanded({});
+  }, [page]);
   const selectedEngines = readMultiSelectValues(searchParams, "resourceSubtype");
+  const hasActiveFilters = search.trim().length > 0 || selectedEngines.length > 0;
   const [searchDraft, setSearchDraft] = useState(search);
 
   useEffect(() => {
     setSearchDraft(search);
   }, [search]);
 
-  // Collect unique engine/subtype values from current data
-  const availableEngines = Array.from(
-    new Set([
-      ...ENGINE_OPTIONS,
-      ...resources.map((r) => r.resourceSubtype).filter(Boolean),
-    ]),
-  ).sort();
+  const fullTree = useMemo(() => buildTree(resources), [resources]);
+  const { pagedTree, totalPages, safePage } = useMemo(
+    () => paginateTree(fullTree, page, clustersPerPage),
+    [fullTree, page, clustersPerPage],
+  );
 
-  const engineOptions = availableEngines.map((engine) => ({
-    value: engine,
-    label: formatLabel(engine),
-  }));
+  const totalTopLevels = fullTree.filter((r) => !r.clusterId).length;
 
-  const columns = [
+  const clusterPageInfo = useMemo((): PageInfo => ({
+    page: safePage,
+    pageSize: clustersPerPage,
+    totalItems: totalTopLevels,
+    totalPages,
+  }), [safePage, totalTopLevels, totalPages]);
+
+  const availableEngines = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...ENGINE_OPTIONS,
+          ...resources.map((r) => r.resourceSubtype).filter(Boolean),
+        ]),
+      ).sort(),
+    [resources],
+  );
+
+  const engineOptions = useMemo(
+    () => availableEngines.map((engine) => ({
+      value: engine,
+      label: formatLabel(engine),
+    })),
+    [availableEngines],
+  );
+
+  const handleRowClick = useCallback((resource: ResourceListViewModel) => {
+    setSelectedResource(resource);
+  }, []);
+
+  const columns = useMemo(() => [
+    columnHelper.display({
+      id: "expander",
+      size: 32,
+      minSize: 32,
+      enableHiding: false,
+      cell: ({ row }) => {
+        if (!row.original.subRows?.length) return null;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              row.toggleExpanded();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+              }
+            }}
+            aria-label={row.getIsExpanded() ? `Collapse ${row.original.displayName}` : `Expand ${row.original.displayName}`}
+            aria-expanded={row.getIsExpanded()}
+            className="flex size-11 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+          >
+            {row.getIsExpanded() ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </button>
+        );
+      },
+    }),
     columnHelper.accessor("displayName", {
       header: t("common.fields.resource"),
-      cell: ({ row }) => (
-        <ResourceLink
-          href={`/resources/${row.original.id}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {row.original.displayName}
-        </ResourceLink>
-      ),
+      cell: ({ row }) => {
+        const isCluster = row.original.resourceType === "database_cluster";
+        const isChild = (row.depth ?? 0) > 0;
+        return (
+          <div className="flex items-center gap-2">
+            {isCluster ? (
+              <>
+                <DbTypeIcon subtype={row.original.resourceSubtype} />
+                <ResourceLink
+                  href={`/resources/${row.original.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="font-medium text-foreground"
+                >
+                  {row.original.displayName}
+                </ResourceLink>
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                  {t("common.fields.cluster")}
+                </span>
+                {row.original.profileSummary?.nodeCount != null && (
+                  <span className="text-xs text-muted-foreground">
+                    {row.original.profileSummary.nodeCount} {t("common.fields.nodes").toLowerCase()}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className={`flex items-center gap-2${isChild ? " pl-4" : ""}`}>
+                <DbTypeIcon subtype={row.original.resourceSubtype} />
+                <ResourceLink
+                  href={`/resources/${row.original.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.original.displayName}
+                </ResourceLink>
+              </span>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("environmentName", {
       header: t("common.fields.environment"),
@@ -150,8 +315,7 @@ export function DatabaseTable({
       id: "hostname",
       header: t("common.fields.hostname"),
       cell: ({ row }) => {
-        const rt = row.original.resourceType;
-        if (rt !== "database_instance" && rt !== "host") return null;
+        if (row.original.resourceType === "database_cluster") return null;
         return (
           <span className="text-sm text-muted-foreground">
             {row.original.profileSummary?.hostname ?? "—"}
@@ -179,13 +343,18 @@ export function DatabaseTable({
         </span>
       ),
     }),
-  ];
+  ], [locale, t]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: resources,
+    data: pagedTree,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getSubRows: (row) => row.subRows,
+    getRowCanExpand: (row) => (row.original.subRows?.length ?? 0) > 0,
+    getRowId: (row) => String(row.id),
+    state: { expanded },
+    onExpandedChange: setExpanded,
   });
 
   function replaceSearchParams(updates: Record<string, string | null>) {
@@ -239,7 +408,7 @@ export function DatabaseTable({
             />
           </>
         }
-        pagination={<PaginationControls pageInfo={pageInfo} />}
+        pagination={<PaginationControls pageInfo={clusterPageInfo} />}
       >
         <Table>
           <TableHeader>
@@ -266,36 +435,44 @@ export function DatabaseTable({
               <TableRow>
                 <TableCell colSpan={columns.length} className="py-6">
                   <EmptyState
-                    title={t("tables.databases.emptyTitle")}
-                    description={t("tables.databases.emptyDescription")}
+                    title={hasActiveFilters ? t("tables.databases.emptyFilterTitle") : t("tables.databases.emptyTitle")}
+                    description={hasActiveFilters ? t("tables.databases.emptyFilterDescription") : t("tables.databases.emptyDescription")}
                   />
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`View details for ${row.original.displayName}`}
-                  className="cursor-pointer transition-colors"
-                  onClick={() => setSelectedResource(row.original)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.defaultPrevented) {
-                      setSelectedResource(row.original);
-                    }
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const isCluster = row.original.resourceType === "database_cluster";
+                const isChild = (row.depth ?? 0) > 0;
+                return (
+                  <TableRow
+                    key={row.id}
+                    role="row"
+                    tabIndex={0}
+                    aria-label={`View details for ${row.original.displayName}`}
+                    className={`cursor-pointer transition-colors border-l-2${
+                      isCluster ? " border-l-primary/40 bg-muted/30 hover:bg-muted/40" : " border-l-transparent"
+                    }`}
+                    onClick={() => handleRowClick(row.original)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.defaultPrevented) {
+                        handleRowClick(row.original);
+                      }
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

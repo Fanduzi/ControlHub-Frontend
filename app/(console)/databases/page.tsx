@@ -18,10 +18,10 @@ export default async function DatabasesPage({
   const parsedParams = await parseResourceListSearchParams(searchParams);
   const params = await resolveEnvironmentSlugToId(parsedParams);
   const [
-    { items: databaseResources, pageInfo },
+    { items: databaseResources },
     { clusters, instances },
   ] = await Promise.all([
-    listDatabaseResourceViewModels(params),
+    listDatabaseResourceViewModels({ ...params, page: 1, pageSize: 200 }),
     getDatabasePostureCounts(params),
   ]);
 
@@ -49,7 +49,11 @@ export default async function DatabasesPage({
         </div>
       </div>
 
-      <DatabaseTable resources={databaseResources} pageInfo={pageInfo} />
+      <DatabaseTable
+        resources={databaseResources}
+        totalClusters={clusters}
+        totalInstances={instances}
+      />
     </div>
   );
 }

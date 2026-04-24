@@ -57,7 +57,8 @@
       "archiveReason": "Archive reason",
       "hostname": "Hostname",
       "port": "Port",
-      "nodes": "Nodes"
+      "nodes": "Nodes",
+      "cluster": "Cluster"
     }
   },
   "statusValues": {
@@ -397,7 +398,9 @@
       "searchPlaceholder": "Search database name or ID",
       "allEngines": "All engines",
       "emptyTitle": "No database resources",
-      "emptyDescription": "No database instances or clusters have been registered yet."
+      "emptyDescription": "No database instances or clusters have been registered yet.",
+      "emptyFilterTitle": "No matching databases",
+      "emptyFilterDescription": "No databases match your current search or filter. Try different keywords or clear filters."
     },
     "audits": {
       "title": "Audit feed",
