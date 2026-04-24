@@ -117,11 +117,9 @@ export async function listResourceRelations(
 }
 
 export async function listDatabaseResources(): Promise<Resource[]> {
-  const items = await listAllResources();
-
-  return items.filter((resource) =>
-    ["database_instance", "database_cluster"].includes(resource.resourceType),
-  );
+  return listAllResources({
+    resourceType: ["database_instance", "database_cluster"],
+  });
 }
 
 export async function listAttentionResources(): Promise<Resource[]> {
