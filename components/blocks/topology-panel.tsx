@@ -130,8 +130,11 @@ function TopologyNodeComponent({ data }: { data: TopologyNodeData }) {
       data-testid={`topology-node-${data.id}`}
       data-is-root={data.isRoot ? "true" : "false"}
       data-topology-role={data.topologyRole}
+      tabIndex={0}
+      role="button"
+      aria-label={`${data.displayName || data.name}, ${data.healthStatus ?? "unknown"}`}
       className={cn(
-        "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors min-w-[140px] max-w-[220px]",
+        "relative rounded-lg border px-3 py-2 text-xs shadow-sm transition-colors min-w-[140px] max-w-[220px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1",
         data.isRoot
           ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
           : statusStyle
@@ -209,7 +212,10 @@ function TopologyGroupComponent({ data }: { data: GroupBoxData }) {
   const zoneColor = getZoneColor(data.label || "default");
 
   return (
-    <div className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}>
+    <div
+      className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}
+      aria-label={data.label ? `Zone: ${data.label}` : "Zone group"}
+    >
       <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
       <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
       <Handle type="source" position={Position.Top} id="source-top" className={handleClass} />
