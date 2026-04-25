@@ -370,9 +370,13 @@
       "dictionaries": {
         "title": "Supporting dictionaries",
         "description": "Manage resource types, relation types, lifecycle states, and health statuses.",
+        "resourceTypeLabel": "Resource Type",
         "resourceType": "Top-level resource families used for registration and filtering.",
+        "relationTypeLabel": "Relation Type",
         "relationType": "Inter-resource relationship types used for topology and dependency management.",
+        "lifecycleStatusLabel": "Lifecycle Status",
         "lifecycleStatus": "Resource lifecycle state classification.",
+        "healthStatusLabel": "Health Status",
         "healthStatus": "Operator health posture signal."
       }
     }

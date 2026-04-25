@@ -23,6 +23,14 @@ function getDictionaryDescription(
   return t.has(i18nKey) ? t(i18nKey) : fallback;
 }
 
+function getDictionaryKeyLabel(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  key: string,
+): string {
+  const i18nKey = `pages.settings.dictionaries.${key}Label`;
+  return t.has(i18nKey) ? t(i18nKey) : key;
+}
+
 function getDictionaryValueLabel(
   t: Awaited<ReturnType<typeof getTranslations>>,
   value: string,
@@ -161,7 +169,7 @@ export default async function SettingsPage() {
               key={dictionary.key}
               className="rounded-lg border border-border bg-background px-4 py-4"
             >
-              <p className="font-medium text-foreground">{dictionary.key}</p>
+              <p className="font-medium text-foreground">{getDictionaryKeyLabel(t, dictionary.key)}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {getDictionaryDescription(t, dictionary.key, dictionary.description)}
               </p>

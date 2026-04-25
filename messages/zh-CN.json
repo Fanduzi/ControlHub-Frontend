@@ -370,9 +370,13 @@
       "dictionaries": {
         "title": "支撑字典",
         "description": "管理资源类型、关系类型、生命周期状态和健康状态。",
+        "resourceTypeLabel": "资源类型",
         "resourceType": "资源类型分类，用于资源登记和过滤。",
+        "relationTypeLabel": "关系类型",
         "relationType": "资源间关系类型，用于拓扑和依赖管理。",
+        "lifecycleStatusLabel": "生命周期状态",
         "lifecycleStatus": "资源生命周期状态分类。",
+        "healthStatusLabel": "健康状态",
         "healthStatus": "运维健康状态信号。"
       }
     }
