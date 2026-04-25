@@ -124,8 +124,8 @@ export async function listAttentionResources(): Promise<Resource[]> {
 export async function getOverviewMetrics() {
   const items = await listAllResources();
   const total = items.length;
-  const degraded = items.filter(
-    (resource) => resource.healthStatus === "degraded",
+  const critical = items.filter(
+    (resource) => resource.healthStatus === "critical",
   ).length;
   const warning = items.filter(
     (resource) => resource.healthStatus === "warning",
@@ -136,7 +136,7 @@ export async function getOverviewMetrics() {
 
   return {
     total,
-    degraded,
+    critical,
     warning,
     pending,
   };

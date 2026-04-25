@@ -18,17 +18,16 @@ type OverviewContentProps = {
 
 type Metrics = {
   total: number;
-  degraded: number;
+  critical: number;
   warning: number;
   pending: number;
 };
 
 const SEVERITY_ORDER: Record<string, number> = {
   critical: 0,
-  degraded: 1,
+  unknown: 1,
   warning: 2,
   healthy: 3,
-  unknown: 4,
 };
 
 function severityRank(resource: ResourceListViewModel): number {
@@ -36,7 +35,7 @@ function severityRank(resource: ResourceListViewModel): number {
 }
 
 function isActionableAttention(resource: ResourceListViewModel): boolean {
-  const actionableHealth = ["critical", "degraded", "warning"].includes(
+  const actionableHealth = ["critical", "warning"].includes(
     resource.healthStatus,
   );
   const actionableLifecycle = resource.lifecycleStatus !== "running";
@@ -52,8 +51,8 @@ function isActionableAttention(resource: ResourceListViewModel): boolean {
 function computeMetrics(resources: ResourceListViewModel[]): Metrics {
   return {
     total: resources.length,
-    degraded: resources.filter(
-      (r) => r.healthStatus === "degraded" || r.healthStatus === "critical",
+    critical: resources.filter(
+      (r) => r.healthStatus === "critical",
     ).length,
     warning: resources.filter((r) => r.healthStatus === "warning").length,
     pending: resources.filter((r) => r.lifecycleStatus === "pending").length,
@@ -68,7 +67,7 @@ function buildAttentionReason(
   const healthKey = `statusValues.${resource.healthStatus}`;
   const healthLabel = t.has(healthKey) ? t(healthKey) : resource.healthStatus;
 
-  if (resource.healthStatus === "critical" || resource.healthStatus === "degraded" || resource.healthStatus === "warning") {
+  if (resource.healthStatus === "critical" || resource.healthStatus === "warning") {
     reasons.push(`${t("common.fields.health")}=${healthLabel}`);
   }
   if (
@@ -129,7 +128,7 @@ export function OverviewContent({
 
   const hasMoreAttention = filteredAttention.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
 
-  const barTotal = metrics.degraded + metrics.warning + metrics.pending;
+  const barTotal = metrics.critical + metrics.warning + metrics.pending;
 
   return (
     <div className="space-y-6">
@@ -151,8 +150,8 @@ export function OverviewContent({
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {t("pages.overview.posture.degraded")}
             </p>
-            <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.degraded}`}>
-              {metrics.degraded}
+            <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.critical}`}>
+              {metrics.critical}
             </p>
           </div>
           <div className="bg-background px-4 py-4 border-l-2 border-l-amber-500">
@@ -175,10 +174,10 @@ export function OverviewContent({
 
         {barTotal > 0 && metrics.total > 0 && (
           <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted">
-            {metrics.degraded > 0 && (
+            {metrics.critical > 0 && (
               <div
-                className={`${POSTURE_BAR_COLORS.degraded} transition-[width] duration-300`}
-                style={{ width: `${(metrics.degraded / metrics.total) * 100}%` }}
+                className={`${POSTURE_BAR_COLORS.critical} transition-[width] duration-300`}
+                style={{ width: `${(metrics.critical / metrics.total) * 100}%` }}
               />
             )}
             {metrics.warning > 0 && (
@@ -273,7 +272,7 @@ export function OverviewContent({
             {hasMoreAttention && (
               <div className="mt-3 flex justify-end">
                 <Link
-                  href="/resources?healthStatus=degraded&healthStatus=warning&healthStatus=critical"
+                  href="/resources?healthStatus=warning&healthStatus=critical"
                   className="text-sm text-primary hover:underline"
                 >
                   {t("pages.overview.attention.viewAll")}

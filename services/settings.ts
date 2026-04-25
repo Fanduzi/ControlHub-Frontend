@@ -136,7 +136,7 @@ export async function listDictionaries(): Promise<DictionaryRecord[]> {
       {
         key: "healthStatus",
         description: "Operator health posture signal",
-        values: ["healthy", "warning", "degraded", "critical"],
+        values: ["healthy", "warning", "critical", "unknown"],
       },
     ];
 

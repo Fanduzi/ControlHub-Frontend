@@ -19,22 +19,21 @@ export const HEALTH_COLORS: Record<
     text: "text-rose-700",
     textDark: "dark:text-rose-300",
   },
-  degraded: {
-    bg: "bg-orange-500/10",
-    text: "text-orange-700",
-    textDark: "dark:text-orange-300",
+  unknown: {
+    bg: "bg-gray-500/10",
+    text: "text-gray-700",
+    textDark: "dark:text-gray-300",
   },
 };
 
 export const HEALTH_BORDER: Record<string, string> = {
   critical: "border-l-2 border-l-rose-500",
-  degraded: "border-l-2 border-l-rose-500",
   warning: "border-l-2 border-l-amber-500",
   pending: "border-l-2 border-l-sky-500",
 };
 
 export const HEALTH_METRIC_TEXT: Record<string, string> = {
-  degraded: "text-rose-600 dark:text-rose-400",
+  critical: "text-rose-600 dark:text-rose-400",
   warning: "text-amber-600 dark:text-amber-400",
   pending: "text-sky-600 dark:text-sky-400",
 };
@@ -51,7 +50,7 @@ export const AUDIT_RESULT_BORDER: Record<string, string> = {
 };
 
 export const POSTURE_BAR_COLORS: Record<string, string> = {
-  degraded: "bg-rose-500",
+  critical: "bg-rose-500",
   warning: "bg-amber-500",
   pending: "bg-sky-500",
 };
