@@ -29,6 +29,16 @@
       "description": "You have unsaved changes that will be lost.",
       "discard": "Discard"
     },
+    "labelsEditor": {
+      "keyPlaceholder": "Key",
+      "valuePlaceholder": "Value",
+      "addLabel": "Add label",
+      "errorEmptyKey": "Key cannot be empty",
+      "errorDuplicateKey": "Duplicate key",
+      "removeLabel": "Remove label",
+      "keyAriaLabel": "Label key {number}",
+      "valueAriaLabel": "Label value {number}"
+    },
     "fields": {
       "resource": "Resource",
       "resourceType": "Resource type",

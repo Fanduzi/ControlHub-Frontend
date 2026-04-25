@@ -29,6 +29,16 @@
       "description": "你有未保存的更改，离开后将会丢失。",
       "discard": "放弃"
     },
+    "labelsEditor": {
+      "keyPlaceholder": "键",
+      "valuePlaceholder": "值",
+      "addLabel": "添加标签",
+      "errorEmptyKey": "键不能为空",
+      "errorDuplicateKey": "键名重复",
+      "removeLabel": "删除标签",
+      "keyAriaLabel": "标签键 {number}",
+      "valueAriaLabel": "标签值 {number}"
+    },
     "fields": {
       "resource": "资源",
       "resourceType": "资源类型",
