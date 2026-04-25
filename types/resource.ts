@@ -197,7 +197,7 @@ export type TopologyEdge = {
 };
 
 export type TopologyGroup = {
-  id: string;
+  id: number;
   label: string;
   resourceType: string;
   nodeIds: number[];

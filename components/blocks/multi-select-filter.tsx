@@ -61,7 +61,7 @@ export function MultiSelectFilter({
 
   return (
     <div className="flex items-center gap-1">
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           data-slot="multi-select-trigger"
           className={cn(

@@ -21,6 +21,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -171,13 +178,27 @@ export function Topbar({ pathname }: TopbarProps) {
           {t("shell.quickAction")}
         </Button>
 
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("shell.notifications")}
-        >
-          <Bell className="size-4" />
-        </Button>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label={t("shell.notifications")}
+              />
+            }
+          >
+            <Bell className="size-4" />
+          </PopoverTrigger>
+          <PopoverContent align="end" side="bottom" sideOffset={8}>
+            <PopoverHeader>
+              <PopoverTitle>{t("shell.notifications")}</PopoverTitle>
+            </PopoverHeader>
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              {t("shell.noNotifications")}
+            </p>
+          </PopoverContent>
+        </Popover>
 
         <DropdownMenu>
           <DropdownMenuTrigger

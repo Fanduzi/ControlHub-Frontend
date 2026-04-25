@@ -140,6 +140,7 @@
     "environmentPlaceholder": "环境",
     "quickAction": "快捷操作",
     "notifications": "通知",
+    "noNotifications": "暂无新通知",
     "workspace": "工作区",
     "openCommandPalette": "打开命令面板",
     "profile": "个人资料",

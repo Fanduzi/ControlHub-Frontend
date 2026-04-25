@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiError } from "@/services/api-client";
 import { Input } from "@/components/ui/input";
 import { login } from "@/services/auth";
 
@@ -44,19 +45,20 @@ export default function LoginPage() {
       document.cookie = `controlhub.token=${result.token}; path=/; max-age=86400; SameSite=Strict`;
       router.push("/overview");
     } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : t("errors.unknown");
-
-      if (
-        message.includes("fetch") ||
-        message.includes("Failed to fetch") ||
-        message.includes("NetworkError")
-      ) {
+      if (submitError instanceof ApiError) {
+        if (submitError.status === 401) {
+          setError(t("errors.invalidCredentials"));
+        } else {
+          setError(submitError.message || t("errors.backend"));
+        }
+      } else if (submitError instanceof TypeError) {
         setError(t("errors.backend"));
-      } else if (message.includes("401")) {
-        setError(t("errors.invalidCredentials"));
       } else {
-        setError(message);
+        setError(
+          submitError instanceof Error
+            ? submitError.message
+            : t("errors.unknown"),
+        );
       }
     }
   }

@@ -140,6 +140,7 @@
     "environmentPlaceholder": "Environment",
     "quickAction": "Quick action",
     "notifications": "Notifications",
+    "noNotifications": "No new notifications",
     "workspace": "Workspace",
     "openCommandPalette": "Open command palette",
     "profile": "Profile",

@@ -23,6 +23,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LabelsEditor } from "@/components/blocks/labels-editor";
 import { createResource } from "@/services/resources";
@@ -158,6 +168,33 @@ export function CreateResourceSheet({
       profile: {},
     },
   });
+
+  const {
+    formState: { isDirty },
+  } = form;
+
+  // Unsaved changes guard
+  const [pendingClose, setPendingClose] = useState(false);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && isDirty && !successState) {
+        setPendingClose(true);
+        return;
+      }
+      onOpenChange(nextOpen);
+    },
+    [isDirty, successState, onOpenChange],
+  );
+
+  const handleDiscardConfirm = useCallback(() => {
+    setPendingClose(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
+
+  const handleDiscardCancel = useCallback(() => {
+    setPendingClose(false);
+  }, []);
 
   const watchResourceType = form.watch("resourceType");
   const watchResourceSubtype = form.watch("resourceSubtype");
@@ -340,12 +377,12 @@ export function CreateResourceSheet({
   const handleViewDetails = useCallback(() => {
     if (successState?.id) {
       router.push(`/resources/${successState.id}`);
-      onOpenChange(false);
+      handleOpenChange(false);
     }
   }, [successState, router, onOpenChange]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="overflow-y-auto border-l border-border bg-background">
         <SheetHeader className="border-b border-border px-6 py-5">
           <SheetTitle>{t("create.title")}</SheetTitle>
@@ -728,7 +765,7 @@ export function CreateResourceSheet({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
               >
                 {ct("actions.cancel")}
               </Button>
@@ -743,6 +780,22 @@ export function CreateResourceSheet({
           )}
         </form>
       </SheetContent>
+      <AlertDialog open={pendingClose} onOpenChange={(o) => { if (!o) handleDiscardCancel(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{ct("unsavedChanges.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {ct("unsavedChanges.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{ct("actions.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardConfirm}>
+              {ct("unsavedChanges.discard")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
