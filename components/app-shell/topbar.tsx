@@ -242,7 +242,7 @@ export function Topbar({ pathname }: TopbarProps) {
                 sessionStorage.removeItem("controlhub.token");
                 sessionStorage.removeItem("controlhub.role");
                 document.cookie = "controlhub.token=; path=/; max-age=0";
-                router.push("/login");
+                window.location.href = "/login";
               }}
             >
               {t("shell.signOut")}

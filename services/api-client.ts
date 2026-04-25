@@ -73,6 +73,13 @@ export async function apiClient<T>(
     const message = (errorBody?.message as string) || `Request failed: ${response.status}`;
     const details = (errorBody?.details as Record<string, string>) || undefined;
     const error = new ApiError(response.status, message, details);
+
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.sessionStorage.removeItem("controlhub.token");
+      document.cookie = "controlhub.token=; path=/; max-age=0";
+      window.location.href = "/login?reason=session-expired";
+    }
+
     throw error;
   }
 

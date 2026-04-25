@@ -112,7 +112,6 @@ export function EditResourceSheet({
   });
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [baseError, setBaseError] = useState<string | null>(null);
 
@@ -128,7 +127,6 @@ export function EditResourceSheet({
     if (!open || !resource) return;
 
     let cancelled = false;
-    setError(null);
     setProfileError(null);
     setBaseError(null);
 
@@ -209,7 +207,6 @@ export function EditResourceSheet({
       if (!resource) return;
 
       setSubmitting(true);
-      setError(null);
       setBaseError(null);
       setProfileError(null);
 
@@ -720,11 +717,6 @@ export function EditResourceSheet({
           </section>
 
           {/* Error banners */}
-          {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
           {baseError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               {baseError}

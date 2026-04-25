@@ -72,7 +72,7 @@ export function TopologyNodePopup({
           </div>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground hover:text-foreground shrink-0 focus-visible:outline-2 focus-visible:outline-ring/50"
             data-testid="topology-node-popup-close"
           >
             <X className="size-4" />

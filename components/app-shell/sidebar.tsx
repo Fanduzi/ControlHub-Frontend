@@ -36,7 +36,7 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-border bg-[var(--sidebar)] transition-[width] duration-200",
+        "flex h-full flex-col border-r border-border bg-sidebar transition-[width] duration-200",
         collapsed ? "w-14" : "w-[300px]",
       )}
     >
