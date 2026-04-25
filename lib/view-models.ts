@@ -23,6 +23,7 @@ import type {
 import type {
   ClusterMember,
   Resource,
+  ResourceDetailResponse,
   ResourceListParams,
   ResourceListResponse,
   ResourceProfileResponse,
@@ -406,10 +407,17 @@ export async function getResourceViewModel(
     return null;
   }
 
-  return toResourceDetailViewModel(
-    detailResponse.resource,
-    detailResponse.members,
-  );
+  // Handle both wrapped { resource, members } and flat Resource responses
+  const resource =
+    "resource" in detailResponse
+      ? (detailResponse as ResourceDetailResponse).resource
+      : (detailResponse as unknown as Resource);
+  const members =
+    "members" in detailResponse
+      ? (detailResponse as ResourceDetailResponse).members
+      : undefined;
+
+  return toResourceDetailViewModel(resource, members);
 }
 
 export async function listAuditEventViewModels(): Promise<AuditEventViewModel[]>;

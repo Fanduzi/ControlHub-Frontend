@@ -6,6 +6,8 @@ import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { ApiError } from "@/services/api-client";
+
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { ResourceSearchCombobox } from "@/components/blocks/resource-search-combobox";
@@ -80,11 +82,10 @@ export function ResourceRelationPanel({
       setTargetId(null);
       setRelationType("");
     } catch (err) {
-      if (err instanceof Error) {
-        const msg = err.message;
-        if (msg.includes("409")) {
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
           setError(mt("errors.relationConflict"));
-        } else if (msg.includes("404")) {
+        } else if (err.status === 404) {
           setError(mt("errors.notFound"));
         } else {
           setError(mt("errors.backend"));
@@ -106,9 +107,8 @@ export function ResourceRelationPanel({
         await deleteResourceRelation(relationId);
         router.refresh();
       } catch (err) {
-        if (err instanceof Error) {
-          const msg = err.message;
-          if (msg.includes("404")) {
+        if (err instanceof ApiError) {
+          if (err.status === 404) {
             setError(mt("errors.notFound"));
           } else {
             setError(mt("errors.backend"));

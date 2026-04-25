@@ -121,7 +121,7 @@ export default function LoginPage() {
                 </label>
                 <Input id="email" type="email" {...form.register("email")} />
                 {form.formState.errors.email ? (
-                  <p className="text-sm text-rose-700">
+                  <p className="text-sm text-destructive">
                     {form.formState.errors.email.message}
                   </p>
                 ) : null}
@@ -140,13 +140,13 @@ export default function LoginPage() {
                   {...form.register("password")}
                 />
                 {form.formState.errors.password ? (
-                  <p className="text-sm text-rose-700">
+                  <p className="text-sm text-destructive">
                     {form.formState.errors.password.message}
                   </p>
                 ) : null}
               </div>
 
-              {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
               <Button
                 className="w-full"
