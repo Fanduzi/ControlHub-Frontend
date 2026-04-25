@@ -45,6 +45,7 @@ type DatabaseTableProps = {
 
 type TreeRow = ResourceListViewModel & {
   subRows?: TreeRow[];
+  isOrphan?: boolean;
 };
 
 const columnHelper = createColumnHelper<TreeRow>();
@@ -80,6 +81,8 @@ function buildTree(resources: ResourceListViewModel[]): TreeRow[] {
       const list = memberMap.get(parentId) ?? [];
       list.push(r);
       memberMap.set(parentId, list);
+    } else if (parentId && !clusterMap.has(parentId)) {
+      orphans.push({ ...r, isOrphan: true });
     } else {
       orphans.push({ ...r, clusterId: undefined });
     }

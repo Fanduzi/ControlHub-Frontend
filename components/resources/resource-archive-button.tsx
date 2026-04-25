@@ -50,11 +50,17 @@ export function ResourceArchiveButton({
   }
 
   async function handleUnarchive() {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
       await unarchiveResource(resource.id);
+      setConfirming(false);
       onArchiveChange?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -68,6 +74,41 @@ export function ResourceArchiveButton({
   }
 
   if (isArchived) {
+    if (confirming) {
+      return (
+        <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+          <p className="text-sm text-muted-foreground">
+            {t("mutations.unarchive.description")}
+          </p>
+          {error && (
+            <p className="text-xs text-destructive">{error}</p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              size={size}
+              onClick={handleUnarchive}
+              disabled={submitting}
+            >
+              {submitting
+                ? t("mutations.unarchive.submitting")
+                : t("mutations.unarchive.confirm")}
+            </Button>
+            <Button
+              variant="outline"
+              size={size}
+              onClick={() => {
+                setConfirming(false);
+                setError(null);
+              }}
+              disabled={submitting}
+            >
+              {t("common.actions.cancel")}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center gap-2">
         <Button
@@ -76,9 +117,7 @@ export function ResourceArchiveButton({
           onClick={handleUnarchive}
           disabled={submitting}
         >
-          {submitting
-            ? t("mutations.unarchive.submitting")
-            : t("common.actions.unarchiveResource")}
+          {t("common.actions.unarchiveResource")}
         </Button>
         {error && (
           <span className="text-xs text-destructive">{error}</span>

@@ -154,7 +154,7 @@ export function OverviewContent({
               {metrics.critical}
             </p>
           </div>
-          <div className="bg-background px-4 py-4 border-l-2 border-l-amber-500">
+          <div className="bg-background px-4 py-4 border-l-2 border-l-yellow-500 dark:border-l-yellow-400">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {t("pages.overview.posture.warning")}
             </p>

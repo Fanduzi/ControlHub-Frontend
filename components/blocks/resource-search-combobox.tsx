@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,25 +36,40 @@ export function ResourceSearchCombobox({
   const [results, setResults] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedName, setSelectedName] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function handleSearch(value: string) {
+  const handleSearch = useCallback((value: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    abortRef.current?.abort();
+
     if (value.length < 2) {
       setResults([]);
       return;
     }
-    setLoading(true);
-    try {
-      const response = await listResources({ q: value, pageSize: 20 });
-      const items = response.items;
-      setResults(
-        items.filter((r) => !excludeIds.includes(r.id)),
-      );
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+
+    timerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setLoading(true);
+      try {
+        const response = await listResources({ q: value, pageSize: 20 });
+        if (controller.signal.aborted) return;
+        setResults(response.items.filter((r) => !excludeIds.includes(r.id)));
+      } catch {
+        if (!controller.signal.aborted) setResults([]);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 300);
+  }, [excludeIds]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

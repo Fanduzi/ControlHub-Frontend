@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,13 @@ export default function LoginPage() {
   const t = useTranslations("login");
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = document.cookie.includes("controlhub.token=");
+    if (token) {
+      router.replace("/overview");
+    }
+  }, [router]);
   const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(1, t("form.passwordRequired")),

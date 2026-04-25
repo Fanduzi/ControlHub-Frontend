@@ -732,7 +732,7 @@ export function CreateResourceSheet({
 
           {/* Success state */}
           {successState && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-primary">
               <p>{t("createdSuccess")}</p>
               <div className="mt-3 flex gap-3">
                 <Button
@@ -754,7 +754,7 @@ export function CreateResourceSheet({
 
           {/* Dictionary loading error */}
           {dictError && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
               {t("errors.capabilityUnavailable")}
             </div>
           )}
