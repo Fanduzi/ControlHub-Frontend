@@ -8,6 +8,7 @@ import { DetailPanel } from "@/components/blocks/detail-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { useEnvironment } from "@/components/providers/environment-provider";
 import { formatLabel } from "@/lib/format";
+import { localizeResourceType } from "@/lib/resource-summary";
 import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
 
@@ -25,13 +26,15 @@ type Metrics = {
 
 const SEVERITY_ORDER: Record<string, number> = {
   critical: 0,
-  unknown: 1,
-  warning: 2,
+  warning: 1,
+  unknown: 2,
   healthy: 3,
 };
 
 function severityRank(resource: ResourceListViewModel): number {
-  return SEVERITY_ORDER[resource.healthStatus] ?? 99;
+  const healthRank = SEVERITY_ORDER[resource.healthStatus] ?? 99;
+  const lifecycleBonus = resource.lifecycleStatus !== "running" ? 0 : 10;
+  return healthRank * 100 + lifecycleBonus;
 }
 
 function isActionableAttention(resource: ResourceListViewModel): boolean {
@@ -242,7 +245,7 @@ export function OverviewContent({
                       </Link>
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {formatLabel(resource.resourceType)}
+                      {localizeResourceType(resource.resourceType, t)}
                       {resource.resourceSubtype
                         ? ` / ${formatLabel(resource.resourceSubtype)}`
                         : ""}

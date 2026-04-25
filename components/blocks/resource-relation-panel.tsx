@@ -32,6 +32,7 @@ import {
 import { createResourceRelation, deleteResourceRelation } from "@/services/resources";
 import { listRelationTypes } from "@/services/settings";
 import { formatLabel } from "@/lib/format";
+import { localizeResourceType, localizeRelationType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 import type { RelationTypeDefinition } from "@/types/settings";
 
@@ -217,7 +218,7 @@ export function ResourceRelationPanel({
                   </span>
                 )}
                 <p className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <span>{formatLabel(relation.relationType)} &middot; {relation.direction}</span>
+                  <span>{localizeRelationType(relation.relationType, mt)} &middot; {relation.direction}</span>
                   {related && (
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium lowercase tracking-normal text-muted-foreground">
                       {(related.resourceType === "database_instance" ||
@@ -225,7 +226,7 @@ export function ResourceRelationPanel({
                         related.resourceType === "database_proxy") && (
                         <DbTypeIcon subtype={related.resourceSubtype} className="size-3.5" />
                       )}
-                      {formatLabel(related.resourceType)}
+                      {localizeResourceType(related.resourceType, mt)}
                     </span>
                   )}
                 </p>

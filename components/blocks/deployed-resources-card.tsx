@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/blocks/empty-state";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { formatLabel } from "@/lib/format";
+import { localizeResourceType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 
 type DeployedResourcesCardProps = {
@@ -67,7 +68,7 @@ export function DeployedResourcesCard({ relations }: DeployedResourcesCardProps)
                       {(related.resourceType === "database_instance" || related.resourceType === "database_cluster" || related.resourceType === "database_proxy") && (
                         <DbTypeIcon subtype={related.resourceSubtype} className="size-3.5" />
                       )}
-                      {formatLabel(related.resourceType)}
+                      {localizeResourceType(related.resourceType, t)}
                     </span>
                   )}
                 </td>

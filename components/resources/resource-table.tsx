@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatLabel, formatRelativeDateTime } from "@/lib/format";
+import { localizeResourceType } from "@/lib/resource-summary";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { ResourceTypeDefinition } from "@/types/settings";
@@ -158,7 +159,7 @@ export function ResourceTable({
       header: t("common.fields.resourceType"),
       cell: (info) => (
         <span className="text-sm text-foreground">
-          {formatLabel(info.getValue())}
+          {localizeResourceType(info.getValue(), t)}
         </span>
       ),
     }),

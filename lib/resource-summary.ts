@@ -7,6 +7,8 @@
  * but carries no framework import.
  */
 
+import { formatLabel } from "@/lib/format";
+
 interface SummaryResource {
   resourceType?: string;
   resourceSubtype?: string;
@@ -46,5 +48,13 @@ export function localizeResourceType(
   t: Translator,
 ): string {
   const key = `topology.types.${type}`;
-  return t.has(key) ? t(key) : type;
+  return t.has(key) ? t(key) : formatLabel(type);
+}
+
+export function localizeRelationType(
+  type: string,
+  t: Translator,
+): string {
+  const key = `topology.edgeTypes.${type}`;
+  return t.has(key) ? t(key) : formatLabel(type);
 }
