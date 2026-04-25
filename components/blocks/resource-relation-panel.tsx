@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -238,7 +239,7 @@ export function ResourceRelationPanel({
                     disabled={deletingId === relation.id}
                     aria-label={mt("relation.confirmDelete")}
                   >
-                    ×
+                    <X className="size-3" />
                   </Button>
                 )}
               </div>

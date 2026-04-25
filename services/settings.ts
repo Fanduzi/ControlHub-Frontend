@@ -96,12 +96,12 @@ const fallbackDictionaries: DictionaryRecord[] = [
   {
     key: "relationType",
     description: "Inter-resource relationship types (static fallback)",
-    values: ["member_of", "depends_on", "contains", "provides_to"],
+    values: ["member_of", "depends_on", "runs_on", "points_to", "fronts", "manages", "replicates_to"],
   },
   {
     key: "lifecycleStatus",
     description: "Asset lifecycle classification",
-    values: ["running", "pending", "retired"],
+    values: ["provisioning", "running", "stopped", "degraded", "decommissioning"],
   },
   {
     key: "healthStatus",
@@ -131,7 +131,7 @@ export async function listDictionaries(): Promise<DictionaryRecord[]> {
       {
         key: "lifecycleStatus",
         description: "Asset lifecycle classification",
-        values: ["running", "pending", "retired"],
+        values: ["provisioning", "running", "stopped", "degraded", "decommissioning"],
       },
       {
         key: "healthStatus",
