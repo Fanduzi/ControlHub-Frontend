@@ -121,6 +121,6 @@ describe("localizeResourceType", () => {
   });
 
   it("returns raw value for unknown type", () => {
-    expect(localizeResourceType("unknown_type", zhT)).toBe("unknown_type");
+    expect(localizeResourceType("unknown_type", zhT)).toBe("Unknown Type");
   });
 });

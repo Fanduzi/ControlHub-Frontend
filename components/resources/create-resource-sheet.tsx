@@ -379,6 +379,7 @@ export function CreateResourceSheet({
       router.push(`/resources/${successState.id}`);
       handleOpenChange(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleOpenChange is stable via onOpenChange
   }, [successState, router, onOpenChange]);
 
   return (

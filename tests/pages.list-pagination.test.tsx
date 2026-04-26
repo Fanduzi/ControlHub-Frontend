@@ -77,13 +77,13 @@ function t(key: string) {
 function buildResource(page = 1): ResourceListViewModelResponse {
   const items: ResourceListViewModel[] = [
     {
-      id: `resource-${page}`,
+      id: page,
       resourceType: "service",
       resourceSubtype: "api",
       name: `orders-api-${page}`,
       displayName: `Orders API ${page}`,
-      environmentId: "env-prod",
-      ownerId: "owner-app",
+      environmentId: 1,
+      ownerId: 1,
       ownerName: "Applications",
       environmentName: "Production",
       lifecycleStatus: "running",
@@ -115,9 +115,9 @@ function buildResource(page = 1): ResourceListViewModelResponse {
 function buildAuditResponse(page = 1): AuditEventViewModelListResponse {
   const items: AuditEventViewModel[] = [
     {
-      id: `audit-${page}`,
-      actorUserId: "user-1",
-      targetResourceId: "resource-1",
+      id: page,
+      actorUserId: 1,
+      targetResourceId: 1,
       eventType: "resource.updated",
       result: "success",
       createdAt: "2026-04-14T10:00:00Z",
@@ -263,8 +263,8 @@ describe("list pages pagination contracts", () => {
 
     expect(listDatabaseResourceViewModelsMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        page: 3,
-        pageSize: 10,
+        page: 1,
+        pageSize: 200,
         environmentId: 42,
         q: "mysql",
       }),
@@ -303,7 +303,7 @@ describe("list pages pagination contracts", () => {
           ...response.items,
           {
             ...response.items[0],
-            id: "resource-postgres",
+            id: 99,
             resourceSubtype: "postgres",
             name: "orders-postgres-2",
             displayName: "Orders Postgres 2",
@@ -346,7 +346,8 @@ describe("list pages pagination contracts", () => {
     expect(databaseTableMock).toHaveBeenCalledWith(
       expect.objectContaining({
         resources: response.items,
-        pageInfo: response.pageInfo,
+        totalClusters: 2,
+        totalInstances: 2,
       }),
     );
   });

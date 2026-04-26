@@ -46,14 +46,14 @@ const mockedListResourceSubtypes = vi.mocked(
 );
 
 const resource: ResourceDetailViewModel = {
-  id: "res-1",
+  id: 1,
   resourceType: "database_instance",
   resourceSubtype: "mysql",
   name: "orders-db-primary",
   displayName: "Orders DB Primary",
-  environmentId: "env-prod",
+  environmentId: 1,
   environmentName: "Production",
-  ownerId: "owner-dba",
+  ownerId: 1,
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "healthy",
@@ -73,14 +73,14 @@ const resource: ResourceDetailViewModel = {
 };
 
 const hostResource: ResourceDetailViewModel = {
-  id: "res-2",
+  id: 2,
   resourceType: "host",
   resourceSubtype: "",
   name: "prod-host-01",
   displayName: "Production Host 01",
-  environmentId: "env-prod",
+  environmentId: 1,
   environmentName: "Production",
-  ownerId: "owner-dba",
+  ownerId: 1,
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "healthy",
@@ -105,10 +105,10 @@ describe("EditResourceSheet", () => {
     refresh.mockClear();
 
     mockedListEnvironments.mockResolvedValue([
-      { id: "env-prod", name: "Production", slug: "production", description: "", createdAt: "" },
+      { id: 1, name: "Production", slug: "production", description: "", createdAt: "" },
     ]);
     mockedListOwners.mockResolvedValue([
-      { id: "owner-dba", name: "DBA Team", email: "dba@example.com", createdAt: "" },
+      { id: 1, name: "DBA Team", email: "dba@example.com", createdAt: "" },
     ]);
     mockedListLifecycleStatuses.mockResolvedValue([
       { key: "running", label: "Running", description: "" },
@@ -121,7 +121,7 @@ describe("EditResourceSheet", () => {
       { key: "postgresql", label: "PostgreSQL", description: "" },
     ]);
     mockedGetResourceProfileById.mockResolvedValue({
-      resourceId: "res-1",
+      resourceId: 1,
       resourceType: "database_instance",
       resourceSubtype: "mysql",
       profile: {
@@ -149,7 +149,7 @@ describe("EditResourceSheet", () => {
 
     // Wait for profile to be fetched
     await waitFor(() => {
-      expect(mockedGetResourceProfileById).toHaveBeenCalledWith("res-1");
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
     });
 
     // Profile fields should be pre-filled with the profile data values
@@ -252,7 +252,7 @@ describe("EditResourceSheet", () => {
 
     // Wait for data to load
     await waitFor(() => {
-      expect(mockedGetResourceProfileById).toHaveBeenCalledWith("res-1");
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
     });
 
     // Change display name (base field)
@@ -271,11 +271,11 @@ describe("EditResourceSheet", () => {
     await waitFor(() => {
       // Both PATCH calls should have been made
       expect(mockedUpdateResource).toHaveBeenCalledWith(
-        "res-1",
+        1,
         expect.objectContaining({ displayName: "Updated DB Name" }),
       );
       expect(mockedUpdateProfile).toHaveBeenCalledWith(
-        "res-1",
+        1,
         expect.objectContaining({ version: "8.4" }),
       );
     });
@@ -319,7 +319,7 @@ describe("EditResourceSheet", () => {
 
     // Verify the resource PATCH payload
     const [resourceId, payload] = mockedUpdateResource.mock.calls[0];
-    expect(resourceId).toBe("res-1");
+    expect(resourceId).toBe(1);
     expect(payload).toEqual(
       expect.objectContaining({ displayName: "Updated DB Name" }),
     );

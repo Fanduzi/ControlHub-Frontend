@@ -1,10 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("@/services/api-client", () => ({
-  apiClient: vi.fn(),
-}));
+vi.mock("@/services/api-client", async () => {
+  const actual = await vi.importActual("@/services/api-client");
+  return {
+    ...actual,
+    apiClient: vi.fn(),
+  };
+});
 
-import { apiClient } from "@/services/api-client";
+import { ApiError, apiClient } from "@/services/api-client";
 import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import type { TopologyResponse } from "@/types/resource";
 
@@ -111,19 +115,19 @@ describe("getResourceTopology", () => {
   });
 
   it("propagates 404 as error (resource not found)", async () => {
-    mockApiClient.mockRejectedValueOnce(new Error("404"));
+    mockApiClient.mockRejectedValueOnce(new ApiError(404, "Not Found"));
 
-    await expect(getResourceTopology(1)).rejects.toThrow("404");
+    await expect(getResourceTopology(1)).rejects.toThrow("Not Found");
   });
 
   it("propagates non-404/501 errors", async () => {
-    mockApiClient.mockRejectedValueOnce(new Error("500"));
+    mockApiClient.mockRejectedValueOnce(new ApiError(500, "Internal Server Error"));
 
-    await expect(getResourceTopology(1)).rejects.toThrow("500");
+    await expect(getResourceTopology(1)).rejects.toThrow("Internal Server Error");
   });
 
   it("throws TopologyNotAvailableError on 501 (endpoint not implemented)", async () => {
-    mockApiClient.mockRejectedValueOnce(new Error("501"));
+    mockApiClient.mockRejectedValueOnce(new ApiError(501, "Not Implemented"));
 
     await expect(getResourceTopology(1)).rejects.toThrow(TopologyNotAvailableError);
   });

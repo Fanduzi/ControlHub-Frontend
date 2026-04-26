@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ResourceRelationPanel } from "@/components/blocks/resource-relation-panel";
+import { ApiError } from "@/services/api-client";
 import * as relationService from "@/services/resources";
 import * as settingsService from "@/services/settings";
 import messages from "@/messages/en.json";
@@ -156,7 +157,13 @@ describe("ResourceRelationPanel", () => {
 
   it("creates a relation with numeric source and target ids", async () => {
     const user = userEvent.setup();
-    mockedCreateRelation.mockResolvedValue(undefined);
+    mockedCreateRelation.mockResolvedValue({
+      id: 10,
+      fromResourceId: 1,
+      toResourceId: 9,
+      relationType: "member_of",
+      createdAt: "2026-04-11T14:00:00Z",
+    });
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -243,7 +250,7 @@ describe("ResourceRelationPanel", () => {
   it("shows not-found error when delete fails with 404", async () => {
     const user = userEvent.setup();
     mockedDeleteRelation.mockRejectedValue(
-      new Error("Request failed: 404"),
+      new ApiError(404, "Not Found"),
     );
 
     render(
@@ -272,7 +279,7 @@ describe("ResourceRelationPanel", () => {
   it("shows backend error and preserves relation when delete fails with 500", async () => {
     const user = userEvent.setup();
     mockedDeleteRelation.mockRejectedValue(
-      new Error("Request failed: 500"),
+      new ApiError(500, "Internal Server Error"),
     );
 
     render(

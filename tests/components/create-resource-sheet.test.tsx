@@ -6,11 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Patch react-hook-form to expose _options on the returned object
 // so that the component's dynamic resolver update works in tests
 vi.mock("react-hook-form", async () => {
-  const actual = await vi.importActual("react-hook-form");
+  const actual = await vi.importActual<typeof import("react-hook-form")>("react-hook-form");
   return {
     ...actual,
-    useForm: (opts: any) => {
-      return (actual as any).useForm(opts);
+    useForm: (opts: Parameters<typeof actual.useForm>[0]) => {
+      return actual.useForm(opts);
     },
   };
 });
@@ -65,10 +65,10 @@ describe("CreateResourceSheet", () => {
       { key: "domain_name", label: "Domain Name", description: "" },
     ]);
     mockedListEnvironments.mockResolvedValue([
-      { id: "env-prod", name: "Production", slug: "production", description: "", createdAt: "" },
+      { id: 1, name: "Production", slug: "production", description: "", createdAt: "" },
     ]);
     mockedListOwners.mockResolvedValue([
-      { id: "owner-dba", name: "DBA Team", email: "dba@example.com", createdAt: "" },
+      { id: 1, name: "DBA Team", email: "dba@example.com", createdAt: "" },
     ]);
     mockedListLifecycleStatuses.mockResolvedValue([
       { key: "running", label: "Running", description: "" },
@@ -287,13 +287,13 @@ describe("CreateResourceSheet", () => {
   it("submit sends profile data in request body", async () => {
     const user = userEvent.setup();
     mockedCreateResource.mockResolvedValue({
-      id: "res-new",
+      id: 101,
       resourceType: "database_instance",
       resourceSubtype: "mysql",
       name: "test-db",
       displayName: "Test DB",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -351,15 +351,14 @@ describe("CreateResourceSheet", () => {
   });
 
   it("success state shows continue and view details buttons", async () => {
-    const user = userEvent.setup();
     mockedCreateResource.mockResolvedValue({
-      id: "res-new-1",
+      id: 102,
       resourceType: "service",
       resourceSubtype: "",
       name: "my-service",
       displayName: "My Service",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -397,13 +396,13 @@ describe("CreateResourceSheet", () => {
     // Directly test that the success state renders by creating a minimal test
     // that bypasses the form submission
     mockedCreateResource.mockResolvedValue({
-      id: "res-success",
+      id: 103,
       resourceType: "service",
       resourceSubtype: "",
       name: "test-svc",
       displayName: "Test Svc",
-      environmentId: "env-prod",
-      ownerId: "owner-dba",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",

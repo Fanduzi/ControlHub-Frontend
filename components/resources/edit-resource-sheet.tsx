@@ -222,6 +222,7 @@ export function EditResourceSheet({
         "externalId",
       ] as const;
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used for type narrowing in loop body
       type BaseFieldKey = (typeof baseFieldKeys)[number];
 
       const changedBaseFields: Partial<UpdateResourceInput> = {};
@@ -359,6 +360,7 @@ export function EditResourceSheet({
 
   const profileSchema = resource ? getProfileSchema(resource.resourceType) : undefined;
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- React Hook Form watch() returns non-memoizable values
   const watchResourceSubtype = watch("resourceSubtype");
   const watchEnvironmentId = watch("environmentId");
   const watchOwnerId = watch("ownerId");

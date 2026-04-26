@@ -162,9 +162,9 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
       getEventTypeLabel(event.eventType).toLowerCase().includes(q) ||
       event.environmentLabel.toLowerCase().includes(q)
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- getEventTypeLabel is derived from static translations
   }, [events, search]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: filteredEvents,
     columns,

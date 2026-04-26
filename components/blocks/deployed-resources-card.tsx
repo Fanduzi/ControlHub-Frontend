@@ -6,7 +6,6 @@ import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { StatusBadge } from "@/components/blocks/status-badge";
-import { formatLabel } from "@/lib/format";
 import { localizeResourceType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 

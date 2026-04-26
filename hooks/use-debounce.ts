@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export function useDebounceCallback<T extends (...args: never[]) => void>(
   callback: T,
@@ -6,7 +6,10 @@ export function useDebounceCallback<T extends (...args: never[]) => void>(
 ): T {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   return useCallback(
     (...args: Parameters<T>) => {

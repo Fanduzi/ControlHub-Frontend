@@ -138,8 +138,8 @@ function updateMultiSelectParams(
 
 export function DatabaseTable({
   resources,
-  totalClusters,
-  totalInstances,
+  totalClusters: _totalClusters, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
+  totalInstances: _totalInstances, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
 }: DatabaseTableProps) {
   const t = useTranslations();
   const localeValue = useLocale();
@@ -206,6 +206,7 @@ export function DatabaseTable({
     pageSize: clustersPerPage,
     totalItems: totalTopLevels,
     totalPages,
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- clustersPerPage is stable
   }), [safePage, totalTopLevels, totalPages]);
 
   const availableEngines = useMemo(
@@ -476,7 +477,6 @@ export function DatabaseTable({
             ) : (
               table.getRowModel().rows.map((row) => {
                 const isCluster = row.original.resourceType === "database_cluster";
-                const isChild = (row.depth ?? 0) > 0;
                 return (
                   <TableRow
                     key={row.id}

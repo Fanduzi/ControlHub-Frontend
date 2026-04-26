@@ -32,7 +32,7 @@ describe("archiveTestResource", () => {
 
   it("sends POST /resources/{id}/archive with default reason", async () => {
     const archivedResource = {
-      id: "res-1",
+      id: 1,
       resourceType: "service",
       name: "e2e-test",
       archivedAt: "2026-04-15T12:00:00Z",
@@ -45,10 +45,10 @@ describe("archiveTestResource", () => {
       json: () => Promise.resolve(archivedResource),
     });
 
-    const result = await archiveTestResource("test-token", "res-1");
+    const result = await archiveTestResource("test-token", 1);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE}/resources/res-1/archive`,
+      `${API_BASE}/resources/1/archive`,
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ reason: "e2e cleanup" }),
@@ -58,20 +58,20 @@ describe("archiveTestResource", () => {
         }),
       }),
     );
-    expect(result.id).toBe("res-1");
+    expect(result.id).toBe(1);
   });
 
   it("sends POST /resources/{id}/archive with custom reason", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ id: "res-2", archiveReason: "custom reason" }),
+      json: () => Promise.resolve({ id: 2, archiveReason: "custom reason" }),
     });
 
-    await archiveTestResource("test-token", "res-2", "custom reason");
+    await archiveTestResource("test-token", 2, "custom reason");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE}/resources/res-2/archive`,
+      `${API_BASE}/resources/2/archive`,
       expect.objectContaining({
         body: JSON.stringify({ reason: "custom reason" }),
       }),
@@ -80,7 +80,7 @@ describe("archiveTestResource", () => {
 
   it("returns archived resource with archiveReason", async () => {
     const archivedResource = {
-      id: "res-1",
+      id: 1,
       resourceType: "service",
       name: "e2e-test",
       archivedAt: "2026-04-15T12:00:00Z",
@@ -93,9 +93,9 @@ describe("archiveTestResource", () => {
       json: () => Promise.resolve(archivedResource),
     });
 
-    const result = await archiveTestResource("test-token", "res-1");
+    const result = await archiveTestResource("test-token", 1);
 
-    expect(result.id).toBe("res-1");
+    expect(result.id).toBe(1);
     expect((result as Record<string, unknown>).archivedAt).toBe("2026-04-15T12:00:00Z");
     expect((result as Record<string, unknown>).archiveReason).toBe("e2e cleanup");
   });
@@ -108,7 +108,7 @@ describe("archiveTestResource", () => {
     });
 
     await expect(
-      archiveTestResource("test-token", "res-1"),
+      archiveTestResource("test-token", 1),
     ).rejects.toThrow("returned 500");
   });
 
@@ -116,13 +116,13 @@ describe("archiveTestResource", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ id: "res/special" }),
+      json: () => Promise.resolve({ id: 999 }),
     });
 
-    await archiveTestResource("test-token", "res/special");
+    await archiveTestResource("test-token", 999);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE}/resources/res%2Fspecial/archive`,
+      `${API_BASE}/resources/999/archive`,
       expect.anything(),
     );
   });
@@ -139,10 +139,10 @@ describe("deleteTestRelation", () => {
       status: 204,
     });
 
-    await deleteTestRelation("test-token", "rel-1");
+    await deleteTestRelation("test-token", 1);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE}/resource-relations/rel-1`,
+      `${API_BASE}/resource-relations/1`,
       expect.objectContaining({
         method: "DELETE",
         headers: expect.objectContaining({
@@ -222,12 +222,12 @@ describe("createTestResource", () => {
 
   it("sends POST /resources with correct payload", async () => {
     const created = {
-      id: "res-new",
+      id: 101,
       resourceType: "service",
       name: "e2e-sheet-abc",
       displayName: "e2e-sheet-abc",
-      environmentId: "10000000-0000-0000-0000-000000000001",
-      ownerId: "20000000-0000-0000-0000-000000000001",
+      environmentId: 1,
+      ownerId: 1,
       lifecycleStatus: "running",
       healthStatus: "healthy",
       source: "manual",
@@ -247,7 +247,7 @@ describe("createTestResource", () => {
     const input = defaultResourceInput({ name: "e2e-sheet-abc" });
     const result = await createTestResource("test-token", input);
 
-    expect(result.id).toBe("res-new");
+    expect(result.id).toBe(101);
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE}/resources`,
       expect.objectContaining({

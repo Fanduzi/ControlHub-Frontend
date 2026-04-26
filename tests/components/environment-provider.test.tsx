@@ -28,7 +28,7 @@ describe("EnvironmentProvider", () => {
   it("does not expose environment slug fallbacks before backend environments load", async () => {
     mockedListEnvironments.mockResolvedValue([
       {
-        id: "10000000-0000-0000-0000-000000000001",
+        id: 1,
         name: "Production",
         slug: "prod",
         description: "Production environment",
@@ -46,7 +46,7 @@ describe("EnvironmentProvider", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("10000000-0000-0000-0000-000000000001"),
+        screen.getByText("1"),
       ).toBeInTheDocument();
     });
   });

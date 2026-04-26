@@ -84,7 +84,7 @@ describe("listResources", () => {
     expect(result.items).toHaveLength(1);
   });
 
-  it("filters database resources from paginated response items", async () => {
+  it("sends resourceType filter for database resources", async () => {
     apiClientMock.mockResolvedValue({
       items: [
         {
@@ -106,30 +106,11 @@ describe("listResources", () => {
           archivedBy: null,
           archiveReason: null,
         },
-        {
-          id: 2,
-          resourceType: "service",
-          resourceSubtype: "api",
-          name: "orders-api",
-          displayName: "Orders API",
-          environmentId: 101,
-          ownerId: 202,
-          lifecycleStatus: "running",
-          healthStatus: "healthy",
-          source: "manual",
-          externalId: "svc:orders-api",
-          labels: {},
-          createdAt: "2026-04-14T00:00:00Z",
-          updatedAt: "2026-04-14T00:00:00Z",
-          archivedAt: null,
-          archivedBy: null,
-          archiveReason: null,
-        },
       ],
       pageInfo: {
         page: 1,
         pageSize: 20,
-        totalItems: 2,
+        totalItems: 1,
         totalPages: 1,
       },
     } satisfies ResourceListResponse);
@@ -208,7 +189,7 @@ describe("listResources", () => {
           environmentId: 101,
           ownerId: 201,
           lifecycleStatus: "running",
-          healthStatus: "degraded",
+          healthStatus: "critical",
           source: "manual",
           externalId: "mysql:prod:orders-primary",
           labels: {},
@@ -250,7 +231,7 @@ describe("listResources", () => {
 
     expect(result).toEqual({
       total: 2,
-      degraded: 1,
+      critical: 1,
       warning: 1,
       pending: 1,
     });
@@ -439,7 +420,7 @@ describe("listResources", () => {
     ]);
     await expect(getOverviewMetrics()).resolves.toEqual({
       total: 2,
-      degraded: 0,
+      critical: 0,
       warning: 1,
       pending: 1,
     });

@@ -19,10 +19,10 @@ vi.mock("next/navigation", () => ({
 function renderTable() {
   const events: AuditEventViewModel[] = [
     {
-      id: "audit-1",
-      actorUserId: "user-1",
+      id: 1,
+      actorUserId: 1,
       actorLabel: "Platform Ops",
-      targetResourceId: "resource-1",
+      targetResourceId: 1,
       targetResourceName: "Orders API",
       environmentLabel: "Production",
       eventType: "resource.updated",

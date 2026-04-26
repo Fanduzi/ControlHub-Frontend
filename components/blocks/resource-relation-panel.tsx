@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/select";
 import { createResourceRelation, deleteResourceRelation } from "@/services/resources";
 import { listRelationTypes } from "@/services/settings";
-import { formatLabel } from "@/lib/format";
 import { localizeResourceType, localizeRelationType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 import type { RelationTypeDefinition } from "@/types/settings";

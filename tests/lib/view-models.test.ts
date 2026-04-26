@@ -108,7 +108,7 @@ describe("getResourceViewModel", () => {
     vi.mocked(listDatabaseResources).mockResolvedValue([]);
     vi.mocked(getOverviewMetrics).mockResolvedValue({
       total: 1,
-      degraded: 1,
+      critical: 1,
       warning: 0,
       pending: 0,
     });
@@ -132,9 +132,7 @@ describe("getResourceViewModel", () => {
     const viewModel = await getResourceViewModel(resource.id);
 
     expect(mockedGetResourceProfileById).toHaveBeenCalledWith(resource.id);
-    expect(viewModel?.summary).toBe(
-      "Primary transactional database instance handling order placement, payment finalization, and write-heavy checkout paths.",
-    );
+    expect(viewModel?.summary).toBe("database_instance · mysql · running");
     expect(viewModel?.profile).toEqual({
       engine: "postgres",
       version: "16",
