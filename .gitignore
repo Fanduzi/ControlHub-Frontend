@@ -46,6 +46,9 @@ yarn-error.log*
 # Playwright MCP
 .playwright-mcp/
 
+# Smoke test screenshots
+smoke-*.png
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
