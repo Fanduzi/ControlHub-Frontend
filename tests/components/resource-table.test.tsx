@@ -253,6 +253,27 @@ describe("ResourceTable", () => {
     expect(createButtons).toHaveLength(1);
   });
 
+  it("offers CMDB metadata columns (externalId, source) in the column visibility menu", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    await user.click(screen.getByRole("button", { name: /columns/i }));
+
+    expect(await screen.findByRole("menuitemcheckbox", { name: "External ID" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Source" })).toBeInTheDocument();
+  });
+
+  it("offers profile summary columns (hostname, port, nodes) in the column visibility menu", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    await user.click(screen.getByRole("button", { name: /columns/i }));
+
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Hostname" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Port" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Nodes" })).toBeInTheDocument();
+  });
+
   it("renders Archived badge for archived resources", () => {
     const archivedResource: ResourceListViewModel = {
       id: 103,
