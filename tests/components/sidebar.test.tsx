@@ -266,4 +266,29 @@ describe("Sidebar", () => {
 
     expect(await screen.findByText("Expand sidebar")).toBeInTheDocument();
   });
+
+  it("does not present CMDB as a competing inventory model", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    const links = screen.getAllByRole("link");
+    const linkTexts = links.map((link) => link.textContent);
+    expect(linkTexts).not.toContain("CMDB");
+
+    expect(screen.queryByRole("link", { name: /cmdb/i })).toBeNull();
+  });
+
+  it("presents Resources as the canonical inventory entry", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    const resourcesLink = screen.getByRole("link", { name: "Resources" });
+    expect(resourcesLink).toHaveAttribute("href", "/resources");
+  });
 });

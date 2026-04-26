@@ -255,7 +255,7 @@
     "resources": {
       "eyebrow": "Resources",
       "title": "Unified resource inventory",
-      "description": "Search, filter, and inspect resources. Click a row for details."
+      "description": "Unified inventory: browse, filter, and inspect resources with configuration identifiers, source, and labels. Click a row for details."
     },
     "resourceDetail": {
       "eyebrow": "Resource detail",

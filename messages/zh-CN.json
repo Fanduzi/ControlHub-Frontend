@@ -255,7 +255,7 @@
     "resources": {
       "eyebrow": "资源",
       "title": "统一资源清单",
-      "description": "搜索、筛选和检查资源。点击行查看详情。"
+      "description": "统一清单：浏览、筛选资源，查看配置标识符、来源与标签。点击行查看详情。"
     },
     "resourceDetail": {
       "eyebrow": "资源详情",
