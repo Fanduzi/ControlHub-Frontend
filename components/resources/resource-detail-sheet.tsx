@@ -25,7 +25,6 @@ import {
   buildLocalizedFallbackSummary,
   localizeResourceType,
 } from "@/lib/resource-summary";
-import { getResourceSummaryKey } from "@/lib/resource-copy";
 import type {
   ResourceDetailViewModel,
   ResourceListViewModel,
@@ -65,11 +64,7 @@ export function ResourceDetailSheet({
     return null;
   }
 
-  const summaryKey = getResourceSummaryKey(resource.id);
-  const summary =
-    summaryKey && t.has(`resourceSummaries.${summaryKey}`)
-      ? t(`resourceSummaries.${summaryKey}`)
-      : buildLocalizedFallbackSummary(resource, t);
+  const summary = buildLocalizedFallbackSummary(resource, t);
   const detailResource = hasDetailData(resource) ? resource : null;
   const profileEntries = detailResource
     ? Object.entries(detailResource.profile)
