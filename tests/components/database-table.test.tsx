@@ -19,7 +19,127 @@ vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
   ResourceDetailSheetLoader: () => null,
 }));
 
+function makeCluster(
+  id: number,
+  name: string,
+  nodeCount?: number,
+): ResourceListViewModel {
+  return {
+    id,
+    resourceType: "database_cluster",
+    resourceSubtype: "mysql",
+    name,
+    displayName: name,
+    environmentId: 1,
+    ownerId: 1,
+    ownerName: "DBA Team",
+    environmentName: "Production",
+    lifecycleStatus: "running",
+    healthStatus: "healthy",
+    source: "manual",
+    externalId: "",
+    labels: {},
+    createdAt: "2026-04-14T10:00:00Z",
+    updatedAt: "2026-04-14T10:00:00Z",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
+    isArchived: false,
+    summary: "Cluster",
+    profileSummary: nodeCount != null ? { nodeCount } : undefined,
+  };
+}
+
+function makeInstance(
+  id: number,
+  name: string,
+  clusterId: number,
+  profile?: { hostname?: string; port?: number },
+): ResourceListViewModel {
+  return {
+    id,
+    resourceType: "database_instance",
+    resourceSubtype: "mysql",
+    name,
+    displayName: name,
+    environmentId: 1,
+    ownerId: 1,
+    ownerName: "DBA Team",
+    environmentName: "Production",
+    lifecycleStatus: "running",
+    healthStatus: "healthy",
+    source: "manual",
+    externalId: "",
+    labels: {},
+    createdAt: "2026-04-14T10:00:00Z",
+    updatedAt: "2026-04-14T10:00:00Z",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
+    isArchived: false,
+    summary: "Instance",
+    clusterId,
+    profileSummary: profile,
+  };
+}
+
 describe("DatabaseTable", () => {
+  it("renders profile summary hostname and port from backend data", () => {
+    const resources: ResourceListViewModel[] = [
+      {
+        ...makeInstance(10, "Orders Primary", 0, {
+          hostname: "db-prod-01.internal",
+          port: 3306,
+        }),
+        clusterId: undefined,
+      },
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("db-prod-01.internal")).toBeInTheDocument();
+    expect(screen.getByText("3306")).toBeInTheDocument();
+  });
+
+  it("renders cluster node count from backend profile summary", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+      makeInstance(10, "Orders Primary", 1),
+      makeInstance(11, "Orders Replica", 1),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={2} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText(/3 nodes/i)).toBeInTheDocument();
+  });
+
+  it("renders display names as primary text for standalone instances, not UUIDs or raw IDs", () => {
+    // Instance with no cluster — appears as top-level row
+    const resources: ResourceListViewModel[] = [
+      {
+        ...makeInstance(20, "Standalone DB", 0),
+        clusterId: undefined,
+      },
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    const body = screen.getByRole("table").querySelector("tbody");
+    expect(body?.textContent).toContain("Standalone DB");
+  });
+
   it("renders updated timestamps using the active locale", () => {
     const resources: ResourceListViewModel[] = [
       {

@@ -57,6 +57,35 @@ vi.mock("@/components/resources/resource-archive-button", () => ({
   ResourceArchiveButton: () => <button>archive</button>,
 }));
 
+vi.mock("@/components/blocks/cluster-members-table", () => ({
+  ClusterMembersTable: ({ members }: { members: Array<{ id: number; displayName: string }> }) => (
+    <div data-testid="cluster-members-table">
+      {members.map((m) => (
+        <span key={m.id} data-member-name>{m.displayName}</span>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/blocks/deployed-resources-card", () => ({
+  DeployedResourcesCard: () => <div>deployed-resources</div>,
+}));
+
+vi.mock("@/components/ui/breadcrumb", () => ({
+  Breadcrumb: ({ children }: { children: React.ReactNode }) => <nav>{children}</nav>,
+  BreadcrumbList: ({ children }: { children: React.ReactNode }) => <ol>{children}</ol>,
+  BreadcrumbItem: ({ children }: { children: React.ReactNode }) => <li>{children}</li>,
+  BreadcrumbSeparator: () => <span>/</span>,
+}));
+
+vi.mock("@/components/resources/resources-breadcrumb-link", () => ({
+  ResourcesBreadcrumbLink: ({ label }: { label: string }) => <a>{label}</a>,
+}));
+
+vi.mock("@/components/blocks/db-type-icon", () => ({
+  DbTypeIcon: () => <span>db-icon</span>,
+}));
+
 vi.mock("@/i18n/locales", () => ({
   DEFAULT_LOCALE: "en",
   isAppLocale: () => true,
@@ -155,5 +184,47 @@ describe("ResourceDetailPage", () => {
       Node.DOCUMENT_POSITION_PRECEDING,
     );
     expect(screen.getByText(`topology:${resource.id}`)).toBeInTheDocument();
+  });
+
+  it("renders cluster member table with display names for database_cluster resources", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [
+        {
+          id: 10,
+          displayName: "Orders Primary",
+          resourceSubtype: "mysql",
+          profileSummary: { hostname: "db-01.internal", port: 3306 },
+          healthStatus: "healthy",
+          lifecycleStatus: "running",
+        },
+        {
+          id: 11,
+          displayName: "Orders Replica",
+          resourceSubtype: "mysql",
+          profileSummary: { hostname: "db-02.internal", port: 3306 },
+          healthStatus: "healthy",
+          lifecycleStatus: "running",
+        },
+      ],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    render(element);
+
+    const memberTable = screen.getByTestId("cluster-members-table");
+    expect(memberTable).toBeInTheDocument();
+
+    expect(screen.getByText("Orders Primary")).toBeInTheDocument();
+    expect(screen.getByText("Orders Replica")).toBeInTheDocument();
   });
 });
