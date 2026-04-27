@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,11 +27,10 @@ export function DbTypeIcon({ subtype, className }: DbTypeIconProps) {
   }
 
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={subtype ?? "database"}
-      width={20}
-      height={20}
       className={cn("shrink-0 object-contain", className)}
     />
   );

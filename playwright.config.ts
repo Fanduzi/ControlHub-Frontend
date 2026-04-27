@@ -33,7 +33,7 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 60_000,
       name: "frontend",
-      env: { NO_COLOR: undefined as unknown as string },
+      env: { ...process.env, NO_COLOR: undefined as unknown as string },
     },
     {
       command: "node e2e/api-proxy.mjs",

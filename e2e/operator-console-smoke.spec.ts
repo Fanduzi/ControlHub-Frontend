@@ -2,13 +2,13 @@ import { expect, test } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
 import {
-  assertNoErrors,
-  collectConsoleErrors,
+  assertClean,
+  collectConsoleMessages,
   collectNetworkErrors,
 } from "./harness/console-guards";
 
 test.describe("Operator console smoke", () => {
-  let consoleErrors: string[];
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
   let networkErrors: string[];
 
   test.beforeAll(async () => {
@@ -16,8 +16,8 @@ test.describe("Operator console smoke", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    consoleErrors = collectConsoleErrors(page, {
-      allowPatterns: [
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [
         // Next.js dev overlay noise
         /Fast Refresh/,
         /HMR/,
@@ -40,7 +40,7 @@ test.describe("Operator console smoke", () => {
     const screenshotPath = `smoke-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
-    assertNoErrors(consoleErrors, networkErrors);
+    assertClean(consoleMessages, networkErrors);
   });
 
   test("login redirects to overview", async ({ page }) => {

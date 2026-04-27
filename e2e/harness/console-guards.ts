@@ -1,25 +1,35 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
-interface ConsoleGuardOptions {
-  allowPatterns?: RegExp[];
+interface ConsoleMessage {
+  type: "error" | "warning";
+  text: string;
 }
 
-export function collectConsoleErrors(
+interface ConsoleGuardOptions {
+  /** Patterns that match allowed console.error messages */
+  allowedErrors?: RegExp[];
+  /** Patterns that match allowed console.warning messages */
+  allowedWarnings?: RegExp[];
+}
+
+export function collectConsoleMessages(
   page: Page,
   opts: ConsoleGuardOptions = {}
-): string[] {
-  const errors: string[] = [];
+): ConsoleMessage[] {
+  const messages: ConsoleMessage[] = [];
   page.on("console", (msg) => {
-    if (msg.type() === "error") {
-      const text = msg.text();
-      const allowed = opts.allowPatterns?.some((p) => p.test(text));
-      if (!allowed) {
-        errors.push(text);
-      }
+    const type = msg.type();
+    if (type !== "error" && type !== "warning") return;
+
+    const text = msg.text();
+    const allowList = type === "error" ? opts.allowedErrors : opts.allowedWarnings;
+    const allowed = allowList?.some((p) => p.test(text));
+    if (!allowed) {
+      messages.push({ type, text });
     }
   });
-  return errors;
+  return messages;
 }
 
 export function collectNetworkErrors(page: Page): string[] {
@@ -33,16 +43,27 @@ export function collectNetworkErrors(page: Page): string[] {
   return errors;
 }
 
-export function assertNoErrors(
-  consoleErrors: string[],
+export function assertClean(
+  consoleMessages: ConsoleMessage[],
   networkErrors: string[]
 ): void {
-  if (consoleErrors.length > 0) {
-    console.error("Console errors:\n" + consoleErrors.join("\n"));
+  const errors = consoleMessages.filter((m) => m.type === "error");
+  const warnings = consoleMessages.filter((m) => m.type === "warning");
+
+  if (errors.length > 0) {
+    console.error("Console errors:\n" + errors.map((e) => e.text).join("\n"));
+  }
+  if (warnings.length > 0) {
+    console.error(
+      "Unexpected console warnings:\n" +
+        warnings.map((w) => w.text).join("\n")
+    );
   }
   if (networkErrors.length > 0) {
     console.error("Network errors:\n" + networkErrors.join("\n"));
   }
-  expect(consoleErrors, "No console errors").toHaveLength(0);
+
+  expect(errors, "No console errors").toHaveLength(0);
+  expect(warnings, "No unexpected console warnings").toHaveLength(0);
   expect(networkErrors, "No 4xx/5xx network responses").toHaveLength(0);
 }
