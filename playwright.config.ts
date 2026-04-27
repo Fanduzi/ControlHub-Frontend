@@ -2,6 +2,22 @@ import { defineConfig } from "@playwright/test";
 
 const devServerUrl = "http://localhost:3100";
 
+// Node.js v22 warns when both NO_COLOR and FORCE_COLOR are set.
+// Playwright sets FORCE_COLOR for child processes; some host
+// environments (Claude Code, CI) also set NO_COLOR.  Strip it
+// from all webServer child processes so only FORCE_COLOR remains.
+function cleanEnv(): { [key: string]: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { NO_COLOR: _, ...rest } = process.env;
+  const env: { [key: string]: string } = {};
+  for (const [k, v] of Object.entries(rest)) {
+    if (v !== undefined) env[k] = v;
+  }
+  return env;
+}
+
+const webServerEnv = cleanEnv();
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -21,19 +37,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Node.js v22 emits a noisy warning when both NO_COLOR and FORCE_COLOR
-      // are present in the environment.  Playwright internally sets FORCE_COLOR
-      // for child processes; some host environments (Claude Code, CI) also set
-      // NO_COLOR.  The `env: { NO_COLOR: undefined }` override removes it from
-      // the child process environment so the warning is suppressed without
-      // affecting color output (FORCE_COLOR still takes effect).
       command:
         "NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 npm run dev -- -p 3100",
       url: "http://localhost:3100/login",
       reuseExistingServer: true,
       timeout: 60_000,
       name: "frontend",
-      env: { ...process.env, NO_COLOR: undefined as unknown as string },
+      env: webServerEnv,
     },
     {
       command: "node e2e/api-proxy.mjs",
@@ -41,6 +51,7 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 60_000,
       name: "api-proxy",
+      env: webServerEnv,
     },
   ],
 });
