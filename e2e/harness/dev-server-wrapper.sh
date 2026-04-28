@@ -10,4 +10,10 @@ set -euo pipefail
 
 # Forward args to the real dev server, filtering stderr line-by-line.
 # Only the single known Node v22 stream race condition is suppressed.
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 npm run dev -- "$@" 2> >(grep -v --line-buffered 'controller\[kState\]\.transformAlgorithm')
+#
+# Browser requests use same-origin /__api (via NEXT_PUBLIC_API_BASE_URL).
+# Server-side fetches and the rewrite target point at the E2E proxy (8081).
+CONTROLHUB_API_BASE_URL=http://localhost:8081 \
+CONTROLHUB_API_PROXY_URL=http://localhost:8081 \
+NEXT_PUBLIC_API_BASE_URL=/__api \
+npm run dev -- "$@" 2> >(grep -v --line-buffered 'controller\[kState\]\.transformAlgorithm')
