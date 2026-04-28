@@ -1,16 +1,25 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
-interface ConsoleMessage {
+export interface ConsoleMessage {
   type: "error" | "warning";
   text: string;
 }
 
-interface ConsoleGuardOptions {
+export interface ConsoleGuardOptions {
   /** Patterns that match allowed console.error messages */
   allowedErrors?: RegExp[];
   /** Patterns that match allowed console.warning messages */
   allowedWarnings?: RegExp[];
+}
+
+export function isAllowedConsoleMessage(
+  type: "error" | "warning",
+  text: string,
+  opts: ConsoleGuardOptions,
+): boolean {
+  const allowList = type === "error" ? opts.allowedErrors : opts.allowedWarnings;
+  return allowList?.some((p) => p.test(text)) ?? false;
 }
 
 export function collectConsoleMessages(
@@ -23,8 +32,7 @@ export function collectConsoleMessages(
     if (type !== "error" && type !== "warning") return;
 
     const text = msg.text();
-    const allowList = type === "error" ? opts.allowedErrors : opts.allowedWarnings;
-    const allowed = allowList?.some((p) => p.test(text));
+    const allowed = isAllowedConsoleMessage(type, text, opts);
     if (!allowed) {
       messages.push({ type, text });
     }

@@ -1,51 +1,64 @@
 import { describe, expect, it } from "vitest";
 
-const DEFAULT_BLUE_PRIMARY = "lab(45.2565% -10.9423 -37.8452)";
+import {
+  BLANK_CLICK_X,
+  BLANK_CLICK_Y,
+  DEFAULT_BLUE_PRIMARY,
+  isDefaultBluePrimary,
+  OVERLAY_SELECTORS,
+} from "../../e2e/harness/interaction-stability";
 
-describe("interaction-stability harness", () => {
-  describe("accent detection logic", () => {
-    it("detects default blue primary color", () => {
-      expect(DEFAULT_BLUE_PRIMARY).toBe("lab(45.2565% -10.9423 -37.8452)");
-    });
-
-    it("purple accent color is different from default blue", () => {
-      // The accent guard works by comparing getComputedStyle --primary
-      // against the default blue value. Any non-match means the accent
-      // was successfully applied.
-      const purplePrimary = "lab(29.6489% 38.3996 -25.3886)";
-      expect(purplePrimary).not.toBe(DEFAULT_BLUE_PRIMARY);
-    });
-
-    it("empty string is different from default blue", () => {
-      expect("").not.toBe(DEFAULT_BLUE_PRIMARY);
-    });
+describe("isDefaultBluePrimary", () => {
+  it("returns true for the exact default blue primary color", () => {
+    expect(isDefaultBluePrimary(DEFAULT_BLUE_PRIMARY)).toBe(true);
   });
 
-  describe("blank click uses real mouse coordinates", () => {
-    it("assertBlankClickClosesSheet clicks at (20, 20) not presses Escape", () => {
-      // Verify the function source uses page.mouse.click(20, 20)
-      // by checking the implementation string. This test documents
-      // the invariant that the blank click is a real mouse click
-      // at specific coordinates, not a keyboard shortcut.
-      const source = `await page.mouse.click(20, 20)`;
-      expect(source).toContain("page.mouse.click");
-      expect(source).not.toContain("Escape");
-      expect(source).not.toContain("keyboard");
-    });
+  it("returns false for purple accent color", () => {
+    expect(isDefaultBluePrimary("lab(29.6489% 38.3996 -25.3886)")).toBe(false);
   });
 
-  describe("overlay residue selectors", () => {
-    it("checks for dialog, sheet-overlay, and inert residues", () => {
-      // Documents the three selectors used by assertNoResidualOverlays.
-      // If any selector changes, this test will fail as a reminder
-      // to update the corresponding assertions.
-      const dialogSelector = '[role="dialog"]';
-      const overlaySelector = '[data-slot="sheet-overlay"]';
-      const inertSelector = "[inert]";
+  it("returns false for empty string", () => {
+    expect(isDefaultBluePrimary("")).toBe(false);
+  });
 
-      expect(dialogSelector).toBe('[role="dialog"]');
-      expect(overlaySelector).toBe('[data-slot="sheet-overlay"]');
-      expect(inertSelector).toBe("[inert]");
-    });
+  it("returns false for a near-miss value", () => {
+    // One digit changed
+    expect(isDefaultBluePrimary("lab(45.2565% -10.9423 -37.8453)")).toBe(false);
+  });
+});
+
+describe("blank click coordinates", () => {
+  it("uses real mouse coordinates, not zero/center", () => {
+    expect(BLANK_CLICK_X).toBeGreaterThan(0);
+    expect(BLANK_CLICK_Y).toBeGreaterThan(0);
+  });
+
+  it("coordinates are in the top-left corner (safe for closing overlays)", () => {
+    expect(BLANK_CLICK_X).toBeLessThan(50);
+    expect(BLANK_CLICK_Y).toBeLessThan(50);
+  });
+});
+
+describe("OVERLAY_SELECTORS", () => {
+  it("contains exactly 3 selector entries", () => {
+    expect(OVERLAY_SELECTORS).toHaveLength(3);
+  });
+
+  it("includes dialog role selector", () => {
+    const dialog = OVERLAY_SELECTORS.find((s) => s.name === "dialog");
+    expect(dialog).toBeDefined();
+    expect(dialog!.selector).toBe('[role="dialog"]');
+  });
+
+  it("includes sheet-overlay selector", () => {
+    const overlay = OVERLAY_SELECTORS.find((s) => s.name === "sheet-overlay");
+    expect(overlay).toBeDefined();
+    expect(overlay!.selector).toBe('[data-slot="sheet-overlay"]');
+  });
+
+  it("includes inert attribute selector", () => {
+    const inert = OVERLAY_SELECTORS.find((s) => s.name === "inert");
+    expect(inert).toBeDefined();
+    expect(inert!.selector).toBe("[inert]");
   });
 });

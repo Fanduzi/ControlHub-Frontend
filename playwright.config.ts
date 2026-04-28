@@ -37,17 +37,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Node.js v22 TransformStream race condition (node#62036) emits
-      // TypeError: controller[kState].transformAlgorithm is not a function
-      // into stderr.  Suppress dev-server stderr to avoid polluting test logs.
-      command:
-        "NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 npm run dev -- -p 3100",
+      // Node.js v22 TransformStream race condition (node#62036) sporadically
+      // emits: TypeError: controller[kState].transformAlgorithm is not a function
+      // into stderr.  The wrapper script filters ONLY that exact line; all other
+      // stderr (compilation errors, real warnings, etc.) passes through untouched.
+      command: "bash e2e/harness/dev-server-wrapper.sh -p 3100",
       url: "http://localhost:3100/login",
       reuseExistingServer: true,
       timeout: 60_000,
       name: "frontend",
       env: webServerEnv,
-      stderr: "ignore",
     },
     {
       command: "node e2e/api-proxy.mjs",

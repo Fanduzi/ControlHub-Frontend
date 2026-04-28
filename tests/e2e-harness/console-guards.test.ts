@@ -1,115 +1,63 @@
 import { describe, expect, it } from "vitest";
 
-describe("console-guards", () => {
-  // We test the filtering logic in isolation by reimplementing the core logic.
-  // The actual functions depend on Playwright's Page, so we test the predicate
-  // behavior that drives collectConsoleMessages.
+import {
+  isAllowedConsoleMessage,
+  type ConsoleGuardOptions,
+} from "../../e2e/harness/console-guards";
 
-  function isAllowed(text: string, patterns: RegExp[]): boolean {
-    return patterns.some((p) => p.test(text));
-  }
+describe("isAllowedConsoleMessage", () => {
+  const opts: ConsoleGuardOptions = {
+    allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+    allowedWarnings: [/hydration/],
+  };
 
-  describe("allowlist behavior", () => {
-    const allowedErrors: RegExp[] = [
-      /Fast Refresh/,
-      /HMR/,
-      /Download the React DevTools/,
-    ];
-
-    it("allows messages matching any allowlist pattern", () => {
-      expect(isAllowed("Fast Refresh had an issue", allowedErrors)).toBe(true);
-      expect(isAllowed("HMR connection lost", allowedErrors)).toBe(true);
-      expect(
-        isAllowed("Download the React DevTools for better debugging", allowedErrors),
-      ).toBe(true);
-    });
-
-    it("rejects messages not matching any allowlist pattern", () => {
-      expect(isAllowed("Uncaught TypeError: foo is not a function", allowedErrors)).toBe(false);
-      expect(isAllowed("Warning: Each child in a list should have a unique key", allowedErrors)).toBe(false);
-      expect(isAllowed("Something went wrong", allowedErrors)).toBe(false);
-    });
-
-    it("empty allowlist rejects everything", () => {
-      expect(isAllowed("Fast Refresh had an issue", [])).toBe(false);
-      expect(isAllowed("anything", [])).toBe(false);
-    });
-
-    it("does not treat partial regex match as sufficient without pattern", () => {
-      const allowedWarnings: RegExp[] = [/hydration/i];
-      expect(isAllowed("hydration mismatch", allowedWarnings)).toBe(true);
-      expect(isAllowed("Hydration error", allowedWarnings)).toBe(true);
-      expect(isAllowed("network timeout", allowedWarnings)).toBe(false);
-    });
+  it("allows error matching an allowlist pattern", () => {
+    expect(isAllowedConsoleMessage("error", "Fast Refresh had an issue", opts)).toBe(true);
+    expect(isAllowedConsoleMessage("error", "HMR connection lost", opts)).toBe(true);
+    expect(isAllowedConsoleMessage("error", "Download the React DevTools for better DX", opts)).toBe(true);
   });
 
-  describe("assertClean logic", () => {
-    // Simulate the filtering done by collectConsoleMessages, then verify
-    // the assertClean invariants.
+  it("rejects error not matching any allowlist pattern", () => {
+    expect(isAllowedConsoleMessage("error", "Uncaught TypeError: foo is not a function", opts)).toBe(false);
+    expect(isAllowedConsoleMessage("error", "Something went wrong", opts)).toBe(false);
+  });
 
-    interface Msg {
-      type: "error" | "warning";
-      text: string;
-    }
+  it("allows warning matching an allowlist pattern", () => {
+    expect(isAllowedConsoleMessage("warning", "hydration mismatch detected", opts)).toBe(true);
+    expect(isAllowedConsoleMessage("warning", "hydration error in component", opts)).toBe(true);
+  });
 
-    function filterMessages(
-      all: Array<{ type: string; text: string }>,
-      opts: { allowedErrors?: RegExp[]; allowedWarnings?: RegExp[] },
-    ): Msg[] {
-      return all
-        .filter((m) => m.type === "error" || m.type === "warning")
-        .filter((m) => {
-          const patterns =
-            m.type === "error" ? opts.allowedErrors : opts.allowedWarnings;
-          return !patterns?.some((p) => p.test(m.text));
-        }) as Msg[];
-    }
+  it("rejects warning not matching any allowlist pattern", () => {
+    expect(isAllowedConsoleMessage("warning", "deprecated API usage", opts)).toBe(false);
+    expect(isAllowedConsoleMessage("warning", "network timeout", opts)).toBe(false);
+  });
 
-    it("empty messages array is clean", () => {
-      const result = filterMessages([], {});
-      expect(result).toHaveLength(0);
-    });
+  it("returns false when no allowlist is provided", () => {
+    const noList: ConsoleGuardOptions = {};
+    expect(isAllowedConsoleMessage("error", "Fast Refresh", noList)).toBe(false);
+    expect(isAllowedConsoleMessage("warning", "hydration", noList)).toBe(false);
+  });
 
-    it("allowed errors are filtered out", () => {
-      const messages = [
-        { type: "error", text: "Fast Refresh issue" },
-        { type: "error", text: "Uncaught TypeError" },
-      ];
-      const result = filterMessages(messages, {
-        allowedErrors: [/Fast Refresh/],
-      });
-      expect(result).toHaveLength(1);
-      expect(result[0].text).toBe("Uncaught TypeError");
-    });
+  it("returns false when allowlist is empty array", () => {
+    const emptyList: ConsoleGuardOptions = { allowedErrors: [], allowedWarnings: [] };
+    expect(isAllowedConsoleMessage("error", "anything", emptyList)).toBe(false);
+    expect(isAllowedConsoleMessage("warning", "anything", emptyList)).toBe(false);
+  });
 
-    it("warnings without allowlist are flagged", () => {
-      const messages = [
-        { type: "warning", text: "deprecated API usage" },
-      ];
-      const result = filterMessages(messages, {});
-      expect(result).toHaveLength(1);
-    });
+  it("does not cross-contaminate error and warning allowlists", () => {
+    // "Fast Refresh" is in allowedErrors, not allowedWarnings
+    expect(isAllowedConsoleMessage("warning", "Fast Refresh issue", opts)).toBe(false);
+    // "hydration" is in allowedWarnings, not allowedErrors
+    expect(isAllowedConsoleMessage("error", "hydration mismatch", opts)).toBe(false);
+  });
 
-    it("allowed warnings are filtered out", () => {
-      const messages = [
-        { type: "warning", text: "hydration warning" },
-        { type: "warning", text: "unknown warning" },
-      ];
-      const result = filterMessages(messages, {
-        allowedWarnings: [/hydration/],
-      });
-      expect(result).toHaveLength(1);
-      expect(result[0].text).toBe("unknown warning");
-    });
+  it("case-sensitive: capital H does not match /hydration/", () => {
+    expect(isAllowedConsoleMessage("warning", "Hydration mismatch", opts)).toBe(false);
+  });
 
-    it("log/info messages are ignored", () => {
-      const messages = [
-        { type: "log", text: "some log" },
-        { type: "info", text: "some info" },
-        { type: "debug", text: "debug info" },
-      ];
-      const result = filterMessages(messages, {});
-      expect(result).toHaveLength(0);
-    });
+  it("case-insensitive flag matches both cases", () => {
+    const ciOpts: ConsoleGuardOptions = { allowedWarnings: [/hydration/i] };
+    expect(isAllowedConsoleMessage("warning", "hydration mismatch", ciOpts)).toBe(true);
+    expect(isAllowedConsoleMessage("warning", "Hydration mismatch", ciOpts)).toBe(true);
   });
 });

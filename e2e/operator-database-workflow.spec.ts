@@ -36,8 +36,10 @@ test.describe("Database operator drilldown workflow", () => {
   });
 
   test.afterEach(async ({ page }, testInfo) => {
-    const screenshotPath = `smoke-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `smoke-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
 
     assertClean(consoleMessages, networkErrors);
   });

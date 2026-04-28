@@ -2,7 +2,20 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
 const ACCENT_STORAGE_KEY = "controlhub.accent";
-const DEFAULT_BLUE_PRIMARY = "lab(45.2565% -10.9423 -37.8452)";
+export const DEFAULT_BLUE_PRIMARY = "lab(45.2565% -10.9423 -37.8452)";
+
+export const BLANK_CLICK_X = 20;
+export const BLANK_CLICK_Y = 20;
+
+export const OVERLAY_SELECTORS = [
+  { name: "dialog", selector: '[role="dialog"]' },
+  { name: "sheet-overlay", selector: '[data-slot="sheet-overlay"]' },
+  { name: "inert", selector: "[inert]" },
+] as const;
+
+export function isDefaultBluePrimary(colorValue: string): boolean {
+  return colorValue === DEFAULT_BLUE_PRIMARY;
+}
 
 export async function setAccentToPurple(page: Page): Promise<void> {
   await page.evaluate((key) => {
@@ -22,9 +35,9 @@ export async function assertAccentIsPurple(page: Page): Promise<void> {
     return style.getPropertyValue("--primary").trim();
   });
   expect(
-    primaryColor,
+    isDefaultBluePrimary(primaryColor),
     "--primary should not be default blue",
-  ).not.toBe(DEFAULT_BLUE_PRIMARY);
+  ).toBe(false);
 }
 
 export async function assertNoResidualOverlays(page: Page): Promise<void> {
@@ -52,7 +65,7 @@ export async function assertRowClickOpensSheet(page: Page): Promise<void> {
 }
 
 export async function assertBlankClickClosesSheet(page: Page): Promise<void> {
-  await page.mouse.click(20, 20);
+  await page.mouse.click(BLANK_CLICK_X, BLANK_CLICK_Y);
 
   const sheet = page.locator('[data-slot="sheet-content"]');
   await expect(sheet).not.toBeVisible({ timeout: 5_000 });

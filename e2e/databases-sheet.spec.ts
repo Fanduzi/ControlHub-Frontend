@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 import { loginViaUI } from "./harness/auth";
 
 test.describe("Databases detail sheet", () => {
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
     await page.context().addCookies([
       {
@@ -14,9 +16,12 @@ test.describe("Databases detail sheet", () => {
     ]);
     await loginViaUI(page);
     await page.locator('a[href="/databases"]').first().click();
+    await expect(page).toHaveURL(/\/databases/, { timeout: 15_000 });
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });
+    const rows = page.locator("table").first().locator("tbody tr");
+    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("clicking a database row opens the detail sheet", async ({ page }) => {
@@ -24,7 +29,10 @@ test.describe("Databases detail sheet", () => {
     const count = await rows.count();
     test.skip(count === 0, "No database resources seeded in backend");
 
-    await rows.first().click();
+    // Click the third cell (engine/type) to avoid:
+    // - first cell: expander button (stopPropagation)
+    // - second cell: ResourceLink (stopPropagation, navigates to detail page)
+    await rows.first().locator("td").nth(2).click();
 
     const sheet = page.locator('[data-slot="sheet-content"]');
     await expect(sheet).toBeVisible({ timeout: 10_000 });
@@ -35,12 +43,11 @@ test.describe("Databases detail sheet", () => {
     const count = await rows.count();
     test.skip(count === 0, "No database resources seeded in backend");
 
-    await rows.first().click();
+    await rows.first().locator("td").nth(2).click();
 
     const sheet = page.locator('[data-slot="sheet-content"]');
     await expect(sheet).toBeVisible({ timeout: 10_000 });
 
-    // Should have summary section
     await expect(sheet.locator("text=Summary").first()).toBeVisible({
       timeout: 10_000,
     });
