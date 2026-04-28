@@ -10,6 +10,11 @@ import {
   testResourceName,
 } from "./api.helpers";
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 test.describe("Resource topology view", () => {
   let token: string;
@@ -17,6 +22,8 @@ test.describe("Resource topology view", () => {
   let relatedResourceId: number;
   let relationId: number;
   let rootResourceName: string;
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
 
   test.beforeAll(async () => {
     token = await getAuthToken();
@@ -59,6 +66,9 @@ test.describe("Resource topology view", () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -239,5 +249,9 @@ test.describe("Resource topology view", () => {
     await expect(sheet.getByTestId("topology-graph").first()).toBeVisible({
       timeout: 10_000,
     });
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

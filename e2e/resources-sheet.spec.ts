@@ -8,11 +8,18 @@ import {
   testResourceName as makeName,
 } from "./api.helpers";
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 test.describe("Resources detail sheet", () => {
   let token: string;
   let resourceName: string;
   let resourceId: number;
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
 
   test.beforeAll(async () => {
     token = await getAuthToken();
@@ -32,6 +39,9 @@ test.describe("Resources detail sheet", () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -111,5 +121,9 @@ test.describe("Resources detail sheet", () => {
     await expect(
       sheet.locator("text=Operational profile").first(),
     ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

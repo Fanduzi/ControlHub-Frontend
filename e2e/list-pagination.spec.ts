@@ -1,6 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 type RecordedRequest = {
   pathname: string;
@@ -67,7 +72,13 @@ async function expectUrlParam(
 }
 
 test.describe("List pagination and backend query params", () => {
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
+
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -193,5 +204,9 @@ test.describe("List pagination and backend query params", () => {
     await page.getByRole("menuitemcheckbox", { name: "success" }).click();
     await expectUrlParam(page, "result", "success");
     await expectRequestParam("/audit-events", "result", "success");
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

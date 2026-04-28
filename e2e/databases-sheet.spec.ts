@@ -1,11 +1,22 @@
 import { expect, test } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 test.describe("Databases detail sheet", () => {
   test.describe.configure({ mode: "serial" });
 
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
+
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -51,5 +62,9 @@ test.describe("Databases detail sheet", () => {
     await expect(sheet.locator("text=Summary").first()).toBeVisible({
       timeout: 10_000,
     });
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

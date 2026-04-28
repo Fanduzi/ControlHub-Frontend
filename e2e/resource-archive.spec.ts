@@ -8,6 +8,11 @@ import {
   testResourceName as makeName,
 } from "./api.helpers";
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 test.describe("Resource archive lifecycle", () => {
   let token: string;
@@ -15,6 +20,8 @@ test.describe("Resource archive lifecycle", () => {
   let activeId: number;
   let archivedName: string;
   let archivedId: number;
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
 
   test.beforeAll(async () => {
     token = await getAuthToken();
@@ -44,6 +51,9 @@ test.describe("Resource archive lifecycle", () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -169,5 +179,9 @@ test.describe("Resource archive lifecycle", () => {
     await expect(
       page.getByText(archivedName).first(),
     ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

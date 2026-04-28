@@ -1,6 +1,11 @@
 import { expect, test, type Locator } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 async function expectSidebarCollapsed(sidebar: Locator) {
   await expect
@@ -12,7 +17,13 @@ async function expectSidebarCollapsed(sidebar: Locator) {
 }
 
 test.describe("Sidebar collapse persistence", () => {
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
+
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -49,10 +60,20 @@ test.describe("Sidebar collapse persistence", () => {
       await expectSidebarCollapsed(sidebarAfterNav);
     }
   });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
+  });
 });
 
 test.describe("Database page search and filter", () => {
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
+
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -92,5 +113,9 @@ test.describe("Database page search and filter", () => {
     // Summary strip should show cluster/instance counts
     const summary = page.locator("text=Cluster records").first();
     await expect(summary).toBeVisible();
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });

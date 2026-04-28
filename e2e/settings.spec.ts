@@ -1,9 +1,20 @@
 import { expect, test } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
+import {
+  assertClean,
+  collectConsoleMessages,
+  collectNetworkErrors,
+} from "./harness/console-guards";
 
 test.describe("Settings page", () => {
+  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let networkErrors: string[];
+
   test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page);
+    networkErrors = collectNetworkErrors(page);
+
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -53,5 +64,9 @@ test.describe("Settings page", () => {
       bodyText?.includes("lifecycleStatus") ||
       bodyText?.includes("healthStatus");
     expect(hasDictValues).toBeTruthy();
+  });
+
+  test.afterEach(() => {
+    assertClean(consoleMessages, networkErrors);
   });
 });
