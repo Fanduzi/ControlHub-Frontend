@@ -4,6 +4,7 @@ import {
   archiveResource,
   getOverviewMetrics,
   listAttentionResources,
+  listClusterMembers,
   listDatabaseResources,
   listResources,
   unarchiveResource,
@@ -830,5 +831,81 @@ describe("unarchiveResource", () => {
     await expect(unarchiveResource(999)).rejects.toThrow(
       "Request failed: 404",
     );
+  });
+});
+
+describe("listClusterMembers", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("maps backend resourceId to frontend id", async () => {
+    apiClientMock.mockResolvedValue({
+      members: [
+        {
+          resourceId: 22,
+          name: "order-mysql-replica-01-prod",
+          displayName: "Order MySQL Replica 01 Production",
+          resourceType: "database_instance",
+          resourceSubtype: "mysql",
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          profileSummary: {
+            hostname: "prod-db-host-02.internal",
+            port: 3306,
+            engine: "mysql",
+            version: "8.0.36",
+            role: "replica",
+          },
+        },
+      ],
+    });
+
+    const result = await listClusterMembers(1);
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/members");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(22);
+    expect(result[0].name).toBe("order-mysql-replica-01-prod");
+    expect(result[0].displayName).toBe("Order MySQL Replica 01 Production");
+    expect(result[0].resourceType).toBe("database_instance");
+    expect(result[0].resourceSubtype).toBe("mysql");
+    expect(result[0].profileSummary?.hostname).toBe("prod-db-host-02.internal");
+    expect(result[0].profileSummary?.port).toBe(3306);
+    expect(result[0].profileSummary?.engine).toBe("mysql");
+    expect(result[0].profileSummary?.version).toBe("8.0.36");
+    expect(result[0].profileSummary?.role).toBe("replica");
+    expect(result[0].healthStatus).toBe("healthy");
+    expect(result[0].lifecycleStatus).toBe("running");
+  });
+
+  it("handles members without profileSummary", async () => {
+    apiClientMock.mockResolvedValue({
+      members: [
+        {
+          resourceId: 5,
+          name: "test-instance",
+          displayName: "Test Instance",
+          resourceType: "database_instance",
+          resourceSubtype: "postgres",
+          lifecycleStatus: "provisioning",
+          healthStatus: "unknown",
+        },
+      ],
+    });
+
+    const result = await listClusterMembers(10);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(5);
+    expect(result[0].profileSummary).toBeUndefined();
+  });
+
+  it("returns empty array when cluster has no members", async () => {
+    apiClientMock.mockResolvedValue({ members: [] });
+
+    const result = await listClusterMembers(99);
+
+    expect(result).toEqual([]);
   });
 });

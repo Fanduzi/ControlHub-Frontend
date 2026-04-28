@@ -42,4 +42,10 @@ export type ResourceDetailViewModel = ResourceListViewModel & {
   relations: ResourceRelationViewModel[];
   auditEvents: AuditEventViewModel[];
   members?: ClusterMember[];
+  clusterInfo?: {
+    id: number;
+    displayName: string;
+    healthStatus: string;
+    lifecycleStatus: string;
+  };
 };

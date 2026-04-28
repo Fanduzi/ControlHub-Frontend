@@ -14,6 +14,8 @@ export type ProfileSummary = {
   port?: number;
   nodeCount?: number;
   engine?: string;
+  version?: string;
+  role?: string;
 };
 
 export type Resource = {
@@ -234,18 +236,21 @@ export type TopologyParams = {
   relationType?: string;
 };
 
-// Cluster member types — matches backend database_cluster detail response
+// Cluster member types — matches Backend 17A GET /resources/{id}/members
 
 export type ClusterMember = {
   id: number;
+  name: string;
   displayName: string;
+  resourceType: ResourceType;
   resourceSubtype: string;
-  profileSummary?: {
-    hostname?: string;
-    port?: number;
-  };
+  profileSummary?: ProfileSummary;
   healthStatus: string;
   lifecycleStatus: string;
+};
+
+export type ClusterMemberListResponse = {
+  members: ClusterMember[];
 };
 
 export type ResourceDetailResponse = {

@@ -283,7 +283,8 @@
         "hostname": "主机名",
         "port": "端口",
         "health": "健康状态",
-        "lifecycle": "生命周期"
+        "lifecycle": "生命周期",
+        "role": "角色"
       },
       "deployedResources": {
         "title": "已部署资源",
@@ -294,6 +295,18 @@
         "type": "类型",
         "health": "健康状态",
         "lifecycle": "生命周期"
+      },
+      "operatorSummary": {
+        "title": "运行摘要",
+        "description": "此数据库集群的关键运维指标。"
+      },
+      "parentCluster": {
+        "title": "所属集群",
+        "description": "该实例所属的数据库集群。"
+      },
+      "connectionInfo": {
+        "title": "连接信息",
+        "description": "此数据库实例的网络和引擎详情。"
       }
     },
     "cmdb": {

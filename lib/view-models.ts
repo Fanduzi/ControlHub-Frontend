@@ -10,6 +10,7 @@ import {
   getResourceById,
   getResourceProfileById,
   listAttentionResources,
+  listClusterMembers,
   listDatabaseResources,
   listResourceRelations,
   listAllResources,
@@ -317,19 +318,29 @@ function toResourceListViewModel(
 
 async function toResourceDetailViewModel(
   resource: Resource,
-  members?: ClusterMember[],
+  inlineMembers?: ClusterMember[],
 ): Promise<ResourceDetailViewModel> {
+  const isDatabaseCluster = resource.resourceType === "database_cluster";
+  const isDatabaseInstance = resource.resourceType === "database_instance";
+
   const [
     { resourceMap, environmentMap, ownerMap },
     relations,
     auditEvents,
     profileResponse,
+    fetchedMembers,
   ] = await Promise.all([
     buildLookupMaps(),
     listResourceRelations(resource.id),
     listResourceAuditEvents(resource.id),
     getResourceProfileById(resource.id),
+    isDatabaseCluster ? listClusterMembers(resource.id) : Promise.resolve(undefined),
   ]);
+
+  const members = fetchedMembers ?? inlineMembers;
+  const clusterResource = isDatabaseInstance && resource.clusterId
+    ? resourceMap.get(resource.clusterId)
+    : undefined;
 
   return {
     ...toResourceListViewModel(resource, { environmentMap, ownerMap }),
@@ -341,6 +352,14 @@ async function toResourceDetailViewModel(
       toAuditEventViewModel(event, resourceMap, environmentMap),
     ),
     ...(members && members.length > 0 ? { members } : {}),
+    ...(clusterResource ? {
+      clusterInfo: {
+        id: clusterResource.id,
+        displayName: clusterResource.displayName,
+        healthStatus: clusterResource.healthStatus,
+        lifecycleStatus: clusterResource.lifecycleStatus,
+      },
+    } : {}),
   };
 }
 

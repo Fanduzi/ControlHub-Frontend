@@ -40,6 +40,9 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
               {t("pages.resourceDetail.clusterMembers.port")}
             </th>
             <th className="px-4 py-2 font-medium text-muted-foreground">
+              {t("pages.resourceDetail.clusterMembers.role")}
+            </th>
+            <th className="px-4 py-2 font-medium text-muted-foreground">
               {t("pages.resourceDetail.clusterMembers.health")}
             </th>
             <th className="px-4 py-2 font-medium text-muted-foreground">
@@ -68,6 +71,9 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
               </td>
               <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                 {member.profileSummary?.port ?? "-"}
+              </td>
+              <td className="px-4 py-2 text-xs capitalize text-muted-foreground">
+                {member.profileSummary?.role ?? "-"}
               </td>
               <td className="px-4 py-2">
                 <StatusBadge status={member.healthStatus} tone="health" />

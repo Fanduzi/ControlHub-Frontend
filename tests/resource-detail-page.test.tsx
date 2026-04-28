@@ -194,7 +194,9 @@ describe("ResourceDetailPage", () => {
       members: [
         {
           id: 10,
+          name: "orders-primary",
           displayName: "Orders Primary",
+          resourceType: "database_instance",
           resourceSubtype: "mysql",
           profileSummary: { hostname: "db-01.internal", port: 3306 },
           healthStatus: "healthy",
@@ -202,7 +204,9 @@ describe("ResourceDetailPage", () => {
         },
         {
           id: 11,
+          name: "orders-replica",
           displayName: "Orders Replica",
+          resourceType: "database_instance",
           resourceSubtype: "mysql",
           profileSummary: { hostname: "db-02.internal", port: 3306 },
           healthStatus: "healthy",
@@ -226,5 +230,71 @@ describe("ResourceDetailPage", () => {
 
     expect(screen.getByText("Orders Primary")).toBeInTheDocument();
     expect(screen.getByText("Orders Replica")).toBeInTheDocument();
+  });
+
+  it("renders parent cluster card for database instances with clusterInfo", async () => {
+    const instanceResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 22,
+      resourceType: "database_instance",
+      profileSummary: {
+        hostname: "prod-db-host-01.internal",
+        port: 3306,
+        engine: "mysql",
+        version: "8.0.36",
+        role: "primary",
+      },
+      clusterInfo: {
+        id: 1,
+        displayName: "Order MySQL Cluster Prod",
+        healthStatus: "healthy",
+        lifecycleStatus: "running",
+      },
+    };
+
+    getResourceViewModelMock.mockResolvedValue(instanceResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "22" }),
+    });
+
+    const { container } = render(element);
+
+    expect(screen.getByText("Order MySQL Cluster Prod")).toBeInTheDocument();
+
+    expect(screen.getByText("prod-db-host-01.internal")).toBeInTheDocument();
+    expect(screen.getByText("3306")).toBeInTheDocument();
+    expect(screen.getByText("8.0.36")).toBeInTheDocument();
+    expect(screen.getByText("primary")).toBeInTheDocument();
+
+    const clusterLink = container.querySelector(`a[href="/resources/1"]`);
+    expect(clusterLink).not.toBeNull();
+  });
+
+  it("renders operator summary for database clusters with profileSummary", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 1,
+      resourceType: "database_cluster",
+      profileSummary: {
+        nodeCount: 3,
+        engine: "mysql",
+      },
+      members: [],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "1" }),
+    });
+
+    render(element);
+
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 });

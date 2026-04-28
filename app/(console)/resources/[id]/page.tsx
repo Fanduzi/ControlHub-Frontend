@@ -1,4 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
@@ -190,6 +191,133 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {resource.resourceType === "database_cluster" && resource.profileSummary && (
+        <DetailPanel
+          title={t("pages.resourceDetail.operatorSummary.title")}
+          description={t("pages.resourceDetail.operatorSummary.description")}
+        >
+          <dl className="grid gap-3 text-sm md:grid-cols-3">
+            {resource.profileSummary.nodeCount != null && (
+              <div>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("common.fields.nodes")}
+                </dt>
+                <dd className="mt-1 text-2xl font-semibold text-foreground">
+                  {resource.profileSummary.nodeCount}
+                </dd>
+              </div>
+            )}
+            {resource.profileSummary.engine && (
+              <div>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("common.fields.engine")}
+                </dt>
+                <dd className="mt-1 font-medium text-foreground">
+                  {resource.profileSummary.engine}
+                </dd>
+              </div>
+            )}
+            {resource.profileSummary.version && (
+              <div>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("profileFields.version")}
+                </dt>
+                <dd className="mt-1 font-mono text-sm font-medium text-foreground">
+                  {resource.profileSummary.version}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </DetailPanel>
+      )}
+
+      {resource.resourceType === "database_instance" && resource.clusterInfo && (
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <DetailPanel
+            title={t("pages.resourceDetail.parentCluster.title")}
+            description={t("pages.resourceDetail.parentCluster.description")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md border border-border bg-muted">
+                <DbTypeIcon subtype={resource.resourceSubtype} className="size-4" />
+              </div>
+              <div>
+                <Link
+                  href={`/resources/${resource.clusterInfo.id}`}
+                  className="text-sm font-medium text-foreground hover:text-primary"
+                >
+                  {resource.clusterInfo.displayName}
+                </Link>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <StatusBadge status={resource.clusterInfo.healthStatus} tone="health" />
+                  <StatusBadge status={resource.clusterInfo.lifecycleStatus} tone="lifecycle" />
+                </div>
+              </div>
+            </div>
+          </DetailPanel>
+
+          {resource.profileSummary && (
+            <DetailPanel
+              title={t("pages.resourceDetail.connectionInfo.title")}
+              description={t("pages.resourceDetail.connectionInfo.description")}
+            >
+              <dl className="grid gap-3 text-sm md:grid-cols-2">
+                {resource.profileSummary.hostname && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("common.fields.hostname")}
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
+                      {resource.profileSummary.hostname}
+                    </dd>
+                  </div>
+                )}
+                {resource.profileSummary.port != null && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("common.fields.port")}
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
+                      {resource.profileSummary.port}
+                    </dd>
+                  </div>
+                )}
+                {resource.profileSummary.engine && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("common.fields.engine")}
+                    </dt>
+                    <dd className="mt-1 font-medium text-foreground">
+                      {resource.profileSummary.engine}
+                    </dd>
+                  </div>
+                )}
+                {resource.profileSummary.version && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("profileFields.version")}
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
+                      {resource.profileSummary.version}
+                    </dd>
+                  </div>
+                )}
+                {resource.profileSummary.role && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("profileFields.role")}
+                    </dt>
+                    <dd className="mt-1 font-medium text-foreground">
+                      {formatLabel(resource.profileSummary.role)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </DetailPanel>
+          )}
+        </div>
+      )}
 
       {resource.resourceType === "database_cluster" &&
         resource.members &&

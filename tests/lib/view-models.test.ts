@@ -10,6 +10,7 @@ import {
   getOverviewMetrics,
   listAllResources,
   listAttentionResources,
+  listClusterMembers,
   listDatabaseResources,
   listResourceRelations,
   listResources,
@@ -27,6 +28,7 @@ vi.mock("@/services/resources", () => ({
   getResourceById: vi.fn(),
   getResourceProfileById: vi.fn(),
   listResourceRelations: vi.fn(),
+  listClusterMembers: vi.fn(),
   listDatabaseResources: vi.fn(),
   listAttentionResources: vi.fn(),
   getOverviewMetrics: vi.fn(),
@@ -101,6 +103,7 @@ describe("getResourceViewModel", () => {
     ]);
     mockedListResourceRelations.mockResolvedValue([]);
     mockedListResourceAuditEvents.mockResolvedValue([]);
+    vi.mocked(listClusterMembers).mockResolvedValue([]);
 
     vi.mocked(listAuditEvents).mockResolvedValue([] as never);
     vi.mocked(listRecentAuditEvents).mockResolvedValue([]);

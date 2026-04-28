@@ -1,6 +1,7 @@
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
 import type {
+  ClusterMember,
   CreateResourceInput,
   CreateResourceRelationInput,
   Resource,
@@ -103,6 +104,36 @@ export async function listResourceRelations(
   );
 
   return response.items;
+}
+
+export async function listClusterMembers(
+  resourceId: number,
+): Promise<ClusterMember[]> {
+  type MemberRow = {
+    resourceId: number;
+    name: string;
+    displayName: string;
+    resourceType: string;
+    resourceSubtype: string;
+    lifecycleStatus: string;
+    healthStatus: string;
+    profileSummary?: ClusterMember["profileSummary"];
+  };
+
+  const response = await apiClient<{ members: MemberRow[] }>(
+    `/resources/${resourceId}/members`,
+  );
+
+  return response.members.map((row) => ({
+    id: row.resourceId,
+    name: row.name,
+    displayName: row.displayName,
+    resourceType: row.resourceType as ClusterMember["resourceType"],
+    resourceSubtype: row.resourceSubtype,
+    lifecycleStatus: row.lifecycleStatus,
+    healthStatus: row.healthStatus,
+    profileSummary: row.profileSummary,
+  }));
 }
 
 export async function listDatabaseResources(): Promise<Resource[]> {

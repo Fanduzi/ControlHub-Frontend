@@ -283,7 +283,8 @@
         "hostname": "Hostname",
         "port": "Port",
         "health": "Health",
-        "lifecycle": "Lifecycle"
+        "lifecycle": "Lifecycle",
+        "role": "Role"
       },
       "deployedResources": {
         "title": "Deployed resources",
@@ -294,6 +295,18 @@
         "type": "Type",
         "health": "Health",
         "lifecycle": "Lifecycle"
+      },
+      "operatorSummary": {
+        "title": "Operator summary",
+        "description": "Key operational metrics for this database cluster."
+      },
+      "parentCluster": {
+        "title": "Parent cluster",
+        "description": "The cluster this instance belongs to."
+      },
+      "connectionInfo": {
+        "title": "Connection info",
+        "description": "Network and engine details for this database instance."
       }
     },
     "cmdb": {
