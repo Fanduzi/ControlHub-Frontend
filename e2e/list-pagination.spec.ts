@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { loginViaApi } from "./auth.helpers";
+import { loginViaUI } from "./harness/auth";
 
 type RecordedRequest = {
   pathname: string;
@@ -67,11 +67,21 @@ async function expectUrlParam(
 }
 
 test.describe("List pagination and backend query params", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+  });
+
   test("resources pagination sends page and pageSize query params", async ({
     page,
   }) => {
-    await loginViaApi(page);
-
     await page.goto("/resources?page=1&pageSize=1");
     await expect(page.locator("table").first()).toBeVisible({ timeout: 15_000 });
 
@@ -98,8 +108,6 @@ test.describe("List pagination and backend query params", () => {
   test("resources search and filters reset to page 1 and stay in query params", async ({
     page,
   }) => {
-    await loginViaApi(page);
-
     await page.goto("/resources?page=1&pageSize=20");
     await expect(page.locator("table").first()).toBeVisible({ timeout: 15_000 });
 
@@ -157,8 +165,6 @@ test.describe("List pagination and backend query params", () => {
   test("audits pagination and filters send page, eventType, and result query params", async ({
     page,
   }) => {
-    await loginViaApi(page);
-
     await page.goto("/audits?page=1&pageSize=1");
     await expect(page.locator("table").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("combobox", { name: "Rows per page" })).toBeVisible();

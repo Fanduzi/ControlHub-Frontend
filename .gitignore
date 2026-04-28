@@ -13,6 +13,8 @@
 # testing
 /coverage
 /test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -46,7 +48,7 @@ yarn-error.log*
 # Playwright MCP
 .playwright-mcp/
 
-# Smoke test screenshots
+# E2E test screenshots
 smoke-*.png
 
 # typescript

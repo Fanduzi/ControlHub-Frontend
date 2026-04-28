@@ -85,7 +85,7 @@ test.describe("Operator console smoke", () => {
 
     await expect(page).toHaveURL(/\/resources\/\d+/, { timeout: 10_000 });
     await expect(
-      page.locator("h3", { hasText: /Identity and ownership/i })
+      page.getByRole("heading", { level: 3, name: /Identity and ownership/i }).first()
     ).toBeVisible();
   });
 

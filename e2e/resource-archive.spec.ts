@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-import { loginViaApi } from "./auth.helpers";
 import {
   archiveTestResource,
   createTestResource,
@@ -8,6 +7,7 @@ import {
   getAuthToken,
   testResourceName as makeName,
 } from "./api.helpers";
+import { loginViaUI } from "./harness/auth";
 
 test.describe("Resource archive lifecycle", () => {
   let token: string;
@@ -44,7 +44,15 @@ test.describe("Resource archive lifecycle", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
   });
 
   test("default view shows active resources but not archived ones", async ({ page }) => {

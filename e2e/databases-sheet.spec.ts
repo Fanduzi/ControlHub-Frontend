@@ -1,11 +1,19 @@
 import { expect, test } from "@playwright/test";
 
-import { loginViaApi } from "./auth.helpers";
+import { loginViaUI } from "./harness/auth";
 
 test.describe("Databases detail sheet", () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page);
-    await page.goto("/databases");
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.locator('a[href="/databases"]').first().click();
     await expect(page.locator("table").first()).toBeVisible({
       timeout: 15_000,
     });

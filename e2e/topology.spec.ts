@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-import { loginViaApi } from "./auth.helpers";
 import {
   archiveTestResource,
   createTestRelation,
@@ -10,6 +9,7 @@ import {
   getAuthToken,
   testResourceName,
 } from "./api.helpers";
+import { loginViaUI } from "./harness/auth";
 
 test.describe("Resource topology view", () => {
   let token: string;
@@ -50,7 +50,6 @@ test.describe("Resource topology view", () => {
         // Best-effort cleanup
       }
     }
-    // Archive test resources so they are excluded from default GET /resources.
     if (rootResourceId) {
       await archiveTestResource(token, rootResourceId);
     }
@@ -60,7 +59,15 @@ test.describe("Resource topology view", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
   });
 
   test("topology section renders on resource detail page with graph", async ({

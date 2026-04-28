@@ -216,7 +216,7 @@ export function defaultResourceInput(
 ): CreateResourceInput {
   return {
     resourceType: "service",
-    resourceSubtype: "e2e-test",
+    resourceSubtype: "api",
     displayName: overrides.name,
     environmentId: 1,
     ownerId: 1,

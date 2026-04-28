@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-import { loginViaApi } from "./auth.helpers";
+import { loginViaUI } from "./harness/auth";
 
 async function expectSidebarCollapsed(sidebar: Locator) {
   await expect
@@ -13,7 +13,15 @@ async function expectSidebarCollapsed(sidebar: Locator) {
 
 test.describe("Sidebar collapse persistence", () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
   });
 
   test("sidebar collapses and persists state across navigation", async ({ page }) => {
@@ -45,7 +53,15 @@ test.describe("Sidebar collapse persistence", () => {
 
 test.describe("Database page search and filter", () => {
   test.beforeEach(async ({ page }) => {
-    await loginViaApi(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
   });
 
   test("database page has search input", async ({ page }) => {
