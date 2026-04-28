@@ -5,15 +5,34 @@ const PORT = Number(process.env.PLAYWRIGHT_PROXY_PORT ?? "8081");
 
 const recordedRequests = new Map();
 
-function setCorsHeaders(response) {
-  response.setHeader("Access-Control-Allow-Origin", "http://localhost:3100");
-  response.setHeader("Access-Control-Allow-Credentials", "true");
+export function getAllowedOrigins() {
+  return (
+    process.env.PLAYWRIGHT_PROXY_ALLOWED_ORIGINS ??
+    "http://localhost:3000,http://localhost:3100"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export function resolveCorsOrigin(requestOrigin) {
+  if (!requestOrigin) return null;
+  return getAllowedOrigins().includes(requestOrigin) ? requestOrigin : null;
+}
+
+function setCorsHeaders(request, response) {
+  const allowedOrigin = resolveCorsOrigin(request.headers.origin);
+  if (allowedOrigin) {
+    response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    response.setHeader("Vary", "Origin");
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+  }
   response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
 }
 
 const server = http.createServer(async (request, response) => {
-  setCorsHeaders(response);
+  setCorsHeaders(request, response);
 
   if (!request.url) {
     response.writeHead(400).end("Missing URL");
@@ -95,7 +114,7 @@ const server = http.createServer(async (request, response) => {
     delete headers["access-control-allow-credentials"];
     delete headers["access-control-allow-headers"];
     delete headers["access-control-allow-methods"];
-    setCorsHeaders(response);
+    setCorsHeaders(request, response);
     response.writeHead(upstreamResponse.status, headers);
     const upstreamBody = Buffer.from(await upstreamResponse.arrayBuffer());
     response.end(upstreamBody);
@@ -109,6 +128,16 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Playwright API proxy listening on http://localhost:${PORT}`);
-});
+function startServer() {
+  server.listen(PORT, () => {
+    console.log(`Playwright API proxy listening on http://localhost:${PORT}`);
+  });
+}
+
+const isMainModule =
+  process.argv[1] &&
+  import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule) {
+  startServer();
+}
