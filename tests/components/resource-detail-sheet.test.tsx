@@ -1,5 +1,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
@@ -89,6 +91,37 @@ const resource: ResourceDetailViewModel = {
 };
 
 describe("ResourceDetailSheet", () => {
+  it("closes when the overlay is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+
+    function ControlledSheet() {
+      const [open, setOpen] = useState(true);
+      return (
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <ResourceDetailSheet
+            open={open}
+            onOpenChange={(nextOpen) => {
+              onOpenChange(nextOpen);
+              setOpen(nextOpen);
+            }}
+            resource={resource}
+          />
+        </NextIntlClientProvider>
+      );
+    }
+
+    render(<ControlledSheet />);
+
+    const overlay = document.querySelector('[data-slot="sheet-overlay"]');
+    expect(overlay).toBeInTheDocument();
+
+    await user.pointer({ target: overlay as Element, keys: "[MouseLeft]" });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("renders the selected resource with summary, relations, and audit context", () => {
     const consoleError = vi
       .spyOn(console, "error")

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -17,7 +16,7 @@ export function ResourceLink({
   onClick,
 }: ResourceLinkProps) {
   return (
-    <Link
+    <a
       href={href}
       onClick={onClick}
       className={cn(
@@ -26,6 +25,6 @@ export function ResourceLink({
       )}
     >
       {children}
-    </Link>
+    </a>
   );
 }

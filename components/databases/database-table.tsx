@@ -127,13 +127,13 @@ function paginateTree(tree: TreeRow[], page: number, perPage: number) {
 
 function updateMultiSelectParams(
   pathname: string,
-  router: ReturnType<typeof useRouter>,
+  _router: ReturnType<typeof useRouter>,
   searchParams: URLSearchParams,
   key: string,
   values: string[],
 ) {
   const params = buildMultiSelectParams(searchParams, key, values);
-  router.replace(`${pathname}?${params.toString()}`);
+  window.location.replace(`${pathname}?${params.toString()}`);
 }
 
 export function DatabaseTable({
@@ -229,7 +229,7 @@ export function DatabaseTable({
   );
 
   const handleRowClick = useCallback((resource: ResourceListViewModel) => {
-    setSelectedResource(resource);
+    window.setTimeout(() => setSelectedResource(resource), 0);
   }, []);
 
   const columns = useMemo(() => [
@@ -438,6 +438,7 @@ export function DatabaseTable({
               onValuesChange={(values) =>
                 updateMultiSelectParams(pathname, router, searchParams, "resourceSubtype", values)
               }
+              deferValuesChange
               className="w-[180px]"
             />
           </>
@@ -452,7 +453,16 @@ export function DatabaseTable({
                 className="bg-muted/20 hover:bg-muted/20"
               >
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={
+                      header.id === "expander"
+                        ? "w-8 px-1"
+                        : header.id === "displayName"
+                          ? "pl-1"
+                          : undefined
+                    }
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -496,7 +506,13 @@ export function DatabaseTable({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="py-1"
+                        className={
+                          cell.column.id === "expander"
+                            ? "w-8 px-1 py-1"
+                            : cell.column.id === "displayName"
+                              ? "py-1 pl-1"
+                              : "py-1"
+                        }
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

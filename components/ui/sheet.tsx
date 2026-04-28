@@ -77,10 +77,12 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  onOverlayClick,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
+  onOverlayClick?: () => void;
 }) {
   const isRight = side === "right";
   const popupRef = React.useRef<HTMLDivElement>(null);
@@ -112,7 +114,19 @@ function SheetContent({
 
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {onOverlayClick ? (
+        <div
+          data-slot="sheet-overlay"
+          className="fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 supports-backdrop-filter:backdrop-blur-xs"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            window.setTimeout(onOverlayClick, 0);
+          }}
+        />
+      ) : (
+        <SheetOverlay />
+      )}
       <SheetPrimitive.Popup
         ref={popupRef}
         data-slot="sheet-content"

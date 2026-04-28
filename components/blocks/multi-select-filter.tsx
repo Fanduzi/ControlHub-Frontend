@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown, X } from "lucide-react";
 
@@ -26,7 +26,10 @@ type MultiSelectFilterProps = {
   selectedValues: string[];
   onValuesChange: (values: string[]) => void;
   className?: string;
+  deferValuesChange?: boolean;
 };
+
+const FILTER_CHANGE_DELAY_MS = 50;
 
 export function MultiSelectFilter({
   label,
@@ -35,22 +38,34 @@ export function MultiSelectFilter({
   selectedValues,
   onValuesChange,
   className,
+  deferValuesChange = false,
 }: MultiSelectFilterProps) {
   const t = useTranslations();
+  const [open, setOpen] = useState(false);
 
   const handleToggle = useCallback(
     (value: string) => {
       const next = selectedValues.includes(value)
         ? selectedValues.filter((v) => v !== value)
         : [...selectedValues, value];
+      setOpen(false);
+      if (deferValuesChange) {
+        window.setTimeout(() => onValuesChange(next), FILTER_CHANGE_DELAY_MS);
+        return;
+      }
       onValuesChange(next);
     },
-    [selectedValues, onValuesChange],
+    [selectedValues, onValuesChange, deferValuesChange],
   );
 
   const handleClearAll = useCallback(() => {
+    setOpen(false);
+    if (deferValuesChange) {
+      window.setTimeout(() => onValuesChange([]), FILTER_CHANGE_DELAY_MS);
+      return;
+    }
     onValuesChange([]);
-  }, [onValuesChange]);
+  }, [onValuesChange, deferValuesChange]);
 
   const triggerText =
     selectedValues.length === 0
@@ -58,10 +73,16 @@ export function MultiSelectFilter({
       : selectedValues.length === 1
         ? `${label}: ${options.find((o) => o.value === selectedValues[0])?.label ?? selectedValues[0]}`
         : `${label}: ${selectedValues.length}`;
+  const selectedKey = selectedValues.join("\u0000");
 
   return (
     <div className="flex items-center gap-1">
-      <DropdownMenu modal={false}>
+      <DropdownMenu
+        key={selectedKey}
+        modal={false}
+        open={open}
+        onOpenChange={setOpen}
+      >
         <DropdownMenuTrigger
           data-slot="multi-select-trigger"
           className={cn(

@@ -1,5 +1,6 @@
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { DatabaseTable } from "@/components/databases/database-table";
@@ -16,7 +17,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
-  ResourceDetailSheetLoader: () => null,
+  ResourceDetailSheetLoader: ({
+    open,
+    resource,
+  }: {
+    open: boolean;
+    resource: ResourceListViewModel | null;
+  }) => (open && resource ? <div role="dialog">{resource.displayName}</div> : null),
 }));
 
 function makeCluster(
@@ -180,5 +187,23 @@ describe("DatabaseTable", () => {
     expect(
       screen.getByText(formatDateTime("2026-04-14T10:00:00Z", "en")),
     ).toBeInTheDocument();
+  });
+
+  it("opens the resource detail sheet when a database row is clicked", async () => {
+    const user = userEvent.setup();
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+      makeInstance(10, "Orders Primary", 1),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("row", { name: /view details for orders cluster/i }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Orders Cluster");
   });
 });

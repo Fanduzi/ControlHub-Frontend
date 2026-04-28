@@ -74,7 +74,10 @@ export function ResourceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto border-l border-border bg-background">
+      <SheetContent
+        className="overflow-y-auto border-l border-border bg-background"
+        onOverlayClick={() => onOpenChange(false)}
+      >
         <SheetHeader className="border-b border-border px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
