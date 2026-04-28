@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "env -u NO_COLOR playwright test",
     "test:e2e:smoke": "env -u NO_COLOR playwright test e2e/operator-console-smoke.spec.ts"
   },
   "dependencies": {
