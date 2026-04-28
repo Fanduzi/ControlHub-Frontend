@@ -63,7 +63,7 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 ## Testing
 
 - **Unit tests** in `tests/` with Vitest + jsdom + testing-library. Mock service functions with `vi.mock()`, wrap renders in `NextIntlClientProvider`.
-- **E2E tests** in `e2e/` with Playwright (chromium only). Use `loginViaApi()` helper for session injection. Tests set English locale cookie.
+- **E2E tests** in `e2e/` with Playwright (chromium only). **Always use `loginViaUI()` for SSR console pages** — it navigates through the real login form and establishes a client-side session. `loginViaApi()` only sets `sessionStorage` (client-only), which breaks SSR auth because server components fetch during render with no token. Tests set English locale cookie.
 - Vitest excludes `e2e/**` — the two runners must not cross paths.
 
 <!-- gitnexus:start -->
