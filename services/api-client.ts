@@ -10,8 +10,13 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export function resolveApiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return process.env.NEXT_PUBLIC_API_BASE_URL || "/__api";
+  }
+
+  return process.env.CONTROLHUB_API_BASE_URL || "http://localhost:8080";
+}
 
 function assertNoUnsafeIntegers(value: unknown) {
   if (typeof value === "number") {
@@ -53,7 +58,7 @@ export async function apiClient<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

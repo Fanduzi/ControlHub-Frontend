@@ -1,6 +1,46 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiClient, ApiError } from "@/services/api-client";
+import { apiClient, ApiError, resolveApiBaseUrl } from "@/services/api-client";
+
+describe("resolveApiBaseUrl", () => {
+  const originalWindow = globalThis.window;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    if (originalWindow === undefined) {
+      // @ts-expect-error test cleanup
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  });
+
+  it("uses /__api in the browser by default", () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    expect(resolveApiBaseUrl()).toBe("/__api");
+  });
+
+  it("uses NEXT_PUBLIC_API_BASE_URL in the browser when explicitly set", () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "/custom-api");
+    expect(resolveApiBaseUrl()).toBe("/custom-api");
+  });
+
+  it("uses CONTROLHUB_API_BASE_URL on the server when set", () => {
+    // @ts-expect-error test server runtime
+    delete globalThis.window;
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://localhost:8081");
+    expect(resolveApiBaseUrl()).toBe("http://localhost:8081");
+  });
+
+  it("uses localhost backend on the server by default", () => {
+    // @ts-expect-error test server runtime
+    delete globalThis.window;
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", "");
+    expect(resolveApiBaseUrl()).toBe("http://localhost:8080");
+  });
+});
 
 describe("apiClient", () => {
   beforeEach(() => {
