@@ -8,6 +8,7 @@ import type { ClusterMember } from "@/types/resource";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import {
+  buildAuditContextSummary,
   buildClusterMemberSummary,
   buildDatabaseOperatorVerdict,
 } from "@/lib/database-operator-workbench";
@@ -59,10 +60,12 @@ export function DatabaseOperatorWorkbench({
   recentAudits,
 }: DatabaseOperatorWorkbenchProps) {
   const t = useTranslations("databaseOperator");
+  const td = useTranslations("diagnostics");
 
   const isCluster = resource.resourceType === "database_cluster";
   const verdict = buildDatabaseOperatorVerdict({ resource, members });
   const summary = isCluster ? buildClusterMemberSummary(members) : null;
+  const auditContext = buildAuditContextSummary(recentAudits ?? []);
 
   const verdictLabel = t(`verdict.${verdict.level}`);
 
@@ -119,29 +122,45 @@ export function DatabaseOperatorWorkbench({
         </DetailPanel>
       )}
 
-      {recentAudits && recentAudits.length > 0 && (
-        <DetailPanel
-          title={t("recentAudits.title")}
-          description={t("recentAudits.description")}
-        >
-          <div className="space-y-3">
-            {recentAudits.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                <span className="font-medium text-foreground">
-                  {event.eventType}
-                </span>
-                <div className="flex items-center gap-3 text-muted-foreground">
-                  <span>{event.actorLabel}</span>
-                  <span className="font-mono text-xs">{event.createdAt}</span>
+      <DetailPanel
+        title={t("recentAudits.title")}
+        description={t("recentAudits.description")}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {auditContext.summaryKey === "diagnostics.audit.recentEvents"
+              ? td("audit.recentEvents", { count: auditContext.count })
+              : td(auditContext.summaryKey)}
+          </p>
+
+          {recentAudits && recentAudits.length > 0 ? (
+            <>
+              {recentAudits.map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <span className="font-medium text-foreground">
+                    {event.eventType}
+                  </span>
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span>{event.actorLabel}</span>
+                    <span className="font-mono text-xs">{event.createdAt}</span>
+                  </div>
                 </div>
+              ))}
+              <div className="flex justify-end">
+                <Link
+                  href={`/audits?targetResourceId=${resource.id}`}
+                  className="text-sm text-primary hover:underline"
+                >
+                  {td("audit.viewAll")}
+                </Link>
               </div>
-            ))}
-          </div>
-        </DetailPanel>
-      )}
+            </>
+          ) : null}
+        </div>
+      </DetailPanel>
 
       <div className="flex items-center gap-2">
         <Link

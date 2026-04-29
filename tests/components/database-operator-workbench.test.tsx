@@ -60,8 +60,18 @@ const validKeys = new Set([
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (t as any).has = (key: string) => validKeys.has(key);
 
+const diagnosticsKeys: Record<string, string> = {
+  "audit.none": "No recent audit events.",
+  "audit.recentEvents": "There are 1 recent audit events.",
+  "audit.resourceChanges": "Recent resource status or relation changes.",
+  "audit.viewAll": "View all audits",
+};
+
+const td = (key: string) => diagnosticsKeys[key] ?? key;
+(td as unknown as { has: (k: string) => boolean }).has = (key: string) => key in diagnosticsKeys;
+
 vi.mock("next-intl", () => ({
-  useTranslations: () => t,
+  useTranslations: (ns?: string) => (ns === "diagnostics" ? td : t),
 }));
 
 const healthyClusterResource: ResourceDetailViewModel = {
@@ -265,6 +275,57 @@ describe("DatabaseOperatorWorkbench", () => {
 
     expect(screen.getByText("Recent audits")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
+  });
+
+  it("renders audit context summary and view-all link", async () => {
+    const resourceWithAudits: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      recentAudits: [
+        {
+          id: 1,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "resource.updated",
+          result: "success",
+          createdAt: "2026-04-28T12:00:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Update completed.",
+        },
+      ],
+    };
+
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={resourceWithAudits}
+        members={resourceWithAudits.members!}
+        recentAudits={resourceWithAudits.recentAudits}
+      />,
+    );
+
+    expect(screen.getByText("Recent resource status or relation changes.")).toBeInTheDocument();
+    expect(screen.getByText("View all audits")).toBeInTheDocument();
+  });
+
+  it("renders empty audit context when no audits", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={healthyClusterResource}
+        members={healthyClusterResource.members!}
+        recentAudits={[]}
+      />,
+    );
+
+    expect(screen.getByText("No recent audit events.")).toBeInTheDocument();
   });
 
   it("renders needs_attention verdict for cluster with warning members", async () => {

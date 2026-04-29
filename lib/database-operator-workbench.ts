@@ -150,3 +150,35 @@ export function sortClusterMembersForOperations<T extends ClusterMember>(
     );
   });
 }
+
+export interface AuditContextSummary {
+  count: number;
+  summaryKey: string;
+  hasResourceChange: boolean;
+}
+
+export function buildAuditContextSummary(
+  audits: Array<{ eventType: string }>,
+): AuditContextSummary {
+  if (audits.length === 0) {
+    return {
+      count: 0,
+      summaryKey: "audit.none",
+      hasResourceChange: false,
+    };
+  }
+
+  const hasResourceChange = audits.some(
+    (event) =>
+      event.eventType.startsWith("resource.") ||
+      event.eventType.startsWith("relation."),
+  );
+
+  return {
+    count: audits.length,
+    summaryKey: hasResourceChange
+      ? "audit.resourceChanges"
+      : "audit.recentEvents",
+    hasResourceChange,
+  };
+}

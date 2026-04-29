@@ -4,6 +4,7 @@ import {
   buildClusterMemberSummary,
   buildDatabaseOperatorVerdict,
   sortClusterMembersForOperations,
+  buildAuditContextSummary,
 } from "@/lib/database-operator-workbench";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { ClusterMember } from "@/types/resource";
@@ -231,5 +232,38 @@ describe("sortClusterMembersForOperations", () => {
     const originalOrder = original.map((m) => m.id);
     sortClusterMembersForOperations(original);
     expect(original.map((m) => m.id)).toEqual(originalOrder);
+  });
+});
+
+describe("buildAuditContextSummary", () => {
+  it("returns none summary for empty audits", () => {
+    expect(buildAuditContextSummary([])).toEqual({
+      count: 0,
+      summaryKey: "audit.none",
+      hasResourceChange: false,
+    });
+  });
+
+  it("detects resource change events", () => {
+    expect(
+      buildAuditContextSummary([
+        { eventType: "resource.updated" },
+        { eventType: "relation.created" },
+      ]),
+    ).toEqual({
+      count: 2,
+      summaryKey: "audit.resourceChanges",
+      hasResourceChange: true,
+    });
+  });
+
+  it("uses recentEvents key for non-resource events", () => {
+    expect(
+      buildAuditContextSummary([{ eventType: "access.login" }]),
+    ).toEqual({
+      count: 1,
+      summaryKey: "audit.recentEvents",
+      hasResourceChange: false,
+    });
   });
 });
