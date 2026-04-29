@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
@@ -12,6 +13,16 @@ type ClusterMembersTableProps = {
   members: ClusterMember[];
 };
 
+function isAbnormalMember(member: ClusterMember): boolean {
+  return (
+    member.healthStatus === "critical" ||
+    member.healthStatus === "warning" ||
+    member.healthStatus === "unknown" ||
+    member.lifecycleStatus === "stopped" ||
+    member.lifecycleStatus === "degraded"
+  );
+}
+
 export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
   const t = useTranslations();
   const sortedMembers = sortClusterMembersForOperations(members);
@@ -23,6 +34,8 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
       </p>
     );
   }
+
+  const hasAbnormal = sortedMembers.some(isAbnormalMember);
 
   return (
     <div className="overflow-x-auto">
@@ -50,6 +63,9 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
             <th className="px-4 py-2 font-medium text-muted-foreground">
               {t("pages.resourceDetail.clusterMembers.lifecycle")}
             </th>
+            {hasAbnormal && (
+              <th className="px-4 py-2 font-medium text-muted-foreground" />
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -69,13 +85,17 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
                 </div>
               </td>
               <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                {member.profileSummary?.hostname ?? "-"}
+                {member.profileSummary?.hostname
+                  ? member.profileSummary.hostname
+                  : t("diagnostics.missing.connection")}
               </td>
               <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                {member.profileSummary?.port ?? "-"}
+                {member.profileSummary?.port ?? t("diagnostics.missing.connection")}
               </td>
               <td className="px-4 py-2 text-xs capitalize text-muted-foreground">
-                {member.profileSummary?.role ?? "-"}
+                {member.profileSummary?.role
+                  ? member.profileSummary.role
+                  : t("diagnostics.missing.role")}
               </td>
               <td className="px-4 py-2">
                 <StatusBadge status={member.healthStatus} tone="health" />
@@ -83,6 +103,18 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
               <td className="px-4 py-2">
                 <StatusBadge status={member.lifecycleStatus} tone="lifecycle" />
               </td>
+              {hasAbnormal && (
+                <td className="px-4 py-2">
+                  {isAbnormalMember(member) ? (
+                    <Link
+                      href={`/resources/${member.id}?topologyDepth=2&topologyExpanded=1`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {t("diagnostics.topology.viewTopology")}
+                    </Link>
+                  ) : null}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
