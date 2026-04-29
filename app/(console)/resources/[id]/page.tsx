@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/blocks/status-badge";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
+import { DatabaseOperatorWorkbench } from "@/components/resources/database-operator-workbench";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -191,6 +192,16 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {(resource.resourceType === "database_cluster" ||
+        resource.resourceType === "database_instance") && (
+        <DatabaseOperatorWorkbench
+          resource={resource}
+          members={resource.members ?? []}
+          clusterInfo={resource.clusterInfo}
+          recentAudits={resource.recentAudits}
+        />
+      )}
 
       {resource.resourceType === "database_cluster" && resource.profileSummary && (
         <DetailPanel

@@ -100,6 +100,14 @@ vi.mock("@/lib/resource-copy", () => ({
   getResourceSummaryKey: () => null,
 }));
 
+vi.mock("@/components/resources/database-operator-workbench", () => ({
+  DatabaseOperatorWorkbench: ({ resource: r }: { resource: { id: number; resourceType: string } }) => (
+    <div data-testid="database-operator-workbench" data-resource-type={r.resourceType}>
+      operator-workbench:{r.id}
+    </div>
+  ),
+}));
+
 function t(key: string) {
   return key;
 }
@@ -296,5 +304,56 @@ describe("ResourceDetailPage", () => {
     render(element);
 
     expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("renders database operator workbench for database_cluster resources", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    render(element);
+
+    const workbench = screen.getByTestId("database-operator-workbench");
+    expect(workbench).toBeInTheDocument();
+    expect(workbench).toHaveAttribute("data-resource-type", "database_cluster");
+  });
+
+  it("renders database operator workbench for database_instance resources", async () => {
+    const instanceResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 22,
+      resourceType: "database_instance",
+      clusterInfo: {
+        id: 1,
+        displayName: "Cluster",
+        healthStatus: "healthy",
+        lifecycleStatus: "running",
+      },
+    };
+
+    getResourceViewModelMock.mockResolvedValue(instanceResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "22" }),
+    });
+
+    render(element);
+
+    const workbench = screen.getByTestId("database-operator-workbench");
+    expect(workbench).toBeInTheDocument();
+    expect(workbench).toHaveAttribute("data-resource-type", "database_instance");
   });
 });

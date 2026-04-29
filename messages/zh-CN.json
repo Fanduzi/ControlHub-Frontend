@@ -675,5 +675,57 @@
     "systemName": "系统名称",
     "repositoryUrl": "代码仓库",
     "runtimeEnv": "运行环境"
+  },
+  "databaseOperator": {
+    "title": "运维工作台",
+    "description": "该数据库资源的健康诊断和运维摘要。",
+    "verdict": {
+      "healthy": "健康",
+      "needs_attention": "需关注",
+      "critical": "严重",
+      "unknown": "未知"
+    },
+    "facts": {
+      "all_known_members_healthy": "所有已知成员健康且运行正常。",
+      "members_warning_or_critical": "部分成员存在告警或严重健康问题。",
+      "resource_health_critical": "资源健康状态为严重。",
+      "lifecycle_needs_attention": "部分资源已停止或降级运行。",
+      "resource_health_unknown": "资源健康状态未知。"
+    },
+    "memberSummary": {
+      "title": "成员摘要",
+      "description": "成员角色与健康分布。",
+      "total": "总计",
+      "primary": "主库",
+      "replica": "从库",
+      "roleUnknown": "角色未知",
+      "warningOrCritical": "告警 / 严重",
+      "stoppedOrDegraded": "已停止 / 降级"
+    },
+    "instanceContext": {
+      "parentCluster": "所属集群",
+      "parentClusterDescription": "该实例所属的数据库集群。",
+      "connection": "连接信息",
+      "connectionDescription": "网络和引擎详情。",
+      "hostname": "主机名",
+      "port": "端口",
+      "engine": "引擎",
+      "version": "版本",
+      "role": "角色",
+      "role_primary": "主库",
+      "role_replica": "从库",
+      "role_master": "主库",
+      "role_secondary": "从库",
+      "role_writer": "写入节点",
+      "role_reader": "读取节点"
+    },
+    "recentAudits": {
+      "title": "最近审计",
+      "description": "该资源最近 5 条审计事件。",
+      "empty": "暂无近期审计事件。"
+    },
+    "topology": {
+      "openExpanded": "展开完整拓扑"
+    }
   }
 }

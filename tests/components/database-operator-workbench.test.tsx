@@ -42,7 +42,7 @@ function t(key: string) {
   };
   return keys[key] ?? key;
 }
-t.has = (key: string) => key in t(".__keys__") || [
+const validKeys = new Set([
   "title", "description", "verdict.healthy", "verdict.needs_attention",
   "verdict.critical", "verdict.unknown", "facts.all_known_members_healthy",
   "facts.members_warning_or_critical", "facts.resource_health_critical",
@@ -56,7 +56,9 @@ t.has = (key: string) => key in t(".__keys__") || [
   "instanceContext.hostname", "instanceContext.port", "instanceContext.engine",
   "instanceContext.version", "instanceContext.role",
   "instanceContext.role_primary", "instanceContext.role_replica",
-].includes(key);
+]);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(t as any).has = (key: string) => validKeys.has(key);
 
 vi.mock("next-intl", () => ({
   useTranslations: () => t,

@@ -675,5 +675,57 @@
     "systemName": "System Name",
     "repositoryUrl": "Repository URL",
     "runtimeEnv": "Runtime Environment"
+  },
+  "databaseOperator": {
+    "title": "Operator workbench",
+    "description": "Health verdict and diagnostics for this database resource.",
+    "verdict": {
+      "healthy": "Healthy",
+      "needs_attention": "Needs attention",
+      "critical": "Critical",
+      "unknown": "Unknown"
+    },
+    "facts": {
+      "all_known_members_healthy": "All known members are healthy and running.",
+      "members_warning_or_critical": "Some members have warning or critical health.",
+      "resource_health_critical": "Resource health is critical.",
+      "lifecycle_needs_attention": "Some resources are stopped or degraded.",
+      "resource_health_unknown": "Resource health status is unknown."
+    },
+    "memberSummary": {
+      "title": "Member summary",
+      "description": "Distribution of member roles and health.",
+      "total": "Total",
+      "primary": "Primary",
+      "replica": "Replica",
+      "roleUnknown": "Role unknown",
+      "warningOrCritical": "Warning / critical",
+      "stoppedOrDegraded": "Stopped / degraded"
+    },
+    "instanceContext": {
+      "parentCluster": "Parent cluster",
+      "parentClusterDescription": "The cluster this instance belongs to.",
+      "connection": "Connection",
+      "connectionDescription": "Network and engine details.",
+      "hostname": "Hostname",
+      "port": "Port",
+      "engine": "Engine",
+      "version": "Version",
+      "role": "Role",
+      "role_primary": "Primary",
+      "role_replica": "Replica",
+      "role_master": "Master",
+      "role_secondary": "Secondary",
+      "role_writer": "Writer",
+      "role_reader": "Reader"
+    },
+    "recentAudits": {
+      "title": "Recent audits",
+      "description": "Last 5 audit events for this resource.",
+      "empty": "No recent audit events."
+    },
+    "topology": {
+      "openExpanded": "Open expanded topology"
+    }
   }
 }
