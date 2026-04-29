@@ -1,4 +1,5 @@
-import type { ClusterMember, ResourceListViewModel } from "@/types/view-models";
+import type { ResourceListViewModel } from "@/types/view-models";
+import type { ClusterMember } from "@/types/resource";
 
 export type OperatorVerdictLevel =
   | "healthy"

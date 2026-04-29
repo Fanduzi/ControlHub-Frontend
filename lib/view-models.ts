@@ -320,8 +320,8 @@ async function toResourceDetailViewModel(
   resource: Resource,
   inlineMembers?: ClusterMember[],
 ): Promise<ResourceDetailViewModel> {
-  const isDatabaseCluster = resource.resourceType === "database_cluster";
-  const isDatabaseInstance = resource.resourceType === "database_instance";
+  const isDatabase = resource.resourceType === "database_cluster" ||
+    resource.resourceType === "database_instance";
 
   const [
     { resourceMap, environmentMap, ownerMap },
@@ -334,13 +334,19 @@ async function toResourceDetailViewModel(
     listResourceRelations(resource.id),
     listResourceAuditEvents(resource.id),
     getResourceProfileById(resource.id),
-    isDatabaseCluster ? listClusterMembers(resource.id) : Promise.resolve(undefined),
+    resource.resourceType === "database_cluster"
+      ? listClusterMembers(resource.id)
+      : Promise.resolve(undefined),
   ]);
 
   const members = fetchedMembers ?? inlineMembers;
-  const clusterResource = isDatabaseInstance && resource.clusterId
+  const clusterResource = resource.resourceType === "database_instance" && resource.clusterId
     ? resourceMap.get(resource.clusterId)
     : undefined;
+
+  const auditViewModels = auditEvents.map((event) =>
+    toAuditEventViewModel(event, resourceMap, environmentMap),
+  );
 
   return {
     ...toResourceListViewModel(resource, { environmentMap, ownerMap }),
@@ -348,9 +354,8 @@ async function toResourceDetailViewModel(
     relations: relations.map((relation) =>
       toRelationViewModel(relation, resource.id, resourceMap),
     ),
-    auditEvents: auditEvents.map((event) =>
-      toAuditEventViewModel(event, resourceMap, environmentMap),
-    ),
+    auditEvents: auditViewModels,
+    ...(isDatabase ? { recentAudits: auditViewModels.slice(0, 5) } : {}),
     ...(members && members.length > 0 ? { members } : {}),
     ...(clusterResource ? {
       clusterInfo: {

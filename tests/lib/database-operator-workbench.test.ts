@@ -4,7 +4,8 @@ import {
   buildClusterMemberSummary,
   buildDatabaseOperatorVerdict,
 } from "@/lib/database-operator-workbench";
-import type { ClusterMember, ResourceListViewModel } from "@/types/view-models";
+import type { ResourceListViewModel } from "@/types/view-models";
+import type { ClusterMember } from "@/types/resource";
 
 function resource(
   overrides: Partial<ResourceListViewModel>,
@@ -16,6 +17,7 @@ function resource(
     resourceType: "database_cluster",
     resourceSubtype: "mysql",
     environmentId: 1,
+    ownerId: 1,
     lifecycleStatus: "running",
     healthStatus: "healthy",
     source: "manual",

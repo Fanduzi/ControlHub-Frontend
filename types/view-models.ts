@@ -41,6 +41,7 @@ export type ResourceDetailViewModel = ResourceListViewModel & {
   profile: Record<string, string>;
   relations: ResourceRelationViewModel[];
   auditEvents: AuditEventViewModel[];
+  recentAudits?: AuditEventViewModel[];
   members?: ClusterMember[];
   clusterInfo?: {
     id: number;
