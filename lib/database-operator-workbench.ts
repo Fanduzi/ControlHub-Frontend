@@ -116,3 +116,37 @@ export function buildDatabaseOperatorVerdict({
   facts.push("all_known_members_healthy");
   return { level: "healthy", facts };
 }
+
+function healthPriority(status: string): number {
+  if (status === "critical") return 0;
+  if (status === "warning") return 1;
+  if (status === "unknown") return 2;
+  return 3;
+}
+
+function lifecyclePriority(status: string): number {
+  if (status === "stopped") return 0;
+  if (status === "degraded") return 1;
+  if (status === "pending") return 2;
+  return 3;
+}
+
+function rolePriority(role: string): number {
+  const normalized = role.toLowerCase();
+  if (["primary", "master", "writer"].includes(normalized)) return 0;
+  if (["replica", "secondary", "reader"].includes(normalized)) return 1;
+  return 2;
+}
+
+export function sortClusterMembersForOperations<T extends ClusterMember>(
+  members: T[],
+): T[] {
+  return [...members].sort((left, right) => {
+    return (
+      healthPriority(left.healthStatus) - healthPriority(right.healthStatus) ||
+      lifecyclePriority(left.lifecycleStatus) - lifecyclePriority(right.lifecycleStatus) ||
+      rolePriority(left.profileSummary?.role ?? "") - rolePriority(right.profileSummary?.role ?? "") ||
+      left.displayName.localeCompare(right.displayName)
+    );
+  });
+}

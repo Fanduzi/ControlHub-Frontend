@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { StatusBadge } from "@/components/blocks/status-badge";
+import { sortClusterMembersForOperations } from "@/lib/database-operator-workbench";
 import type { ClusterMember } from "@/types/resource";
 
 type ClusterMembersTableProps = {
@@ -13,8 +14,9 @@ type ClusterMembersTableProps = {
 
 export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
   const t = useTranslations();
+  const sortedMembers = sortClusterMembersForOperations(members);
 
-  if (!members || members.length === 0) {
+  if (!sortedMembers || sortedMembers.length === 0) {
     return (
       <p className="px-4 py-3 text-sm text-muted-foreground">
         {t("pages.resourceDetail.clusterMembers.empty")}
@@ -51,7 +53,7 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {members.map((member) => (
+          {sortedMembers.map((member) => (
             <tr key={member.id} className="group">
               <td className="px-4 py-2">
                 <ResourceLink href={`/resources/${member.id}`}>
