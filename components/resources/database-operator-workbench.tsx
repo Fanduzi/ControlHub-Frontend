@@ -56,7 +56,6 @@ function SummaryCard({
 export function DatabaseOperatorWorkbench({
   resource,
   members,
-  clusterInfo,
   recentAudits,
 }: DatabaseOperatorWorkbenchProps) {
   const t = useTranslations("databaseOperator");
