@@ -67,21 +67,19 @@ function buildAttentionReason(
   t: ReturnType<typeof useTranslations>,
 ): string {
   const reasons: string[] = [];
-  const healthKey = `statusValues.${resource.healthStatus}`;
-  const healthLabel = t.has(healthKey) ? t(healthKey) : resource.healthStatus;
 
   if (resource.healthStatus === "critical" || resource.healthStatus === "warning") {
-    reasons.push(`${t("common.fields.health")}=${healthLabel}`);
+    const fallbackKey = `diagnostics.reasons.healthStatus.${resource.healthStatus}`;
+    reasons.push(t.has(fallbackKey) ? t(fallbackKey) : fallbackKey);
   }
   if (
     resource.lifecycleStatus !== "running" &&
     resource.lifecycleStatus !== "unknown"
   ) {
-    const lifecycleKey = `statusValues.${resource.lifecycleStatus}`;
-    const lifecycleLabel = t.has(lifecycleKey) ? t(lifecycleKey) : resource.lifecycleStatus;
-    reasons.push(`${t("common.fields.lifecycle")}=${lifecycleLabel}`);
+    const fallbackKey = `diagnostics.reasons.lifecycleStatus.${resource.lifecycleStatus}`;
+    reasons.push(t.has(fallbackKey) ? t(fallbackKey) : fallbackKey);
   }
-  return reasons.join(", ") || t("statusValues.unknown");
+  return reasons.join("，") || t("statusValues.unknown");
 }
 
 function attentionRowColor(resource: ResourceListViewModel): string {

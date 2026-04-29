@@ -676,6 +676,51 @@
     "repositoryUrl": "代码仓库",
     "runtimeEnv": "运行环境"
   },
+  "diagnostics": {
+    "fields": {
+      "healthStatus": "健康状态",
+      "lifecycleStatus": "生命周期状态"
+    },
+    "reasons": {
+      "healthStatus": {
+        "critical": "健康状态：严重",
+        "warning": "健康状态：告警",
+        "unknown": "健康状态：未知"
+      },
+      "lifecycleStatus": {
+        "stopped": "生命周期状态：已停止",
+        "degraded": "生命周期状态：降级",
+        "pending": "生命周期状态：待处理"
+      }
+    },
+    "sentences": {
+      "healthStatus": {
+        "critical": "该资源当前处于严重健康状态。",
+        "warning": "该资源当前处于告警健康状态。",
+        "unknown": "该资源健康状态未知。"
+      },
+      "lifecycleStatus": {
+        "stopped": "该资源生命周期状态为已停止。",
+        "degraded": "该资源生命周期状态为降级。",
+        "pending": "该资源生命周期状态为待处理。"
+      }
+    },
+    "missing": {
+      "role": "后端未提供角色信息",
+      "profile": "后端未提供画像信息",
+      "connection": "连接地址未提供",
+      "audit": "暂无最近审计事件"
+    },
+    "audit": {
+      "none": "暂无最近审计事件。",
+      "recentEvents": "最近有 {count} 条相关审计事件。",
+      "resourceChanges": "最近有资源状态或关系变更。",
+      "viewAll": "查看全部审计"
+    },
+    "topology": {
+      "viewTopology": "查看拓扑"
+    }
+  },
   "databaseOperator": {
     "title": "运维工作台",
     "description": "该数据库资源的健康诊断和运维摘要。",

@@ -676,6 +676,51 @@
     "repositoryUrl": "Repository URL",
     "runtimeEnv": "Runtime Environment"
   },
+  "diagnostics": {
+    "fields": {
+      "healthStatus": "Health status",
+      "lifecycleStatus": "Lifecycle status"
+    },
+    "reasons": {
+      "healthStatus": {
+        "critical": "Health status: Critical",
+        "warning": "Health status: Warning",
+        "unknown": "Health status: Unknown"
+      },
+      "lifecycleStatus": {
+        "stopped": "Lifecycle status: Stopped",
+        "degraded": "Lifecycle status: Degraded",
+        "pending": "Lifecycle status: Pending"
+      }
+    },
+    "sentences": {
+      "healthStatus": {
+        "critical": "This resource is currently critical.",
+        "warning": "This resource is currently in a warning state.",
+        "unknown": "This resource has an unknown health status."
+      },
+      "lifecycleStatus": {
+        "stopped": "This resource is currently stopped.",
+        "degraded": "This resource is currently degraded.",
+        "pending": "This resource is in a pending state."
+      }
+    },
+    "missing": {
+      "role": "Role information not provided by backend",
+      "profile": "Profile information not provided by backend",
+      "connection": "Connection address not provided",
+      "audit": "No recent audit events"
+    },
+    "audit": {
+      "none": "No recent audit events.",
+      "recentEvents": "There are {count} recent audit events.",
+      "resourceChanges": "Recent resource status or relation changes.",
+      "viewAll": "View all audits"
+    },
+    "topology": {
+      "viewTopology": "View topology"
+    }
+  },
   "databaseOperator": {
     "title": "Operator workbench",
     "description": "Health verdict and diagnostics for this database resource.",
