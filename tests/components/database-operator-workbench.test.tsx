@@ -214,7 +214,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("Replica")).toBeInTheDocument();
   });
 
-  it("renders instance connection context with profile summary", async () => {
+  it("renders instance verdict without duplicating parent cluster panel", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -227,11 +227,9 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("db-01.internal")).toBeInTheDocument();
-    expect(screen.getByText("3306")).toBeInTheDocument();
-    expect(screen.getByText("mysql")).toBeInTheDocument();
-    expect(screen.getByText("8.0.36")).toBeInTheDocument();
-    expect(screen.getByText("Primary")).toBeInTheDocument();
+    expect(screen.getByText("Operator workbench")).toBeInTheDocument();
+    expect(screen.getByText("Healthy")).toBeInTheDocument();
+    expect(screen.queryByText("Parent cluster")).not.toBeInTheDocument();
   });
 
   it("renders recent audits section", async () => {
