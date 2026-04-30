@@ -108,30 +108,6 @@ export function DatabaseOperatorWorkbench({
         </div>
       </DetailPanel>
 
-      {isCluster && summary && (
-        <DetailPanel
-          title={t("memberSummary.title")}
-          description={t("memberSummary.description")}
-        >
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-            <SummaryCard label={t("memberSummary.total")} value={summary.total} />
-            <SummaryCard label={t("memberSummary.primary")} value={summary.primary} />
-            <SummaryCard label={t("memberSummary.replica")} value={summary.replica} />
-            <SummaryCard label={t("memberSummary.roleUnknown")} value={summary.roleUnknown} />
-            <SummaryCard
-              label={t("memberSummary.warningOrCritical")}
-              value={summary.warningOrCritical}
-              accent
-            />
-            <SummaryCard
-              label={t("memberSummary.stoppedOrDegraded")}
-              value={summary.stoppedOrDegraded}
-              accent
-            />
-          </div>
-        </DetailPanel>
-      )}
-
       <DetailPanel
         title={t("evidence.title")}
         description={t("evidence.description")}
@@ -178,6 +154,30 @@ export function DatabaseOperatorWorkbench({
           ))}
         </ol>
       </DetailPanel>
+
+      {isCluster && summary && (
+        <DetailPanel
+          title={t("memberSummary.title")}
+          description={t("memberSummary.description")}
+        >
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            <SummaryCard label={t("memberSummary.total")} value={summary.total} />
+            <SummaryCard label={t("memberSummary.primary")} value={summary.primary} />
+            <SummaryCard label={t("memberSummary.replica")} value={summary.replica} />
+            <SummaryCard label={t("memberSummary.roleUnknown")} value={summary.roleUnknown} />
+            <SummaryCard
+              label={t("memberSummary.warningOrCritical")}
+              value={summary.warningOrCritical}
+              accent
+            />
+            <SummaryCard
+              label={t("memberSummary.stoppedOrDegraded")}
+              value={summary.stoppedOrDegraded}
+              accent
+            />
+          </div>
+        </DetailPanel>
+      )}
 
       <DetailPanel
         title={t("auditBuckets.title")}

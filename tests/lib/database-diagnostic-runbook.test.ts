@@ -277,6 +277,25 @@ describe("buildRunbookChecks", () => {
     });
   });
 
+  it("suggests unknown health check for unknown resource health", () => {
+    const checks = buildRunbookChecks(
+      buildDiagnosticEvidence({
+        resource: resource({ healthStatus: "unknown" }),
+        members: [],
+        recentAudits: [],
+      }),
+    );
+
+    expect(checks).toContainEqual({
+      id: "check-unknown-health",
+      textKey: "databaseOperator.runbook.checks.unknownHealth",
+    });
+    expect(checks).not.toContainEqual({
+      id: "check-no-findings",
+      textKey: "databaseOperator.runbook.checks.noFindings",
+    });
+  });
+
   it("suggests nearby audits check when audit changes exist", () => {
     const checks = buildRunbookChecks([
       {

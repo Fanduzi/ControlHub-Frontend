@@ -170,6 +170,13 @@ export function buildRunbookChecks(evidence: DiagnosticEvidence[]): RunbookCheck
     });
   }
 
+  if (ids.has("resource-health-unknown")) {
+    checks.push({
+      id: "check-unknown-health",
+      textKey: "databaseOperator.runbook.checks.unknownHealth",
+    });
+  }
+
   if (ids.has("member-lifecycle-abnormal")) {
     checks.push({
       id: "check-lifecycle-state",

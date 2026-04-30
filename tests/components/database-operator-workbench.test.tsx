@@ -47,11 +47,11 @@ function t(key: string, params?: Record<string, number>) {
     "evidence.resourceHealthCritical": "Resource health is critical.",
     "evidence.resourceHealthWarning": "Resource health is warning.",
     "evidence.resourceHealthUnknown": "Resource health is unknown.",
-    "evidence.memberHealthAbnormal": "1 member has warning or critical health.",
-    "evidence.memberLifecycleAbnormal": "1 member is stopped or degraded.",
-    "evidence.memberRoleMissing": "Role information is missing for 1 member.",
-    "evidence.memberConnectionMissing": "Connection information is missing for 1 member.",
-    "evidence.auditNearbyChanges": "1 recent resource or relation change is near this diagnostic context.",
+    "evidence.memberHealthAbnormal": "Members with warning or critical health: 1.",
+    "evidence.memberLifecycleAbnormal": "Members stopped or degraded: 1.",
+    "evidence.memberRoleMissing": "Members missing role information: 1.",
+    "evidence.memberConnectionMissing": "Members missing connection information: 1.",
+    "evidence.auditNearbyChanges": "Recent resource or relation changes near this diagnostic context: 1.",
     "evidence.sources.resourceStatus": "Resource status",
     "evidence.sources.memberHealth": "Member health",
     "evidence.sources.memberLifecycle": "Member lifecycle",
@@ -60,6 +60,7 @@ function t(key: string, params?: Record<string, number>) {
     "runbook.title": "Next checks",
     "runbook.description": "Read-only investigation steps based on available data.",
     "runbook.checks.criticalHealth": "Check instance process status, connection details, and recent resource changes.",
+    "runbook.checks.unknownHealth": "Check whether backend health signals are reporting correctly before treating this resource as healthy.",
     "runbook.checks.lifecycleState": "Confirm whether stopped or degraded state is expected maintenance or a recent change.",
     "runbook.checks.profileSync": "Check whether backend profile sync is providing role, host, and port data.",
     "runbook.checks.nearbyAudits": "Compare recent resource or relation changes with the time of the current signal.",
@@ -100,7 +101,7 @@ const validKeys = new Set([
   "evidence.sources.memberLifecycle", "evidence.sources.memberProfile",
   "evidence.sources.auditEvents",
   "runbook.title", "runbook.description",
-  "runbook.checks.criticalHealth", "runbook.checks.lifecycleState",
+  "runbook.checks.criticalHealth", "runbook.checks.unknownHealth", "runbook.checks.lifecycleState",
   "runbook.checks.profileSync", "runbook.checks.nearbyAudits",
   "runbook.checks.noFindings",
   "auditBuckets.title", "auditBuckets.summary", "auditBuckets.noEvents",
@@ -490,6 +491,37 @@ describe("DatabaseOperatorWorkbench", () => {
         "No clear abnormal signal is available. Continue with topology and audit history.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("renders unknown health runbook instead of no-findings for unknown resource health", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    const unknownResource: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      healthStatus: "unknown",
+      members: [],
+    };
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={unknownResource}
+        members={[]}
+        recentAudits={[]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Check whether backend health signals are reporting correctly before treating this resource as healthy.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "No clear abnormal signal is available. Continue with topology and audit history.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("renders grouped audit bucket summary", async () => {
