@@ -9,7 +9,6 @@ import type { ClusterMember } from "@/types/resource";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import {
   buildClusterMemberSummary,
-  buildDatabaseOperatorVerdict,
 } from "@/lib/database-operator-workbench";
 import {
   buildAuditBuckets,
@@ -23,13 +22,6 @@ type DatabaseOperatorWorkbenchProps = {
   members: ClusterMember[];
   clusterInfo?: ResourceDetailViewModel["clusterInfo"];
   recentAudits?: AuditEventViewModel[];
-};
-
-const verdictColors: Record<string, string> = {
-  healthy: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  needs_attention: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  critical: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-  unknown: "bg-muted text-muted-foreground",
 };
 
 function SummaryCard({
@@ -67,7 +59,6 @@ export function DatabaseOperatorWorkbench({
   const td = useTranslations("diagnostics");
 
   const isCluster = resource.resourceType === "database_cluster";
-  const verdict = buildDatabaseOperatorVerdict({ resource, members });
   const summary = isCluster ? buildClusterMemberSummary(members) : null;
   const diagnosticEvidence = buildDiagnosticEvidence({
     resource,
@@ -77,37 +68,8 @@ export function DatabaseOperatorWorkbench({
   const runbookChecks = buildRunbookChecks(diagnosticEvidence);
   const auditBuckets = buildAuditBuckets(recentAudits ?? []);
 
-  const verdictLabel = t(`verdict.${verdict.level}`);
-
   return (
     <div className="space-y-4">
-      <DetailPanel
-        title={t("title")}
-        description={t("description")}
-      >
-        <div className="space-y-4">
-          <div
-            data-verdict-level={verdict.level}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold",
-              verdictColors[verdict.level],
-            )}
-          >
-            <span>{verdictLabel}</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {verdict.facts.map((fact) => (
-              <span
-                key={fact}
-                className="text-sm text-muted-foreground"
-              >
-                {t(`facts.${fact}`)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </DetailPanel>
-
       <DetailPanel
         title={t("evidence.title")}
         description={t("evidence.description")}

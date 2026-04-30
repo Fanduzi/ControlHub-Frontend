@@ -239,7 +239,7 @@ const instanceResource: ResourceDetailViewModel = {
 };
 
 describe("DatabaseOperatorWorkbench", () => {
-  it("renders verdict heading for healthy cluster", async () => {
+  it("renders workbench evidence and runbook for healthy cluster", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -251,9 +251,9 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Operator workbench")).toBeInTheDocument();
-    expect(screen.getByText("Healthy")).toBeInTheDocument();
-    expect(screen.getByText("All known members are healthy.")).toBeInTheDocument();
+    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
+    expect(screen.getByText("Next checks")).toBeInTheDocument();
+    expect(screen.getByText("Member summary")).toBeInTheDocument();
   });
 
   it("renders cluster member summary cards", async () => {
@@ -274,7 +274,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("Replica")).toBeInTheDocument();
   });
 
-  it("renders instance verdict without duplicating parent cluster panel", async () => {
+  it("renders instance workbench evidence and audit without member summary", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -287,9 +287,8 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Operator workbench")).toBeInTheDocument();
-    expect(screen.getByText("Healthy")).toBeInTheDocument();
-    expect(screen.queryByText("Parent cluster")).not.toBeInTheDocument();
+    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Member summary")).not.toBeInTheDocument();
   });
 
   it("renders recent audits section", async () => {
@@ -411,7 +410,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("No recent audit events.")).toBeInTheDocument();
   });
 
-  it("renders needs_attention verdict for cluster with warning members", async () => {
+  it("renders needs_attention evidence for cluster with warning members", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -423,8 +422,8 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Needs attention")).toBeInTheDocument();
-    expect(screen.getByText("Some members have warning or critical health.")).toBeInTheDocument();
+    expect(screen.getByText("Members with warning or critical health: 1.")).toBeInTheDocument();
+    expect(screen.getByText("Member health")).toBeInTheDocument();
   });
 
   it("renders diagnostic evidence with source and raw field hint", async () => {
