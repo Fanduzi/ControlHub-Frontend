@@ -8,10 +8,14 @@ import type { ClusterMember } from "@/types/resource";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import {
-  buildAuditContextSummary,
   buildClusterMemberSummary,
   buildDatabaseOperatorVerdict,
 } from "@/lib/database-operator-workbench";
+import {
+  buildAuditBuckets,
+  buildDiagnosticEvidence,
+  buildRunbookChecks,
+} from "@/lib/database-diagnostic-runbook";
 import { cn } from "@/lib/utils";
 
 type DatabaseOperatorWorkbenchProps = {
@@ -65,7 +69,13 @@ export function DatabaseOperatorWorkbench({
   const isCluster = resource.resourceType === "database_cluster";
   const verdict = buildDatabaseOperatorVerdict({ resource, members });
   const summary = isCluster ? buildClusterMemberSummary(members) : null;
-  const auditContext = buildAuditContextSummary(recentAudits ?? []);
+  const diagnosticEvidence = buildDiagnosticEvidence({
+    resource,
+    members,
+    recentAudits: recentAudits ?? [],
+  });
+  const runbookChecks = buildRunbookChecks(diagnosticEvidence);
+  const auditBuckets = buildAuditBuckets(recentAudits ?? []);
 
   const verdictLabel = t(`verdict.${verdict.level}`);
 
@@ -123,15 +133,72 @@ export function DatabaseOperatorWorkbench({
       )}
 
       <DetailPanel
-        title={t("recentAudits.title")}
+        title={t("evidence.title")}
+        description={t("evidence.description")}
+      >
+        {diagnosticEvidence.length > 0 ? (
+          <div className="space-y-2">
+            {diagnosticEvidence.map((item) => (
+              <div
+                key={item.id}
+                data-evidence-severity={item.severity}
+                className="rounded-lg border border-border bg-background px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground">
+                    {t(item.titleKey.replace("databaseOperator.", ""), { count: item.count })}
+                  </p>
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                    {t(item.sourceKey.replace("databaseOperator.", ""))}
+                  </span>
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {t("evidence.rawHint")}: {item.rawHint}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("evidence.empty")}</p>
+        )}
+      </DetailPanel>
+
+      <DetailPanel
+        title={t("runbook.title")}
+        description={t("runbook.description")}
+      >
+        <ol className="space-y-2">
+          {runbookChecks.map((check, index) => (
+            <li key={check.id} className="flex gap-2 text-sm text-muted-foreground">
+              <span className="font-mono text-xs text-muted-foreground">
+                {index + 1}.
+              </span>
+              <span>{t(check.textKey.replace("databaseOperator.", ""))}</span>
+            </li>
+          ))}
+        </ol>
+      </DetailPanel>
+
+      <DetailPanel
+        title={t("auditBuckets.title")}
         description={t("recentAudits.description")}
       >
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {auditContext.summaryKey === "audit.recentEvents"
-              ? td("audit.recentEvents", { count: auditContext.count })
-              : td(auditContext.summaryKey)}
+            {auditBuckets.total > 0
+              ? t("auditBuckets.summary", {
+                  total: auditBuckets.total,
+                  resourceChanges: auditBuckets.resourceChanges,
+                  relationChanges: auditBuckets.relationChanges,
+                  otherEvents: auditBuckets.otherEvents,
+                })
+              : t("auditBuckets.noEvents")}
           </p>
+          {auditBuckets.hasPotentiallyRelevantChanges ? (
+            <p className="text-xs text-muted-foreground">
+              {t("auditBuckets.causalityNotice")}
+            </p>
+          ) : null}
 
           {recentAudits && recentAudits.length > 0 ? (
             <>

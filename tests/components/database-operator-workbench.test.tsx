@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ResourceDetailViewModel } from "@/types/view-models";
 import type { ClusterMember } from "@/types/resource";
 
-function t(key: string) {
+function t(key: string, params?: Record<string, number>) {
   const keys: Record<string, string> = {
     "title": "Operator workbench",
     "description": "Health verdict and diagnostics.",
@@ -39,8 +39,43 @@ function t(key: string) {
     "instanceContext.role": "Role",
     "instanceContext.role_primary": "Primary",
     "instanceContext.role_replica": "Replica",
+    "evidence.title": "Diagnostic evidence",
+    "evidence.description": "Facts used to explain the current operator verdict.",
+    "evidence.source": "Source",
+    "evidence.rawHint": "Field",
+    "evidence.empty": "No abnormal diagnostic evidence is available.",
+    "evidence.resourceHealthCritical": "Resource health is critical.",
+    "evidence.resourceHealthWarning": "Resource health is warning.",
+    "evidence.resourceHealthUnknown": "Resource health is unknown.",
+    "evidence.memberHealthAbnormal": "1 member has warning or critical health.",
+    "evidence.memberLifecycleAbnormal": "1 member is stopped or degraded.",
+    "evidence.memberRoleMissing": "Role information is missing for 1 member.",
+    "evidence.memberConnectionMissing": "Connection information is missing for 1 member.",
+    "evidence.auditNearbyChanges": "1 recent resource or relation change is near this diagnostic context.",
+    "evidence.sources.resourceStatus": "Resource status",
+    "evidence.sources.memberHealth": "Member health",
+    "evidence.sources.memberLifecycle": "Member lifecycle",
+    "evidence.sources.memberProfile": "Member profile",
+    "evidence.sources.auditEvents": "Audit events",
+    "runbook.title": "Next checks",
+    "runbook.description": "Read-only investigation steps based on available data.",
+    "runbook.checks.criticalHealth": "Check instance process status, connection details, and recent resource changes.",
+    "runbook.checks.lifecycleState": "Confirm whether stopped or degraded state is expected maintenance or a recent change.",
+    "runbook.checks.profileSync": "Check whether backend profile sync is providing role, host, and port data.",
+    "runbook.checks.nearbyAudits": "Compare recent resource or relation changes with the time of the current signal.",
+    "runbook.checks.noFindings": "No clear abnormal signal is available. Continue with topology and audit history.",
+    "auditBuckets.title": "Audit context",
+    "auditBuckets.summary": "Recent 3 audit events: 1 resource changes, 1 relation changes, 1 other events.",
+    "auditBuckets.noEvents": "No recent audit events.",
+    "auditBuckets.causalityNotice": "These events are nearby changes only; they do not confirm root cause.",
   };
-  return keys[key] ?? key;
+  let result = keys[key] ?? key;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      result = result.replace(`{${k}}`, String(v));
+    }
+  }
+  return result;
 }
 const validKeys = new Set([
   "title", "description", "verdict.healthy", "verdict.needs_attention",
@@ -56,6 +91,20 @@ const validKeys = new Set([
   "instanceContext.hostname", "instanceContext.port", "instanceContext.engine",
   "instanceContext.version", "instanceContext.role",
   "instanceContext.role_primary", "instanceContext.role_replica",
+  "evidence.title", "evidence.description", "evidence.source", "evidence.rawHint",
+  "evidence.empty", "evidence.resourceHealthCritical", "evidence.resourceHealthWarning",
+  "evidence.resourceHealthUnknown", "evidence.memberHealthAbnormal",
+  "evidence.memberLifecycleAbnormal", "evidence.memberRoleMissing",
+  "evidence.memberConnectionMissing", "evidence.auditNearbyChanges",
+  "evidence.sources.resourceStatus", "evidence.sources.memberHealth",
+  "evidence.sources.memberLifecycle", "evidence.sources.memberProfile",
+  "evidence.sources.auditEvents",
+  "runbook.title", "runbook.description",
+  "runbook.checks.criticalHealth", "runbook.checks.lifecycleState",
+  "runbook.checks.profileSync", "runbook.checks.nearbyAudits",
+  "runbook.checks.noFindings",
+  "auditBuckets.title", "auditBuckets.summary", "auditBuckets.noEvents",
+  "auditBuckets.causalityNotice",
 ]);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (t as any).has = (key: string) => validKeys.has(key);
@@ -273,7 +322,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Recent audits")).toBeInTheDocument();
+    expect(screen.getByText("Audit context")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
   });
 
@@ -308,7 +357,6 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Recent resource status or relation changes.")).toBeInTheDocument();
     expect(screen.getByText("View all audits")).toBeInTheDocument();
   });
 
@@ -343,7 +391,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("There are 1 recent audit events.")).toBeInTheDocument();
+    expect(screen.getByText("admin")).toBeInTheDocument();
   });
 
   it("renders empty audit context when no audits", async () => {
@@ -376,5 +424,210 @@ describe("DatabaseOperatorWorkbench", () => {
 
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
     expect(screen.getByText("Some members have warning or critical health.")).toBeInTheDocument();
+  });
+
+  it("renders diagnostic evidence with source and raw field hint", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    const criticalResource: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      healthStatus: "critical",
+    };
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={criticalResource}
+        members={[...warningClusterMembers]}
+      />,
+    );
+
+    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
+    expect(screen.getByText("Member health")).toBeInTheDocument();
+    expect(screen.getByText(/members\[\]\.healthStatus/)).toBeInTheDocument();
+  });
+
+  it("renders next checks from evidence", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    const criticalResource: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      healthStatus: "critical",
+    };
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={criticalResource}
+        members={[]}
+      />,
+    );
+
+    expect(screen.getByText("Next checks")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Check instance process status, connection details, and recent resource changes.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no-findings runbook for healthy resource", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={healthyClusterResource}
+        members={healthyClusterResource.members!}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "No clear abnormal signal is available. Continue with topology and audit history.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders grouped audit bucket summary", async () => {
+    const resourceWithAudits: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      recentAudits: [
+        {
+          id: 1,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "resource.updated",
+          result: "success",
+          createdAt: "2026-04-28T12:00:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Update completed.",
+        },
+        {
+          id: 2,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "relation.created",
+          result: "success",
+          createdAt: "2026-04-28T12:01:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Relation created.",
+        },
+        {
+          id: 3,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "auth.login",
+          result: "success",
+          createdAt: "2026-04-28T12:02:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Login.",
+        },
+      ],
+    };
+
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={resourceWithAudits}
+        members={resourceWithAudits.members!}
+        recentAudits={resourceWithAudits.recentAudits}
+      />,
+    );
+
+    expect(screen.getByText("Audit context")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Recent 3 audit events: 1 resource changes, 1 relation changes, 1 other events.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders cautious causality notice for resource or relation audit changes", async () => {
+    const resourceWithAudits: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      recentAudits: [
+        {
+          id: 1,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "resource.updated",
+          result: "success",
+          createdAt: "2026-04-28T12:00:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Update completed.",
+        },
+      ],
+    };
+
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={resourceWithAudits}
+        members={resourceWithAudits.members!}
+        recentAudits={resourceWithAudits.recentAudits}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "These events are nearby changes only; they do not confirm root cause.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render causality notice when audits are only other events", async () => {
+    const resourceWithAudits: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      recentAudits: [
+        {
+          id: 1,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "auth.login",
+          result: "success",
+          createdAt: "2026-04-28T12:00:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Login.",
+        },
+      ],
+    };
+
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={resourceWithAudits}
+        members={resourceWithAudits.members!}
+        recentAudits={resourceWithAudits.recentAudits}
+      />,
+    );
+
+    expect(
+      screen.queryByText(
+        "These events are nearby changes only; they do not confirm root cause.",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
