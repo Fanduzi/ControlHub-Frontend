@@ -51,7 +51,6 @@ export function DatabaseDecisionDeck({
   members,
   recentAudits,
 }: DatabaseDecisionDeckProps) {
-  const t = useTranslations();
   const td = useTranslations("databaseDecisionDeck");
   const to = useTranslations("databaseOperator");
   const diagnostics = useTranslations("diagnostics");
