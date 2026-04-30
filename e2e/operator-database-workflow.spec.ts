@@ -69,6 +69,17 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
+    // Phase 21: Assert diagnostic runbook sections
+    await expect(
+      page.locator("h3", { hasText: /Diagnostic evidence/i })
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Next checks/i })
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Audit context/i })
+    ).toBeVisible();
+
     // Step 7: Assert member instances table with readable names
     await expect(
       page.locator("h3", { hasText: /Cluster members/i })
