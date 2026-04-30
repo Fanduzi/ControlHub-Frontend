@@ -721,6 +721,17 @@
       "viewTopology": "View topology"
     }
   },
+  "databaseDecisionDeck": {
+    "title": "Decision deck",
+    "description": "Verdict, top evidence, next checks, topology, and abnormal members.",
+    "topEvidence": "Top evidence",
+    "nextChecks": "Next checks",
+    "topologyTitle": "Topology analysis",
+    "topologyDescription": "Open expanded topology to inspect upstream and downstream context.",
+    "openTopology": "Open topology",
+    "abnormalMembers": "Abnormal members",
+    "noAbnormalMembers": "No abnormal members."
+  },
   "databaseOperator": {
     "title": "Operator workbench",
     "description": "Health verdict and diagnostics for this database resource.",

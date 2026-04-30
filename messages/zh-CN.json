@@ -721,6 +721,17 @@
       "viewTopology": "查看拓扑"
     }
   },
+  "databaseDecisionDeck": {
+    "title": "首屏决策台",
+    "description": "集中展示判定、关键证据、下一步排查、拓扑入口和异常成员。",
+    "topEvidence": "关键证据",
+    "nextChecks": "下一步排查",
+    "topologyTitle": "拓扑分析",
+    "topologyDescription": "打开完整拓扑查看上下游和成员关系。",
+    "openTopology": "打开完整拓扑",
+    "abnormalMembers": "异常成员",
+    "noAbnormalMembers": "暂无异常成员。"
+  },
   "databaseOperator": {
     "title": "运维工作台",
     "description": "该数据库资源的健康诊断和运维摘要。",
