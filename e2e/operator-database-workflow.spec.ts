@@ -64,17 +64,28 @@ test.describe("Database operator drilldown workflow", () => {
 
     await expect(page).toHaveURL(/\/resources\/14/, { timeout: 10_000 });
 
+    // Phase 22: Assert decision deck is visible near top
+    await expect(
+      page.locator("[data-slot='database-decision-deck']")
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Topology analysis/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Open topology/i })
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Abnormal members/i })
+    ).toBeVisible();
+
     // Step 6: Assert the cluster operator summary is visible
     await expect(
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
-    // Phase 21: Assert diagnostic runbook sections
+    // Phase 21: Assert diagnostic runbook sections (full detail below deck)
     await expect(
       page.locator("h3", { hasText: /Diagnostic evidence/i })
-    ).toBeVisible();
-    await expect(
-      page.locator("h3", { hasText: /Next checks/i })
     ).toBeVisible();
     await expect(
       page.locator("h3", { hasText: /Audit context/i })
