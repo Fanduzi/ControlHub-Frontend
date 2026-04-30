@@ -312,6 +312,40 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("View all audits")).toBeInTheDocument();
   });
 
+  it("renders count-based audit context for non-resource events", async () => {
+    const resourceWithAudits: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      recentAudits: [
+        {
+          id: 1,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "access.login",
+          result: "success",
+          createdAt: "2026-04-28T12:00:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Login completed.",
+        },
+      ],
+    };
+
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={resourceWithAudits}
+        members={resourceWithAudits.members!}
+        recentAudits={resourceWithAudits.recentAudits}
+      />,
+    );
+
+    expect(screen.getByText("There are 1 recent audit events.")).toBeInTheDocument();
+  });
+
   it("renders empty audit context when no audits", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"

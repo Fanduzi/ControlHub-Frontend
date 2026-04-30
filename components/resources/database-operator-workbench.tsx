@@ -128,7 +128,7 @@ export function DatabaseOperatorWorkbench({
       >
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {auditContext.summaryKey === "diagnostics.audit.recentEvents"
+            {auditContext.summaryKey === "audit.recentEvents"
               ? td("audit.recentEvents", { count: auditContext.count })
               : td(auditContext.summaryKey)}
           </p>
