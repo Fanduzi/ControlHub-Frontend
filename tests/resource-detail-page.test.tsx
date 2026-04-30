@@ -108,6 +108,14 @@ vi.mock("@/components/resources/database-operator-workbench", () => ({
   ),
 }));
 
+vi.mock("@/components/resources/database-decision-deck", () => ({
+  DatabaseDecisionDeck: ({ resource: r }: { resource: { id: number; resourceType: string } }) => (
+    <div data-testid="database-decision-deck" data-resource-type={r.resourceType}>
+      decision-deck:{r.id}
+    </div>
+  ),
+}));
+
 function t(key: string) {
   return key;
 }
@@ -355,5 +363,28 @@ describe("ResourceDetailPage", () => {
     const workbench = screen.getByTestId("database-operator-workbench");
     expect(workbench).toBeInTheDocument();
     expect(workbench).toHaveAttribute("data-resource-type", "database_instance");
+  });
+
+  it("renders decision deck for database resources", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    render(element);
+
+    const deck = screen.getByTestId("database-decision-deck");
+    expect(deck).toBeInTheDocument();
+    expect(deck).toHaveAttribute("data-resource-type", "database_cluster");
   });
 });

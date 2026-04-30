@@ -14,6 +14,7 @@ import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
 import { DatabaseOperatorWorkbench } from "@/components/resources/database-operator-workbench";
+import { DatabaseDecisionDeck } from "@/components/resources/database-decision-deck";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -192,6 +193,15 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {(resource.resourceType === "database_cluster" ||
+        resource.resourceType === "database_instance") && (
+        <DatabaseDecisionDeck
+          resource={resource}
+          members={resource.members ?? []}
+          recentAudits={resource.recentAudits ?? []}
+        />
+      )}
 
       {(resource.resourceType === "database_cluster" ||
         resource.resourceType === "database_instance") && (
