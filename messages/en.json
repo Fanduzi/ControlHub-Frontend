@@ -771,6 +771,45 @@
     },
     "topology": {
       "openExpanded": "Open expanded topology"
+    },
+    "evidence": {
+      "title": "Diagnostic evidence",
+      "description": "Facts used to explain the current operator verdict.",
+      "source": "Source",
+      "rawHint": "Field",
+      "empty": "No abnormal diagnostic evidence is available.",
+      "resourceHealthCritical": "Resource health is critical.",
+      "resourceHealthWarning": "Resource health is warning.",
+      "resourceHealthUnknown": "Resource health is unknown.",
+      "memberHealthAbnormal": "{count} member has warning or critical health.",
+      "memberLifecycleAbnormal": "{count} member is stopped or degraded.",
+      "memberRoleMissing": "Role information is missing for {count} member.",
+      "memberConnectionMissing": "Connection information is missing for {count} member.",
+      "auditNearbyChanges": "{count} recent resource or relation change is near this diagnostic context.",
+      "sources": {
+        "resourceStatus": "Resource status",
+        "memberHealth": "Member health",
+        "memberLifecycle": "Member lifecycle",
+        "memberProfile": "Member profile",
+        "auditEvents": "Audit events"
+      }
+    },
+    "runbook": {
+      "title": "Next checks",
+      "description": "Read-only investigation steps based on available data.",
+      "checks": {
+        "criticalHealth": "Check instance process status, connection details, and recent resource changes.",
+        "lifecycleState": "Confirm whether stopped or degraded state is expected maintenance or a recent change.",
+        "profileSync": "Check whether backend profile sync is providing role, host, and port data.",
+        "nearbyAudits": "Compare recent resource or relation changes with the time of the current signal.",
+        "noFindings": "No clear abnormal signal is available. Continue with topology and audit history."
+      }
+    },
+    "auditBuckets": {
+      "title": "Audit context",
+      "summary": "Recent {total} audit events: {resourceChanges} resource changes, {relationChanges} relation changes, {otherEvents} other events.",
+      "noEvents": "No recent audit events.",
+      "causalityNotice": "These events are nearby changes only; they do not confirm root cause."
     }
   }
 }
