@@ -735,8 +735,7 @@
       "membersNormal": "{count} members normal",
       "noRecentChanges": "No recent related changes",
       "recentAudits": "{count} recent audit events",
-      "parentClusterNormal": "Parent cluster normal",
-      "viewTopology": "View topology"
+      "parentClusterNormal": "Parent cluster normal"
     },
     "memberRoleUnavailable": "Role not available",
     "viewMemberTopology": "View topology"

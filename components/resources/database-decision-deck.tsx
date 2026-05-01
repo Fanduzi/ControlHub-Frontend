@@ -71,65 +71,57 @@ function CompactHealthDeck({
       data-testid="database-compact-health-deck"
       className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4"
     >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-            {to("verdict.healthy")}
-          </span>
-          {isCluster && summary ? (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">
-                {td("compact.membersNormal", { count: summary.total })}
-              </span>
-            </>
-          ) : null}
-          {!isCluster && resource.profileSummary?.role ? (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">
-                {resource.profileSummary.role}
-              </span>
-            </>
-          ) : null}
-          {!isCluster && hasConnection ? (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {resource.profileSummary!.hostname}:{resource.profileSummary!.port}
-              </span>
-            </>
-          ) : null}
-          {!isCluster && resource.clusterInfo ? (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">
-                {td("compact.parentClusterNormal")}
-              </span>
-            </>
-          ) : null}
-          {auditCount > 0 ? (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">
-                {td("compact.recentAudits", { count: auditCount })}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">
-                {td("compact.noRecentChanges")}
-              </span>
-            </>
-          )}
-        </div>
-        <Link
-          href={`/resources/${resource.id}?topologyDepth=2&topologyExpanded=1`}
-          className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
-        >
-          {td("compact.viewTopology")}
-        </Link>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          {to("verdict.healthy")}
+        </span>
+        {isCluster && summary ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {td("compact.membersNormal", { count: summary.total })}
+            </span>
+          </>
+        ) : null}
+        {!isCluster && resource.profileSummary?.role ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {resource.profileSummary.role}
+            </span>
+          </>
+        ) : null}
+        {!isCluster && hasConnection ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {resource.profileSummary!.hostname}:{resource.profileSummary!.port}
+            </span>
+          </>
+        ) : null}
+        {!isCluster && resource.clusterInfo ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {td("compact.parentClusterNormal")}
+            </span>
+          </>
+        ) : null}
+        {auditCount > 0 ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {td("compact.recentAudits", { count: auditCount })}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {td("compact.noRecentChanges")}
+            </span>
+          </>
+        )}
       </div>
     </section>
   );

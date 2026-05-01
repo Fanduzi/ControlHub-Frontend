@@ -71,9 +71,10 @@ test.describe("Database operator drilldown workflow", () => {
     await expect(
       page.locator("[data-testid='database-compact-health-deck']").getByText(/Healthy/i)
     ).toBeVisible();
+    // Compact deck: no topology link (redundant — topology is visible directly below)
     await expect(
-      page.getByRole("link", { name: /View topology/i })
-    ).toBeVisible();
+      page.locator("[data-testid='database-compact-health-deck']").getByRole("link", { name: /View topology/i })
+    ).not.toBeVisible();
 
     // Compact deck: no diagnostic panels for healthy resource
     await expect(

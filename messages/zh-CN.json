@@ -735,8 +735,7 @@
       "membersNormal": "{count} 个成员均正常",
       "noRecentChanges": "最近无相关变更",
       "recentAudits": "最近 {count} 条审计事件",
-      "parentClusterNormal": "所属集群正常",
-      "viewTopology": "查看拓扑"
+      "parentClusterNormal": "所属集群正常"
     },
     "memberRoleUnavailable": "后端未提供角色信息",
     "viewMemberTopology": "查看拓扑"

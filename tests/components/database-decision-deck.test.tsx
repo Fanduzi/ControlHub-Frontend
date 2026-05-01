@@ -20,7 +20,6 @@ const deckKeys: Record<string, string> = {
   "compact.noRecentChanges": "No recent related changes",
   "compact.recentAudits": "3 recent audit events",
   "compact.parentClusterNormal": "Parent cluster normal",
-  "compact.viewTopology": "View topology",
   "memberRoleUnavailable": "Role not available",
   "viewMemberTopology": "View topology",
 };
@@ -268,7 +267,7 @@ describe("DatabaseDecisionDeck", () => {
       expect(screen.queryByText("Abnormal members")).not.toBeInTheDocument();
     });
 
-    it("renders compact deck with topology link", async () => {
+    it("does not render topology link in compact healthy mode", async () => {
       const { DatabaseDecisionDeck } = await import(
         "@/components/resources/database-decision-deck"
       );
@@ -282,8 +281,8 @@ describe("DatabaseDecisionDeck", () => {
       );
 
       expect(
-        screen.getByRole("link", { name: "View topology" }),
-      ).toHaveAttribute("href", "/resources/14?topologyDepth=2&topologyExpanded=1");
+        screen.queryByRole("link", { name: "View topology" }),
+      ).not.toBeInTheDocument();
     });
 
     it("renders compact deck with recent audit count", async () => {
