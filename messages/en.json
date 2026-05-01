@@ -834,5 +834,34 @@
       "noEvents": "No recent audit events.",
       "causalityNotice": "These events are nearby changes only; they do not confirm root cause."
     }
+  },
+  "databaseConsistency": {
+    "title": "Data consistency",
+    "description": "Read-only check across members, relations, topology, and profile data.",
+    "allSignalsAgree": "All visible database signals agree.",
+    "counts": "{members} members · {topologyDatabaseNodes} topology database nodes",
+    "status": {
+      "ok": "Data consistent",
+      "warning": "Needs data review",
+      "unknown": "Not enough data"
+    },
+    "issues": {
+      "memberRoleMissing": "Backend did not provide role information.",
+      "memberConnectionMissing": "Backend did not provide host or port information.",
+      "memberMissingFromTopology": "Topology does not include this member.",
+      "topologyOnlyNode": "Topology includes a database node that is not in the member table.",
+      "instanceParentClusterMissing": "Parent cluster information is missing.",
+      "instanceRoleMissing": "Backend did not provide instance role information.",
+      "instanceConnectionMissing": "Backend did not provide instance host or port information.",
+      "instanceMissingFromTopology": "Topology does not include this instance."
+    },
+    "instanceContext": {
+      "title": "Instance context",
+      "description": "Parent cluster, role, and connection facts.",
+      "parentCluster": "Parent cluster",
+      "role": "Role",
+      "connection": "Connection",
+      "missing": "Not provided by backend"
+    }
   }
 }
