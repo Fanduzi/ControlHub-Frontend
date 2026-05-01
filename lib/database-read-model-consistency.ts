@@ -56,7 +56,6 @@ function toStatus(issues: ConsistencyIssue[]): ConsistencyStatus {
 }
 
 export function buildClusterConsistency({
-  resource,
   members,
   topology,
 }: {
