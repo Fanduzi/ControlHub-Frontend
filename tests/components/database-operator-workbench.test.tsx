@@ -41,6 +41,9 @@ function t(key: string, params?: Record<string, number>) {
     "instanceContext.role_replica": "Replica",
     "evidence.title": "Diagnostic evidence",
     "evidence.description": "Facts used to explain the current operator verdict.",
+    "evidence.collapsedTitle": "Diagnostic details",
+    "evidence.collapsedDescription": "Full diagnostic evidence with field sources.",
+    "evidence.collapsedSummary": "View all diagnostic evidence (0 items, with field sources)",
     "evidence.source": "Source",
     "evidence.rawHint": "Field",
     "evidence.empty": "No abnormal diagnostic evidence is available.",
@@ -93,6 +96,7 @@ const validKeys = new Set([
   "instanceContext.version", "instanceContext.role",
   "instanceContext.role_primary", "instanceContext.role_replica",
   "evidence.title", "evidence.description", "evidence.source", "evidence.rawHint",
+  "evidence.collapsedTitle", "evidence.collapsedDescription", "evidence.collapsedSummary",
   "evidence.empty", "evidence.resourceHealthCritical", "evidence.resourceHealthWarning",
   "evidence.resourceHealthUnknown", "evidence.memberHealthAbnormal",
   "evidence.memberLifecycleAbnormal", "evidence.memberRoleMissing",
@@ -239,7 +243,7 @@ const instanceResource: ResourceDetailViewModel = {
 };
 
 describe("DatabaseOperatorWorkbench", () => {
-  it("renders workbench evidence and runbook for healthy cluster", async () => {
+  it("does not render default expanded Next checks panel", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -251,9 +255,78 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
-    expect(screen.getByText("Next checks")).toBeInTheDocument();
-    expect(screen.getByText("Member summary")).toBeInTheDocument();
+    expect(screen.queryByText("Next checks")).not.toBeInTheDocument();
+  });
+
+  it("does not render duplicate topology link", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={healthyClusterResource}
+        members={healthyClusterResource.members!}
+      />,
+    );
+
+    expect(screen.queryByText("Open expanded topology")).not.toBeInTheDocument();
+  });
+
+  it("renders collapsed evidence details section", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={healthyClusterResource}
+        members={healthyClusterResource.members!}
+      />,
+    );
+
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument();
+    expect(screen.getByTestId("evidence-details")).toBeInTheDocument();
+  });
+
+  it("collapses evidence details by default", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={healthyClusterResource}
+        members={healthyClusterResource.members!}
+      />,
+    );
+
+    const details = screen.getByTestId("evidence-details");
+    expect(details).not.toHaveAttribute("open");
+  });
+
+  it("shows evidence content when details is expanded for critical resource", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    const criticalResource: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      healthStatus: "critical",
+    };
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={criticalResource}
+        members={[...warningClusterMembers]}
+      />,
+    );
+
+    const details = screen.getByTestId("evidence-details");
+    details.setAttribute("open", "");
+
+    expect(screen.getByText("Resource health is critical.")).toBeInTheDocument();
+    expect(screen.getByText(/members\[\]\.healthStatus/)).toBeInTheDocument();
   });
 
   it("renders cluster member summary cards", async () => {
@@ -274,7 +347,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("Replica")).toBeInTheDocument();
   });
 
-  it("renders instance workbench evidence and audit without member summary", async () => {
+  it("renders instance workbench without member summary", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -287,7 +360,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument();
     expect(screen.queryByText("Member summary")).not.toBeInTheDocument();
   });
 
@@ -408,119 +481,6 @@ describe("DatabaseOperatorWorkbench", () => {
     );
 
     expect(screen.getByText("No recent audit events.")).toBeInTheDocument();
-  });
-
-  it("renders needs_attention evidence for cluster with warning members", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={healthyClusterResource}
-        members={warningClusterMembers}
-      />,
-    );
-
-    expect(screen.getByText("Members with warning or critical health: 1.")).toBeInTheDocument();
-    expect(screen.getByText("Member health")).toBeInTheDocument();
-  });
-
-  it("renders diagnostic evidence with source and raw field hint", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    const criticalResource: ResourceDetailViewModel = {
-      ...healthyClusterResource,
-      healthStatus: "critical",
-    };
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={criticalResource}
-        members={[...warningClusterMembers]}
-      />,
-    );
-
-    expect(screen.getByText("Diagnostic evidence")).toBeInTheDocument();
-    expect(screen.getByText("Member health")).toBeInTheDocument();
-    expect(screen.getByText(/members\[\]\.healthStatus/)).toBeInTheDocument();
-  });
-
-  it("renders next checks from evidence", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    const criticalResource: ResourceDetailViewModel = {
-      ...healthyClusterResource,
-      healthStatus: "critical",
-    };
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={criticalResource}
-        members={[]}
-      />,
-    );
-
-    expect(screen.getByText("Next checks")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Check instance process status, connection details, and recent resource changes.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders no-findings runbook for healthy resource", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={healthyClusterResource}
-        members={healthyClusterResource.members!}
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        "No clear abnormal signal is available. Continue with topology and audit history.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders unknown health runbook instead of no-findings for unknown resource health", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    const unknownResource: ResourceDetailViewModel = {
-      ...healthyClusterResource,
-      healthStatus: "unknown",
-      members: [],
-    };
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={unknownResource}
-        members={[]}
-        recentAudits={[]}
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        "Check whether backend health signals are reporting correctly before treating this resource as healthy.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "No clear abnormal signal is available. Continue with topology and audit history.",
-      ),
-    ).not.toBeInTheDocument();
   });
 
   it("renders grouped audit bucket summary", async () => {

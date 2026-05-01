@@ -786,6 +786,9 @@
     "evidence": {
       "title": "Diagnostic evidence",
       "description": "Facts used to explain the current operator verdict.",
+      "collapsedTitle": "Diagnostic details",
+      "collapsedDescription": "Full diagnostic evidence with field sources.",
+      "collapsedSummary": "View all diagnostic evidence ({count} items, with field sources)",
       "source": "Source",
       "rawHint": "Field",
       "empty": "No abnormal diagnostic evidence is available.",

@@ -13,7 +13,6 @@ import {
 import {
   buildAuditBuckets,
   buildDiagnosticEvidence,
-  buildRunbookChecks,
 } from "@/lib/database-diagnostic-runbook";
 import { cn } from "@/lib/utils";
 
@@ -65,56 +64,44 @@ export function DatabaseOperatorWorkbench({
     members,
     recentAudits: recentAudits ?? [],
   });
-  const runbookChecks = buildRunbookChecks(diagnosticEvidence);
   const auditBuckets = buildAuditBuckets(recentAudits ?? []);
 
   return (
     <div className="space-y-4">
       <DetailPanel
-        title={t("evidence.title")}
-        description={t("evidence.description")}
+        title={t("evidence.collapsedTitle")}
+        description={t("evidence.collapsedDescription", { count: diagnosticEvidence.length })}
       >
-        {diagnosticEvidence.length > 0 ? (
-          <div className="space-y-2">
-            {diagnosticEvidence.map((item) => (
-              <div
-                key={item.id}
-                data-evidence-severity={item.severity}
-                className="rounded-lg border border-border bg-background px-3 py-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-medium text-foreground">
-                    {t(item.titleKey.replace("databaseOperator.", ""), { count: item.count })}
+        <details data-testid="evidence-details">
+          <summary className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80">
+            {t("evidence.collapsedSummary", { count: diagnosticEvidence.length })}
+          </summary>
+          <div className="mt-3 space-y-2">
+            {diagnosticEvidence.length > 0 ? (
+              diagnosticEvidence.map((item) => (
+                <div
+                  key={item.id}
+                  data-evidence-severity={item.severity}
+                  className="rounded-lg border border-border bg-background px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {t(item.titleKey.replace("databaseOperator.", ""), { count: item.count })}
+                    </p>
+                    <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      {t(item.sourceKey.replace("databaseOperator.", ""))}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {t("evidence.rawHint")}: {item.rawHint}
                   </p>
-                  <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                    {t(item.sourceKey.replace("databaseOperator.", ""))}
-                  </span>
                 </div>
-                <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  {t("evidence.rawHint")}: {item.rawHint}
-                </p>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("evidence.empty")}</p>
+            )}
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t("evidence.empty")}</p>
-        )}
-      </DetailPanel>
-
-      <DetailPanel
-        title={t("runbook.title")}
-        description={t("runbook.description")}
-      >
-        <ol className="space-y-2">
-          {runbookChecks.map((check, index) => (
-            <li key={check.id} className="flex gap-2 text-sm text-muted-foreground">
-              <span className="font-mono text-xs text-muted-foreground">
-                {index + 1}.
-              </span>
-              <span>{t(check.textKey.replace("databaseOperator.", ""))}</span>
-            </li>
-          ))}
-        </ol>
+        </details>
       </DetailPanel>
 
       {isCluster && summary && (
@@ -190,15 +177,6 @@ export function DatabaseOperatorWorkbench({
           ) : null}
         </div>
       </DetailPanel>
-
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/resources/${resource.id}?topologyDepth=2&topologyExpanded=1`}
-          className="text-sm font-medium text-primary hover:text-primary/80"
-        >
-          {t("topology.openExpanded")}
-        </Link>
-      </div>
     </div>
   );
 }

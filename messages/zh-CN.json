@@ -786,6 +786,9 @@
     "evidence": {
       "title": "诊断证据",
       "description": "用于解释当前运维判定的事实。",
+      "collapsedTitle": "诊断明细",
+      "collapsedDescription": "完整诊断证据，含字段来源。",
+      "collapsedSummary": "查看全部诊断证据（{count} 条，含字段来源）",
       "source": "来源",
       "rawHint": "字段",
       "empty": "当前没有可展示的异常诊断证据。",

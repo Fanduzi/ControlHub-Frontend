@@ -83,10 +83,26 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
-    // Phase 21: Assert diagnostic runbook sections (full detail below deck)
+    // Phase 22B: Assert collapsed diagnostic details section (not expanded by default)
     await expect(
-      page.locator("h3", { hasText: /Diagnostic evidence/i })
+      page.locator("h3", { hasText: /Diagnostic details/i })
     ).toBeVisible();
+    await expect(
+      page.locator("details[data-testid='evidence-details']")
+    ).toBeVisible();
+    await expect(
+      page.locator("details[data-testid='evidence-details']")
+    ).not.toHaveAttribute("open");
+
+    // Verify no duplicate "Next checks" heading in workbench
+    const nextChecksHeadings = await page.locator("h3", { hasText: /^Next checks$/i }).count();
+    expect(nextChecksHeadings).toBeLessThanOrEqual(1);
+
+    // Verify no duplicate topology link in workbench section
+    const expandedTopologyLinks = await page.locator("a", { hasText: /Open expanded topology/i }).count();
+    expect(expandedTopologyLinks).toBeLessThanOrEqual(1);
+
+    // Audit context still visible
     await expect(
       page.locator("h3", { hasText: /Audit context/i })
     ).toBeVisible();
