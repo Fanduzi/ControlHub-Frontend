@@ -286,7 +286,7 @@ function DiagnosticDeck({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {m.profileSummary?.role ??
-                        "Role not available"}
+                        td("memberRoleUnavailable")}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -299,7 +299,7 @@ function DiagnosticDeck({
                       href={`/resources/${m.id}?topologyDepth=2&topologyExpanded=1`}
                       className="text-xs font-medium text-primary hover:underline"
                     >
-                      View topology
+                      {td("viewMemberTopology")}
                     </Link>
                   </div>
                 </div>

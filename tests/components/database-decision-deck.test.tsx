@@ -21,6 +21,8 @@ const deckKeys: Record<string, string> = {
   "compact.recentAudits": "3 recent audit events",
   "compact.parentClusterNormal": "Parent cluster normal",
   "compact.viewTopology": "View topology",
+  "memberRoleUnavailable": "Role not available",
+  "viewMemberTopology": "View topology",
 };
 
 const operatorKeys: Record<string, string> = {
@@ -371,6 +373,101 @@ describe("DatabaseDecisionDeck", () => {
       expect(screen.getByText("primary")).toBeInTheDocument();
       expect(screen.getByText("db-01.internal:3306")).toBeInTheDocument();
       expect(screen.getByText("Parent cluster normal")).toBeInTheDocument();
+    });
+  });
+
+  describe("audit-only evidence does not trigger diagnostic", () => {
+    it("stays compact for healthy cluster with resource/relation audit events", async () => {
+      const { DatabaseDecisionDeck } = await import(
+        "@/components/resources/database-decision-deck"
+      );
+
+      render(
+        <DatabaseDecisionDeck
+          resource={resource()}
+          members={[member({ id: 22 }), member({ id: 23 })]}
+          recentAudits={[
+            {
+              id: 1,
+              actorUserId: 1,
+              targetResourceId: 14,
+              eventType: "resource.updated",
+              result: "success",
+              createdAt: "2026-04-28T12:00:00Z",
+              actorLabel: "admin",
+              targetResourceName: "Test",
+              environmentLabel: "Prod",
+              summary: "Update.",
+            },
+            {
+              id: 2,
+              actorUserId: 1,
+              targetResourceId: 14,
+              eventType: "relation.created",
+              result: "success",
+              createdAt: "2026-04-28T12:01:00Z",
+              actorLabel: "admin",
+              targetResourceName: "Test",
+              environmentLabel: "Prod",
+              summary: "Created.",
+            },
+          ]}
+        />,
+      );
+
+      expect(screen.getByTestId("database-compact-health-deck")).toBeInTheDocument();
+      expect(screen.queryByText("Top evidence")).not.toBeInTheDocument();
+      expect(screen.queryByText("Next checks")).not.toBeInTheDocument();
+    });
+
+    it("enters diagnostic when member is missing role information", async () => {
+      const { DatabaseDecisionDeck } = await import(
+        "@/components/resources/database-decision-deck"
+      );
+
+      render(
+        <DatabaseDecisionDeck
+          resource={resource()}
+          members={[
+            member({
+              id: 22,
+              profileSummary: { hostname: "db-01", port: 3306 },
+            }),
+          ]}
+          recentAudits={[]}
+        />,
+      );
+
+      expect(screen.queryByTestId("database-compact-health-deck")).not.toBeInTheDocument();
+      expect(screen.getByText("Top evidence")).toBeInTheDocument();
+    });
+  });
+
+  describe("abnormal members i18n", () => {
+    it("uses translated strings for missing role and member topology link", async () => {
+      const { DatabaseDecisionDeck } = await import(
+        "@/components/resources/database-decision-deck"
+      );
+
+      render(
+        <DatabaseDecisionDeck
+          resource={resource({ healthStatus: "warning" })}
+          members={[
+            member({
+              id: 23,
+              displayName: "No Role Member",
+              healthStatus: "warning",
+              profileSummary: { hostname: "db-01", port: 3306 },
+            }),
+          ]}
+          recentAudits={[]}
+        />,
+      );
+
+      expect(screen.getByText("Role not available")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "View topology" }),
+      ).toHaveAttribute("href", "/resources/23?topologyDepth=2&topologyExpanded=1");
     });
   });
 });

@@ -47,7 +47,10 @@ export function buildDecisionDeckMode({
     members,
     recentAudits: recentAudits ?? [],
   });
-  if (evidence.length > 0) {
+  const nonAuditEvidence = evidence.filter(
+    (item) => item.id !== "audit-nearby-changes",
+  );
+  if (nonAuditEvidence.length > 0) {
     return "diagnostic";
   }
 
