@@ -246,25 +246,19 @@ export default async function ResourceDetailPage({
           className="xl:col-span-2"
         >
           <div data-resource-topology-surface="prominent">
-            <TopologyPanel resourceId={resource.id} urlSync />
+            <TopologyPanel resourceId={resource.id} urlSync initialTopology={topology} />
           </div>
         </DetailPanel>
       )}
 
       {isDatabaseCluster && clusterConsistency ? (
-        <DatabaseConsistencyPanel result={clusterConsistency} />
+        <DatabaseConsistencyPanel scope="cluster" result={clusterConsistency} />
       ) : null}
 
       {isDatabaseInstance && instanceConsistency ? (
         <>
           <DatabaseInstanceContextPanel result={instanceConsistency} />
-          <DatabaseConsistencyPanel
-            result={{
-              status: instanceConsistency.status,
-              counts: { members: 0, topologyDatabaseNodes: 0 },
-              issues: instanceConsistency.issues,
-            }}
-          />
+          <DatabaseConsistencyPanel scope="instance" result={instanceConsistency} />
         </>
       ) : null}
 

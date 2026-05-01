@@ -46,7 +46,9 @@ vi.mock("@/components/blocks/status-badge", () => ({
 }));
 
 vi.mock("@/components/blocks/topology-panel", () => ({
-  TopologyPanel: ({ resourceId }: { resourceId: number }) => <div>topology:{resourceId}</div>,
+  TopologyPanel: ({ resourceId }: { resourceId: number; initialTopology?: unknown }) => (
+    <div>topology:{resourceId}</div>
+  ),
 }));
 
 vi.mock("@/components/resources/resource-detail-edit-button", () => ({
@@ -117,9 +119,19 @@ vi.mock("@/components/resources/database-decision-deck", () => ({
 }));
 
 vi.mock("@/components/resources/database-consistency-panel", () => ({
-  DatabaseConsistencyPanel: ({ result }: { result: { status: string } }) => (
-    <div data-testid="database-consistency-panel" data-consistency-status={result.status}>
-      consistency-panel:{result.status}
+  DatabaseConsistencyPanel: ({
+    scope,
+    result,
+  }: {
+    scope: "cluster" | "instance";
+    result: { status: string };
+  }) => (
+    <div
+      data-testid="database-consistency-panel"
+      data-consistency-status={result.status}
+      data-consistency-scope={scope}
+    >
+      consistency-panel:{result.status}:{scope}
     </div>
   ),
 }));
@@ -449,7 +461,7 @@ describe("ResourceDetailPage", () => {
     );
   });
 
-  it("renders consistency panel for database cluster resources", async () => {
+  it("renders consistency panel with cluster scope for database cluster resources", async () => {
     const clusterResource: ResourceDetailViewModel = {
       ...resource,
       id: 14,
@@ -481,9 +493,10 @@ describe("ResourceDetailPage", () => {
     const consistencyPanel = screen.getByTestId("database-consistency-panel");
     expect(consistencyPanel).toBeInTheDocument();
     expect(consistencyPanel).toHaveAttribute("data-consistency-status", "ok");
+    expect(consistencyPanel).toHaveAttribute("data-consistency-scope", "cluster");
   });
 
-  it("renders instance context and consistency panels for database instance resources", async () => {
+  it("renders instance context and consistency panels with instance scope", async () => {
     const instanceResource: ResourceDetailViewModel = {
       ...resource,
       id: 22,
@@ -513,6 +526,8 @@ describe("ResourceDetailPage", () => {
     render(element);
 
     expect(screen.getByTestId("database-instance-context-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("database-consistency-panel")).toBeInTheDocument();
+    const consistencyPanel = screen.getByTestId("database-consistency-panel");
+    expect(consistencyPanel).toBeInTheDocument();
+    expect(consistencyPanel).toHaveAttribute("data-consistency-scope", "instance");
   });
 });

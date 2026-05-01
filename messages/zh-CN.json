@@ -839,6 +839,7 @@
     "title": "数据一致性",
     "description": "只读检查成员、关系、拓扑和画像数据是否一致。",
     "allSignalsAgree": "当前可见的数据库信号一致。",
+    "instanceSummary": "所属集群、角色、连接信息和拓扑均可用。",
     "counts": "{members} 个成员 · {topologyDatabaseNodes} 个拓扑数据库节点",
     "status": {
       "ok": "数据一致",
@@ -849,6 +850,7 @@
       "memberRoleMissing": "后端未提供角色信息。",
       "memberConnectionMissing": "后端未提供主机或端口信息。",
       "memberMissingFromTopology": "拓扑未包含该成员。",
+      "memberRelationMissing": "缺少该成员归属集群的关系。",
       "topologyOnlyNode": "拓扑包含成员表中不存在的数据库节点。",
       "instanceParentClusterMissing": "缺少所属集群信息。",
       "instanceRoleMissing": "后端未提供实例角色信息。",

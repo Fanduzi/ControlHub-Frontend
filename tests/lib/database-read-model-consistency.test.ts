@@ -221,6 +221,112 @@ describe("database read-model consistency", () => {
         }),
       );
     });
+
+    it("reports missing member_of relation", () => {
+      const resource = clusterResource();
+      // Replace member_of with a different relation type so member 22 has no member_of
+      resource.relations = [
+        {
+          id: 2,
+          fromResourceId: 22,
+          toResourceId: 99,
+          relationType: "depends_on",
+          createdAt: "",
+          direction: "outgoing",
+          relatedResourceId: 99,
+          relatedResourceName: "other-resource",
+        },
+      ];
+
+      const result = buildClusterConsistency({
+        resource,
+        members: [member()],
+        topology: topology([14, 22]),
+      });
+
+      expect(result.status).toBe("warning");
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          id: "member-relation-missing-22",
+          kind: "missing_relation",
+          messageKey: "databaseConsistency.issues.memberRelationMissing",
+        }),
+      );
+    });
+
+    it("does not report relation missing when no relations data available", () => {
+      const resource = clusterResource();
+      resource.relations = [];
+
+      const result = buildClusterConsistency({
+        resource,
+        members: [member()],
+        topology: topology([14, 22]),
+      });
+
+      // Empty relations means hasRelations=false, so relation check is skipped
+      const relationIssues = result.issues.filter(
+        (i) => i.kind === "missing_relation",
+      );
+      expect(relationIssues).toHaveLength(0);
+    });
+
+    it("reports relation missing when relations exist but member has none", () => {
+      const resource = clusterResource();
+      // Has a relation, but for a different member (id=99), not member 22
+      resource.relations = [
+        {
+          id: 99,
+          fromResourceId: 99,
+          toResourceId: 14,
+          relationType: "member_of",
+          createdAt: "",
+          direction: "incoming",
+          relatedResourceId: 99,
+          relatedResourceName: "other-instance",
+        },
+      ];
+
+      const result = buildClusterConsistency({
+        resource,
+        members: [member()],
+        topology: topology([14, 22]),
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          id: "member-relation-missing-22",
+          kind: "missing_relation",
+        }),
+      );
+    });
+
+    it("recognizes bare relation fields fromResourceId + toResourceId", () => {
+      const resource = clusterResource();
+      resource.relations = [
+        {
+          id: 99,
+          fromResourceId: 22,
+          toResourceId: 14,
+          relationType: "member_of",
+          createdAt: "",
+          direction: "outgoing",
+          relatedResourceId: 14,
+          relatedResourceName: "cluster",
+        },
+      ];
+
+      const result = buildClusterConsistency({
+        resource,
+        members: [member()],
+        topology: topology([14, 22]),
+      });
+
+      const relationIssues = result.issues.filter(
+        (i) => i.kind === "missing_relation",
+      );
+      expect(relationIssues).toHaveLength(0);
+    });
   });
 
   describe("buildInstanceConsistency", () => {

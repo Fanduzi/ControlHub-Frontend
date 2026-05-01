@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ClusterConsistencyResult } from "@/lib/database-read-model-consistency";
+import type {
+  ClusterConsistencyResult,
+  InstanceConsistencyResult,
+} from "@/lib/database-read-model-consistency";
 
 function t(key: string, params?: Record<string, number | string>) {
   const keys: Record<string, string> = {
@@ -12,6 +15,7 @@ function t(key: string, params?: Record<string, number | string>) {
     "status.unknown": "Not enough data",
     "counts": "{members} members · {topologyDatabaseNodes} topology database nodes",
     "allSignalsAgree": "All visible database signals agree.",
+    "instanceSummary": "Instance profile, cluster link, and topology are consistent.",
     "issues.memberRoleMissing": "Backend did not provide role information.",
     "issues.memberMissingFromTopology": "Topology does not include this member.",
   };
@@ -29,48 +33,144 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("DatabaseConsistencyPanel", () => {
-  it("renders compact ok state", async () => {
-    const { DatabaseConsistencyPanel } = await import(
-      "@/components/resources/database-consistency-panel"
-    );
+  describe("cluster scope", () => {
+    it("renders compact ok state with counts", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
 
-    const result: ClusterConsistencyResult = {
-      status: "ok",
-      counts: { members: 2, topologyDatabaseNodes: 3 },
-      issues: [],
-    };
+      const result: ClusterConsistencyResult = {
+        status: "ok",
+        counts: { members: 2, topologyDatabaseNodes: 3 },
+        issues: [],
+      };
 
-    render(<DatabaseConsistencyPanel result={result} />);
+      render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
 
-    expect(screen.getByText("Data consistency")).toBeInTheDocument();
-    expect(screen.getByText("Data consistent")).toBeInTheDocument();
-    expect(screen.getByText("2 members · 3 topology database nodes")).toBeInTheDocument();
-    expect(screen.getByText("All visible database signals agree.")).toBeInTheDocument();
+      expect(screen.getByText("Data consistency")).toBeInTheDocument();
+      expect(screen.getByText("Data consistent")).toBeInTheDocument();
+      expect(screen.getByText("2 members · 3 topology database nodes")).toBeInTheDocument();
+      expect(screen.getByText("All visible database signals agree.")).toBeInTheDocument();
+    });
+
+    it("renders warning issues", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
+
+      const result: ClusterConsistencyResult = {
+        status: "warning",
+        counts: { members: 1, topologyDatabaseNodes: 1 },
+        issues: [
+          {
+            id: "member-role-missing-22",
+            kind: "missing_profile",
+            severity: "warning",
+            messageKey: "databaseConsistency.issues.memberRoleMissing",
+            resourceName: "Payment MySQL Replica",
+          },
+        ],
+      };
+
+      render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
+
+      expect(screen.getByText("Needs data review")).toBeInTheDocument();
+      expect(screen.getByText("Payment MySQL Replica")).toBeInTheDocument();
+      expect(screen.getByText("Backend did not provide role information.")).toBeInTheDocument();
+    });
+
+    it("sets data-consistency-scope attribute", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
+
+      const result: ClusterConsistencyResult = {
+        status: "ok",
+        counts: { members: 1, topologyDatabaseNodes: 1 },
+        issues: [],
+      };
+
+      const { container } = render(
+        <DatabaseConsistencyPanel scope="cluster" result={result} />,
+      );
+
+      expect(container.querySelector("[data-consistency-scope]")).toHaveAttribute(
+        "data-consistency-scope",
+        "cluster",
+      );
+    });
   });
 
-  it("renders warning issues", async () => {
-    const { DatabaseConsistencyPanel } = await import(
-      "@/components/resources/database-consistency-panel"
-    );
+  describe("instance scope", () => {
+    it("renders ok state without counts showing instanceSummary", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
 
-    const result: ClusterConsistencyResult = {
-      status: "warning",
-      counts: { members: 1, topologyDatabaseNodes: 1 },
-      issues: [
-        {
-          id: "member-role-missing-22",
-          kind: "missing_profile",
-          severity: "warning",
-          messageKey: "databaseConsistency.issues.memberRoleMissing",
-          resourceName: "Payment MySQL Replica",
+      const result: InstanceConsistencyResult = {
+        status: "ok",
+        facts: {
+          parentClusterName: "Payment Cluster",
+          role: "primary",
+          connection: "db-host:3306",
         },
-      ],
-    };
+        issues: [],
+      };
 
-    render(<DatabaseConsistencyPanel result={result} />);
+      render(<DatabaseConsistencyPanel scope="instance" result={result} />);
 
-    expect(screen.getByText("Needs data review")).toBeInTheDocument();
-    expect(screen.getByText("Payment MySQL Replica")).toBeInTheDocument();
-    expect(screen.getByText("Backend did not provide role information.")).toBeInTheDocument();
+      expect(screen.getByText("Data consistency")).toBeInTheDocument();
+      expect(screen.getByText("Data consistent")).toBeInTheDocument();
+      expect(
+        screen.getByText("Instance profile, cluster link, and topology are consistent."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/members ·/)).not.toBeInTheDocument();
+    });
+
+    it("renders warning issues for instance scope", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
+
+      const result: InstanceConsistencyResult = {
+        status: "warning",
+        facts: {},
+        issues: [
+          {
+            id: "instance-role-missing",
+            kind: "missing_profile",
+            severity: "warning",
+            messageKey: "databaseConsistency.issues.instanceRoleMissing",
+            resourceName: "orders-db-primary",
+          },
+        ],
+      };
+
+      render(<DatabaseConsistencyPanel scope="instance" result={result} />);
+
+      expect(screen.getByText("Needs data review")).toBeInTheDocument();
+      expect(screen.getByText("orders-db-primary")).toBeInTheDocument();
+    });
+
+    it("sets data-consistency-scope attribute to instance", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
+
+      const result: InstanceConsistencyResult = {
+        status: "ok",
+        facts: {},
+        issues: [],
+      };
+
+      const { container } = render(
+        <DatabaseConsistencyPanel scope="instance" result={result} />,
+      );
+
+      expect(container.querySelector("[data-consistency-scope]")).toHaveAttribute(
+        "data-consistency-scope",
+        "instance",
+      );
+    });
   });
 });

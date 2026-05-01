@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type {
   ClusterConsistencyResult,
   ConsistencyStatus,
+  InstanceConsistencyResult,
 } from "@/lib/database-read-model-consistency";
 
 const statusTone: Record<ConsistencyStatus, string> = {
@@ -19,34 +20,39 @@ function localKey(key: string): string {
   return key.replace("databaseConsistency.", "");
 }
 
-export function DatabaseConsistencyPanel({
-  result,
-}: {
-  result: ClusterConsistencyResult;
-}) {
+type DatabaseConsistencyPanelProps =
+  | { scope: "cluster"; result: ClusterConsistencyResult }
+  | { scope: "instance"; result: InstanceConsistencyResult };
+
+export function DatabaseConsistencyPanel(props: DatabaseConsistencyPanelProps) {
   const t = useTranslations("databaseConsistency");
+  const { scope } = props;
+  const status = props.result.status;
+  const issues = props.result.issues;
 
   return (
     <DetailPanel title={t("title")} description={t("description")}>
-      <div className="space-y-3">
+      <div className="space-y-3" data-consistency-scope={scope}>
         <div className="flex flex-wrap items-center gap-2">
           <span
-            data-consistency-status={result.status}
+            data-consistency-status={status}
             className={cn(
               "rounded-md px-2 py-1 text-xs font-semibold",
-              statusTone[result.status],
+              statusTone[status],
             )}
           >
-            {t(`status.${result.status}`)}
+            {t(`status.${status}`)}
           </span>
-          <span className="text-sm text-muted-foreground">
-            {t("counts", result.counts)}
-          </span>
+          {scope === "cluster" && (
+            <span className="text-sm text-muted-foreground">
+              {t("counts", (props.result as ClusterConsistencyResult).counts)}
+            </span>
+          )}
         </div>
 
-        {result.issues.length > 0 ? (
+        {issues.length > 0 ? (
           <ul className="space-y-2">
-            {result.issues.map((issue) => (
+            {issues.map((issue) => (
               <li
                 key={issue.id}
                 data-consistency-issue-kind={issue.kind}
@@ -61,6 +67,8 @@ export function DatabaseConsistencyPanel({
               </li>
             ))}
           </ul>
+        ) : scope === "instance" ? (
+          <p className="text-sm text-muted-foreground">{t("instanceSummary")}</p>
         ) : (
           <p className="text-sm text-muted-foreground">{t("allSignalsAgree")}</p>
         )}

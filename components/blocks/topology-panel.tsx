@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -30,6 +30,7 @@ type TopologyPanelProps = {
   className?: string;
   compact?: boolean;
   urlSync?: boolean;
+  initialTopology?: TopologyResponse | null;
 };
 
 function TopologyPanelInner({
@@ -37,6 +38,7 @@ function TopologyPanelInner({
   className,
   compact = false,
   urlSync = false,
+  initialTopology,
 }: TopologyPanelProps) {
   const t = useTranslations();
   const router = useRouter();
@@ -57,10 +59,16 @@ function TopologyPanelInner({
   const direction = urlSync ? urlDirection : localDirection;
   const expanded = urlSync ? urlExpanded : localExpanded;
 
-  const [topology, setTopology] = useState<TopologyResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [topology, setTopology] = useState<TopologyResponse | null>(initialTopology ?? null);
+  const [loading, setLoading] = useState(!initialTopology);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+
+  // Track params that current topology data was loaded with,
+  // so we can skip re-fetching when params haven't changed.
+  const loadedParamsRef = useRef<{ depth: 1 | 2; direction: string } | null>(
+    initialTopology ? { depth: 1, direction: "both" } : null,
+  );
   const [selectedNodePopup, setSelectedNodePopup] = useState<{
     data: TopologyNodeData;
     position: { x: number; y: number };
@@ -131,6 +139,7 @@ function TopologyPanelInner({
       try {
         const result = await getResourceTopology(resourceId, queryParams);
         setTopology(result);
+        loadedParamsRef.current = { depth: d, direction: dir ?? "both" };
       } catch (err) {
         if (err instanceof TopologyNotAvailableError) {
           setUnavailable(true);
@@ -147,6 +156,10 @@ function TopologyPanelInner({
   );
 
   useEffect(() => {
+    const loaded = loadedParamsRef.current;
+    if (loaded && loaded.depth === depth && loaded.direction === direction) {
+      return;
+    }
     fetchTopology(depth, direction);
   }, [depth, direction, fetchTopology]);
 

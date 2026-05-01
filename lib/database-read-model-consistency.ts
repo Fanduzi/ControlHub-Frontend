@@ -56,6 +56,7 @@ function toStatus(issues: ConsistencyIssue[]): ConsistencyStatus {
 }
 
 export function buildClusterConsistency({
+  resource,
   members,
   topology,
 }: {
@@ -66,6 +67,20 @@ export function buildClusterConsistency({
   const issues: ConsistencyIssue[] = [];
   const topologyInstanceIds = databaseInstanceTopologyIds(topology);
   const memberIds = new Set(members.map((m) => m.id));
+
+  // Build set of member IDs that have a member_of relation to this cluster
+  const relatedMemberIds = new Set<number>();
+  for (const rel of resource.relations) {
+    if (rel.relationType === "member_of") {
+      if (rel.direction === "incoming" && rel.relatedResourceId) {
+        relatedMemberIds.add(rel.relatedResourceId);
+      }
+      if (rel.fromResourceId && rel.toResourceId === resource.id) {
+        relatedMemberIds.add(rel.fromResourceId);
+      }
+    }
+  }
+  const hasRelations = resource.relations.length > 0;
 
   for (const member of members) {
     if (!member.profileSummary?.role) {
@@ -85,6 +100,17 @@ export function buildClusterConsistency({
         kind: "missing_profile",
         severity: "warning",
         messageKey: "databaseConsistency.issues.memberConnectionMissing",
+        resourceId: member.id,
+        resourceName: member.displayName,
+      });
+    }
+
+    if (hasRelations && !relatedMemberIds.has(member.id)) {
+      issues.push({
+        id: `member-relation-missing-${member.id}`,
+        kind: "missing_relation",
+        severity: "warning",
+        messageKey: "databaseConsistency.issues.memberRelationMissing",
         resourceId: member.id,
         resourceName: member.displayName,
       });

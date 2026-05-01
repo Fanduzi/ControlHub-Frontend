@@ -839,6 +839,7 @@
     "title": "Data consistency",
     "description": "Read-only check across members, relations, topology, and profile data.",
     "allSignalsAgree": "All visible database signals agree.",
+    "instanceSummary": "Parent cluster, role, connection, and topology are available.",
     "counts": "{members} members · {topologyDatabaseNodes} topology database nodes",
     "status": {
       "ok": "Data consistent",
@@ -849,6 +850,7 @@
       "memberRoleMissing": "Backend did not provide role information.",
       "memberConnectionMissing": "Backend did not provide host or port information.",
       "memberMissingFromTopology": "Topology does not include this member.",
+      "memberRelationMissing": "Member relation to the cluster is missing.",
       "topologyOnlyNode": "Topology includes a database node that is not in the member table.",
       "instanceParentClusterMissing": "Parent cluster information is missing.",
       "instanceRoleMissing": "Backend did not provide instance role information.",
