@@ -64,6 +64,9 @@ export default async function ResourceDetailPage({
 
   const summary = buildLocalizedFallbackSummary(resource, t);
   const profileEntries = Object.entries(resource.profile);
+  const isDatabaseResource =
+    resource.resourceType === "database_cluster" ||
+    resource.resourceType === "database_instance";
 
   return (
     <div className="space-y-6">
@@ -194,8 +197,7 @@ export default async function ResourceDetailPage({
         </DetailPanel>
       </div>
 
-      {(resource.resourceType === "database_cluster" ||
-        resource.resourceType === "database_instance") && (
+      {isDatabaseResource && (
         <DatabaseDecisionDeck
           resource={resource}
           members={resource.members ?? []}
@@ -203,8 +205,19 @@ export default async function ResourceDetailPage({
         />
       )}
 
-      {(resource.resourceType === "database_cluster" ||
-        resource.resourceType === "database_instance") && (
+      {isDatabaseResource && (
+        <DetailPanel
+          title={t("topology.title")}
+          description={t("topology.description")}
+          className="xl:col-span-2"
+        >
+          <div data-resource-topology-surface="prominent">
+            <TopologyPanel resourceId={resource.id} urlSync />
+          </div>
+        </DetailPanel>
+      )}
+
+      {isDatabaseResource && (
         <DatabaseOperatorWorkbench
           resource={resource}
           members={resource.members ?? []}
@@ -425,15 +438,17 @@ export default async function ResourceDetailPage({
         </DetailPanel>
       </div>
 
-      <DetailPanel
-        title={t("topology.title")}
-        description={t("topology.description")}
-        className="xl:col-span-2"
-      >
-        <div data-resource-topology-surface="prominent">
-          <TopologyPanel resourceId={resource.id} urlSync />
-        </div>
-      </DetailPanel>
+      {!isDatabaseResource && (
+        <DetailPanel
+          title={t("topology.title")}
+          description={t("topology.description")}
+          className="xl:col-span-2"
+        >
+          <div data-resource-topology-surface="prominent">
+            <TopologyPanel resourceId={resource.id} urlSync />
+          </div>
+        </DetailPanel>
+      )}
 
       <DetailPanel
         title={t("pages.resourceDetail.audit.title")}

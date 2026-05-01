@@ -182,11 +182,22 @@ describe("ResourceDetailPage", () => {
     expect(getResourceViewModelMock).not.toHaveBeenCalled();
   });
 
-  it("elevates topology into a prominent full-width surface after profile content", async () => {
+  it("keeps generic topology available after supporting profile content", async () => {
+    const genericResource: ResourceDetailViewModel = {
+      ...resource,
+      resourceType: "service",
+      resourceSubtype: "api",
+      members: undefined,
+      clusterInfo: undefined,
+      profileSummary: undefined,
+    };
+
+    getResourceViewModelMock.mockResolvedValue(genericResource);
+
     const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
 
     const element = await ResourceDetailPage({
-      params: Promise.resolve({ id: String(resource.id) }),
+      params: Promise.resolve({ id: String(genericResource.id) }),
     });
 
     const { container } = render(element);
@@ -199,7 +210,7 @@ describe("ResourceDetailPage", () => {
     expect(topologySurface?.compareDocumentPosition(profileSurface as Node)).toBe(
       Node.DOCUMENT_POSITION_PRECEDING,
     );
-    expect(screen.getByText(`topology:${resource.id}`)).toBeInTheDocument();
+    expect(screen.getByText(`topology:${genericResource.id}`)).toBeInTheDocument();
   });
 
   it("renders cluster member table with display names for database_cluster resources", async () => {
@@ -386,5 +397,35 @@ describe("ResourceDetailPage", () => {
     const deck = screen.getByTestId("database-decision-deck");
     expect(deck).toBeInTheDocument();
     expect(deck).toHaveAttribute("data-resource-type", "database_cluster");
+  });
+
+  it("places database topology immediately after the decision deck before lower workbench content", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    const { container } = render(element);
+    const deck = screen.getByTestId("database-decision-deck");
+    const topologySurface = container.querySelector("[data-resource-topology-surface]");
+    const workbench = screen.getByTestId("database-operator-workbench");
+
+    expect(topologySurface).not.toBeNull();
+    expect(deck.compareDocumentPosition(topologySurface as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect((topologySurface as Node).compareDocumentPosition(workbench)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 });
