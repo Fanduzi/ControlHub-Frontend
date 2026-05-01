@@ -96,6 +96,14 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
+    // Phase 23: Data consistency panel visible
+    await expect(
+      page.locator("[data-consistency-status]")
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Data consistency/i })
+    ).toBeVisible();
+
     // No duplicate "Next checks" heading in workbench
     const nextChecksHeadings = await page.locator("h3", { hasText: /^Next checks$/i }).count();
     expect(nextChecksHeadings).toBeLessThanOrEqual(1);
@@ -201,6 +209,16 @@ test.describe("Database operator drilldown workflow", () => {
     // Resource topology section still visible below deck
     await expect(
       page.locator("h3", { hasText: /Resource topology/i })
+    ).toBeVisible();
+
+    // Phase 23: Instance context panel visible
+    await expect(
+      page.locator("h3", { hasText: /Instance context/i })
+    ).toBeVisible();
+
+    // Phase 23: Data consistency panel visible
+    await expect(
+      page.locator("h3", { hasText: /Data consistency/i })
     ).toBeVisible();
   });
 });
