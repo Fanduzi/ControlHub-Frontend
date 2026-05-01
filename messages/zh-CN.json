@@ -730,7 +730,14 @@
     "topologyDescription": "打开完整拓扑查看上下游和成员关系。",
     "openTopology": "打开完整拓扑",
     "abnormalMembers": "异常成员",
-    "noAbnormalMembers": "暂无异常成员。"
+    "noAbnormalMembers": "暂无异常成员。",
+    "compact": {
+      "membersNormal": "{count} 个成员均正常",
+      "noRecentChanges": "最近无相关变更",
+      "recentAudits": "最近 {count} 条审计事件",
+      "parentClusterNormal": "所属集群正常",
+      "viewTopology": "查看拓扑"
+    }
   },
   "databaseOperator": {
     "title": "运维工作台",

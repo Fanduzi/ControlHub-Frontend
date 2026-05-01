@@ -273,7 +273,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.queryByText("Open expanded topology")).not.toBeInTheDocument();
   });
 
-  it("renders collapsed evidence details section", async () => {
+  it("does not render evidence panel for healthy cluster", async () => {
     const { DatabaseOperatorWorkbench } = await import(
       "@/components/resources/database-operator-workbench"
     );
@@ -282,25 +282,31 @@ describe("DatabaseOperatorWorkbench", () => {
       <DatabaseOperatorWorkbench
         resource={healthyClusterResource}
         members={healthyClusterResource.members!}
+      />,
+    );
+
+    expect(screen.queryByText("Diagnostic details")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("evidence-details")).not.toBeInTheDocument();
+  });
+
+  it("renders collapsed evidence panel for critical resource", async () => {
+    const { DatabaseOperatorWorkbench } = await import(
+      "@/components/resources/database-operator-workbench"
+    );
+
+    const criticalResource: ResourceDetailViewModel = {
+      ...healthyClusterResource,
+      healthStatus: "critical",
+    };
+
+    render(
+      <DatabaseOperatorWorkbench
+        resource={criticalResource}
+        members={[...warningClusterMembers]}
       />,
     );
 
     expect(screen.getByText("Diagnostic details")).toBeInTheDocument();
-    expect(screen.getByTestId("evidence-details")).toBeInTheDocument();
-  });
-
-  it("collapses evidence details by default", async () => {
-    const { DatabaseOperatorWorkbench } = await import(
-      "@/components/resources/database-operator-workbench"
-    );
-
-    render(
-      <DatabaseOperatorWorkbench
-        resource={healthyClusterResource}
-        members={healthyClusterResource.members!}
-      />,
-    );
-
     const details = screen.getByTestId("evidence-details");
     expect(details).not.toHaveAttribute("open");
   });
@@ -360,7 +366,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Diagnostic details")).toBeInTheDocument();
+    expect(screen.queryByText("Diagnostic details")).not.toBeInTheDocument();
     expect(screen.queryByText("Member summary")).not.toBeInTheDocument();
   });
 

@@ -730,7 +730,14 @@
     "topologyDescription": "Open expanded topology to inspect upstream and downstream context.",
     "openTopology": "Open topology",
     "abnormalMembers": "Abnormal members",
-    "noAbnormalMembers": "No abnormal members."
+    "noAbnormalMembers": "No abnormal members.",
+    "compact": {
+      "membersNormal": "{count} members normal",
+      "noRecentChanges": "No recent related changes",
+      "recentAudits": "{count} recent audit events",
+      "parentClusterNormal": "Parent cluster normal",
+      "viewTopology": "View topology"
+    }
   },
   "databaseOperator": {
     "title": "Operator workbench",

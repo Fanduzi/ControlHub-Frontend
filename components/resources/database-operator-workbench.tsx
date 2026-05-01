@@ -9,6 +9,7 @@ import type { ClusterMember } from "@/types/resource";
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import {
   buildClusterMemberSummary,
+  buildDecisionDeckMode,
 } from "@/lib/database-operator-workbench";
 import {
   buildAuditBuckets,
@@ -65,44 +66,52 @@ export function DatabaseOperatorWorkbench({
     recentAudits: recentAudits ?? [],
   });
   const auditBuckets = buildAuditBuckets(recentAudits ?? []);
+  const deckMode = buildDecisionDeckMode({
+    resource,
+    members,
+    recentAudits: recentAudits ?? [],
+  });
+  const showEvidencePanel = deckMode === "diagnostic";
 
   return (
     <div className="space-y-4">
-      <DetailPanel
-        title={t("evidence.collapsedTitle")}
-        description={t("evidence.collapsedDescription", { count: diagnosticEvidence.length })}
-      >
-        <details data-testid="evidence-details">
-          <summary className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80">
-            {t("evidence.collapsedSummary", { count: diagnosticEvidence.length })}
-          </summary>
-          <div className="mt-3 space-y-2">
-            {diagnosticEvidence.length > 0 ? (
-              diagnosticEvidence.map((item) => (
-                <div
-                  key={item.id}
-                  data-evidence-severity={item.severity}
-                  className="rounded-lg border border-border bg-background px-3 py-2"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium text-foreground">
-                      {t(item.titleKey.replace("databaseOperator.", ""), { count: item.count })}
+      {showEvidencePanel ? (
+        <DetailPanel
+          title={t("evidence.collapsedTitle")}
+          description={t("evidence.collapsedDescription", { count: diagnosticEvidence.length })}
+        >
+          <details data-testid="evidence-details">
+            <summary className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80">
+              {t("evidence.collapsedSummary", { count: diagnosticEvidence.length })}
+            </summary>
+            <div className="mt-3 space-y-2">
+              {diagnosticEvidence.length > 0 ? (
+                diagnosticEvidence.map((item) => (
+                  <div
+                    key={item.id}
+                    data-evidence-severity={item.severity}
+                    className="rounded-lg border border-border bg-background px-3 py-2"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {t(item.titleKey.replace("databaseOperator.", ""), { count: item.count })}
+                      </p>
+                      <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                        {t(item.sourceKey.replace("databaseOperator.", ""))}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">
+                      {t("evidence.rawHint")}: {item.rawHint}
                     </p>
-                    <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                      {t(item.sourceKey.replace("databaseOperator.", ""))}
-                    </span>
                   </div>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {t("evidence.rawHint")}: {item.rawHint}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">{t("evidence.empty")}</p>
-            )}
-          </div>
-        </details>
-      </DetailPanel>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("evidence.empty")}</p>
+              )}
+            </div>
+          </details>
+        </DetailPanel>
+      ) : null}
 
       {isCluster && summary && (
         <DetailPanel

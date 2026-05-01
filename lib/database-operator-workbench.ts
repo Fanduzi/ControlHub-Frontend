@@ -1,5 +1,58 @@
-import type { ResourceListViewModel } from "@/types/view-models";
+import type { ResourceListViewModel, ResourceDetailViewModel } from "@/types/view-models";
+import type { AuditEventViewModel } from "@/types/view-models";
 import type { ClusterMember } from "@/types/resource";
+
+import { buildDiagnosticEvidence } from "@/lib/database-diagnostic-runbook";
+
+export type DecisionDeckMode = "compact_healthy" | "diagnostic";
+
+export function buildDecisionDeckMode({
+  resource,
+  members,
+  recentAudits,
+}: {
+  resource: ResourceDetailViewModel;
+  members: ClusterMember[];
+  recentAudits?: AuditEventViewModel[];
+}): DecisionDeckMode {
+  if (
+    resource.healthStatus === "critical" ||
+    resource.healthStatus === "warning" ||
+    resource.healthStatus === "unknown"
+  ) {
+    return "diagnostic";
+  }
+
+  if (
+    resource.lifecycleStatus === "stopped" ||
+    resource.lifecycleStatus === "degraded"
+  ) {
+    return "diagnostic";
+  }
+
+  const hasAbnormalMember = members.some(
+    (m) =>
+      m.healthStatus === "critical" ||
+      m.healthStatus === "warning" ||
+      m.healthStatus === "unknown" ||
+      m.lifecycleStatus === "stopped" ||
+      m.lifecycleStatus === "degraded",
+  );
+  if (hasAbnormalMember) {
+    return "diagnostic";
+  }
+
+  const evidence = buildDiagnosticEvidence({
+    resource,
+    members,
+    recentAudits: recentAudits ?? [],
+  });
+  if (evidence.length > 0) {
+    return "diagnostic";
+  }
+
+  return "compact_healthy";
+}
 
 export type OperatorVerdictLevel =
   | "healthy"

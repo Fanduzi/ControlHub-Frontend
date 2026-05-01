@@ -64,35 +64,32 @@ test.describe("Database operator drilldown workflow", () => {
 
     await expect(page).toHaveURL(/\/resources\/14/, { timeout: 10_000 });
 
-    // Phase 22: Assert decision deck is visible near top
+    // Phase 22B: Assert compact health deck for healthy cluster
     await expect(
-      page.locator("[data-slot='database-decision-deck']")
+      page.locator("[data-testid='database-compact-health-deck']")
     ).toBeVisible();
+    await expect(
+      page.locator("[data-testid='database-compact-health-deck']").getByText(/Healthy/i)
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /View topology/i })
+    ).toBeVisible();
+
+    // Compact deck: no diagnostic panels for healthy resource
     await expect(
       page.locator("h3", { hasText: /Topology analysis/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: /Open topology/i })
-    ).toBeVisible();
+    ).not.toBeVisible();
     await expect(
       page.locator("h3", { hasText: /Abnormal members/i })
-    ).toBeVisible();
+    ).not.toBeVisible();
+    await expect(
+      page.locator("details[data-testid='evidence-details']")
+    ).not.toBeVisible();
 
     // Step 6: Assert the cluster operator summary is visible
     await expect(
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
-
-    // Phase 22B: Assert collapsed diagnostic details section (not expanded by default)
-    await expect(
-      page.locator("h3", { hasText: /Diagnostic details/i })
-    ).toBeVisible();
-    await expect(
-      page.locator("details[data-testid='evidence-details']")
-    ).toBeVisible();
-    await expect(
-      page.locator("details[data-testid='evidence-details']")
-    ).not.toHaveAttribute("open");
 
     // Verify no duplicate "Next checks" heading in workbench
     const nextChecksHeadings = await page.locator("h3", { hasText: /^Next checks$/i }).count();
