@@ -15,6 +15,8 @@ import { ResourceDetailEditButton } from "@/components/resources/resource-detail
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
 import { DatabaseOperatorWorkbench } from "@/components/resources/database-operator-workbench";
 import { DatabaseDecisionDeck } from "@/components/resources/database-decision-deck";
+import { DatabaseConsistencyPanel } from "@/components/resources/database-consistency-panel";
+import { DatabaseInstanceContextPanel } from "@/components/resources/database-instance-context-panel";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -24,6 +26,10 @@ import {
 import { ResourcesBreadcrumbLink } from "@/components/resources/resources-breadcrumb-link";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import {
+  buildClusterConsistency,
+  buildInstanceConsistency,
+} from "@/lib/database-read-model-consistency";
 import {
   buildLocalizedFallbackSummary,
   localizeResourceType,
@@ -67,6 +73,34 @@ export default async function ResourceDetailPage({
   const isDatabaseResource =
     resource.resourceType === "database_cluster" ||
     resource.resourceType === "database_instance";
+
+  const isDatabaseCluster = resource.resourceType === "database_cluster";
+  const isDatabaseInstance = resource.resourceType === "database_instance";
+
+  let topology: import("@/types/resource").TopologyResponse | undefined;
+  if (isDatabaseResource) {
+    try {
+      const { getResourceTopology } = await import("@/services/topology");
+      const topologyResponse = await getResourceTopology(resource.id);
+      topology = topologyResponse ?? undefined;
+    } catch {
+      // Topology unavailable — consistency helpers handle undefined gracefully
+    }
+  }
+
+  const clusterConsistency =
+    isDatabaseCluster
+      ? buildClusterConsistency({
+          resource,
+          members: resource.members ?? [],
+          topology,
+        })
+      : null;
+
+  const instanceConsistency =
+    isDatabaseInstance
+      ? buildInstanceConsistency({ resource, topology })
+      : null;
 
   return (
     <div className="space-y-6">
@@ -216,6 +250,23 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       )}
+
+      {isDatabaseCluster && clusterConsistency ? (
+        <DatabaseConsistencyPanel result={clusterConsistency} />
+      ) : null}
+
+      {isDatabaseInstance && instanceConsistency ? (
+        <>
+          <DatabaseInstanceContextPanel result={instanceConsistency} />
+          <DatabaseConsistencyPanel
+            result={{
+              status: instanceConsistency.status,
+              counts: { members: 0, topologyDatabaseNodes: 0 },
+              issues: instanceConsistency.issues,
+            }}
+          />
+        </>
+      ) : null}
 
       {isDatabaseResource && (
         <DatabaseOperatorWorkbench

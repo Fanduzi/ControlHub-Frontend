@@ -116,6 +116,26 @@ vi.mock("@/components/resources/database-decision-deck", () => ({
   ),
 }));
 
+vi.mock("@/components/resources/database-consistency-panel", () => ({
+  DatabaseConsistencyPanel: ({ result }: { result: { status: string } }) => (
+    <div data-testid="database-consistency-panel" data-consistency-status={result.status}>
+      consistency-panel:{result.status}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/resources/database-instance-context-panel", () => ({
+  DatabaseInstanceContextPanel: ({ result }: { result: { facts: { parentClusterName?: string; role?: string; connection?: string } } }) => (
+    <div data-testid="database-instance-context-panel">
+      instance-context:{result.facts.parentClusterName ?? "none"}
+    </div>
+  ),
+}));
+
+vi.mock("@/services/topology", () => ({
+  getResourceTopology: vi.fn().mockResolvedValue(null),
+}));
+
 function t(key: string) {
   return key;
 }
@@ -427,5 +447,72 @@ describe("ResourceDetailPage", () => {
     expect((topologySurface as Node).compareDocumentPosition(workbench)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  it("renders consistency panel for database cluster resources", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [
+        {
+          id: 22,
+          name: "orders-primary",
+          displayName: "Orders Primary",
+          resourceType: "database_instance",
+          resourceSubtype: "mysql",
+          profileSummary: { role: "primary", hostname: "db-01.internal", port: 3306 },
+          healthStatus: "healthy",
+          lifecycleStatus: "running",
+        },
+      ],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    render(element);
+
+    const consistencyPanel = screen.getByTestId("database-consistency-panel");
+    expect(consistencyPanel).toBeInTheDocument();
+    expect(consistencyPanel).toHaveAttribute("data-consistency-status", "ok");
+  });
+
+  it("renders instance context and consistency panels for database instance resources", async () => {
+    const instanceResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 22,
+      resourceType: "database_instance",
+      profileSummary: {
+        hostname: "prod-db-host-01.internal",
+        port: 3306,
+        engine: "mysql",
+        role: "primary",
+      },
+      clusterInfo: {
+        id: 1,
+        displayName: "Order MySQL Cluster Prod",
+        healthStatus: "healthy",
+        lifecycleStatus: "running",
+      },
+    };
+
+    getResourceViewModelMock.mockResolvedValue(instanceResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "22" }),
+    });
+
+    render(element);
+
+    expect(screen.getByTestId("database-instance-context-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("database-consistency-panel")).toBeInTheDocument();
   });
 });
