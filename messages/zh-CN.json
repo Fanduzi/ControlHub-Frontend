@@ -865,5 +865,21 @@
       "connection": "连接",
       "missing": "后端未提供"
     }
+  },
+  "databaseReadonlyIA": {
+    "instanceFacts": {
+      "title": "实例上下文与一致性",
+      "description": "所属集群、角色、连接、拓扑和数据一致性。",
+      "parentCluster": "所属集群",
+      "role": "角色",
+      "connection": "连接",
+      "topology": "拓扑",
+      "topologyPresent": "该实例出现在拓扑中",
+      "missing": "后端未提供"
+    },
+    "supportingDetails": {
+      "title": "支撑明细",
+      "description": "画像、关系和审计历史仍保留在运维视图下方。"
+    }
   }
 }
