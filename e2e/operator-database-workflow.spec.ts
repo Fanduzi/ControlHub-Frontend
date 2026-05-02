@@ -117,6 +117,11 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Audit context/i })
     ).toBeVisible();
 
+    // Phase 24: Supporting details section for cluster
+    await expect(
+      page.locator("[data-slot='database-supporting-details']")
+    ).toBeVisible();
+
     // Cluster members table
     await expect(
       page.locator("h3", { hasText: /Cluster members/i })
@@ -143,24 +148,21 @@ test.describe("Database operator drilldown workflow", () => {
 
     await expect(page).toHaveURL(/\/resources\/\d+/, { timeout: 10_000 });
 
-    // Instance detail: parent cluster, connection info, profile
+    // Instance detail: identity and merged facts panel
     await expect(
       page.locator("h3", { hasText: /Identity and ownership/i })
     ).toBeVisible();
-    await expect(
-      page.locator("h3", { hasText: /Parent cluster/i })
-    ).toBeVisible();
 
-    const parentClusterLink = page
-      .locator("section", { hasText: /Parent cluster/i })
-      .locator("a[href*='/resources/']");
-    await expect(parentClusterLink).toBeVisible();
-    const parentLinkText = await parentClusterLink.textContent();
-    expect(parentLinkText?.trim().length).toBeGreaterThan(0);
-
+    // Phase 24: Merged instance facts panel (no duplicate parent cluster/connection cards)
     await expect(
-      page.locator("h3", { hasText: /Connection info/i })
+      page.locator("h3", { hasText: /Instance context and consistency|实例上下文与一致性/i })
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /Parent cluster/i })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: /Connection info/i })
+    ).toHaveCount(0);
 
     // Topology and audit reachable
     await expect(
@@ -174,6 +176,11 @@ test.describe("Database operator drilldown workflow", () => {
     ).toBeVisible();
     await expect(
       page.locator("h3", { hasText: /^Relations$/i })
+    ).toBeVisible();
+
+    // Phase 24: Supporting details section present
+    await expect(
+      page.locator("[data-slot='database-supporting-details']")
     ).toBeVisible();
   });
 
@@ -211,14 +218,36 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Resource topology/i })
     ).toBeVisible();
 
-    // Phase 23: Instance context panel visible
+    // Phase 24: Merged instance context and consistency panel
     await expect(
-      page.locator("h3", { hasText: /Instance context/i })
+      page.locator("h3", { hasText: /Instance context and consistency|实例上下文与一致性/i })
     ).toBeVisible();
 
-    // Phase 23: Data consistency panel visible
+    // Phase 24: No duplicate parent cluster / connection full cards
     await expect(
-      page.locator("h3", { hasText: /Data consistency/i })
+      page.getByRole("heading", { name: /Parent cluster/i })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: /Connection info/i })
+    ).toHaveCount(0);
+
+    // Phase 24: No "0 members" text
+    await expect(
+      page.locator("body", { hasText: /0 members|0 个成员/ })
+    ).toHaveCount(0);
+
+    // Phase 24: Supporting details section
+    await expect(
+      page.locator("[data-slot='database-supporting-details']")
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Operational profile/i })
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /^Relations$/i })
+    ).toBeVisible();
+    await expect(
+      page.locator("h3", { hasText: /Audit history/i })
     ).toBeVisible();
   });
 });
