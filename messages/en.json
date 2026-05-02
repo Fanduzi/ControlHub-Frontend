@@ -840,7 +840,7 @@
     "description": "Read-only check across members, relations, topology, and profile data.",
     "allSignalsAgree": "All visible database signals agree.",
     "instanceSummary": "Parent cluster, role, connection, and topology are available.",
-    "counts": "{members} members · {topologyDatabaseNodes} topology database nodes",
+    "counts": "{members} members · {topologyDatabaseNodes} topology database instances",
     "status": {
       "ok": "Data consistent",
       "warning": "Needs data review",

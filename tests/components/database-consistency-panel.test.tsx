@@ -13,7 +13,7 @@ function t(key: string, params?: Record<string, number | string>) {
     "status.ok": "Data consistent",
     "status.warning": "Needs data review",
     "status.unknown": "Not enough data",
-    "counts": "{members} members · {topologyDatabaseNodes} topology database nodes",
+    "counts": "{members} members · {topologyDatabaseNodes} topology database instances",
     "allSignalsAgree": "All visible database signals agree.",
     "instanceSummary": "Instance profile, cluster link, and topology are consistent.",
     "issues.memberRoleMissing": "Backend did not provide role information.",
@@ -49,7 +49,7 @@ describe("DatabaseConsistencyPanel", () => {
 
       expect(screen.getByText("Data consistency")).toBeInTheDocument();
       expect(screen.getByText("Data consistent")).toBeInTheDocument();
-      expect(screen.getByText("2 members · 3 topology database nodes")).toBeInTheDocument();
+      expect(screen.getByText("2 members · 3 topology database instances")).toBeInTheDocument();
       expect(screen.getByText("All visible database signals agree.")).toBeInTheDocument();
     });
 

@@ -840,7 +840,7 @@
     "description": "只读检查成员、关系、拓扑和画像数据是否一致。",
     "allSignalsAgree": "当前可见的数据库信号一致。",
     "instanceSummary": "所属集群、角色、连接信息和拓扑均可用。",
-    "counts": "{members} 个成员 · {topologyDatabaseNodes} 个拓扑数据库节点",
+    "counts": "{members} 个成员 · {topologyDatabaseNodes} 个拓扑数据库实例",
     "status": {
       "ok": "数据一致",
       "warning": "需要数据复核",

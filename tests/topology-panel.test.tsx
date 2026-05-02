@@ -8,10 +8,11 @@ import zhCN from "@/messages/zh-CN.json";
 
 const push = vi.fn();
 const replace = vi.fn();
+let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
   usePathname: () => "/resources/1",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock("@xyflow/react", () => ({
@@ -122,6 +123,7 @@ const mockTopologyResponse: TopologyResponse = {
 describe("TopologyPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParams = new URLSearchParams();
   });
 
   it("renders loading state initially", () => {
@@ -444,5 +446,50 @@ describe("TopologyPanel", () => {
 
     // Instance-1 is a database_instance → "DB Instance"
     expect(screen.getByText("DB Instance")).toBeInTheDocument();
+  });
+
+  // --- initialTopology reuse tests ---
+
+  it("skips first fetch when initialTopology is provided", async () => {
+    renderWithProviders(
+      <TopologyPanel resourceId={1} initialTopology={mockTopologyResponse} />,
+    );
+
+    // Should render the graph directly from initialTopology data, no loading state
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-graph")).toBeInTheDocument();
+    });
+
+    // getResourceTopology must NOT have been called
+    expect(mockGetTopology).not.toHaveBeenCalled();
+  });
+
+  it("fetches when URL depth differs from initialTopology default", async () => {
+    // URL specifies depth=2, but initialTopology was loaded at depth=1
+    searchParams = new URLSearchParams("topologyDepth=2");
+    mockGetTopology.mockResolvedValueOnce(mockTopologyResponse);
+
+    renderWithProviders(
+      <TopologyPanel resourceId={1} urlSync initialTopology={mockTopologyResponse} />,
+    );
+
+    await waitFor(() => {
+      expect(mockGetTopology).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockGetTopology).toHaveBeenCalledWith(1, expect.objectContaining({ depth: 2 }));
+  });
+
+  it("does not fetch when urlSync with default params matching initialTopology", async () => {
+    // searchParams is empty → defaults to depth=1, direction=both → matches initialTopology
+    renderWithProviders(
+      <TopologyPanel resourceId={1} urlSync initialTopology={mockTopologyResponse} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("topology-graph")).toBeInTheDocument();
+    });
+
+    expect(mockGetTopology).not.toHaveBeenCalled();
   });
 });
