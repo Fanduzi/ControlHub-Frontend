@@ -144,6 +144,20 @@ vi.mock("@/components/resources/database-instance-context-panel", () => ({
   ),
 }));
 
+vi.mock("@/components/resources/database-instance-facts-panel", () => ({
+  DatabaseInstanceFactsPanel: ({ result }: { result: { status: string; facts: { parentClusterName?: string } } }) => (
+    <div data-testid="database-instance-facts-panel" data-consistency-status={result.status}>
+      instance-facts:{result.facts.parentClusterName ?? "none"}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/resources/database-supporting-details", () => ({
+  DatabaseSupportingDetails: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="database-supporting-details">{children}</div>
+  ),
+}));
+
 vi.mock("@/services/topology", () => ({
   getResourceTopology: vi.fn().mockResolvedValue(null),
 }));
@@ -291,7 +305,7 @@ describe("ResourceDetailPage", () => {
     expect(screen.getByText("Orders Replica")).toBeInTheDocument();
   });
 
-  it("renders parent cluster card for database instances with clusterInfo", async () => {
+  it("renders merged instance facts panel for database instances with clusterInfo", async () => {
     const instanceResource: ResourceDetailViewModel = {
       ...resource,
       id: 22,
@@ -319,17 +333,14 @@ describe("ResourceDetailPage", () => {
       params: Promise.resolve({ id: "22" }),
     });
 
-    const { container } = render(element);
+    render(element);
 
-    expect(screen.getByText("Order MySQL Cluster Prod")).toBeInTheDocument();
+    const factsPanel = screen.getByTestId("database-instance-facts-panel");
+    expect(factsPanel).toBeInTheDocument();
+    expect(factsPanel).toHaveAttribute("data-consistency-status", "ok");
 
-    expect(screen.getByText("prod-db-host-01.internal")).toBeInTheDocument();
-    expect(screen.getByText("3306")).toBeInTheDocument();
-    expect(screen.getByText("8.0.36")).toBeInTheDocument();
-    expect(screen.getByText("primary")).toBeInTheDocument();
-
-    const clusterLink = container.querySelector(`a[href="/resources/1"]`);
-    expect(clusterLink).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "pages.resourceDetail.parentCluster.title" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "pages.resourceDetail.connectionInfo.title" })).not.toBeInTheDocument();
   });
 
   it("renders operator summary for database clusters with profileSummary", async () => {
@@ -525,9 +536,115 @@ describe("ResourceDetailPage", () => {
 
     render(element);
 
-    expect(screen.getByTestId("database-instance-context-panel")).toBeInTheDocument();
-    const consistencyPanel = screen.getByTestId("database-consistency-panel");
-    expect(consistencyPanel).toBeInTheDocument();
-    expect(consistencyPanel).toHaveAttribute("data-consistency-scope", "instance");
+    expect(screen.getByTestId("database-instance-facts-panel")).toBeInTheDocument();
+    const factsPanel = screen.getByTestId("database-instance-facts-panel");
+    expect(factsPanel).toHaveAttribute("data-consistency-status", "ok");
+  });
+
+  it("does not render duplicate parent cluster and connection headings for database instances", async () => {
+    const instanceResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 22,
+      resourceType: "database_instance",
+      profileSummary: {
+        hostname: "prod-db-host-01.internal",
+        port: 3306,
+        engine: "mysql",
+        role: "primary",
+      },
+      clusterInfo: {
+        id: 1,
+        displayName: "Order MySQL Cluster Prod",
+        healthStatus: "healthy",
+        lifecycleStatus: "running",
+      },
+    };
+
+    getResourceViewModelMock.mockResolvedValue(instanceResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "22" }),
+    });
+
+    render(element);
+
+    expect(screen.getByTestId("database-instance-facts-panel")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "pages.resourceDetail.parentCluster.title" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "pages.resourceDetail.connectionInfo.title" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 members/)).not.toBeInTheDocument();
+  });
+
+  it("renders supporting details section for database instance pages", async () => {
+    const instanceResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 22,
+      resourceType: "database_instance",
+      profileSummary: {
+        hostname: "prod-db-host-01.internal",
+        port: 3306,
+      },
+      clusterInfo: {
+        id: 1,
+        displayName: "Cluster",
+        healthStatus: "healthy",
+        lifecycleStatus: "running",
+      },
+    };
+
+    getResourceViewModelMock.mockResolvedValue(instanceResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "22" }),
+    });
+
+    render(element);
+
+    expect(screen.getByTestId("database-supporting-details")).toBeInTheDocument();
+  });
+
+  it("renders supporting details section for database cluster pages", async () => {
+    const clusterResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster",
+      members: [],
+    };
+
+    getResourceViewModelMock.mockResolvedValue(clusterResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "14" }),
+    });
+
+    render(element);
+
+    expect(screen.getByTestId("database-supporting-details")).toBeInTheDocument();
+  });
+
+  it("does not render supporting details for non-database resources", async () => {
+    const hostResource: ResourceDetailViewModel = {
+      ...resource,
+      id: 5,
+      resourceType: "host",
+      resourceSubtype: "linux",
+    };
+
+    getResourceViewModelMock.mockResolvedValue(hostResource);
+
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: "5" }),
+    });
+
+    render(element);
+
+    expect(screen.queryByTestId("database-supporting-details")).not.toBeInTheDocument();
   });
 });

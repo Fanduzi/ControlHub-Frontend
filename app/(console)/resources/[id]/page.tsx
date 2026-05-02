@@ -1,5 +1,4 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/blocks/activity-timeline";
@@ -16,7 +15,8 @@ import { ResourceArchiveButton } from "@/components/resources/resource-archive-b
 import { DatabaseOperatorWorkbench } from "@/components/resources/database-operator-workbench";
 import { DatabaseDecisionDeck } from "@/components/resources/database-decision-deck";
 import { DatabaseConsistencyPanel } from "@/components/resources/database-consistency-panel";
-import { DatabaseInstanceContextPanel } from "@/components/resources/database-instance-context-panel";
+import { DatabaseInstanceFactsPanel } from "@/components/resources/database-instance-facts-panel";
+import { DatabaseSupportingDetails } from "@/components/resources/database-supporting-details";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -256,10 +256,7 @@ export default async function ResourceDetailPage({
       ) : null}
 
       {isDatabaseInstance && instanceConsistency ? (
-        <>
-          <DatabaseInstanceContextPanel result={instanceConsistency} />
-          <DatabaseConsistencyPanel scope="instance" result={instanceConsistency} />
-        </>
+        <DatabaseInstanceFactsPanel result={instanceConsistency} />
       ) : null}
 
       {isDatabaseResource && (
@@ -309,93 +306,6 @@ export default async function ResourceDetailPage({
             )}
           </dl>
         </DetailPanel>
-      )}
-
-      {resource.resourceType === "database_instance" && resource.clusterInfo && (
-        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-          <DetailPanel
-            title={t("pages.resourceDetail.parentCluster.title")}
-            description={t("pages.resourceDetail.parentCluster.description")}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-border bg-muted">
-                <DbTypeIcon subtype={resource.resourceSubtype} className="size-4" />
-              </div>
-              <div>
-                <Link
-                  href={`/resources/${resource.clusterInfo.id}`}
-                  className="text-sm font-medium text-foreground hover:text-primary"
-                >
-                  {resource.clusterInfo.displayName}
-                </Link>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <StatusBadge status={resource.clusterInfo.healthStatus} tone="health" />
-                  <StatusBadge status={resource.clusterInfo.lifecycleStatus} tone="lifecycle" />
-                </div>
-              </div>
-            </div>
-          </DetailPanel>
-
-          {resource.profileSummary && (
-            <DetailPanel
-              title={t("pages.resourceDetail.connectionInfo.title")}
-              description={t("pages.resourceDetail.connectionInfo.description")}
-            >
-              <dl className="grid gap-3 text-sm md:grid-cols-2">
-                {resource.profileSummary.hostname && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {t("common.fields.hostname")}
-                    </dt>
-                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
-                      {resource.profileSummary.hostname}
-                    </dd>
-                  </div>
-                )}
-                {resource.profileSummary.port != null && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {t("common.fields.port")}
-                    </dt>
-                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
-                      {resource.profileSummary.port}
-                    </dd>
-                  </div>
-                )}
-                {resource.profileSummary.engine && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {t("common.fields.engine")}
-                    </dt>
-                    <dd className="mt-1 font-medium text-foreground">
-                      {resource.profileSummary.engine}
-                    </dd>
-                  </div>
-                )}
-                {resource.profileSummary.version && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {t("profileFields.version")}
-                    </dt>
-                    <dd className="mt-1 font-mono text-sm font-medium text-foreground">
-                      {resource.profileSummary.version}
-                    </dd>
-                  </div>
-                )}
-                {resource.profileSummary.role && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {t("profileFields.role")}
-                    </dt>
-                    <dd className="mt-1 font-medium text-foreground">
-                      {formatLabel(resource.profileSummary.role)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </DetailPanel>
-          )}
-        </div>
       )}
 
       {resource.resourceType === "database_cluster" &&
@@ -452,55 +362,95 @@ export default async function ResourceDetailPage({
         </DetailPanel>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <DetailPanel
-          title={t("pages.resourceDetail.profile.title")}
-          description={t("pages.resourceDetail.profile.description")}
-        >
-          <div data-resource-profile-surface="supporting">
-            {profileEntries.length ? (
-              <dl className="grid gap-3 md:grid-cols-2">
-                {profileEntries.map(([key, value]) => (
-                  <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
-                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      {formatLabel(key)}
-                    </dt>
-                    <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
-            )}
-          </div>
-        </DetailPanel>
+      {isDatabaseResource ? (
+        <DatabaseSupportingDetails>
+          <DetailPanel
+            title={t("pages.resourceDetail.profile.title")}
+            description={t("pages.resourceDetail.profile.description")}
+          >
+            <div data-resource-profile-surface="supporting">
+              {profileEntries.length ? (
+                <dl className="grid gap-3 md:grid-cols-2">
+                  {profileEntries.map(([key, value]) => (
+                    <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                      <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                        {formatLabel(key)}
+                      </dt>
+                      <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+              )}
+            </div>
+          </DetailPanel>
 
-        <DetailPanel
-          title={t("pages.resourceDetail.relations.title")}
-          description={t("pages.resourceDetail.relations.description")}
-        >
-          <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
-        </DetailPanel>
-      </div>
+          <DetailPanel
+            title={t("pages.resourceDetail.relations.title")}
+            description={t("pages.resourceDetail.relations.description")}
+          >
+            <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
+          </DetailPanel>
 
-      {!isDatabaseResource && (
-        <DetailPanel
-          title={t("topology.title")}
-          description={t("topology.description")}
-          className="xl:col-span-2"
-        >
-          <div data-resource-topology-surface="prominent">
-            <TopologyPanel resourceId={resource.id} urlSync />
+          <DetailPanel
+            title={t("pages.resourceDetail.audit.title")}
+            description={t("pages.resourceDetail.audit.description")}
+          >
+            <ActivityTimeline events={resource.auditEvents} locale={locale} />
+          </DetailPanel>
+        </DatabaseSupportingDetails>
+      ) : (
+        <>
+          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <DetailPanel
+              title={t("pages.resourceDetail.profile.title")}
+              description={t("pages.resourceDetail.profile.description")}
+            >
+              <div data-resource-profile-surface="supporting">
+                {profileEntries.length ? (
+                  <dl className="grid gap-3 md:grid-cols-2">
+                    {profileEntries.map(([key, value]) => (
+                      <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                        <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                          {formatLabel(key)}
+                        </dt>
+                        <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+                )}
+              </div>
+            </DetailPanel>
+
+            <DetailPanel
+              title={t("pages.resourceDetail.relations.title")}
+              description={t("pages.resourceDetail.relations.description")}
+            >
+              <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
+            </DetailPanel>
           </div>
-        </DetailPanel>
+
+          <DetailPanel
+            title={t("topology.title")}
+            description={t("topology.description")}
+            className="xl:col-span-2"
+          >
+            <div data-resource-topology-surface="prominent">
+              <TopologyPanel resourceId={resource.id} urlSync />
+            </div>
+          </DetailPanel>
+
+          <DetailPanel
+            title={t("pages.resourceDetail.audit.title")}
+            description={t("pages.resourceDetail.audit.description")}
+          >
+            <ActivityTimeline events={resource.auditEvents} locale={locale} />
+          </DetailPanel>
+        </>
       )}
-
-      <DetailPanel
-        title={t("pages.resourceDetail.audit.title")}
-        description={t("pages.resourceDetail.audit.description")}
-      >
-        <ActivityTimeline events={resource.auditEvents} locale={locale} />
-      </DetailPanel>
     </div>
   );
 }
