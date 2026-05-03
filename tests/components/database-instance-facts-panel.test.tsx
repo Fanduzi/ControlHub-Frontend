@@ -13,6 +13,7 @@ function t(key: string) {
     "instanceFacts.connection": "Connection",
     "instanceFacts.topology": "Topology",
     "instanceFacts.topologyPresent": "Instance appears in topology",
+    "instanceFacts.topologyMissing": "Instance is not present in topology",
     "instanceFacts.missing": "Not provided by backend",
     "status.ok": "Data consistent",
     "status.warning": "Needs data review",
@@ -124,6 +125,6 @@ describe("DatabaseInstanceFactsPanel", () => {
     expect(screen.getByText("primary")).toBeInTheDocument();
     expect(screen.getByText("db-01:3306")).toBeInTheDocument();
     expect(screen.queryByText("Instance appears in topology")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Not provided by backend").length).toBeGreaterThan(0);
+    expect(screen.getByText("Instance is not present in topology")).toBeInTheDocument();
   });
 });

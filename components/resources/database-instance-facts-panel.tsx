@@ -88,7 +88,7 @@ export function DatabaseInstanceFactsPanel({
               result.issues.some(
                 (issue) => issue.id === "instance-missing-from-topology",
               )
-                ? undefined
+                ? t("instanceFacts.topologyMissing")
                 : t("instanceFacts.topologyPresent")
             }
             missing={t("instanceFacts.missing")}

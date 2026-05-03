@@ -136,14 +136,6 @@ vi.mock("@/components/resources/database-consistency-panel", () => ({
   ),
 }));
 
-vi.mock("@/components/resources/database-instance-context-panel", () => ({
-  DatabaseInstanceContextPanel: ({ result }: { result: { facts: { parentClusterName?: string; role?: string; connection?: string } } }) => (
-    <div data-testid="database-instance-context-panel">
-      instance-context:{result.facts.parentClusterName ?? "none"}
-    </div>
-  ),
-}));
-
 vi.mock("@/components/resources/database-instance-facts-panel", () => ({
   DatabaseInstanceFactsPanel: ({ result }: { result: { status: string; facts: { parentClusterName?: string } } }) => (
     <div data-testid="database-instance-facts-panel" data-consistency-status={result.status}>

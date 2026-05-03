@@ -856,14 +856,6 @@
       "instanceRoleMissing": "Backend did not provide instance role information.",
       "instanceConnectionMissing": "Backend did not provide instance host or port information.",
       "instanceMissingFromTopology": "Topology does not include this instance."
-    },
-    "instanceContext": {
-      "title": "Instance context",
-      "description": "Parent cluster, role, and connection facts.",
-      "parentCluster": "Parent cluster",
-      "role": "Role",
-      "connection": "Connection",
-      "missing": "Not provided by backend"
     }
   },
   "databaseReadonlyIA": {
@@ -875,6 +867,7 @@
       "connection": "Connection",
       "topology": "Topology",
       "topologyPresent": "Instance appears in topology",
+      "topologyMissing": "Instance is not present in topology",
       "missing": "Not provided by backend"
     },
     "supportingDetails": {

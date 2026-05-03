@@ -856,14 +856,6 @@
       "instanceRoleMissing": "后端未提供实例角色信息。",
       "instanceConnectionMissing": "后端未提供实例主机或端口信息。",
       "instanceMissingFromTopology": "拓扑未包含该实例。"
-    },
-    "instanceContext": {
-      "title": "实例上下文",
-      "description": "所属集群、角色和连接信息。",
-      "parentCluster": "所属集群",
-      "role": "角色",
-      "connection": "连接",
-      "missing": "后端未提供"
     }
   },
   "databaseReadonlyIA": {
@@ -875,6 +867,7 @@
       "connection": "连接",
       "topology": "拓扑",
       "topologyPresent": "该实例出现在拓扑中",
+      "topologyMissing": "该实例未出现在拓扑中",
       "missing": "后端未提供"
     },
     "supportingDetails": {
