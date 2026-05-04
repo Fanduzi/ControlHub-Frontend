@@ -738,7 +738,14 @@
       "parentClusterNormal": "Parent cluster normal"
     },
     "memberRoleUnavailable": "Role not available",
-    "viewMemberTopology": "View topology"
+    "viewMemberTopology": "View topology",
+    "statusSubjects": {
+      "operatorVerdict": "Operator verdict",
+      "resourceStatus": "Resource status",
+      "memberSignal": "Member signal",
+      "memberWarningOrCritical": "{count, plural, one {# member is warning or critical} other {# members are warning or critical}}",
+      "memberStoppedOrDegraded": "{count, plural, one {# member is stopped or degraded} other {# members are stopped or degraded}}"
+    }
   },
   "databaseOperator": {
     "title": "Operator workbench",

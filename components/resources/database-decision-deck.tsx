@@ -178,8 +178,6 @@ function DiagnosticDeck({
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{resource.resourceSubtype}</span>
             <span>{resource.environmentName}</span>
-            <StatusBadge status={resource.healthStatus} tone="health" />
-            <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
           </div>
         </div>
         <div
@@ -190,6 +188,38 @@ function DiagnosticDeck({
           )}
         >
           {to(`verdict.${verdictLevel}`)}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
+        <div className="rounded-lg border border-border bg-background px-3 py-2">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {td("statusSubjects.operatorVerdict")}
+          </p>
+          <p className="mt-1 font-semibold text-foreground">
+            {to(`verdict.${verdictLevel}`)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background px-3 py-2">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {td("statusSubjects.resourceStatus")}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <StatusBadge status={resource.healthStatus} tone="health" />
+            <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background px-3 py-2">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+            {td("statusSubjects.memberSignal")}
+          </p>
+          <p className="mt-1 font-medium text-foreground">
+            {verdict.warningOrCritical > 0
+              ? td("statusSubjects.memberWarningOrCritical", { count: verdict.warningOrCritical })
+              : verdict.stoppedOrDegraded > 0
+                ? td("statusSubjects.memberStoppedOrDegraded", { count: verdict.stoppedOrDegraded })
+                : to("evidence.empty")}
+          </p>
         </div>
       </div>
 
@@ -213,9 +243,6 @@ function DiagnosticDeck({
                       {to(localKey(item.sourceKey))}
                     </span>
                   </div>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {to("evidence.rawHint")}: {item.rawHint}
-                  </p>
                 </div>
               ))
             ) : (

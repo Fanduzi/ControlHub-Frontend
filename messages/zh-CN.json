@@ -738,7 +738,14 @@
       "parentClusterNormal": "所属集群正常"
     },
     "memberRoleUnavailable": "后端未提供角色信息",
-    "viewMemberTopology": "查看拓扑"
+    "viewMemberTopology": "查看拓扑",
+    "statusSubjects": {
+      "operatorVerdict": "运维判定",
+      "resourceStatus": "资源自身状态",
+      "memberSignal": "成员信号",
+      "memberWarningOrCritical": "{count} 个成员处于告警或严重状态",
+      "memberStoppedOrDegraded": "{count} 个成员已停止或降级"
+    }
   },
   "databaseOperator": {
     "title": "运维工作台",

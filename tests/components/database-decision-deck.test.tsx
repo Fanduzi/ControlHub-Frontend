@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ClusterMember } from "@/types/resource";
@@ -22,6 +22,11 @@ const deckKeys: Record<string, string> = {
   "compact.parentClusterNormal": "Parent cluster normal",
   "memberRoleUnavailable": "Role not available",
   "viewMemberTopology": "View topology",
+  "statusSubjects.operatorVerdict": "Operator verdict",
+  "statusSubjects.resourceStatus": "Resource status",
+  "statusSubjects.memberSignal": "Member signal",
+  "statusSubjects.memberWarningOrCritical": "{count} member is warning or critical",
+  "statusSubjects.memberStoppedOrDegraded": "{count} member is stopped or degraded",
 };
 
 const operatorKeys: Record<string, string> = {
@@ -149,7 +154,7 @@ describe("DatabaseDecisionDeck", () => {
       );
 
       expect(screen.getByText("Decision deck")).toBeInTheDocument();
-      expect(screen.getByText("Critical")).toBeInTheDocument();
+      expect(screen.getAllByText("Critical").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Top evidence")).toBeInTheDocument();
       expect(screen.getByText("Next checks")).toBeInTheDocument();
       expect(screen.getByText("Topology analysis")).toBeInTheDocument();
@@ -223,6 +228,51 @@ describe("DatabaseDecisionDeck", () => {
 
       expect(screen.queryByText("Abnormal members")).not.toBeInTheDocument();
       expect(screen.queryByText("Bad Instance")).not.toBeInTheDocument();
+    });
+
+    it("labels operator verdict, resource status, and member signal subjects", async () => {
+      const { DatabaseDecisionDeck } = await import(
+        "@/components/resources/database-decision-deck"
+      );
+
+      render(
+        <DatabaseDecisionDeck
+          resource={resource({ healthStatus: "healthy" })}
+          members={[
+            member({
+              id: 23,
+              displayName: "Critical Replica",
+              healthStatus: "critical",
+            }),
+          ]}
+          recentAudits={[]}
+        />,
+      );
+
+      expect(screen.getByText("Operator verdict")).toBeInTheDocument();
+      expect(screen.getAllByText("Needs attention").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Resource status")).toBeInTheDocument();
+      expect(screen.getByText("Member signal")).toBeInTheDocument();
+      expect(screen.getByText("1 member is warning or critical")).toBeInTheDocument();
+    });
+
+    it("does not show raw field hints in visible evidence items", async () => {
+      const { DatabaseDecisionDeck } = await import(
+        "@/components/resources/database-decision-deck"
+      );
+
+      render(
+        <DatabaseDecisionDeck
+          resource={resource({ healthStatus: "critical" })}
+          members={[]}
+          recentAudits={[]}
+        />,
+      );
+
+      const evidenceItems = screen.getAllByTestId("decision-evidence-item");
+      for (const item of evidenceItems) {
+        expect(within(item).queryByText(/members\[\]\.healthStatus/)).not.toBeInTheDocument();
+      }
     });
   });
 
