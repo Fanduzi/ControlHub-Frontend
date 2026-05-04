@@ -839,7 +839,7 @@
       }
     },
     "auditBuckets": {
-      "title": "审计上下文",
+      "title": "近期审计上下文",
       "description": "用于辅助判断最近变更是否相关。",
       "summary": "最近 {total} 条审计事件：{resourceChanges} 条资源变更，{relationChanges} 条关系变更，{otherEvents} 条其他操作。",
       "noEvents": "暂无最近审计事件。",
@@ -875,7 +875,7 @@
   "databaseReadonlyIA": {
     "instanceFacts": {
       "title": "实例上下文与一致性",
-      "description": "所属集群、角色、连接、拓扑和数据一致性。",
+      "description": "所属集群、角色、连接、拓扑和读模型一致性。",
       "parentCluster": "所属集群",
       "role": "角色",
       "connection": "连接",

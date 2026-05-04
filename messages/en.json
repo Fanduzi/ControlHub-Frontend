@@ -839,7 +839,7 @@
       }
     },
     "auditBuckets": {
-      "title": "Audit context",
+      "title": "Recent audit context",
       "description": "Recent audit activity used as diagnostic context.",
       "summary": "Recent {total} audit events: {resourceChanges} resource changes, {relationChanges} relation changes, {otherEvents} other events.",
       "noEvents": "No recent audit events.",

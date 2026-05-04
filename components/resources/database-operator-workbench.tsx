@@ -56,7 +56,6 @@ export function DatabaseOperatorWorkbench({
   recentAudits,
 }: DatabaseOperatorWorkbenchProps) {
   const t = useTranslations("databaseOperator");
-  const td = useTranslations("diagnostics");
 
   const isCluster = resource.resourceType === "database_cluster";
   const summary = isCluster ? buildClusterMemberSummary(members) : null;
