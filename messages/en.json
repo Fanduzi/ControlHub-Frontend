@@ -875,7 +875,8 @@
       "topology": "Topology",
       "topologyPresent": "Instance appears in topology",
       "topologyMissing": "Instance is not present in topology",
-      "missing": "Not provided by backend"
+      "missing": "Not provided by backend",
+      "parentClusterMissing": "Parent cluster not provided by backend"
     },
     "supportingDetails": {
       "title": "Supporting details",

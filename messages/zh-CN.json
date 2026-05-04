@@ -875,7 +875,8 @@
       "topology": "拓扑",
       "topologyPresent": "该实例出现在拓扑中",
       "topologyMissing": "该实例未出现在拓扑中",
-      "missing": "后端未提供"
+      "missing": "后端未提供",
+      "parentClusterMissing": "后端未提供所属集群信息"
     },
     "supportingDetails": {
       "title": "支撑明细",

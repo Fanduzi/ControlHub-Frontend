@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
@@ -22,10 +23,12 @@ function localKey(key: string): string {
 function Fact({
   label,
   value,
+  href,
   missing,
 }: {
   label: string;
   value?: string;
+  href?: string;
   missing: string;
 }) {
   return (
@@ -33,9 +36,15 @@ function Fact({
       <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 text-sm font-medium text-foreground">
-        {value || missing}
-      </p>
+      {value && href ? (
+        <Link href={href} className="mt-1 block text-sm font-medium text-primary hover:underline">
+          {value}
+        </Link>
+      ) : (
+        <p className="mt-1 text-sm font-medium text-foreground">
+          {value || missing}
+        </p>
+      )}
     </div>
   );
 }
@@ -70,7 +79,8 @@ export function DatabaseInstanceFactsPanel({
           <Fact
             label={t("instanceFacts.parentCluster")}
             value={result.facts.parentClusterName}
-            missing={t("instanceFacts.missing")}
+            href={result.facts.parentClusterId ? `/resources/${result.facts.parentClusterId}` : undefined}
+            missing={t("instanceFacts.parentClusterMissing")}
           />
           <Fact
             label={t("instanceFacts.role")}

@@ -15,6 +15,7 @@ function t(key: string) {
     "instanceFacts.topologyPresent": "Instance appears in topology",
     "instanceFacts.topologyMissing": "Instance is not present in topology",
     "instanceFacts.missing": "Not provided by backend",
+    "instanceFacts.parentClusterMissing": "Parent cluster not provided by backend",
     "status.ok": "Data consistent",
     "status.warning": "Needs data review",
     "status.unknown": "Not enough data",
@@ -39,6 +40,7 @@ describe("DatabaseInstanceFactsPanel", () => {
     const result: InstanceConsistencyResult = {
       status: "ok",
       facts: {
+        parentClusterId: 14,
         parentClusterName: "Payment MySQL Cluster Production",
         role: "replica",
         connection: "prod-db-host-02.internal:3307",
@@ -126,5 +128,68 @@ describe("DatabaseInstanceFactsPanel", () => {
     expect(screen.getByText("db-01:3306")).toBeInTheDocument();
     expect(screen.queryByText("Instance appears in topology")).not.toBeInTheDocument();
     expect(screen.getByText("Instance is not present in topology")).toBeInTheDocument();
+  });
+
+  it("renders parent cluster as a link when id is available", async () => {
+    const { DatabaseInstanceFactsPanel } = await import(
+      "@/components/resources/database-instance-facts-panel"
+    );
+
+    const result: InstanceConsistencyResult = {
+      status: "ok",
+      facts: {
+        parentClusterId: 14,
+        parentClusterName: "Analytics ClickHouse Cluster Production",
+        role: "replica",
+        connection: "prod-ch-host-01.internal:8123",
+      },
+      issues: [],
+    };
+
+    render(<DatabaseInstanceFactsPanel result={result} />);
+
+    expect(
+      screen.getByRole("link", { name: "Analytics ClickHouse Cluster Production" }),
+    ).toHaveAttribute("href", "/resources/14");
+  });
+
+  it("uses explicit missing parent cluster copy when no cluster info", async () => {
+    const { DatabaseInstanceFactsPanel } = await import(
+      "@/components/resources/database-instance-facts-panel"
+    );
+
+    const result: InstanceConsistencyResult = {
+      status: "warning",
+      facts: {
+        role: "replica",
+        connection: "prod-ch-host-01.internal:8123",
+      },
+      issues: [],
+    };
+
+    render(<DatabaseInstanceFactsPanel result={result} />);
+
+    expect(screen.getByText("Parent cluster not provided by backend")).toBeInTheDocument();
+  });
+
+  it("renders parent cluster as plain text when name exists without id", async () => {
+    const { DatabaseInstanceFactsPanel } = await import(
+      "@/components/resources/database-instance-facts-panel"
+    );
+
+    const result: InstanceConsistencyResult = {
+      status: "ok",
+      facts: {
+        parentClusterName: "Cluster Without ID",
+        role: "primary",
+        connection: "db-01:3306",
+      },
+      issues: [],
+    };
+
+    render(<DatabaseInstanceFactsPanel result={result} />);
+
+    expect(screen.getByText("Cluster Without ID")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Cluster Without ID" })).not.toBeInTheDocument();
   });
 });

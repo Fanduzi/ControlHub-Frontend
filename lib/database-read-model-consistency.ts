@@ -29,6 +29,7 @@ export type ClusterConsistencyResult = {
 export type InstanceConsistencyResult = {
   status: ConsistencyStatus;
   facts: {
+    parentClusterId?: number;
     parentClusterName?: string;
     role?: string;
     connection?: string;
@@ -216,6 +217,7 @@ export function buildInstanceConsistency({
   return {
     status: toStatus(issues),
     facts: {
+      parentClusterId: resource.clusterInfo?.id,
       parentClusterName: resource.clusterInfo?.displayName,
       role,
       connection: hostname && port != null ? `${hostname}:${port}` : undefined,

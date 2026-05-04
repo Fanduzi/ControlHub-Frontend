@@ -410,5 +410,15 @@ describe("database read-model consistency", () => {
         }),
       );
     });
+
+    it("includes parent cluster id in instance consistency facts", () => {
+      const result = buildInstanceConsistency({
+        resource: instanceResource(),
+        topology: topology([14, 22]),
+      });
+
+      expect(result.facts.parentClusterId).toBe(14);
+      expect(result.facts.parentClusterName).toBe("Payment MySQL Cluster Production");
+    });
   });
 });
