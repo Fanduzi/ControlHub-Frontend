@@ -843,15 +843,15 @@
     }
   },
   "databaseConsistency": {
-    "title": "Data consistency",
-    "description": "Read-only check across members, relations, topology, and profile data.",
-    "allSignalsAgree": "All visible database signals agree.",
+    "title": "Read-model consistency",
+    "description": "Checks whether members, relations, topology, and profile data agree.",
+    "allSignalsAgree": "Current read-model signals agree.",
     "instanceSummary": "Parent cluster, role, connection, and topology are available.",
     "counts": "{members} members · {topologyDatabaseNodes} topology database instances",
     "status": {
-      "ok": "Data consistent",
-      "warning": "Needs data review",
-      "unknown": "Not enough data"
+      "ok": "Read-model consistent",
+      "warning": "Read-model needs review",
+      "unknown": "Not enough read-model data"
     },
     "issues": {
       "memberRoleMissing": "Backend did not provide role information.",

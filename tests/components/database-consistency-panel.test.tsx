@@ -8,13 +8,13 @@ import type {
 
 function t(key: string, params?: Record<string, number | string>) {
   const keys: Record<string, string> = {
-    "title": "Data consistency",
-    "description": "Read-only check across members, relations, topology, and profile data.",
-    "status.ok": "Data consistent",
-    "status.warning": "Needs data review",
-    "status.unknown": "Not enough data",
+    "title": "Read-model consistency",
+    "description": "Checks whether members, relations, topology, and profile data agree.",
+    "status.ok": "Read-model consistent",
+    "status.warning": "Read-model needs review",
+    "status.unknown": "Not enough read-model data",
     "counts": "{members} members · {topologyDatabaseNodes} topology database instances",
-    "allSignalsAgree": "All visible database signals agree.",
+    "allSignalsAgree": "Current read-model signals agree.",
     "instanceSummary": "Instance profile, cluster link, and topology are consistent.",
     "issues.memberRoleMissing": "Backend did not provide role information.",
     "issues.memberMissingFromTopology": "Topology does not include this member.",
@@ -47,10 +47,10 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
 
-      expect(screen.getByText("Data consistency")).toBeInTheDocument();
-      expect(screen.getByText("Data consistent")).toBeInTheDocument();
+      expect(screen.getByText("Read-model consistency")).toBeInTheDocument();
+      expect(screen.getByText("Read-model consistent")).toBeInTheDocument();
       expect(screen.getByText("2 members · 3 topology database instances")).toBeInTheDocument();
-      expect(screen.getByText("All visible database signals agree.")).toBeInTheDocument();
+      expect(screen.getByText("Current read-model signals agree.")).toBeInTheDocument();
     });
 
     it("renders warning issues", async () => {
@@ -74,7 +74,7 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
 
-      expect(screen.getByText("Needs data review")).toBeInTheDocument();
+      expect(screen.getByText("Read-model needs review")).toBeInTheDocument();
       expect(screen.getByText("Payment MySQL Replica")).toBeInTheDocument();
       expect(screen.getByText("Backend did not provide role information.")).toBeInTheDocument();
     });
@@ -119,8 +119,8 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="instance" result={result} />);
 
-      expect(screen.getByText("Data consistency")).toBeInTheDocument();
-      expect(screen.getByText("Data consistent")).toBeInTheDocument();
+      expect(screen.getByText("Read-model consistency")).toBeInTheDocument();
+      expect(screen.getByText("Read-model consistent")).toBeInTheDocument();
       expect(
         screen.getByText("Instance profile, cluster link, and topology are consistent."),
       ).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="instance" result={result} />);
 
-      expect(screen.getByText("Needs data review")).toBeInTheDocument();
+      expect(screen.getByText("Read-model needs review")).toBeInTheDocument();
       expect(screen.getByText("orders-db-primary")).toBeInTheDocument();
     });
 
@@ -171,6 +171,23 @@ describe("DatabaseConsistencyPanel", () => {
         "data-consistency-scope",
         "instance",
       );
+    });
+
+    it("does not render old generic data consistency wording", async () => {
+      const { DatabaseConsistencyPanel } = await import(
+        "@/components/resources/database-consistency-panel"
+      );
+
+      const result: InstanceConsistencyResult = {
+        status: "ok",
+        facts: { parentClusterName: "Cluster", role: "primary", connection: "db:3306" },
+        issues: [],
+      };
+
+      render(<DatabaseConsistencyPanel scope="instance" result={result} />);
+
+      expect(screen.queryByText("Data consistency")).not.toBeInTheDocument();
+      expect(screen.queryByText("Data consistent")).not.toBeInTheDocument();
     });
   });
 });

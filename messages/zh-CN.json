@@ -843,15 +843,15 @@
     }
   },
   "databaseConsistency": {
-    "title": "数据一致性",
-    "description": "只读检查成员、关系、拓扑和画像数据是否一致。",
-    "allSignalsAgree": "当前可见的数据库信号一致。",
+    "title": "读模型一致性",
+    "description": "检查成员、关系、拓扑和画像数据是否互相匹配。",
+    "allSignalsAgree": "当前可见的读模型信号一致。",
     "instanceSummary": "所属集群、角色、连接信息和拓扑均可用。",
     "counts": "{members} 个成员 · {topologyDatabaseNodes} 个拓扑数据库实例",
     "status": {
-      "ok": "数据一致",
-      "warning": "需要数据复核",
-      "unknown": "数据不足"
+      "ok": "读模型一致",
+      "warning": "读模型需检查",
+      "unknown": "读模型数据不足"
     },
     "issues": {
       "memberRoleMissing": "后端未提供角色信息。",
