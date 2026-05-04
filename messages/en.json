@@ -426,7 +426,8 @@
       "emptyDescription": "No database instances or clusters have been registered yet.",
       "emptyFilterTitle": "No matching databases",
       "emptyFilterDescription": "No databases match your current search or filter. Try different keywords or clear filters.",
-      "resourceStatus": "Resource status"
+      "resourceStatus": "Resource status",
+      "resourceStatusHint": "Resource self status only; member verdict in detail"
     },
     "audits": {
       "title": "Audit feed",
@@ -792,11 +793,6 @@
       "role_secondary": "Secondary",
       "role_writer": "Writer",
       "role_reader": "Reader"
-    },
-    "recentAudits": {
-      "title": "Recent audits",
-      "description": "Last 5 audit events for this resource.",
-      "empty": "No recent audit events."
     },
     "topology": {
       "openExpanded": "Open expanded topology"

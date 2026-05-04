@@ -204,6 +204,22 @@ describe("DatabaseTable", () => {
     expect(screen.queryByText("Status")).not.toBeInTheDocument();
   });
 
+  it("shows status hint on cluster rows but not instance rows", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+      makeInstance(10, "Orders Primary", 1),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    const hints = screen.getAllByText(/Resource self status only/i);
+    expect(hints).toHaveLength(1);
+  });
+
   it("opens the resource detail sheet when a database row is clicked", async () => {
     const user = userEvent.setup();
     const resources: ResourceListViewModel[] = [

@@ -426,7 +426,8 @@
       "emptyDescription": "尚未登记任何数据库实例或集群。",
       "emptyFilterTitle": "未找到匹配的数据库",
       "emptyFilterDescription": "当前搜索或筛选条件下没有匹配的数据库。请尝试不同的关键词或清除筛选条件。",
-      "resourceStatus": "资源自身状态"
+      "resourceStatus": "资源自身状态",
+      "resourceStatusHint": "仅资源自身状态；成员判定见详情"
     },
     "audits": {
       "title": "审计流",
@@ -792,11 +793,6 @@
       "role_secondary": "从库",
       "role_writer": "写入节点",
       "role_reader": "读取节点"
-    },
-    "recentAudits": {
-      "title": "最近审计",
-      "description": "该资源最近 5 条审计事件。",
-      "empty": "暂无近期审计事件。"
     },
     "topology": {
       "openExpanded": "展开完整拓扑"

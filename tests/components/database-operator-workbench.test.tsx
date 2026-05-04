@@ -25,8 +25,6 @@ function t(key: string, params?: Record<string, number>) {
     "memberSummary.roleUnknown": "Role unknown",
     "memberSummary.warningOrCritical": "Warning / critical",
     "memberSummary.stoppedOrDegraded": "Stopped / degraded",
-    "recentAudits.title": "Recent audits",
-    "recentAudits.description": "Last 5 audit events for this resource.",
     "auditBuckets.description": "Recent audit activity used as diagnostic context.",
     "auditBuckets.noRelevantChanges": "Recent audits do not include resource or relation changes.",
     "auditBuckets.relevantChanges": "Recent audits include {count} resource or relation changes. Use as context, not root cause.",
@@ -72,7 +70,7 @@ function t(key: string, params?: Record<string, number>) {
     "runbook.checks.profileSync": "Check whether backend profile sync is providing role, host, and port data.",
     "runbook.checks.nearbyAudits": "Compare recent resource or relation changes with the time of the current signal.",
     "runbook.checks.noFindings": "No clear abnormal signal is available. Continue with topology and audit history.",
-    "auditBuckets.title": "Audit context",
+    "auditBuckets.title": "Recent audit context",
     "auditBuckets.summary": "Recent 3 audit events: 1 resource changes, 1 relation changes, 1 other events.",
     "auditBuckets.noEvents": "No recent audit events.",
     "auditBuckets.causalityNotice": "These events are nearby changes only; they do not confirm root cause.",
@@ -93,7 +91,7 @@ const validKeys = new Set([
   "memberSummary.title", "memberSummary.description", "memberSummary.total",
   "memberSummary.primary", "memberSummary.replica", "memberSummary.roleUnknown",
   "memberSummary.warningOrCritical", "memberSummary.stoppedOrDegraded",
-  "recentAudits.title", "recentAudits.description", "topology.openExpanded",
+  "topology.openExpanded",
   "instanceContext.parentCluster", "instanceContext.parentClusterDescription",
   "instanceContext.connection", "instanceContext.connectionDescription",
   "instanceContext.hostname", "instanceContext.port", "instanceContext.engine",
@@ -431,7 +429,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Audit context")).toBeInTheDocument();
+    expect(screen.getByText("Recent audit context")).toBeInTheDocument();
     expect(screen.getByText("Recent audits include 2 resource or relation changes. Use as context, not root cause.")).toBeInTheDocument();
     expect(screen.queryByText("resource.updated")).not.toBeInTheDocument();
     expect(screen.queryByText("relation.created")).not.toBeInTheDocument();
@@ -577,7 +575,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("Audit context")).toBeInTheDocument();
+    expect(screen.getByText("Recent audit context")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Recent audits include 2 resource or relation changes. Use as context, not root cause.",

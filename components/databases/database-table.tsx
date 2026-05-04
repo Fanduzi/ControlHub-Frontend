@@ -336,9 +336,16 @@ export function DatabaseTable({
       id: "status",
       header: t("tables.databases.resourceStatus"),
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge status={row.original.healthStatus} tone="health" />
-          <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+        <div className="space-y-1">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={row.original.healthStatus} tone="health" />
+            <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+          </div>
+          {row.original.resourceType === "database_cluster" && (
+            <p className="text-xs text-muted-foreground">
+              {t("tables.databases.resourceStatusHint")}
+            </p>
+          )}
         </div>
       ),
     }),
