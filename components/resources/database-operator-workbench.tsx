@@ -139,18 +139,17 @@ export function DatabaseOperatorWorkbench({
 
       <DetailPanel
         title={t("auditBuckets.title")}
-        description={t("recentAudits.description")}
+        description={t("auditBuckets.description")}
       >
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {auditBuckets.total > 0
-              ? t("auditBuckets.summary", {
-                  total: auditBuckets.total,
-                  resourceChanges: auditBuckets.resourceChanges,
-                  relationChanges: auditBuckets.relationChanges,
-                  otherEvents: auditBuckets.otherEvents,
-                })
-              : t("auditBuckets.noEvents")}
+            {auditBuckets.total === 0
+              ? t("auditBuckets.noEvents")
+              : auditBuckets.hasPotentiallyRelevantChanges
+                ? t("auditBuckets.relevantChanges", {
+                    count: auditBuckets.resourceChanges + auditBuckets.relationChanges,
+                  })
+                : t("auditBuckets.noRelevantChanges")}
           </p>
           {auditBuckets.hasPotentiallyRelevantChanges ? (
             <p className="text-xs text-muted-foreground">
@@ -158,31 +157,15 @@ export function DatabaseOperatorWorkbench({
             </p>
           ) : null}
 
-          {recentAudits && recentAudits.length > 0 ? (
-            <>
-              {recentAudits.map((event) => (
-                <div
-                  key={event.id}
-                  className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                >
-                  <span className="font-medium text-foreground">
-                    {event.eventType}
-                  </span>
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <span>{event.actorLabel}</span>
-                    <span className="font-mono text-xs">{event.createdAt}</span>
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-end">
-                <Link
-                  href={`/audits?targetResourceId=${resource.id}`}
-                  className="text-sm text-primary hover:underline"
-                >
-                  {td("audit.viewAll")}
-                </Link>
-              </div>
-            </>
+          {auditBuckets.total > 0 ? (
+            <div className="flex justify-end">
+              <Link
+                href={`/audits?targetResourceId=${resource.id}`}
+                className="text-sm text-primary hover:underline"
+              >
+                {t("auditBuckets.viewAuditHistory")}
+              </Link>
+            </div>
           ) : null}
         </div>
       </DetailPanel>

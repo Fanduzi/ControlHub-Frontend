@@ -87,6 +87,8 @@
   },
   "activityTimeline": {
     "summary": "{eventType} completed with {result} result.",
+    "emptyTitle": "No audit activity yet",
+    "emptyDescription": "Recent resource changes will appear here once the backend audit feed is connected.",
     "eventTypes": {
       "resource_created": "Resource created",
       "relation_created": "Relation created",
@@ -837,9 +839,13 @@
     },
     "auditBuckets": {
       "title": "Audit context",
+      "description": "Recent audit activity used as diagnostic context.",
       "summary": "Recent {total} audit events: {resourceChanges} resource changes, {relationChanges} relation changes, {otherEvents} other events.",
       "noEvents": "No recent audit events.",
-      "causalityNotice": "These events are nearby changes only; they do not confirm root cause."
+      "noRelevantChanges": "Recent audits do not include resource or relation changes.",
+      "relevantChanges": "Recent audits include {count} resource or relation changes. Use as context, not root cause.",
+      "causalityNotice": "These events are nearby changes only; they do not confirm root cause.",
+      "viewAuditHistory": "View audit history"
     }
   },
   "databaseConsistency": {

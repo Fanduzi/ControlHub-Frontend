@@ -87,6 +87,8 @@
   },
   "activityTimeline": {
     "summary": "{eventType}已完成，结果为{result}。",
+    "emptyTitle": "暂无审计活动",
+    "emptyDescription": "后端审计流接入后，最近变更会显示在这里。",
     "eventTypes": {
       "resource_created": "资源创建",
       "relation_created": "关系创建",
@@ -837,9 +839,13 @@
     },
     "auditBuckets": {
       "title": "审计上下文",
+      "description": "用于辅助判断最近变更是否相关。",
       "summary": "最近 {total} 条审计事件：{resourceChanges} 条资源变更，{relationChanges} 条关系变更，{otherEvents} 条其他操作。",
       "noEvents": "暂无最近审计事件。",
-      "causalityNotice": "这些事件只表示时间邻近的变更，不代表已确认根因。"
+      "noRelevantChanges": "最近审计中没有资源或关系变更。",
+      "relevantChanges": "最近审计中有 {count} 条资源或关系变更，仅作为排查线索，不代表根因。",
+      "causalityNotice": "这些事件只表示时间邻近的变更，不代表已确认根因。",
+      "viewAuditHistory": "查看审计历史"
     }
   },
   "databaseConsistency": {

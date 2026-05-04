@@ -17,8 +17,8 @@ type ActivityTimelineProps = {
 
 export function ActivityTimeline({
   events,
-  emptyTitle = "No audit activity yet",
-  emptyDescription = "Recent resource changes will appear here once the backend audit feed is connected.",
+  emptyTitle,
+  emptyDescription,
   locale,
 }: ActivityTimelineProps) {
   const t = useTranslations("activityTimeline");
@@ -38,7 +38,12 @@ export function ActivityTimeline({
   }
 
   if (!events.length) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+    return (
+      <EmptyState
+        title={emptyTitle ?? t("emptyTitle")}
+        description={emptyDescription ?? t("emptyDescription")}
+      />
+    );
   }
 
   return (

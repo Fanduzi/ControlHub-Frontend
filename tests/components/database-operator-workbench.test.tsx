@@ -27,6 +27,10 @@ function t(key: string, params?: Record<string, number>) {
     "memberSummary.stoppedOrDegraded": "Stopped / degraded",
     "recentAudits.title": "Recent audits",
     "recentAudits.description": "Last 5 audit events for this resource.",
+    "auditBuckets.description": "Recent audit activity used as diagnostic context.",
+    "auditBuckets.noRelevantChanges": "Recent audits do not include resource or relation changes.",
+    "auditBuckets.relevantChanges": "Recent audits include {count} resource or relation changes. Use as context, not root cause.",
+    "auditBuckets.viewAuditHistory": "View audit history",
     "topology.openExpanded": "Open expanded topology",
     "instanceContext.parentCluster": "Parent cluster",
     "instanceContext.parentClusterDescription": "The cluster this instance belongs to.",
@@ -109,7 +113,9 @@ const validKeys = new Set([
   "runbook.checks.profileSync", "runbook.checks.nearbyAudits",
   "runbook.checks.noFindings",
   "auditBuckets.title", "auditBuckets.summary", "auditBuckets.noEvents",
-  "auditBuckets.causalityNotice",
+  "auditBuckets.causalityNotice", "auditBuckets.description",
+  "auditBuckets.noRelevantChanges", "auditBuckets.relevantChanges",
+  "auditBuckets.viewAuditHistory",
 ]);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (t as any).has = (key: string) => validKeys.has(key);
@@ -370,7 +376,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.queryByText("Member summary")).not.toBeInTheDocument();
   });
 
-  it("renders recent audits section", async () => {
+  it("renders audit context as summary only without event rows", async () => {
     const resourceWithAudits: ResourceDetailViewModel = {
       ...healthyClusterResource,
       recentAudits: [
@@ -378,13 +384,37 @@ describe("DatabaseOperatorWorkbench", () => {
           id: 1,
           actorUserId: 1,
           targetResourceId: 14,
-          eventType: "resource.update",
+          eventType: "resource.updated",
           result: "success",
           createdAt: "2026-04-28T12:00:00Z",
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
           summary: "Update completed.",
+        },
+        {
+          id: 2,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "relation.created",
+          result: "success",
+          createdAt: "2026-04-28T12:01:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Relation created.",
+        },
+        {
+          id: 3,
+          actorUserId: 1,
+          targetResourceId: 14,
+          eventType: "access.login",
+          result: "success",
+          createdAt: "2026-04-28T12:02:00Z",
+          actorLabel: "admin",
+          targetResourceName: "Orders Cluster",
+          environmentLabel: "Production",
+          summary: "Login.",
         },
       ],
     };
@@ -402,10 +432,12 @@ describe("DatabaseOperatorWorkbench", () => {
     );
 
     expect(screen.getByText("Audit context")).toBeInTheDocument();
-    expect(screen.getByText("admin")).toBeInTheDocument();
+    expect(screen.getByText("Recent audits include 2 resource or relation changes. Use as context, not root cause.")).toBeInTheDocument();
+    expect(screen.queryByText("resource.updated")).not.toBeInTheDocument();
+    expect(screen.queryByText("relation.created")).not.toBeInTheDocument();
   });
 
-  it("renders audit context summary and view-all link", async () => {
+  it("renders view audit history link when audits exist", async () => {
     const resourceWithAudits: ResourceDetailViewModel = {
       ...healthyClusterResource,
       recentAudits: [
@@ -436,10 +468,10 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("View all audits")).toBeInTheDocument();
+    expect(screen.getByText("View audit history")).toBeInTheDocument();
   });
 
-  it("renders count-based audit context for non-resource events", async () => {
+  it("renders noRelevantChanges summary for non-resource events", async () => {
     const resourceWithAudits: ResourceDetailViewModel = {
       ...healthyClusterResource,
       recentAudits: [
@@ -470,7 +502,7 @@ describe("DatabaseOperatorWorkbench", () => {
       />,
     );
 
-    expect(screen.getByText("admin")).toBeInTheDocument();
+    expect(screen.getByText("Recent audits do not include resource or relation changes.")).toBeInTheDocument();
   });
 
   it("renders empty audit context when no audits", async () => {
@@ -487,6 +519,7 @@ describe("DatabaseOperatorWorkbench", () => {
     );
 
     expect(screen.getByText("No recent audit events.")).toBeInTheDocument();
+    expect(screen.queryByText("Last 5 audit events for this resource.")).not.toBeInTheDocument();
   });
 
   it("renders grouped audit bucket summary", async () => {
@@ -547,7 +580,7 @@ describe("DatabaseOperatorWorkbench", () => {
     expect(screen.getByText("Audit context")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Recent 3 audit events: 1 resource changes, 1 relation changes, 1 other events.",
+        "Recent audits include 2 resource or relation changes. Use as context, not root cause.",
       ),
     ).toBeInTheDocument();
   });
