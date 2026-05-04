@@ -96,12 +96,12 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
-    // Phase 23: Read-model consistency panel visible
+    // Phase 23/25: Page information check panel visible
     await expect(
       page.locator("[data-consistency-status]")
     ).toBeVisible();
     await expect(
-      page.locator("h3", { hasText: /Read-model consistency/i })
+      page.locator("h3", { hasText: /Page information check|页面信息核对/i })
     ).toBeVisible();
 
     // No duplicate "Next checks" heading in workbench

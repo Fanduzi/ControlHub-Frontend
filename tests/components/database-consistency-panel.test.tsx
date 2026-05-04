@@ -8,13 +8,13 @@ import type {
 
 function t(key: string, params?: Record<string, number | string>) {
   const keys: Record<string, string> = {
-    "title": "Read-model consistency",
-    "description": "Checks whether members, relations, topology, and profile data agree.",
-    "status.ok": "Read-model consistent",
-    "status.warning": "Read-model needs review",
-    "status.unknown": "Not enough read-model data",
+    "title": "Page information check",
+    "description": "Checks whether members, relations, topology, and profile information match.",
+    "status.ok": "Information aligned",
+    "status.warning": "Needs information review",
+    "status.unknown": "Not enough information",
     "counts": "{members} members · {topologyDatabaseNodes} topology database instances",
-    "allSignalsAgree": "Current read-model signals agree.",
+    "allSignalsAgree": "Current page information is aligned.",
     "instanceSummary": "Instance profile, cluster link, and topology are consistent.",
     "issues.memberRoleMissing": "Backend did not provide role information.",
     "issues.memberMissingFromTopology": "Topology does not include this member.",
@@ -47,10 +47,10 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
 
-      expect(screen.getByText("Read-model consistency")).toBeInTheDocument();
-      expect(screen.getByText("Read-model consistent")).toBeInTheDocument();
+      expect(screen.getByText("Page information check")).toBeInTheDocument();
+      expect(screen.getByText("Information aligned")).toBeInTheDocument();
       expect(screen.getByText("2 members · 3 topology database instances")).toBeInTheDocument();
-      expect(screen.getByText("Current read-model signals agree.")).toBeInTheDocument();
+      expect(screen.getByText("Current page information is aligned.")).toBeInTheDocument();
     });
 
     it("renders warning issues", async () => {
@@ -74,7 +74,7 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="cluster" result={result} />);
 
-      expect(screen.getByText("Read-model needs review")).toBeInTheDocument();
+      expect(screen.getByText("Needs information review")).toBeInTheDocument();
       expect(screen.getByText("Payment MySQL Replica")).toBeInTheDocument();
       expect(screen.getByText("Backend did not provide role information.")).toBeInTheDocument();
     });
@@ -119,8 +119,8 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="instance" result={result} />);
 
-      expect(screen.getByText("Read-model consistency")).toBeInTheDocument();
-      expect(screen.getByText("Read-model consistent")).toBeInTheDocument();
+      expect(screen.getByText("Page information check")).toBeInTheDocument();
+      expect(screen.getByText("Information aligned")).toBeInTheDocument();
       expect(
         screen.getByText("Instance profile, cluster link, and topology are consistent."),
       ).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("DatabaseConsistencyPanel", () => {
 
       render(<DatabaseConsistencyPanel scope="instance" result={result} />);
 
-      expect(screen.getByText("Read-model needs review")).toBeInTheDocument();
+      expect(screen.getByText("Needs information review")).toBeInTheDocument();
       expect(screen.getByText("orders-db-primary")).toBeInTheDocument();
     });
 
