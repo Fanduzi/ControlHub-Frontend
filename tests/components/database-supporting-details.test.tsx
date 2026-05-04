@@ -14,22 +14,40 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("DatabaseSupportingDetails", () => {
-  it("renders supporting details wrapper and children", async () => {
+  it("renders named slots with primary, secondary, and fullWidth", async () => {
     const { DatabaseSupportingDetails } = await import(
       "@/components/resources/database-supporting-details"
     );
 
     render(
-      <DatabaseSupportingDetails>
-        <section>Operational profile</section>
-        <section>Relations</section>
-        <section>Audit history</section>
-      </DatabaseSupportingDetails>,
+      <DatabaseSupportingDetails
+        primary={<section>Operational profile</section>}
+        secondary={<section>Relations</section>}
+        fullWidth={<section>Audit history</section>}
+      />,
     );
 
     expect(screen.getByText("Supporting details")).toBeInTheDocument();
     expect(screen.getByText("Operational profile")).toBeInTheDocument();
     expect(screen.getByText("Relations")).toBeInTheDocument();
     expect(screen.getByText("Audit history")).toBeInTheDocument();
+  });
+
+  it("renders audit history in a full-width slot", async () => {
+    const { DatabaseSupportingDetails } = await import(
+      "@/components/resources/database-supporting-details"
+    );
+
+    render(
+      <DatabaseSupportingDetails
+        primary={<section>Profile</section>}
+        secondary={<section>Relations</section>}
+        fullWidth={<section>Audit history</section>}
+      />,
+    );
+
+    expect(screen.getByTestId("database-supporting-primary")).toBeInTheDocument();
+    expect(screen.getByTestId("database-supporting-secondary")).toBeInTheDocument();
+    expect(screen.getByTestId("database-supporting-full-width")).toHaveClass("xl:col-span-2");
   });
 });

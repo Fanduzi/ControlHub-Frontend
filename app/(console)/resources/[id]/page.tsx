@@ -363,43 +363,47 @@ export default async function ResourceDetailPage({
       )}
 
       {isDatabaseResource ? (
-        <DatabaseSupportingDetails>
-          <DetailPanel
-            title={t("pages.resourceDetail.profile.title")}
-            description={t("pages.resourceDetail.profile.description")}
-          >
-            <div data-resource-profile-surface="supporting">
-              {profileEntries.length ? (
-                <dl className="grid gap-3 md:grid-cols-2">
-                  {profileEntries.map(([key, value]) => (
-                    <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
-                      <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                        {formatLabel(key)}
-                      </dt>
-                      <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
-              )}
-            </div>
-          </DetailPanel>
-
-          <DetailPanel
-            title={t("pages.resourceDetail.relations.title")}
-            description={t("pages.resourceDetail.relations.description")}
-          >
-            <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
-          </DetailPanel>
-
-          <DetailPanel
-            title={t("pages.resourceDetail.audit.title")}
-            description={t("pages.resourceDetail.audit.description")}
-          >
-            <ActivityTimeline events={resource.auditEvents} locale={locale} />
-          </DetailPanel>
-        </DatabaseSupportingDetails>
+        <DatabaseSupportingDetails
+          primary={
+            <DetailPanel
+              title={t("pages.resourceDetail.profile.title")}
+              description={t("pages.resourceDetail.profile.description")}
+            >
+              <div data-resource-profile-surface="supporting">
+                {profileEntries.length ? (
+                  <dl className="grid gap-3 md:grid-cols-2">
+                    {profileEntries.map(([key, value]) => (
+                      <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                        <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                          {formatLabel(key)}
+                        </dt>
+                        <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+                )}
+              </div>
+            </DetailPanel>
+          }
+          secondary={
+            <DetailPanel
+              title={t("pages.resourceDetail.relations.title")}
+              description={t("pages.resourceDetail.relations.description")}
+            >
+              <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
+            </DetailPanel>
+          }
+          fullWidth={
+            <DetailPanel
+              title={t("pages.resourceDetail.audit.title")}
+              description={t("pages.resourceDetail.audit.description")}
+            >
+              <ActivityTimeline events={resource.auditEvents} locale={locale} />
+            </DetailPanel>
+          }
+        />
       ) : (
         <>
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">

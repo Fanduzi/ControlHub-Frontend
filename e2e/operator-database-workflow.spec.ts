@@ -96,12 +96,12 @@ test.describe("Database operator drilldown workflow", () => {
       page.locator("h3", { hasText: /Operator summary/i })
     ).toBeVisible();
 
-    // Phase 23: Data consistency panel visible
+    // Phase 23: Read-model consistency panel visible
     await expect(
       page.locator("[data-consistency-status]")
     ).toBeVisible();
     await expect(
-      page.locator("h3", { hasText: /Data consistency/i })
+      page.locator("h3", { hasText: /Read-model consistency/i })
     ).toBeVisible();
 
     // No duplicate "Next checks" heading in workbench
@@ -249,5 +249,10 @@ test.describe("Database operator drilldown workflow", () => {
     await expect(
       page.locator("h3", { hasText: /Audit history/i })
     ).toBeVisible();
+
+    // Phase 25: Audit history is full width in supporting details
+    const auditPanel = page.locator("[data-testid='database-supporting-full-width']");
+    await expect(auditPanel).toBeVisible();
+    await expect(auditPanel.locator("h3", { hasText: /Audit history/i })).toBeVisible();
   });
 });
