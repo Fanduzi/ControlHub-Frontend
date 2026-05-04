@@ -425,7 +425,8 @@
       "emptyTitle": "No database resources",
       "emptyDescription": "No database instances or clusters have been registered yet.",
       "emptyFilterTitle": "No matching databases",
-      "emptyFilterDescription": "No databases match your current search or filter. Try different keywords or clear filters."
+      "emptyFilterDescription": "No databases match your current search or filter. Try different keywords or clear filters.",
+      "resourceStatus": "Resource status"
     },
     "audits": {
       "title": "Audit feed",

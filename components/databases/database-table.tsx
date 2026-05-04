@@ -334,7 +334,7 @@ export function DatabaseTable({
     }),
     columnHelper.display({
       id: "status",
-      header: t("common.fields.status"),
+      header: t("tables.databases.resourceStatus"),
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-2">
           <StatusBadge status={row.original.healthStatus} tone="health" />

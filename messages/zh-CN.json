@@ -425,7 +425,8 @@
       "emptyTitle": "暂无数据库资源",
       "emptyDescription": "尚未登记任何数据库实例或集群。",
       "emptyFilterTitle": "未找到匹配的数据库",
-      "emptyFilterDescription": "当前搜索或筛选条件下没有匹配的数据库。请尝试不同的关键词或清除筛选条件。"
+      "emptyFilterDescription": "当前搜索或筛选条件下没有匹配的数据库。请尝试不同的关键词或清除筛选条件。",
+      "resourceStatus": "资源自身状态"
     },
     "audits": {
       "title": "审计流",

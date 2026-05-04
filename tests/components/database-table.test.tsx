@@ -189,6 +189,21 @@ describe("DatabaseTable", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses resource-status column header instead of generic status", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Resource status")).toBeInTheDocument();
+    expect(screen.queryByText("Status")).not.toBeInTheDocument();
+  });
+
   it("opens the resource detail sheet when a database row is clicked", async () => {
     const user = userEvent.setup();
     const resources: ResourceListViewModel[] = [
