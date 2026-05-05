@@ -436,8 +436,9 @@
       "memberLifecycleIssues": "{count} 个成员已停止或降级",
       "noAbnormalMembers": "暂无成员异常信号",
       "triggeredByName": "原因：{name}",
-      "triggersClusterAttention": "触发集群需关注",
-      "memberNormal": "成员正常",
+      "signalReasonInstanceCritical": "实例资源状态严重，所属集群因此需要关注",
+      "signalReasonInstanceAttention": "实例状态异常，需要关注",
+      "signalReasonInstanceHealthy": "实例健康，无异常信号",
       "resourceStatus": "资源自身状态",
       "resourceStatusHint": "资源自身正常，成员信号触发关注"
     },

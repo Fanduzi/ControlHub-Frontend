@@ -288,6 +288,15 @@ test.describe("Database operator drilldown workflow", () => {
     // Instance rows now visible with hostname and port
     await expect(page.getByText("prod-ch-host-01.internal")).toBeVisible();
     await expect(page.getByText(":8123").first()).toBeVisible();
+
+    // Instance role is localized (not raw "Replica")
+    const replicaLabel = page.locator("tr[role='row']", { hasText: /prod-ch-host-02/ }).locator("td", { hasText: /Replica/i });
+    await expect(replicaLabel).toBeVisible();
+
+    // Critical instance shows clear reason with subject
+    await expect(
+      page.getByText(/Instance resource status is critical, so its cluster needs attention/)
+    ).toBeVisible();
   });
 
   test("database search input renders and row click opens sheet", async ({

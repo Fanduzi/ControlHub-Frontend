@@ -168,6 +168,13 @@ export function DatabaseTable({
   totalInstances: _totalInstances, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
 }: DatabaseTableProps) {
   const t = useTranslations();
+
+  const formatRole = useCallback((role: string) => {
+    const key = role === "primary" ? "profileFields.rolePrimary"
+      : role === "replica" ? "profileFields.roleReplica"
+      : null;
+    return key ? t(key) : formatLabel(role);
+  }, [t]);
   const localeValue = useLocale();
   const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
   const router = useRouter();
@@ -327,7 +334,7 @@ export function DatabaseTable({
                   </ResourceLink>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     {profile?.role && (
-                      <span>{formatLabel(profile.role)}</span>
+                      <span>{formatRole(profile.role)}</span>
                     )}
                     {profile?.hostname && (
                       <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px]">
@@ -396,15 +403,21 @@ export function DatabaseTable({
               </p>
             ) : signal.reason === "no_abnormal_members" ? (
               <p className="text-xs text-muted-foreground">
-                {t("tables.databases.noAbnormalMembers")}
+                {row.original.resourceType === "database_instance"
+                  ? t("tables.databases.signalReasonInstanceHealthy")
+                  : t("tables.databases.noAbnormalMembers")}
               </p>
             ) : signal.reason === "resource_status" && row.original.resourceType === "database_instance" && row.original.healthStatus === "critical" ? (
               <p className="text-xs text-red-600 dark:text-red-400">
-                {t("tables.databases.triggersClusterAttention")}
+                {t("tables.databases.signalReasonInstanceCritical")}
+              </p>
+            ) : signal.reason === "resource_status" && row.original.resourceType === "database_instance" ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("tables.databases.signalReasonInstanceAttention")}
               </p>
             ) : signal.level === "healthy" && row.original.resourceType === "database_instance" ? (
               <p className="text-xs text-muted-foreground">
-                {t("tables.databases.memberNormal")}
+                {t("tables.databases.signalReasonInstanceHealthy")}
               </p>
             ) : null}
           </div>
@@ -466,7 +479,7 @@ export function DatabaseTable({
         </span>
       ),
     }),
-  ], [locale, t]);
+  ], [locale, t, formatRole]);
 
   const table = useReactTable({
     data: pagedTree,

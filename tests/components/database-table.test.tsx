@@ -331,6 +331,100 @@ describe("DatabaseTable", () => {
     expect(screen.getByText(/Resource itself is healthy/)).toBeInTheDocument();
   });
 
+  it("shows instance critical signal reason with subject and cluster impact", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(23, "Analytics ClickHouse Node 02", undefined, {
+        hostname: "prod-ch-host-02.internal",
+        port: 8123,
+        role: "replica",
+      }, {
+        healthStatus: "critical",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Instance resource status is critical, so its cluster needs attention")).toBeInTheDocument();
+  });
+
+  it("shows instance attention signal reason for warning health", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(23, "Slow Node", undefined, {
+        hostname: "slow-host.internal",
+        port: 3306,
+        role: "replica",
+      }, {
+        healthStatus: "warning",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Instance status requires attention")).toBeInTheDocument();
+  });
+
+  it("shows instance healthy signal reason for healthy instance with summary", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(22, "Healthy Node", undefined, {
+        hostname: "healthy.internal",
+        port: 3306,
+        role: "primary",
+      }, {
+        databaseOperationalSummary: {
+          memberCount: 1,
+          criticalMemberCount: 0,
+          warningMemberCount: 0,
+          stoppedMemberCount: 0,
+          degradedMemberCount: 0,
+          unknownRoleCount: 0,
+          primaryMemberCount: 1,
+          replicaMemberCount: 0,
+        },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Instance is healthy with no abnormal signals")).toBeInTheDocument();
+  });
+
+  it("shows localized role via profileFields keys", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(22, "Primary Node", undefined, {
+        hostname: "primary.internal",
+        port: 3306,
+        role: "primary",
+      }),
+      makeInstance(23, "Replica Node", undefined, {
+        hostname: "replica.internal",
+        port: 3306,
+        role: "replica",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={2} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Primary")).toBeInTheDocument();
+    expect(screen.getByText("Replica")).toBeInTheDocument();
+  });
+
   it("opens the resource detail sheet when a database row is clicked", async () => {
     const user = userEvent.setup();
     const resources: ResourceListViewModel[] = [

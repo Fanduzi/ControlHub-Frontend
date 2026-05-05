@@ -436,8 +436,9 @@
       "memberLifecycleIssues": "{count, plural, one {# member stopped/degraded} other {# members stopped/degraded}}",
       "noAbnormalMembers": "No abnormal member signals",
       "triggeredByName": "Triggered by {name}",
-      "triggersClusterAttention": "Triggers cluster attention",
-      "memberNormal": "Member healthy",
+      "signalReasonInstanceCritical": "Instance resource status is critical, so its cluster needs attention",
+      "signalReasonInstanceAttention": "Instance status requires attention",
+      "signalReasonInstanceHealthy": "Instance is healthy with no abnormal signals",
       "resourceStatus": "Resource status",
       "resourceStatusHint": "Resource itself is healthy; member signal needs attention"
     },
