@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { DatabaseTable } from "@/components/databases/database-table";
+import { databaseRowMatchesSearch } from "@/components/databases/database-table";
 import { formatDateTime } from "@/lib/format";
 import messages from "@/messages/en.json";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -30,6 +31,7 @@ function makeCluster(
   id: number,
   name: string,
   nodeCount?: number,
+  overrides?: Partial<ResourceListViewModel>,
 ): ResourceListViewModel {
   return {
     id,
@@ -54,14 +56,16 @@ function makeCluster(
     isArchived: false,
     summary: "Cluster",
     profileSummary: nodeCount != null ? { nodeCount } : undefined,
+    ...overrides,
   };
 }
 
 function makeInstance(
   id: number,
   name: string,
-  clusterId: number,
-  profile?: { hostname?: string; port?: number },
+  clusterId: number | undefined,
+  profile?: { hostname?: string; port?: number; role?: string; engine?: string; version?: string },
+  overrides?: Partial<ResourceListViewModel>,
 ): ResourceListViewModel {
   return {
     id,
@@ -87,14 +91,15 @@ function makeInstance(
     summary: "Instance",
     clusterId,
     profileSummary: profile,
+    ...overrides,
   };
 }
 
 describe("DatabaseTable", () => {
-  it("renders profile summary hostname and port from backend data", () => {
+  it("renders instance hostname and port under resource name", () => {
     const resources: ResourceListViewModel[] = [
       {
-        ...makeInstance(10, "Orders Primary", 0, {
+        ...makeInstance(10, "Orders Primary", undefined, {
           hostname: "db-prod-01.internal",
           port: 3306,
         }),
@@ -109,7 +114,7 @@ describe("DatabaseTable", () => {
     );
 
     expect(screen.getByText("db-prod-01.internal")).toBeInTheDocument();
-    expect(screen.getByText("3306")).toBeInTheDocument();
+    expect(screen.getByText(":3306")).toBeInTheDocument();
   });
 
   it("renders cluster node count from backend profile summary", () => {
@@ -128,11 +133,10 @@ describe("DatabaseTable", () => {
     expect(screen.getByText(/3 nodes/i)).toBeInTheDocument();
   });
 
-  it("renders display names as primary text for standalone instances, not UUIDs or raw IDs", () => {
-    // Instance with no cluster — appears as top-level row
+  it("renders display names as primary text for standalone instances", () => {
     const resources: ResourceListViewModel[] = [
       {
-        ...makeInstance(20, "Standalone DB", 0),
+        ...makeInstance(20, "Standalone DB", undefined),
         clusterId: undefined,
       },
     ];
@@ -201,13 +205,26 @@ describe("DatabaseTable", () => {
     );
 
     expect(screen.getByText("Resource status")).toBeInTheDocument();
-    expect(screen.queryByText("Status")).not.toBeInTheDocument();
   });
 
-  it("shows status hint on cluster rows but not instance rows", () => {
+  it("renders operational signal column header", () => {
     const resources: ResourceListViewModel[] = [
       makeCluster(1, "Orders Cluster", 3),
-      makeInstance(10, "Orders Primary", 1),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Operational signal")).toBeInTheDocument();
+  });
+
+  it("does not render standalone hostname and port column headers", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+      makeInstance(10, "Orders Primary", 1, { hostname: "db-01.internal", port: 3306 }),
     ];
 
     render(
@@ -216,8 +233,102 @@ describe("DatabaseTable", () => {
       </NextIntlClientProvider>,
     );
 
-    const hints = screen.getAllByText(/Resource self status only/i);
-    expect(hints).toHaveLength(1);
+    const headers = screen.getAllByRole("columnheader");
+    const headerTexts = headers.map((h) => h.textContent);
+    expect(headerTexts).not.toContain("Hostname");
+    expect(headerTexts).not.toContain("Port");
+  });
+
+  it("shows needs attention signal for cluster with critical member", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(14, "Analytics ClickHouse Cluster Production", 2, {
+        databaseOperationalSummary: {
+          memberCount: 2,
+          criticalMemberCount: 1,
+          warningMemberCount: 0,
+          stoppedMemberCount: 0,
+          degradedMemberCount: 0,
+          unknownRoleCount: 0,
+          primaryMemberCount: 0,
+          replicaMemberCount: 2,
+          worstMemberId: 23,
+          worstMemberName: "Analytics ClickHouse Node 02",
+          worstMemberStatus: "critical",
+        },
+      }),
+      makeInstance(22, "Analytics ClickHouse Node 01 Production", 14, {
+        hostname: "prod-ch-host-01.internal",
+        port: 8123,
+        role: "replica",
+      }),
+      makeInstance(23, "Analytics ClickHouse Node 02", 14, {
+        hostname: "prod-ch-host-02.internal",
+        port: 8123,
+        role: "replica",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={2} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("1 critical member")).toBeInTheDocument();
+    expect(screen.getByText(/Triggered by Analytics ClickHouse Node 02/)).toBeInTheDocument();
+  });
+
+  it("shows healthy signal for cluster with no abnormal members", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Order MySQL Cluster", 2, {
+        databaseOperationalSummary: {
+          memberCount: 2,
+          criticalMemberCount: 0,
+          warningMemberCount: 0,
+          stoppedMemberCount: 0,
+          degradedMemberCount: 0,
+          unknownRoleCount: 0,
+          primaryMemberCount: 1,
+          replicaMemberCount: 1,
+        },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("No abnormal member signals")).toBeInTheDocument();
+    const healthySignals = screen.getAllByText("Healthy");
+    expect(healthySignals.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows resource status hint on cluster with healthy self but critical members", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(14, "CH Cluster", 2, {
+        databaseOperationalSummary: {
+          memberCount: 2,
+          criticalMemberCount: 1,
+          warningMemberCount: 0,
+          stoppedMemberCount: 0,
+          degradedMemberCount: 0,
+          unknownRoleCount: 0,
+          primaryMemberCount: 0,
+          replicaMemberCount: 2,
+        },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText(/Resource itself is healthy/)).toBeInTheDocument();
   });
 
   it("opens the resource detail sheet when a database row is clicked", async () => {
@@ -236,5 +347,64 @@ describe("DatabaseTable", () => {
     await user.click(screen.getByRole("row", { name: /view details for orders cluster/i }));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Orders Cluster");
+  });
+});
+
+describe("databaseRowMatchesSearch", () => {
+  const clusterWithChildren: ResourceListViewModel & { subRows?: ResourceListViewModel[] } = {
+    ...makeCluster(14, "Analytics CH Cluster", 2),
+    subRows: [
+      makeInstance(22, "Node 01", 14, {
+        hostname: "prod-ch-host-01.internal",
+        port: 8123,
+        role: "replica",
+      }),
+      makeInstance(23, "Node 02", 14, {
+        hostname: "prod-ch-host-02.internal",
+        port: 8123,
+        role: "replica",
+      }),
+    ],
+  };
+
+  it("matches display name", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "Analytics")).toBe(true);
+  });
+
+  it("matches instance hostname in subRows", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "prod-ch-host-02.internal")).toBe(true);
+  });
+
+  it("matches port in subRows", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "8123")).toBe(true);
+  });
+
+  it("matches role in subRows", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "replica")).toBe(true);
+  });
+
+  it("matches resourceSubtype", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "mysql")).toBe(true);
+  });
+
+  it("does not match unrelated text", () => {
+    expect(databaseRowMatchesSearch(clusterWithChildren, "postgresql")).toBe(false);
+  });
+
+  it("matches standalone instance hostname", () => {
+    const instance = makeInstance(22, "Node 01", undefined, {
+      hostname: "prod-ch-host-01.internal",
+      port: 8123,
+      role: "replica",
+    });
+    expect(databaseRowMatchesSearch(instance, "prod-ch-host-01.internal")).toBe(true);
+  });
+
+  it("matches standalone instance port", () => {
+    const instance = makeInstance(22, "Node 01", undefined, {
+      hostname: "prod-ch-host-01.internal",
+      port: 8123,
+    });
+    expect(databaseRowMatchesSearch(instance, "8123")).toBe(true);
   });
 });

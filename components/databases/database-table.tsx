@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebounceCallback } from "@/hooks/use-debounce";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { formatDateTime, formatLabel, formatRelativeDateTime } from "@/lib/format";
+import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 
@@ -60,6 +61,29 @@ const ENGINE_OPTIONS = [
   "proxysql",
   "chproxy",
 ] as const;
+
+function databaseRowMatchesSearch(row: TreeRow, query: string): boolean {
+  const q = query.toLowerCase();
+  const searchable = [
+    row.displayName,
+    row.name,
+    row.resourceSubtype,
+    row.profileSummary?.hostname,
+    row.profileSummary?.port != null ? String(row.profileSummary.port) : undefined,
+    row.profileSummary?.role,
+    ...(row.subRows ?? []).flatMap((child) => [
+      child.displayName,
+      child.name,
+      child.resourceSubtype,
+      child.profileSummary?.hostname,
+      child.profileSummary?.port != null ? String(child.profileSummary.port) : undefined,
+      child.profileSummary?.role,
+    ]),
+  ];
+  return searchable.some(
+    (value) => value?.toLowerCase().includes(q),
+  );
+}
 
 function buildTree(resources: ResourceListViewModel[]): TreeRow[] {
   const clusterMap = new Map<number, TreeRow>();
@@ -133,8 +157,10 @@ function updateMultiSelectParams(
   values: string[],
 ) {
   const params = buildMultiSelectParams(searchParams, key, values);
-  window.location.replace(`${pathname}?${params.toString()}`);
+  _router.replace(`${pathname}?${params.toString()}`);
 }
+
+export { databaseRowMatchesSearch };
 
 export function DatabaseTable({
   resources,
@@ -151,7 +177,11 @@ export function DatabaseTable({
     useState<ResourceListViewModel | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean> | true>({});
 
-  const search = searchParams.get("q") ?? "";
+  // Search is client-only to avoid triggering server component re-render
+  // on every keystroke. URL sync via replaceState is for bookmarkability.
+  const urlSearchRef = useRef(searchParams.get("q") ?? "");
+  const [searchQuery, setSearchQuery] = useState(urlSearchRef.current);
+
   const page = parseInt(searchParams.get("page") ?? "1", 10) || 1;
   const clustersPerPage = parseInt(searchParams.get("pageSize") ?? "10", 10) || 10;
 
@@ -159,26 +189,15 @@ export function DatabaseTable({
     setExpanded({});
   }, [page]);
   const selectedEngines = readMultiSelectValues(searchParams, "resourceSubtype");
-  const hasActiveFilters = search.trim().length > 0 || selectedEngines.length > 0;
-  const [searchDraft, setSearchDraft] = useState(search);
-
-  useEffect(() => {
-    setSearchDraft(search);
-  }, [search]);
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedEngines.length > 0;
 
   const fullTree = useMemo(() => buildTree(resources), [resources]);
 
   const filteredTree = useMemo(() => {
     let tree = fullTree;
 
-    if (search.trim().length > 0) {
-      const q = search.toLowerCase();
-      tree = tree.filter((row) => {
-        if (row.displayName.toLowerCase().includes(q)) return true;
-        if (row.name.toLowerCase().includes(q)) return true;
-        if (row.subRows?.some((child) => child.displayName.toLowerCase().includes(q))) return true;
-        return false;
-      });
+    if (searchQuery.trim().length > 0) {
+      tree = tree.filter((row) => databaseRowMatchesSearch(row, searchQuery.trim()));
     }
 
     if (selectedEngines.length > 0) {
@@ -192,7 +211,7 @@ export function DatabaseTable({
     }
 
     return tree;
-  }, [fullTree, search, selectedEngines]);
+  }, [fullTree, searchQuery, selectedEngines]);
 
   const { pagedTree, totalPages, safePage } = useMemo(
     () => paginateTree(filteredTree, page, clustersPerPage),
@@ -270,38 +289,124 @@ export function DatabaseTable({
       cell: ({ row }) => {
         const isCluster = row.original.resourceType === "database_cluster";
         const isChild = (row.depth ?? 0) > 0;
+        const profile = row.original.profileSummary;
         return (
           <div className="flex items-center gap-2">
             {isCluster ? (
               <>
                 <DbTypeIcon subtype={row.original.resourceSubtype} />
-                <ResourceLink
-                  href={`/resources/${row.original.id}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="font-medium text-foreground"
-                >
-                  {row.original.displayName}
-                </ResourceLink>
-                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                  {t("common.fields.cluster")}
-                </span>
-                {row.original.profileSummary?.nodeCount != null && (
-                  <span className="text-xs text-muted-foreground">
-                    {row.original.profileSummary.nodeCount} {t("common.fields.nodes").toLowerCase()}
-                  </span>
-                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <ResourceLink
+                      href={`/resources/${row.original.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-foreground"
+                    >
+                      {row.original.displayName}
+                    </ResourceLink>
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                      {t("common.fields.cluster")}
+                    </span>
+                    {profile?.nodeCount != null && (
+                      <span className="text-xs text-muted-foreground">
+                        {profile.nodeCount} {t("common.fields.nodes").toLowerCase()}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </>
             ) : (
               <span className={`flex items-center gap-2${isChild ? " pl-4" : ""}`}>
                 <DbTypeIcon subtype={row.original.resourceSubtype} />
-                <ResourceLink
-                  href={`/resources/${row.original.id}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {row.original.displayName}
-                </ResourceLink>
+                <div>
+                  <ResourceLink
+                    href={`/resources/${row.original.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {row.original.displayName}
+                  </ResourceLink>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    {profile?.role && (
+                      <span>{formatLabel(profile.role)}</span>
+                    )}
+                    {profile?.hostname && (
+                      <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px]">
+                        {profile.hostname}
+                      </span>
+                    )}
+                    {profile?.port != null && (
+                      <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px]">
+                        :{profile.port}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </span>
             )}
+          </div>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "operationalSignal",
+      header: t("tables.databases.operationalSignal"),
+      cell: ({ row }) => {
+        const signal = buildDatabaseOperationalSignal(row.original);
+        const toneClass = (() => {
+          switch (signal.level) {
+            case "healthy": return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+            case "needs_attention": return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+            case "critical": return "bg-red-500/10 text-red-600 dark:text-red-400";
+            default: return "bg-muted text-muted-foreground";
+          }
+        })();
+        const levelLabel = (() => {
+          switch (signal.level) {
+            case "healthy": return t("tables.databases.signalHealthy");
+            case "needs_attention": return t("tables.databases.signalNeedsAttention");
+            case "critical": return t("tables.databases.signalCritical");
+            default: return t("tables.databases.signalUnknown");
+          }
+        })();
+        return (
+          <div className="space-y-1">
+            <div className="flex flex-wrap gap-1.5">
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${toneClass}`}>
+                {levelLabel}
+              </span>
+              {signal.memberSignal === "critical" && signal.memberCount != null && (
+                <span className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                  {t("tables.databases.criticalMembers", { count: signal.memberCount })}
+                </span>
+              )}
+              {signal.memberSignal === "warning" && signal.memberCount != null && (
+                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  {t("tables.databases.warningMembers", { count: signal.memberCount })}
+                </span>
+              )}
+              {signal.memberSignal === "lifecycle" && signal.memberCount != null && (
+                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  {t("tables.databases.memberLifecycleIssues", { count: signal.memberCount })}
+                </span>
+              )}
+            </div>
+            {signal.worstMemberName ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("tables.databases.triggeredByName", { name: signal.worstMemberName })}
+              </p>
+            ) : signal.reason === "no_abnormal_members" ? (
+              <p className="text-xs text-muted-foreground">
+                {t("tables.databases.noAbnormalMembers")}
+              </p>
+            ) : signal.reason === "resource_status" && row.original.resourceType === "database_instance" && row.original.healthStatus === "critical" ? (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {t("tables.databases.triggersClusterAttention")}
+              </p>
+            ) : signal.level === "healthy" && row.original.resourceType === "database_instance" ? (
+              <p className="text-xs text-muted-foreground">
+                {t("tables.databases.memberNormal")}
+              </p>
+            ) : null}
           </div>
         );
       },
@@ -341,37 +446,17 @@ export function DatabaseTable({
             <StatusBadge status={row.original.healthStatus} tone="health" />
             <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
           </div>
-          {row.original.resourceType === "database_cluster" && (
+          {row.original.resourceType === "database_cluster" &&
+            row.original.healthStatus === "healthy" &&
+            row.original.databaseOperationalSummary &&
+            (row.original.databaseOperationalSummary.criticalMemberCount > 0 ||
+              row.original.databaseOperationalSummary.warningMemberCount > 0) && (
             <p className="text-xs text-muted-foreground">
               {t("tables.databases.resourceStatusHint")}
             </p>
           )}
         </div>
       ),
-    }),
-    columnHelper.display({
-      id: "hostname",
-      header: t("common.fields.hostname"),
-      cell: ({ row }) => {
-        if (row.original.resourceType === "database_cluster") return null;
-        return (
-          <span className="text-sm text-muted-foreground">
-            {row.original.profileSummary?.hostname ?? "—"}
-          </span>
-        );
-      },
-    }),
-    columnHelper.display({
-      id: "port",
-      header: t("common.fields.port"),
-      cell: ({ row }) => {
-        if (row.original.resourceType !== "database_instance") return null;
-        return (
-          <span className="text-sm text-muted-foreground">
-            {row.original.profileSummary?.port ?? "—"}
-          </span>
-        );
-      },
     }),
     columnHelper.accessor("updatedAt", {
       header: t("common.fields.updated"),
@@ -414,11 +499,18 @@ export function DatabaseTable({
     [searchParams, router, pathname],
   );
 
-  const debouncedSearch = useDebounceCallback(
+  const syncSearchToUrl = useDebounceCallback(
     (value: string) => {
-      replaceSearchParams({ q: value.trim() || null });
+      const url = new URL(window.location.href);
+      if (value.trim()) {
+        url.searchParams.set("q", value.trim());
+      } else {
+        url.searchParams.delete("q");
+      }
+      url.searchParams.delete("page");
+      window.history.replaceState(null, "", url.toString());
     },
-    300,
+    500,
   );
 
   return (
@@ -429,11 +521,11 @@ export function DatabaseTable({
         controls={
           <>
             <Input
-              value={searchDraft}
+              value={searchQuery}
               onChange={(event) => {
                 const nextValue = event.target.value;
-                setSearchDraft(nextValue);
-                debouncedSearch(nextValue);
+                setSearchQuery(nextValue);
+                syncSearchToUrl(nextValue);
               }}
               placeholder={t("tables.databases.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
