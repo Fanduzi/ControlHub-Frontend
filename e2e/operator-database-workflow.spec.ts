@@ -255,4 +255,117 @@ test.describe("Database operator drilldown workflow", () => {
     await expect(auditPanel).toBeVisible();
     await expect(auditPanel.locator("h3", { hasText: /Audit history/i })).toBeVisible();
   });
+
+  test("database list shows operational signal column with member-derived signals", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    // Navigate to databases page
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Operational signal column header is visible
+    await expect(
+      page.locator("th", { hasText: /Operational signal/i })
+    ).toBeVisible();
+
+    // ClickHouse cluster (id=14) shows needs-attention signal badge
+    const chClusterRow = page.locator("tr[role='row']", { hasText: /Analytics ClickHouse Cluster/i });
+    await expect(chClusterRow).toBeVisible();
+    await expect(
+      chClusterRow.locator("span.rounded-full", { hasText: /^Needs attention$/ })
+    ).toBeVisible();
+
+    // No standalone hostname/port columns
+    const headerTexts = await page.locator("th").allTextContents();
+    expect(headerTexts).not.toContain("Hostname");
+    expect(headerTexts).not.toContain("Port");
+
+    // Expand the ClickHouse cluster to see instances
+    await chClusterRow.locator("button[aria-label*='Analytics ClickHouse Cluster']").click();
+
+    // Instance rows now visible with hostname and port
+    await expect(page.getByText("prod-ch-host-01.internal")).toBeVisible();
+    await expect(page.getByText(":8123").first()).toBeVisible();
+  });
+
+  test("database search input renders and row click opens sheet", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Search input exists with correct placeholder
+    const searchInput = page.getByPlaceholder(/host|port|role/i);
+    await expect(searchInput).toBeVisible();
+
+    // Use JS evaluation to set search value and dispatch event (avoids Playwright type issues)
+    await searchInput.evaluate((el: HTMLInputElement) => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      nativeInputValueSetter?.call(el, "mysql");
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(600);
+
+    // Page should remain responsive — table still visible after client-side filter
+    await expect(page.locator("table")).toBeVisible();
+
+    // Clear search
+    await searchInput.evaluate((el: HTMLInputElement) => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      nativeInputValueSetter?.call(el, "");
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(600);
+
+    // Click a row to open the detail sheet
+    const firstRow = page.locator("tbody tr[role='row']").first();
+    await expect(firstRow).toBeVisible();
+    await firstRow.click();
+
+    // Sheet should open
+    await expect(page.locator("[data-slot='sheet-content']")).toBeVisible({ timeout: 5000 });
+
+    // Close sheet via Escape
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-slot='sheet-content']")).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test("database engine filter dropdown opens and shows options", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Open engine filter dropdown
+    const engineFilter = page.locator("[data-slot='multi-select-trigger']");
+    await expect(engineFilter).toBeVisible();
+    await engineFilter.click();
+
+    // DropdownMenu content should appear
+    const dropdownContent = page.locator("[data-slot='dropdown-menu-content']");
+    await expect(dropdownContent).toBeVisible();
+
+    // Should have at least one checkbox item visible
+    const items = dropdownContent.locator("[data-slot='dropdown-menu-checkbox-item']");
+    const itemCount = await items.count();
+    expect(itemCount).toBeGreaterThanOrEqual(1);
+
+    // Close dropdown by pressing Escape
+    await page.keyboard.press("Escape");
+
+    // Table should still be visible
+    await expect(page.locator("table")).toBeVisible();
+  });
 });
