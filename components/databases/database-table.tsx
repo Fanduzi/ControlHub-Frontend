@@ -478,6 +478,7 @@ export function DatabaseTable({
     getRowId: (row) => String(row.id),
     state: { expanded },
     onExpandedChange: setExpanded,
+    autoResetAll: false,
   });
 
   const syncSearchToUrl = useDebounceCallback(

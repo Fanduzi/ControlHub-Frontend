@@ -302,30 +302,16 @@ test.describe("Database operator drilldown workflow", () => {
     const searchInput = page.getByPlaceholder(/host|port|role/i);
     await expect(searchInput).toBeVisible();
 
-    // Use JS evaluation to set search value and dispatch event (avoids Playwright type issues)
-    await searchInput.evaluate((el: HTMLInputElement) => {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      nativeInputValueSetter?.call(el, "mysql");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await page.waitForTimeout(600);
+    // Type into search using real browser events (verifies no freeze)
+    await searchInput.fill("mysql");
+    await page.waitForTimeout(300);
 
     // Page should remain responsive — table still visible after client-side filter
     await expect(page.locator("table")).toBeVisible();
 
     // Clear search
-    await searchInput.evaluate((el: HTMLInputElement) => {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      nativeInputValueSetter?.call(el, "");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await page.waitForTimeout(600);
+    await searchInput.fill("");
+    await page.waitForTimeout(300);
 
     // Click a row to open the detail sheet
     const firstRow = page.locator("tbody tr[role='row']").first();
