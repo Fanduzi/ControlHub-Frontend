@@ -301,7 +301,7 @@ describe("DatabaseTable", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("No abnormal member signals")).toBeInTheDocument();
+    expect(screen.getByText("All members are healthy")).toBeInTheDocument();
     const healthySignals = screen.getAllByText("Healthy");
     expect(healthySignals.length).toBeGreaterThanOrEqual(1);
   });
@@ -331,7 +331,7 @@ describe("DatabaseTable", () => {
     expect(screen.getByText(/Resource itself is healthy/)).toBeInTheDocument();
   });
 
-  it("shows instance critical signal reason with subject and cluster impact", () => {
+  it("shows instance critical signal reason with subject", () => {
     const resources: ResourceListViewModel[] = [
       makeInstance(23, "Analytics ClickHouse Node 02", undefined, {
         hostname: "prod-ch-host-02.internal",
@@ -348,7 +348,8 @@ describe("DatabaseTable", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("Instance resource status is critical, so its cluster needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Instance resource status is critical")).toBeInTheDocument();
   });
 
   it("shows instance attention signal reason for warning health", () => {
@@ -369,26 +370,15 @@ describe("DatabaseTable", () => {
     );
 
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
-    expect(screen.getByText("Instance status requires attention")).toBeInTheDocument();
+    expect(screen.getByText("Instance resource status is warning")).toBeInTheDocument();
   });
 
-  it("shows instance healthy signal reason for healthy instance with summary", () => {
+  it("shows instance healthy signal reason for healthy instance without summary", () => {
     const resources: ResourceListViewModel[] = [
       makeInstance(22, "Healthy Node", undefined, {
         hostname: "healthy.internal",
         port: 3306,
         role: "primary",
-      }, {
-        databaseOperationalSummary: {
-          memberCount: 1,
-          criticalMemberCount: 0,
-          warningMemberCount: 0,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 0,
-        },
       }),
     ];
 
@@ -398,7 +388,7 @@ describe("DatabaseTable", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("Instance is healthy with no abnormal signals")).toBeInTheDocument();
+    expect(screen.getByText("Instance is healthy")).toBeInTheDocument();
   });
 
   it("shows localized role via profileFields keys", () => {
@@ -423,6 +413,80 @@ describe("DatabaseTable", () => {
 
     expect(screen.getByText("Primary")).toBeInTheDocument();
     expect(screen.getByText("Replica")).toBeInTheDocument();
+  });
+
+  it("shows instance stopped signal reason", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(30, "Stopped Node", undefined, {
+        hostname: "stopped.internal",
+        port: 3306,
+      }, {
+        lifecycleStatus: "stopped",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Instance is stopped")).toBeInTheDocument();
+  });
+
+  it("shows instance degraded signal reason", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(31, "Degraded Node", undefined, {
+        hostname: "degraded.internal",
+        port: 3306,
+      }, {
+        lifecycleStatus: "degraded",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Instance lifecycle is degraded")).toBeInTheDocument();
+  });
+
+  it("shows cluster summary unavailable when cluster has no summary", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(99, "Orphan Cluster", undefined),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Status unknown")).toBeInTheDocument();
+    expect(screen.getByText("Member summary unavailable")).toBeInTheDocument();
+  });
+
+  it("does not show 'No data' for healthy instance with host and profile", () => {
+    const resources: ResourceListViewModel[] = [
+      makeInstance(22, "Healthy Node", undefined, {
+        hostname: "healthy.internal",
+        port: 3306,
+        role: "primary",
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText("No data")).not.toBeInTheDocument();
+    expect(screen.getByText("Instance is healthy")).toBeInTheDocument();
   });
 
   it("opens the resource detail sheet when a database row is clicked", async () => {

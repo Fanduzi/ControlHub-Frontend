@@ -295,7 +295,7 @@ test.describe("Database operator drilldown workflow", () => {
 
     // Critical instance shows clear reason with subject
     await expect(
-      page.getByText(/Instance resource status is critical, so its cluster needs attention/)
+      page.getByText(/Instance resource status is critical/)
     ).toBeVisible();
   });
 

@@ -239,6 +239,17 @@ export default async function ResourceDetailPage({
         />
       )}
 
+      {resource.resourceType === "database_cluster" &&
+        resource.members &&
+        resource.members.length > 0 && (
+          <DetailPanel
+            title={t("pages.resourceDetail.clusterMembers.title")}
+            description={t("pages.resourceDetail.clusterMembers.description")}
+          >
+            <ClusterMembersTable members={resource.members} />
+          </DetailPanel>
+        )}
+
       {isDatabaseResource && (
         <DetailPanel
           title={t("topology.title")}
@@ -307,17 +318,6 @@ export default async function ResourceDetailPage({
           </dl>
         </DetailPanel>
       )}
-
-      {resource.resourceType === "database_cluster" &&
-        resource.members &&
-        resource.members.length > 0 && (
-          <DetailPanel
-            title={t("pages.resourceDetail.clusterMembers.title")}
-            description={t("pages.resourceDetail.clusterMembers.description")}
-          >
-            <ClusterMembersTable members={resource.members} />
-          </DetailPanel>
-        )}
 
       {resource.resourceType === "host" && (
         <DetailPanel

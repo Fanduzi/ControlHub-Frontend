@@ -375,6 +375,49 @@ export function DatabaseTable({
             default: return t("tables.databases.signalUnknown");
           }
         })();
+
+        const reasonLabel = (() => {
+          switch (signal.reason) {
+            case "instance_resource_critical":
+              return t("tables.databases.reasonInstanceCritical");
+            case "instance_resource_warning":
+              return t("tables.databases.reasonInstanceWarning");
+            case "instance_lifecycle_stopped":
+              return t("tables.databases.reasonInstanceLifecycleStopped");
+            case "instance_lifecycle_degraded":
+              return t("tables.databases.reasonInstanceLifecycleDegraded");
+            case "instance_healthy":
+              return t("tables.databases.reasonInstanceHealthy");
+            case "instance_status_unknown":
+              return t("tables.databases.reasonInstanceStatusUnknown");
+            case "cluster_member_critical":
+              return t("tables.databases.reasonClusterMemberCritical", { count: signal.memberCount ?? 0 });
+            case "cluster_member_warning":
+              return t("tables.databases.reasonClusterMemberWarning", { count: signal.memberCount ?? 0 });
+            case "cluster_member_lifecycle":
+              return t("tables.databases.reasonClusterMemberLifecycle", { count: signal.memberCount ?? 0 });
+            case "cluster_healthy":
+              return t("tables.databases.reasonClusterHealthy");
+            case "cluster_summary_unavailable":
+              return t("tables.databases.reasonClusterSummaryUnavailable");
+            default:
+              return null;
+          }
+        })();
+
+        const reasonColorClass = (() => {
+          if (signal.level === "critical" || signal.reason === "instance_resource_critical") {
+            return "text-red-600 dark:text-red-400";
+          }
+          if (signal.level === "needs_attention") {
+            return "text-amber-600 dark:text-amber-400";
+          }
+          if (signal.level === "unknown") {
+            return "text-muted-foreground";
+          }
+          return "text-muted-foreground";
+        })();
+
         return (
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1.5">
@@ -401,23 +444,9 @@ export function DatabaseTable({
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 {t("tables.databases.triggeredByName", { name: signal.worstMemberName })}
               </p>
-            ) : signal.reason === "no_abnormal_members" ? (
-              <p className="text-xs text-muted-foreground">
-                {row.original.resourceType === "database_instance"
-                  ? t("tables.databases.signalReasonInstanceHealthy")
-                  : t("tables.databases.noAbnormalMembers")}
-              </p>
-            ) : signal.reason === "resource_status" && row.original.resourceType === "database_instance" && row.original.healthStatus === "critical" ? (
-              <p className="text-xs text-red-600 dark:text-red-400">
-                {t("tables.databases.signalReasonInstanceCritical")}
-              </p>
-            ) : signal.reason === "resource_status" && row.original.resourceType === "database_instance" ? (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t("tables.databases.signalReasonInstanceAttention")}
-              </p>
-            ) : signal.level === "healthy" && row.original.resourceType === "database_instance" ? (
-              <p className="text-xs text-muted-foreground">
-                {t("tables.databases.signalReasonInstanceHealthy")}
+            ) : reasonLabel ? (
+              <p className={`text-xs ${reasonColorClass}`}>
+                {reasonLabel}
               </p>
             ) : null}
           </div>

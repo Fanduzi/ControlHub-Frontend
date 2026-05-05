@@ -434,12 +434,23 @@ describe("ResourceDetailPage", () => {
     expect(deck).toHaveAttribute("data-resource-type", "database_cluster");
   });
 
-  it("places database topology immediately after the decision deck before lower workbench content", async () => {
+  it("places database topology after the decision deck and cluster members", async () => {
     const clusterResource: ResourceDetailViewModel = {
       ...resource,
       id: 14,
       resourceType: "database_cluster",
-      members: [],
+      members: [
+        {
+          id: 22,
+          name: "orders-primary",
+          displayName: "Orders Primary",
+          resourceType: "database_instance",
+          resourceSubtype: "mysql",
+          profileSummary: { role: "primary", hostname: "db-01.internal", port: 3306 },
+          healthStatus: "healthy",
+          lifecycleStatus: "running",
+        },
+      ],
     };
 
     getResourceViewModelMock.mockResolvedValue(clusterResource);
@@ -452,11 +463,17 @@ describe("ResourceDetailPage", () => {
 
     const { container } = render(element);
     const deck = screen.getByTestId("database-decision-deck");
+    const membersTable = screen.getByTestId("cluster-members-table");
     const topologySurface = container.querySelector("[data-resource-topology-surface]");
     const workbench = screen.getByTestId("database-operator-workbench");
 
+    expect(membersTable).toBeInTheDocument();
     expect(topologySurface).not.toBeNull();
-    expect(deck.compareDocumentPosition(topologySurface as Node)).toBe(
+    // Decision deck → cluster members → topology → workbench
+    expect(deck.compareDocumentPosition(membersTable)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(membersTable.compareDocumentPosition(topologySurface as Node)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect((topologySurface as Node).compareDocumentPosition(workbench)).toBe(

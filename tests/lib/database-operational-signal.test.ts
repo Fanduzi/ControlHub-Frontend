@@ -70,194 +70,280 @@ function instance(
 }
 
 describe("buildDatabaseOperationalSignal", () => {
-  it("marks healthy cluster with no abnormal members as healthy", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 3,
-          criticalMemberCount: 0,
-          warningMemberCount: 0,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 2,
-        },
-      }),
-    );
+  // ── Instance signals ──
 
-    expect(signal.level).toBe("healthy");
-    expect(signal.reason).toBe("no_abnormal_members");
+  describe("database_instance", () => {
+    it("healthy instance with no databaseOperationalSummary → healthy / instance_healthy", () => {
+      const signal = buildDatabaseOperationalSignal(instance());
+      expect(signal.level).toBe("healthy");
+      expect(signal.reason).toBe("instance_healthy");
+    });
+
+    it("healthy instance with null databaseOperationalSummary → healthy / instance_healthy", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ databaseOperationalSummary: null }),
+      );
+      expect(signal.level).toBe("healthy");
+      expect(signal.reason).toBe("instance_healthy");
+    });
+
+    it("critical instance with no summary → needs_attention / instance_resource_critical", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({
+          healthStatus: "critical",
+          displayName: "Analytics ClickHouse Node 02",
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_resource_critical");
+    });
+
+    it("warning instance → needs_attention / instance_resource_warning", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ healthStatus: "warning" }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_resource_warning");
+    });
+
+    it("stopped instance → needs_attention / instance_lifecycle_stopped", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ lifecycleStatus: "stopped" }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_lifecycle_stopped");
+    });
+
+    it("degraded instance → needs_attention / instance_lifecycle_degraded", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ lifecycleStatus: "degraded" }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_lifecycle_degraded");
+    });
+
+    it("unknown health/lifecycle → unknown / instance_status_unknown", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({
+          healthStatus: "unknown" as ResourceListViewModel["healthStatus"],
+          lifecycleStatus: "unknown" as ResourceListViewModel["lifecycleStatus"],
+        }),
+      );
+      expect(signal.level).toBe("unknown");
+      expect(signal.reason).toBe("instance_status_unknown");
+    });
+
+    it("prioritizes critical health over lifecycle status", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ healthStatus: "critical", lifecycleStatus: "stopped" }),
+      );
+      expect(signal.reason).toBe("instance_resource_critical");
+    });
+
+    it("prioritizes warning health over lifecycle status", () => {
+      const signal = buildDatabaseOperationalSignal(
+        instance({ healthStatus: "warning", lifecycleStatus: "degraded" }),
+      );
+      expect(signal.reason).toBe("instance_resource_warning");
+    });
   });
 
-  it("marks cluster with one critical member as needs_attention", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 2,
-          criticalMemberCount: 1,
-          warningMemberCount: 0,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 0,
-          replicaMemberCount: 2,
-          worstMemberId: 23,
-          worstMemberName: "Analytics ClickHouse Node 02",
-          worstMemberStatus: "critical",
-        },
-      }),
-    );
+  // ── Cluster signals ──
 
-    expect(signal.level).toBe("needs_attention");
-    expect(signal.reason).toBe("critical_member");
-    expect(signal.memberSignal).toBe("critical");
-    expect(signal.memberCount).toBe(1);
-    expect(signal.worstMemberName).toBe("Analytics ClickHouse Node 02");
-  });
+  describe("database_cluster", () => {
+    it("healthy cluster with no abnormal members → healthy / cluster_healthy", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 3,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 2,
+          },
+        }),
+      );
+      expect(signal.level).toBe("healthy");
+      expect(signal.reason).toBe("cluster_healthy");
+    });
 
-  it("marks cluster with warning members as needs_attention", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 2,
-          criticalMemberCount: 0,
-          warningMemberCount: 2,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 1,
-          worstMemberName: "Config Service MySQL Primary",
-          worstMemberStatus: "warning",
-        },
-      }),
-    );
+    it("cluster with one critical member → needs_attention / cluster_member_critical", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 1,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 0,
+            replicaMemberCount: 2,
+            worstMemberId: 23,
+            worstMemberName: "Analytics ClickHouse Node 02",
+            worstMemberStatus: "critical",
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("cluster_member_critical");
+      expect(signal.memberSignal).toBe("critical");
+      expect(signal.memberCount).toBe(1);
+      expect(signal.worstMemberName).toBe("Analytics ClickHouse Node 02");
+    });
 
-    expect(signal.level).toBe("needs_attention");
-    expect(signal.reason).toBe("warning_member");
-    expect(signal.memberSignal).toBe("warning");
-    expect(signal.memberCount).toBe(2);
-  });
+    it("cluster with warning members → needs_attention / cluster_member_warning", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 0,
+            warningMemberCount: 2,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 1,
+            worstMemberName: "Config Service MySQL Primary",
+            worstMemberStatus: "warning",
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("cluster_member_warning");
+      expect(signal.memberSignal).toBe("warning");
+      expect(signal.memberCount).toBe(2);
+    });
 
-  it("marks cluster with stopped members as needs_attention", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 3,
-          criticalMemberCount: 0,
-          warningMemberCount: 0,
-          stoppedMemberCount: 1,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 2,
-        },
-      }),
-    );
+    it("cluster with stopped members → needs_attention / cluster_member_lifecycle", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 3,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 1,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 2,
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("cluster_member_lifecycle");
+      expect(signal.memberSignal).toBe("lifecycle");
+      expect(signal.memberCount).toBe(1);
+    });
 
-    expect(signal.level).toBe("needs_attention");
-    expect(signal.reason).toBe("member_lifecycle");
-    expect(signal.memberSignal).toBe("lifecycle");
-    expect(signal.memberCount).toBe(1);
-  });
+    it("cluster with degraded members → needs_attention / cluster_member_lifecycle", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 3,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 2,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 2,
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("cluster_member_lifecycle");
+      expect(signal.memberCount).toBe(2);
+    });
 
-  it("marks cluster with degraded members as needs_attention", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 3,
-          criticalMemberCount: 0,
-          warningMemberCount: 0,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 2,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 2,
-        },
-      }),
-    );
+    it("cluster with no summary → unknown / cluster_summary_unavailable", () => {
+      const signal = buildDatabaseOperationalSignal(cluster());
+      expect(signal.level).toBe("unknown");
+      expect(signal.reason).toBe("cluster_summary_unavailable");
+    });
 
-    expect(signal.level).toBe("needs_attention");
-    expect(signal.reason).toBe("member_lifecycle");
-    expect(signal.memberCount).toBe(2);
-  });
+    it("prioritizes critical member over warning member", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          databaseOperationalSummary: {
+            memberCount: 3,
+            criticalMemberCount: 1,
+            warningMemberCount: 2,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 2,
+            worstMemberName: "Critical Node",
+            worstMemberStatus: "critical",
+          },
+        }),
+      );
+      expect(signal.reason).toBe("cluster_member_critical");
+      expect(signal.memberCount).toBe(1);
+    });
 
-  it("returns unknown when cluster has no summary", () => {
-    const signal = buildDatabaseOperationalSignal(cluster());
+    it("prioritizes resource own critical status over member signals", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          healthStatus: "critical",
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 1,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 0,
+            replicaMemberCount: 2,
+          },
+        }),
+      );
+      expect(signal.level).toBe("critical");
+      expect(signal.reason).toBe("instance_resource_critical");
+    });
 
-    expect(signal.level).toBe("unknown");
-    expect(signal.reason).toBe("unknown");
-  });
+    it("cluster own warning status before member signals", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          healthStatus: "warning",
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 1,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 0,
+            replicaMemberCount: 2,
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_resource_warning");
+    });
 
-  it("marks critical instance from its own health status", () => {
-    const signal = buildDatabaseOperationalSignal(
-      instance({
-        healthStatus: "critical",
-        displayName: "Analytics ClickHouse Node 02",
-      }),
-    );
-
-    expect(signal.level).toBe("critical");
-    expect(signal.reason).toBe("resource_status");
-  });
-
-  it("marks warning instance as needs_attention", () => {
-    const signal = buildDatabaseOperationalSignal(
-      instance({ healthStatus: "warning" }),
-    );
-
-    expect(signal.level).toBe("needs_attention");
-    expect(signal.reason).toBe("resource_status");
-  });
-
-  it("marks healthy instance with host/port metadata as unknown level", () => {
-    const signal = buildDatabaseOperationalSignal(instance());
-
-    expect(signal.level).toBe("unknown");
-    expect(signal.reason).toBe("unknown");
-  });
-
-  it("prioritizes critical member over warning member", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        databaseOperationalSummary: {
-          memberCount: 3,
-          criticalMemberCount: 1,
-          warningMemberCount: 2,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 1,
-          replicaMemberCount: 2,
-          worstMemberName: "Critical Node",
-          worstMemberStatus: "critical",
-        },
-      }),
-    );
-
-    expect(signal.reason).toBe("critical_member");
-    expect(signal.memberCount).toBe(1);
-  });
-
-  it("prioritizes resource own critical status over member signals", () => {
-    const signal = buildDatabaseOperationalSignal(
-      cluster({
-        healthStatus: "critical",
-        databaseOperationalSummary: {
-          memberCount: 2,
-          criticalMemberCount: 1,
-          warningMemberCount: 0,
-          stoppedMemberCount: 0,
-          degradedMemberCount: 0,
-          unknownRoleCount: 0,
-          primaryMemberCount: 0,
-          replicaMemberCount: 2,
-        },
-      }),
-    );
-
-    expect(signal.level).toBe("critical");
-    expect(signal.reason).toBe("resource_status");
+    it("cluster own stopped lifecycle before member signals", () => {
+      const signal = buildDatabaseOperationalSignal(
+        cluster({
+          lifecycleStatus: "stopped",
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 1,
+          },
+        }),
+      );
+      expect(signal.level).toBe("needs_attention");
+      expect(signal.reason).toBe("instance_resource_warning");
+    });
   });
 });
