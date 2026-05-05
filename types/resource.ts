@@ -18,6 +18,20 @@ export type ProfileSummary = {
   role?: string;
 };
 
+export type DatabaseOperationalSummary = {
+  memberCount: number;
+  criticalMemberCount: number;
+  warningMemberCount: number;
+  stoppedMemberCount: number;
+  degradedMemberCount: number;
+  unknownRoleCount: number;
+  primaryMemberCount: number;
+  replicaMemberCount: number;
+  worstMemberId?: number;
+  worstMemberName?: string;
+  worstMemberStatus?: string;
+};
+
 export type Resource = {
   id: number;
   resourceType: ResourceType;
@@ -33,6 +47,7 @@ export type Resource = {
   labels: Record<string, string>;
   profileSummary?: ProfileSummary | null;
   clusterId?: number | null;
+  databaseOperationalSummary?: DatabaseOperationalSummary | null;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;

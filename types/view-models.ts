@@ -1,6 +1,7 @@
 import type { AuditEvent } from "@/types/audit";
 import type {
   ClusterMember,
+  DatabaseOperationalSummary,
   PageInfo,
   Resource,
   ResourceRelation,
@@ -30,6 +31,7 @@ export type ResourceListViewModel = Resource & {
   ownerName: string;
   summary: string;
   isArchived: boolean;
+  databaseOperationalSummary?: DatabaseOperationalSummary | null;
 };
 
 export type ResourceListViewModelResponse = {
