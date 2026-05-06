@@ -115,6 +115,17 @@ test.describe("Database page search and filter", () => {
     await expect(summary).toBeVisible();
   });
 
+  test("database page has signal filter and sort controls", async ({ page }) => {
+    await page.goto("/databases");
+    await expect(page.locator("table").first()).toBeVisible({ timeout: 10000 });
+
+    // Signal filter dropdown visible
+    await expect(page.locator("button[aria-label='Operational signal']")).toBeVisible();
+
+    // Sort dropdown visible
+    await expect(page.locator("button[aria-label='Sort']")).toBeVisible();
+  });
+
   test.afterEach(() => {
     assertClean(consoleMessages, networkErrors);
   });

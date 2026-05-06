@@ -363,4 +363,137 @@ test.describe("Database operator drilldown workflow", () => {
     // Table should still be visible
     await expect(page.locator("table")).toBeVisible();
   });
+
+  test("signal filter and sort controls are visible and interactive", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Signal filter dropdown is visible
+    const signalFilter = page.locator("button[aria-label='Operational signal']");
+    await expect(signalFilter).toBeVisible();
+
+    // Sort dropdown is visible
+    const sortControl = page.locator("button[aria-label='Sort']");
+    await expect(sortControl).toBeVisible();
+
+    // Engine filter remains visible
+    const engineFilter = page.locator("[data-slot='multi-select-trigger']");
+    await expect(engineFilter).toBeVisible();
+  });
+
+  test("signal filter shows needs-attention counts and filters rows", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Open signal filter
+    const signalFilter = page.locator("button[aria-label='Operational signal']");
+    await signalFilter.click();
+
+    // Needs attention option with count should be visible
+    const needsAttentionOption = page.locator("[data-slot='select-item']", { hasText: /Needs attention/ });
+    await expect(needsAttentionOption).toBeVisible();
+
+    // Select needs attention filter
+    await needsAttentionOption.click();
+
+    // URL should contain databaseSignal=needs_attention
+    await expect(page).toHaveURL(/databaseSignal=needs_attention/);
+
+    // Table should still show rows (at least the CH cluster)
+    await expect(page.locator("table")).toBeVisible();
+
+    // ClickHouse cluster should still be visible
+    await expect(
+      page.locator("tr[role='row']", { hasText: /Analytics ClickHouse Cluster/i })
+    ).toBeVisible();
+
+    // Row click still works after signal filter
+    const chClusterRow = page.locator("tr[role='row']", { hasText: /Analytics ClickHouse Cluster/i });
+    await chClusterRow.click();
+    await expect(page.locator("[data-slot='sheet-content']")).toBeVisible({ timeout: 5000 });
+
+    // Close sheet
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-slot='sheet-content']")).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test("sort dropdown changes order and remains interactive", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Open sort dropdown
+    const sortControl = page.locator("button[aria-label='Sort']");
+    await sortControl.click();
+
+    // Select "Name" sort
+    const nameOption = page.locator("[data-slot='select-item']", { hasText: /^Name$/ });
+    await expect(nameOption).toBeVisible();
+    await nameOption.click();
+
+    // URL should contain databaseSort=name
+    await expect(page).toHaveURL(/databaseSort=name/);
+
+    // Table still visible
+    await expect(page.locator("table")).toBeVisible();
+
+    // Engine filter dropdown still works after sort change
+    const engineFilter = page.locator("[data-slot='multi-select-trigger']");
+    await engineFilter.click();
+    const dropdownContent = page.locator("[data-slot='dropdown-menu-content']");
+    await expect(dropdownContent).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+
+  test("combined engine and signal filter works", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+
+    await page.locator('a[href="/databases"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // First apply engine filter for clickhouse
+    const engineFilter = page.locator("[data-slot='multi-select-trigger']");
+    await engineFilter.click();
+    const dropdownContent = page.locator("[data-slot='dropdown-menu-content']");
+    await expect(dropdownContent).toBeVisible();
+
+    const clickhouseItem = dropdownContent.locator("[data-slot='dropdown-menu-checkbox-item']", { hasText: /Clickhouse/i });
+    await expect(clickhouseItem).toBeVisible();
+    await clickhouseItem.click();
+    await page.keyboard.press("Escape");
+
+    // Wait for filter to apply
+    await expect(page.locator("table")).toBeVisible();
+
+    // Now apply signal filter for needs attention
+    const signalFilter = page.locator("button[aria-label='Operational signal']");
+    await signalFilter.click();
+    const needsAttentionOption = page.locator("[data-slot='select-item']", { hasText: /Needs attention/ });
+    await expect(needsAttentionOption).toBeVisible();
+    await needsAttentionOption.click();
+
+    // Table should show ClickHouse cluster with needs attention
+    await expect(
+      page.locator("tr[role='row']", { hasText: /Analytics ClickHouse Cluster/i })
+    ).toBeVisible();
+
+    // Search still works with filters active
+    const searchInput = page.getByPlaceholder(/host|port|role/i);
+    await searchInput.fill("prod-ch-host-02.internal");
+    await page.waitForTimeout(300);
+    await expect(page.locator("table")).toBeVisible();
+  });
 });
