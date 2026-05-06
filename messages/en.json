@@ -231,7 +231,9 @@
         "emptyTitle": "No attention items",
         "emptyDescription": "All resources are healthy and running.",
         "reasonColumn": "Reason",
-        "viewAll": "View all attention items"
+        "viewAll": "View all attention items",
+        "databaseMemberSignal": "Member signal: {count} {status}",
+        "lifecycleAbnormal": "lifecycle abnormal"
       },
       "posture": {
         "title": "Resource posture",

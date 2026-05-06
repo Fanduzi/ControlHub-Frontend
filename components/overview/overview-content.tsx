@@ -8,6 +8,7 @@ import { DetailPanel } from "@/components/blocks/detail-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { useEnvironment } from "@/components/providers/environment-provider";
 import { formatLabel } from "@/lib/format";
+import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -34,6 +35,18 @@ const SEVERITY_ORDER: Record<string, number> = {
 function severityRank(resource: ResourceListViewModel): number {
   const healthRank = SEVERITY_ORDER[resource.healthStatus] ?? 99;
   const lifecycleBonus = resource.lifecycleStatus !== "running" ? 0 : 10;
+  if (healthRank < 3) return healthRank * 100 + lifecycleBonus;
+
+  if (
+    resource.resourceType === "database_cluster" ||
+    resource.resourceType === "database_instance"
+  ) {
+    const signal = buildDatabaseOperationalSignal(resource);
+    if (signal.level === "needs_attention" || signal.level === "critical") {
+      return 150;
+    }
+  }
+
   return healthRank * 100 + lifecycleBonus;
 }
 
@@ -42,13 +55,17 @@ function isActionableAttention(resource: ResourceListViewModel): boolean {
     resource.healthStatus,
   );
   const actionableLifecycle = resource.lifecycleStatus !== "running";
+  if (actionableHealth || actionableLifecycle) return true;
+
   if (
-    resource.healthStatus === "unknown" &&
-    resource.lifecycleStatus === "running"
+    resource.resourceType === "database_cluster" ||
+    resource.resourceType === "database_instance"
   ) {
-    return false;
+    const signal = buildDatabaseOperationalSignal(resource);
+    return signal.level === "needs_attention" || signal.level === "critical";
   }
-  return actionableHealth || actionableLifecycle;
+
+  return false;
 }
 
 function computeMetrics(resources: ResourceListViewModel[]): Metrics {
@@ -66,6 +83,31 @@ function buildAttentionReason(
   resource: ResourceListViewModel,
   t: ReturnType<typeof useTranslations>,
 ): string {
+  if (
+    resource.resourceType === "database_cluster" ||
+    resource.resourceType === "database_instance"
+  ) {
+    const signal = buildDatabaseOperationalSignal(resource);
+    if (signal.reason === "cluster_member_critical" && signal.memberCount != null) {
+      return t("pages.overview.attention.databaseMemberSignal", {
+        count: signal.memberCount,
+        status: t("tables.databases.signalCritical"),
+      });
+    }
+    if (signal.reason === "cluster_member_warning" && signal.memberCount != null) {
+      return t("pages.overview.attention.databaseMemberSignal", {
+        count: signal.memberCount,
+        status: t("tables.databases.signalNeedsAttention"),
+      });
+    }
+    if (signal.reason === "cluster_member_lifecycle" && signal.memberCount != null) {
+      return t("pages.overview.attention.databaseMemberSignal", {
+        count: signal.memberCount,
+        status: t("pages.overview.attention.lifecycleAbnormal"),
+      });
+    }
+  }
+
   const reasons: string[] = [];
 
   if (resource.healthStatus === "critical" || resource.healthStatus === "warning") {

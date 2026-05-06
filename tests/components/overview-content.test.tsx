@@ -104,4 +104,81 @@ describe("OverviewContent attention reason", () => {
     expect(text.textContent).toContain("，");
     expect(text.textContent).toContain("生命周期状态：已停止");
   });
+
+  it("shows member signal reason for database cluster with critical member", () => {
+    const resource = makeResource({
+      healthStatus: "healthy",
+      lifecycleStatus: "running",
+      resourceType: "database_cluster",
+      databaseOperationalSummary: {
+        memberCount: 2,
+        criticalMemberCount: 1,
+        warningMemberCount: 0,
+        stoppedMemberCount: 0,
+        degradedMemberCount: 0,
+        unknownRoleCount: 0,
+        primaryMemberCount: 0,
+        replicaMemberCount: 2,
+        worstMemberName: "Analytics ClickHouse Node 02",
+        worstMemberStatus: "critical",
+      },
+    });
+    renderZh(
+      <OverviewContent resources={[resource]} attentionResources={[resource]} />,
+    );
+
+    expect(screen.getByText(/成员信号：1 个成员严重/)).toBeInTheDocument();
+    expect(screen.queryByText(/健康状态/)).not.toBeInTheDocument();
+  });
+
+  it("shows member signal reason in English for cluster with critical member", () => {
+    const resource = makeResource({
+      healthStatus: "healthy",
+      lifecycleStatus: "running",
+      resourceType: "database_cluster",
+      databaseOperationalSummary: {
+        memberCount: 2,
+        criticalMemberCount: 1,
+        warningMemberCount: 0,
+        stoppedMemberCount: 0,
+        degradedMemberCount: 0,
+        unknownRoleCount: 0,
+        primaryMemberCount: 0,
+        replicaMemberCount: 2,
+      },
+    });
+    renderEn(
+      <OverviewContent resources={[resource]} attentionResources={[resource]} />,
+    );
+
+    expect(screen.getByText(/Member signal: 1 Critical/)).toBeInTheDocument();
+  });
+
+  it("falls back to health reason for database cluster without member signal", () => {
+    const resource = makeResource({
+      healthStatus: "critical",
+      lifecycleStatus: "running",
+      resourceType: "database_cluster",
+    });
+    renderZh(
+      <OverviewContent resources={[resource]} attentionResources={[resource]} />,
+    );
+
+    expect(screen.getByText(/健康状态：严重/)).toBeInTheDocument();
+    expect(screen.queryByText(/成员信号/)).not.toBeInTheDocument();
+  });
+
+  it("uses health reason for non-database resource types", () => {
+    const resource = makeResource({
+      healthStatus: "critical",
+      lifecycleStatus: "running",
+      resourceType: "service",
+      resourceSubtype: "api",
+    });
+    renderZh(
+      <OverviewContent resources={[resource]} attentionResources={[resource]} />,
+    );
+
+    expect(screen.getByText(/健康状态：严重/)).toBeInTheDocument();
+  });
 });
