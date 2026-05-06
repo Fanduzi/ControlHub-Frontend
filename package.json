@@ -11,7 +11,8 @@
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:e2e:smoke": "env -u NO_COLOR playwright test e2e/operator-console-smoke.spec.ts",
     "test:e2e:interaction": "env -u NO_COLOR playwright test e2e/operator-interaction-stability.spec.ts",
-    "check:e2e-governance": "node scripts/check-e2e-governance.mjs"
+    "check:e2e-governance": "node scripts/check-e2e-governance.mjs",
+    "check:e2e-preflight": "node scripts/check-e2e-preflight.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
