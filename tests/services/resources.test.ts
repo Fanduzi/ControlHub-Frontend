@@ -178,6 +178,185 @@ describe("listResources", () => {
     expect(result[0].id).toBe(2);
   });
 
+  it("includes healthy cluster with critical members in attention resources", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          resourceType: "database_cluster",
+          resourceSubtype: "clickhouse",
+          name: "analytics-ch-cluster-prod",
+          displayName: "Analytics ClickHouse Cluster Production",
+          environmentId: 1,
+          ownerId: 2,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "ch:prod:analytics",
+          labels: {},
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 1,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 0,
+            replicaMemberCount: 2,
+            worstMemberId: 23,
+            worstMemberName: "Analytics ClickHouse Node 02",
+            worstMemberStatus: "critical",
+          },
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    } satisfies ResourceListResponse);
+
+    const result = await listAttentionResources();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(1);
+  });
+
+  it("excludes healthy cluster with no abnormal members from attention resources", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          resourceType: "database_cluster",
+          resourceSubtype: "mysql",
+          name: "orders-db-cluster",
+          displayName: "Orders DB Cluster",
+          environmentId: 101,
+          ownerId: 201,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "mysql:prod:orders-cluster",
+          labels: {},
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+          databaseOperationalSummary: {
+            memberCount: 2,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 1,
+          },
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    } satisfies ResourceListResponse);
+
+    const result = await listAttentionResources();
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("excludes healthy cluster without databaseOperationalSummary from attention resources", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          resourceType: "database_cluster",
+          resourceSubtype: "mysql",
+          name: "orders-db-cluster",
+          displayName: "Orders DB Cluster",
+          environmentId: 101,
+          ownerId: 201,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "mysql:prod:orders-cluster",
+          labels: {},
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    } satisfies ResourceListResponse);
+
+    const result = await listAttentionResources();
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("includes healthy cluster with stopped members in attention resources", async () => {
+    apiClientMock.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          resourceType: "database_cluster",
+          resourceSubtype: "mysql",
+          name: "reporting-cluster",
+          displayName: "Reporting Cluster",
+          environmentId: 1,
+          ownerId: 2,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "mysql:prod:reporting",
+          labels: {},
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+          databaseOperationalSummary: {
+            memberCount: 3,
+            criticalMemberCount: 0,
+            warningMemberCount: 0,
+            stoppedMemberCount: 1,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 2,
+          },
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    } satisfies ResourceListResponse);
+
+    const result = await listAttentionResources();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(1);
+  });
+
   it("derives overview metrics from paginated response items", async () => {
     apiClientMock.mockResolvedValue({
       items: [

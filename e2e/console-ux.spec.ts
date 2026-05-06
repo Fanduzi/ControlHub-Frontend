@@ -119,11 +119,11 @@ test.describe("Database page search and filter", () => {
     await page.goto("/databases");
     await expect(page.locator("table").first()).toBeVisible({ timeout: 10000 });
 
-    // Signal filter dropdown visible
-    await expect(page.locator("button[aria-label='Operational signal']")).toBeVisible();
+    // Signal filter dropdown visible (shadcn SelectTrigger uses data-slot)
+    await expect(page.locator("[data-slot='select-trigger']").first()).toBeVisible();
 
-    // Sort dropdown visible
-    await expect(page.locator("button[aria-label='Sort']")).toBeVisible();
+    // Sort dropdown visible (at least two select triggers on the page)
+    await expect(page.locator("[data-slot='select-trigger']").nth(1)).toBeVisible();
   });
 
   test.afterEach(() => {

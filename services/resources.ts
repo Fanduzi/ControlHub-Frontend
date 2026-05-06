@@ -148,7 +148,20 @@ export async function listAttentionResources(): Promise<Resource[]> {
   return items.filter(
     (resource) =>
       resource.healthStatus !== "healthy" ||
-      resource.lifecycleStatus !== "running",
+      resource.lifecycleStatus !== "running" ||
+      hasMemberSignalIssues(resource),
+  );
+}
+
+function hasMemberSignalIssues(resource: Resource): boolean {
+  if (resource.resourceType !== "database_cluster") return false;
+  const summary = resource.databaseOperationalSummary;
+  if (!summary) return false;
+  return (
+    (summary.criticalMemberCount ?? 0) > 0 ||
+    (summary.warningMemberCount ?? 0) > 0 ||
+    (summary.stoppedMemberCount ?? 0) > 0 ||
+    (summary.degradedMemberCount ?? 0) > 0
   );
 }
 
