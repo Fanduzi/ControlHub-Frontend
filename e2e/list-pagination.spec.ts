@@ -36,15 +36,32 @@ async function getRecordedRequests(pathname: string): Promise<RecordedRequest[]>
   return (await response.json()) as RecordedRequest[];
 }
 
+function formatRequestSummary(requests: RecordedRequest[]): string {
+  if (requests.length === 0) return "  (none)";
+  return requests
+    .map((r, i) => `  [${i}] ${r.method} ${r.pathname}${r.search} → ${JSON.stringify(r.searchParams)}`)
+    .join("\n");
+}
+
 async function expectRequestParam(
   pathname: string,
   key: string,
   value: string,
+  page?: Page,
 ): Promise<void> {
   await expect
     .poll(async () => {
       const requests = await getRecordedRequests(pathname);
-      return requests.some((request) => request.searchParams[key] === value);
+      if (requests.some((r) => r.searchParams[key] === value)) return true;
+
+      const url = page ? new URL(page.url()) : undefined;
+      return [
+        `No recorded ${pathname} request with ${key}=${value}`,
+        `  request count: ${requests.length}`,
+        url ? `  browser URL: ${url.pathname}${url.search}` : null,
+        `  recorded requests:`,
+        formatRequestSummary(requests),
+      ].filter(Boolean).join("\n");
     })
     .toBe(true);
 }
@@ -52,11 +69,21 @@ async function expectRequestParam(
 async function expectRequestHasParam(
   pathname: string,
   key: string,
+  page?: Page,
 ): Promise<void> {
   await expect
     .poll(async () => {
       const requests = await getRecordedRequests(pathname);
-      return requests.some((request) => Boolean(request.searchParams[key]));
+      if (requests.some((r) => Boolean(r.searchParams[key]))) return true;
+
+      const url = page ? new URL(page.url()) : undefined;
+      return [
+        `No recorded ${pathname} request with param '${key}' present`,
+        `  request count: ${requests.length}`,
+        url ? `  browser URL: ${url.pathname}${url.search}` : null,
+        `  recorded requests:`,
+        formatRequestSummary(requests),
+      ].filter(Boolean).join("\n");
     })
     .toBe(true);
 }
@@ -71,9 +98,29 @@ async function expectUrlParam(
     .toBe(value);
 }
 
+async function verifyProxyRecording(pathname: string): Promise<void> {
+  await resetRecordedRequests(pathname);
+  const proxyUrl = `http://localhost:8081${pathname}?_proxy_check=1`;
+  await fetch(proxyUrl).catch(() => {});
+  const requests = await getRecordedRequests(pathname);
+  if (requests.length === 0) {
+    throw new Error(
+      `API proxy on :8081 did not record the ${pathname} request. ` +
+      `The dev server on :3100 may be running without E2E proxy env vars. ` +
+      `Kill the server on :3100 and re-run the tests.`,
+    );
+  }
+  await resetRecordedRequests(pathname);
+}
+
 test.describe("List pagination and backend query params", () => {
   let consoleMessages: ReturnType<typeof collectConsoleMessages>;
   let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await verifyProxyRecording("/resources");
+    await verifyProxyRecording("/audit-events");
+  });
 
   test.beforeEach(async ({ page }) => {
     consoleMessages = collectConsoleMessages(page);
@@ -105,7 +152,7 @@ test.describe("List pagination and backend query params", () => {
       await resetRecordedRequests("/resources");
       await nextButton.click();
       await expectUrlParam(page, "page", "2");
-      await expectRequestParam("/resources", "page", "2");
+      await expectRequestParam("/resources", "page", "2", page);
     }
 
     await resetRecordedRequests("/resources");
@@ -113,7 +160,7 @@ test.describe("List pagination and backend query params", () => {
     await page.getByRole("option", { name: "50 / page" }).click();
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "pageSize", "50");
-    await expectRequestParam("/resources", "pageSize", "50");
+    await expectRequestParam("/resources", "pageSize", "50", page);
   });
 
   test("resources search and filters reset to page 1 and stay in query params", async ({
@@ -130,7 +177,7 @@ test.describe("List pagination and backend query params", () => {
       .fill("orders");
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "q", "orders");
-    await expectRequestParam("/resources", "q", "orders");
+    await expectRequestParam("/resources", "q", "orders", page);
 
     // Environment filter keeps readable URL slug while backend receives environmentId
     await resetRecordedRequests("/resources");
@@ -143,7 +190,7 @@ test.describe("List pagination and backend query params", () => {
       })
       .toBe(true);
     expect(new URL(page.url()).searchParams.has("environmentId")).toBe(false);
-    await expectRequestHasParam("/resources", "environmentId");
+    await expectRequestHasParam("/resources", "environmentId", page);
     await expectUrlParam(page, "page", "1");
 
     // Resource type filter sends resourceType param (MultiSelectFilter uses DropdownMenu)
@@ -151,7 +198,7 @@ test.describe("List pagination and backend query params", () => {
     await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Filter type" }).first().click();
     await page.getByRole("menuitemcheckbox", { name: "Service" }).click();
     await expectUrlParam(page, "resourceType", "service");
-    await expectRequestParam("/resources", "resourceType", "service");
+    await expectRequestParam("/resources", "resourceType", "service", page);
     await page.keyboard.press("Escape");
 
     // Lifecycle status filter sends lifecycleStatus param (MultiSelectFilter uses DropdownMenu, not combobox)
@@ -159,7 +206,7 @@ test.describe("List pagination and backend query params", () => {
     await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Lifecycle status" }).first().click();
     await page.getByRole("menuitemcheckbox", { name: "Running" }).click();
     await expectUrlParam(page, "lifecycleStatus", "running");
-    await expectRequestParam("/resources", "lifecycleStatus", "running");
+    await expectRequestParam("/resources", "lifecycleStatus", "running", page);
     await page.keyboard.press("Escape");
 
     // Health status filter sends healthStatus param
@@ -167,7 +214,7 @@ test.describe("List pagination and backend query params", () => {
     await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Health status" }).first().click();
     await page.getByRole("menuitemcheckbox", { name: "Warning" }).click();
     await expectUrlParam(page, "healthStatus", "warning");
-    await expectRequestParam("/resources", "healthStatus", "warning");
+    await expectRequestParam("/resources", "healthStatus", "warning", page);
 
     // Legacy 'type' param should not appear
     expect(new URL(page.url()).searchParams.has("type")).toBe(false);
@@ -186,7 +233,7 @@ test.describe("List pagination and backend query params", () => {
       await resetRecordedRequests("/audit-events");
       await nextButton.click();
       await expectUrlParam(page, "page", "2");
-      await expectRequestParam("/audit-events", "page", "2");
+      await expectRequestParam("/audit-events", "page", "2", page);
     }
 
     // Event type filter (MultiSelectFilter uses DropdownMenu, not combobox)
@@ -195,7 +242,7 @@ test.describe("List pagination and backend query params", () => {
     await page.getByRole("menuitemcheckbox", { name: "Resource updated" }).click();
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "eventType", "resource.updated");
-    await expectRequestParam("/audit-events", "eventType", "resource.updated");
+    await expectRequestParam("/audit-events", "eventType", "resource.updated", page);
     await page.keyboard.press("Escape");
 
     // Result filter
@@ -203,7 +250,7 @@ test.describe("List pagination and backend query params", () => {
     await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Result" }).first().click();
     await page.getByRole("menuitemcheckbox", { name: "success" }).click();
     await expectUrlParam(page, "result", "success");
-    await expectRequestParam("/audit-events", "result", "success");
+    await expectRequestParam("/audit-events", "result", "success", page);
   });
 
   test.afterEach(() => {
