@@ -448,7 +448,19 @@
       "reasonClusterHealthy": "All members are healthy",
       "reasonClusterSummaryUnavailable": "Member summary unavailable",
       "resourceStatus": "Resource status",
-      "resourceStatusHint": "Resource itself is healthy; member signal needs attention"
+      "resourceStatusHint": "Resource itself is healthy; member signal needs attention",
+      "signalFilter": "Operational signal",
+      "signalFilterAll": "All signals",
+      "signalFilterNeedsAttention": "Needs attention",
+      "signalFilterHealthy": "Healthy",
+      "signalFilterUnknown": "Insufficient info",
+      "sortLabel": "Sort",
+      "sortAbnormalFirst": "Abnormal first",
+      "sortName": "Name",
+      "sortUpdated": "Updated",
+      "signalCountNeedsAttention": "Needs attention {count}",
+      "signalCountHealthy": "Healthy {count}",
+      "signalCountUnknown": "Insufficient info {count}"
     },
     "audits": {
       "title": "Audit feed",

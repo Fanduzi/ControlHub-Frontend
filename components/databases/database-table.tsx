@@ -20,6 +20,13 @@ import { EmptyState } from "@/components/blocks/empty-state";
 import { MultiSelectFilter, readMultiSelectValues, buildMultiSelectParams } from "@/components/blocks/multi-select-filter";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import {
   Table,
@@ -31,7 +38,8 @@ import {
 } from "@/components/ui/table";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { formatDateTime, formatLabel, formatRelativeDateTime } from "@/lib/format";
-import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
+import { buildDatabaseOperationalSignal, countDatabaseSignals, databaseRowMatchesSignal, sortDatabaseRowsBySignal } from "@/lib/database-operational-signal";
+import type { DatabaseSignalFilter, DatabaseSignalSort } from "@/lib/database-operational-signal";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 
@@ -196,11 +204,18 @@ export function DatabaseTable({
     setExpanded({});
   }, [page]);
   const selectedEngines = readMultiSelectValues(searchParams, "resourceSubtype");
-  const hasActiveFilters = searchQuery.trim().length > 0 || selectedEngines.length > 0;
+  const signalFilterParam = searchParams.get("databaseSignal");
+  const signalFilter: DatabaseSignalFilter =
+    signalFilterParam === "needs_attention" || signalFilterParam === "healthy" || signalFilterParam === "unknown"
+      ? signalFilterParam : "all";
+  const sortParam = searchParams.get("databaseSort");
+  const signalSort: DatabaseSignalSort =
+    sortParam === "name" || sortParam === "updated" ? sortParam : "abnormal_first";
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedEngines.length > 0 || signalFilter !== "all";
 
   const fullTree = useMemo(() => buildTree(resources), [resources]);
 
-  const filteredTree = useMemo(() => {
+  const preSignalTree = useMemo(() => {
     let tree = fullTree;
 
     if (searchQuery.trim().length > 0) {
@@ -219,6 +234,27 @@ export function DatabaseTable({
 
     return tree;
   }, [fullTree, searchQuery, selectedEngines]);
+
+  const signalCounts = useMemo(
+    () => countDatabaseSignals(preSignalTree),
+    [preSignalTree],
+  );
+
+  const filteredTree = useMemo(() => {
+    let tree = preSignalTree;
+
+    if (signalFilter !== "all") {
+      tree = tree.filter((row) => {
+        if (databaseRowMatchesSignal(row, signalFilter)) return true;
+        if (row.subRows?.length) {
+          return row.subRows.some((child) => databaseRowMatchesSignal(child, signalFilter));
+        }
+        return false;
+      });
+    }
+
+    return sortDatabaseRowsBySignal(tree, signalSort);
+  }, [preSignalTree, signalFilter, signalSort]);
 
   const { pagedTree, totalPages, safePage } = useMemo(
     () => paginateTree(filteredTree, page, clustersPerPage),
@@ -537,6 +573,34 @@ export function DatabaseTable({
     500,
   );
 
+  const updateSignalParam = useCallback(
+    (value: DatabaseSignalFilter) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (value === "all") {
+        params.delete("databaseSignal");
+      } else {
+        params.set("databaseSignal", value);
+      }
+      params.delete("page");
+      router.replace(`${pathname}?${params.toString()}`);
+    },
+    [router, pathname, searchParams],
+  );
+
+  const updateSortParam = useCallback(
+    (value: DatabaseSignalSort) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (value === "abnormal_first") {
+        params.delete("databaseSort");
+      } else {
+        params.set("databaseSort", value);
+      }
+      params.delete("page");
+      router.replace(`${pathname}?${params.toString()}`);
+    },
+    [router, pathname, searchParams],
+  );
+
   return (
     <>
       <DataTableShell
@@ -564,6 +628,35 @@ export function DatabaseTable({
               deferValuesChange
               className="w-[180px]"
             />
+            <Select value={signalFilter} onValueChange={(v) => updateSignalParam(v as DatabaseSignalFilter)}>
+              <SelectTrigger
+                aria-label={t("tables.databases.signalFilter")}
+                className="h-9 w-[160px] border-border bg-background"
+                size="default"
+              >
+                <SelectValue placeholder={t("tables.databases.signalFilterAll")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("tables.databases.signalFilterAll")}</SelectItem>
+                <SelectItem value="needs_attention">{t("tables.databases.signalFilterNeedsAttention")} ({signalCounts.needs_attention})</SelectItem>
+                <SelectItem value="healthy">{t("tables.databases.signalFilterHealthy")} ({signalCounts.healthy})</SelectItem>
+                <SelectItem value="unknown">{t("tables.databases.signalFilterUnknown")} ({signalCounts.unknown})</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={signalSort} onValueChange={(v) => updateSortParam(v as DatabaseSignalSort)}>
+              <SelectTrigger
+                aria-label={t("tables.databases.sortLabel")}
+                className="h-9 w-[140px] border-border bg-background"
+                size="default"
+              >
+                <SelectValue placeholder={t("tables.databases.sortAbnormalFirst")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="abnormal_first">{t("tables.databases.sortAbnormalFirst")}</SelectItem>
+                <SelectItem value="name">{t("tables.databases.sortName")}</SelectItem>
+                <SelectItem value="updated">{t("tables.databases.sortUpdated")}</SelectItem>
+              </SelectContent>
+            </Select>
           </>
         }
         pagination={<PaginationControls pageInfo={clusterPageInfo} />}

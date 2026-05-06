@@ -506,6 +506,52 @@ describe("DatabaseTable", () => {
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("Orders Cluster");
   });
+
+  it("renders signal filter and sort controls alongside engine filter", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByLabelText("Operational signal")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sort")).toBeInTheDocument();
+    expect(screen.getAllByText("Engine").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows signal counts in filter dropdown options", async () => {
+    const user = userEvent.setup();
+    const resources: ResourceListViewModel[] = [
+      makeCluster(14, "CH Cluster", 2, {
+        databaseOperationalSummary: {
+          memberCount: 2, criticalMemberCount: 1, warningMemberCount: 0,
+          stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+          primaryMemberCount: 0, replicaMemberCount: 2,
+        },
+      }),
+      makeCluster(1, "MySQL Cluster", 2, {
+        databaseOperationalSummary: {
+          memberCount: 2, criticalMemberCount: 0, warningMemberCount: 0,
+          stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+          primaryMemberCount: 1, replicaMemberCount: 1,
+        },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={2} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByLabelText("Operational signal"));
+    expect(screen.getByText("Needs attention (1)")).toBeInTheDocument();
+    expect(screen.getByText("Healthy (1)")).toBeInTheDocument();
+  });
 });
 
 describe("databaseRowMatchesSearch", () => {

@@ -448,7 +448,19 @@
       "reasonClusterHealthy": "成员状态正常",
       "reasonClusterSummaryUnavailable": "成员汇总未提供",
       "resourceStatus": "资源自身状态",
-      "resourceStatusHint": "资源自身正常，成员信号触发关注"
+      "resourceStatusHint": "资源自身正常，成员信号触发关注",
+      "signalFilter": "运维信号",
+      "signalFilterAll": "全部信号",
+      "signalFilterNeedsAttention": "需关注",
+      "signalFilterHealthy": "正常",
+      "signalFilterUnknown": "信息不足",
+      "sortLabel": "排序",
+      "sortAbnormalFirst": "异常优先",
+      "sortName": "名称",
+      "sortUpdated": "更新于",
+      "signalCountNeedsAttention": "需关注 {count}",
+      "signalCountHealthy": "正常 {count}",
+      "signalCountUnknown": "信息不足 {count}"
     },
     "audits": {
       "title": "审计流",
