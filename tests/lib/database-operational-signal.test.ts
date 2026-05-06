@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
+import {
+  buildDatabaseOperationalSignal,
+  buildDatabaseSignalRank,
+  countDatabaseSignals,
+  databaseRowMatchesSignal,
+  sortDatabaseRowsBySignal,
+} from "@/lib/database-operational-signal";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 function cluster(
@@ -345,5 +351,195 @@ describe("buildDatabaseOperationalSignal", () => {
       expect(signal.level).toBe("needs_attention");
       expect(signal.reason).toBe("instance_resource_warning");
     });
+  });
+});
+
+describe("buildDatabaseSignalRank", () => {
+  it("ranks critical instance before healthy cluster", () => {
+    const criticalInst = instance({
+      healthStatus: "critical",
+      displayName: "Critical Node",
+    });
+    const healthyCluster = cluster({
+      databaseOperationalSummary: {
+        memberCount: 2,
+        criticalMemberCount: 0,
+        warningMemberCount: 0,
+        stoppedMemberCount: 0,
+        degradedMemberCount: 0,
+        unknownRoleCount: 0,
+        primaryMemberCount: 1,
+        replicaMemberCount: 1,
+      },
+    });
+    expect(buildDatabaseSignalRank(criticalInst)).toBeLessThan(
+      buildDatabaseSignalRank(healthyCluster),
+    );
+  });
+
+  it("ranks cluster with critical member above cluster with warning member", () => {
+    const critCluster = cluster({
+      databaseOperationalSummary: {
+        memberCount: 2, criticalMemberCount: 1, warningMemberCount: 0,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 0, replicaMemberCount: 2,
+      },
+    });
+    const warnCluster = cluster({
+      id: 15,
+      databaseOperationalSummary: {
+        memberCount: 2, criticalMemberCount: 0, warningMemberCount: 1,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 1, replicaMemberCount: 1,
+      },
+    });
+    expect(buildDatabaseSignalRank(critCluster)).toBeLessThan(
+      buildDatabaseSignalRank(warnCluster),
+    );
+  });
+
+  it("ranks unknown above healthy", () => {
+    const unknownRow = cluster();
+    const healthyRow = cluster({
+      databaseOperationalSummary: {
+        memberCount: 1, criticalMemberCount: 0, warningMemberCount: 0,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 1, replicaMemberCount: 0,
+      },
+    });
+    expect(buildDatabaseSignalRank(unknownRow)).toBeLessThan(
+      buildDatabaseSignalRank(healthyRow),
+    );
+  });
+});
+
+describe("databaseRowMatchesSignal", () => {
+  it("matches needs_attention filter for cluster with critical member", () => {
+    const row = cluster({
+      databaseOperationalSummary: {
+        memberCount: 2, criticalMemberCount: 1, warningMemberCount: 0,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 0, replicaMemberCount: 2,
+      },
+    });
+    expect(databaseRowMatchesSignal(row, "needs_attention")).toBe(true);
+    expect(databaseRowMatchesSignal(row, "healthy")).toBe(false);
+  });
+
+  it("matches needs_attention filter for critical instance", () => {
+    const row = instance({ healthStatus: "critical" });
+    expect(databaseRowMatchesSignal(row, "needs_attention")).toBe(true);
+  });
+
+  it("matches healthy filter for healthy instance", () => {
+    const row = instance();
+    expect(databaseRowMatchesSignal(row, "healthy")).toBe(true);
+    expect(databaseRowMatchesSignal(row, "needs_attention")).toBe(false);
+  });
+
+  it("matches unknown filter for cluster without summary", () => {
+    const row = cluster();
+    expect(databaseRowMatchesSignal(row, "unknown")).toBe(true);
+    expect(databaseRowMatchesSignal(row, "healthy")).toBe(false);
+  });
+
+  it("matches all filter for any row", () => {
+    const row = instance({ healthStatus: "critical" });
+    expect(databaseRowMatchesSignal(row, "all")).toBe(true);
+  });
+});
+
+describe("countDatabaseSignals", () => {
+  it("counts all signal categories", () => {
+    const rows = [
+      cluster({
+        databaseOperationalSummary: {
+          memberCount: 2, criticalMemberCount: 1, warningMemberCount: 0,
+          stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+          primaryMemberCount: 0, replicaMemberCount: 2,
+        },
+      }),
+      instance(),
+      cluster({ id: 99 }),
+    ];
+    expect(countDatabaseSignals(rows)).toEqual({
+      all: 3,
+      needs_attention: 1,
+      healthy: 1,
+      unknown: 1,
+    });
+  });
+
+  it("counts multiple needs_attention rows", () => {
+    const rows = [
+      instance({ healthStatus: "critical" }),
+      instance({ healthStatus: "warning" }),
+      instance(),
+    ];
+    expect(countDatabaseSignals(rows)).toEqual({
+      all: 3,
+      needs_attention: 2,
+      healthy: 1,
+      unknown: 0,
+    });
+  });
+
+  it("returns zeros for empty array", () => {
+    expect(countDatabaseSignals([])).toEqual({
+      all: 0,
+      needs_attention: 0,
+      healthy: 0,
+      unknown: 0,
+    });
+  });
+});
+
+describe("sortDatabaseRowsBySignal", () => {
+  it("sorts needs-attention rows before healthy rows with stable names", () => {
+    const healthyRow = cluster({
+      id: 1,
+      displayName: "AAA Healthy Cluster",
+      databaseOperationalSummary: {
+        memberCount: 1, criticalMemberCount: 0, warningMemberCount: 0,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 1, replicaMemberCount: 0,
+      },
+    });
+    const attentionRow = cluster({
+      id: 2,
+      displayName: "ZZZ Attention Cluster",
+      databaseOperationalSummary: {
+        memberCount: 2, criticalMemberCount: 1, warningMemberCount: 0,
+        stoppedMemberCount: 0, degradedMemberCount: 0, unknownRoleCount: 0,
+        primaryMemberCount: 0, replicaMemberCount: 2,
+      },
+    });
+    const sorted = sortDatabaseRowsBySignal([healthyRow, attentionRow], "abnormal_first");
+    expect(sorted[0].id).toBe(2);
+    expect(sorted[1].id).toBe(1);
+  });
+
+  it("sorts by display name when using name sort", () => {
+    const rowB = instance({ id: 1, displayName: "Beta Node" });
+    const rowA = instance({ id: 2, displayName: "Alpha Node" });
+    const sorted = sortDatabaseRowsBySignal([rowB, rowA], "name");
+    expect(sorted[0].id).toBe(2);
+    expect(sorted[1].id).toBe(1);
+  });
+
+  it("sorts by updatedAt descending when using updated sort", () => {
+    const newer = instance({ id: 1, updatedAt: "2026-04-15T10:00:00Z" });
+    const older = instance({ id: 2, updatedAt: "2026-04-14T10:00:00Z" });
+    const sorted = sortDatabaseRowsBySignal([older, newer], "updated");
+    expect(sorted[0].id).toBe(1);
+    expect(sorted[1].id).toBe(2);
+  });
+
+  it("preserves stable secondary sort by name within same rank", () => {
+    const critB = instance({ id: 1, displayName: "Beta Critical", healthStatus: "critical" });
+    const critA = instance({ id: 2, displayName: "Alpha Critical", healthStatus: "critical" });
+    const sorted = sortDatabaseRowsBySignal([critB, critA], "abnormal_first");
+    expect(sorted[0].displayName).toBe("Alpha Critical");
+    expect(sorted[1].displayName).toBe("Beta Critical");
   });
 });
