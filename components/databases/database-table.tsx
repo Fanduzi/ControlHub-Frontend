@@ -25,7 +25,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import {
@@ -587,6 +586,12 @@ export function DatabaseTable({
     [router, pathname, searchParams],
   );
 
+  const SORT_LABELS: Record<DatabaseSignalSort, string> = {
+    abnormal_first: t("tables.databases.sortAbnormalFirst"),
+    name: t("tables.databases.sortName"),
+    updated: t("tables.databases.sortUpdated"),
+  };
+
   const updateSortParam = useCallback(
     (value: DatabaseSignalSort) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -634,7 +639,12 @@ export function DatabaseTable({
                 className="h-9 w-[160px] border-border bg-background"
                 size="default"
               >
-                <SelectValue placeholder={t("tables.databases.signalFilterAll")} />
+                <span>
+                  {signalFilter === "all" ? t("tables.databases.signalFilterAll")
+                    : signalFilter === "needs_attention" ? `${t("tables.databases.signalFilterNeedsAttention")} (${signalCounts.needs_attention})`
+                    : signalFilter === "healthy" ? `${t("tables.databases.signalFilterHealthy")} (${signalCounts.healthy})`
+                    : `${t("tables.databases.signalFilterUnknown")} (${signalCounts.unknown})`}
+                </span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("tables.databases.signalFilterAll")}</SelectItem>
@@ -649,7 +659,7 @@ export function DatabaseTable({
                 className="h-9 w-[140px] border-border bg-background"
                 size="default"
               >
-                <SelectValue placeholder={t("tables.databases.sortAbnormalFirst")} />
+                <span>{SORT_LABELS[signalSort]}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="abnormal_first">{t("tables.databases.sortAbnormalFirst")}</SelectItem>

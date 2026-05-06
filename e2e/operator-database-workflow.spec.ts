@@ -433,8 +433,13 @@ test.describe("Database operator drilldown workflow", () => {
     await page.locator('a[href="/databases"]').first().click();
     await expect(page.locator("table")).toBeVisible();
 
-    // Open sort dropdown
+    // Sort trigger shows localized default, not raw enum
     const sortControl = page.locator("button[aria-label='Sort']");
+    await expect(sortControl).toBeVisible();
+    await expect(sortControl).not.toHaveText(/abnormal_first/);
+    await expect(sortControl).toContainText("Abnormal first");
+
+    // Open sort dropdown
     await sortControl.click();
 
     // Select "Name" sort
@@ -444,6 +449,25 @@ test.describe("Database operator drilldown workflow", () => {
 
     // URL should contain databaseSort=name
     await expect(page).toHaveURL(/databaseSort=name/);
+
+    // Sort trigger now shows "Name", not raw "name"
+    await expect(sortControl).toContainText("Name");
+    await expect(sortControl).not.toHaveText(/abnormal_first/);
+
+    // Table still visible
+    await expect(page.locator("table")).toBeVisible();
+
+    // Switch to "Updated" sort
+    await sortControl.click();
+    const updatedOption = page.locator("[data-slot='select-item']", { hasText: /^Updated$/ });
+    await expect(updatedOption).toBeVisible();
+    await updatedOption.click();
+
+    // URL should contain databaseSort=updated
+    await expect(page).toHaveURL(/databaseSort=updated/);
+
+    // Sort trigger shows "Updated", not raw "updated"
+    await expect(sortControl).toContainText("Updated");
 
     // Table still visible
     await expect(page.locator("table")).toBeVisible();

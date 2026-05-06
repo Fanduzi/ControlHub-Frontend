@@ -523,6 +523,36 @@ describe("DatabaseTable", () => {
     expect(screen.getAllByText("Engine").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("shows localized sort label by default instead of raw enum", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    const sortTrigger = screen.getByLabelText("Sort");
+    expect(sortTrigger).toHaveTextContent("Abnormal first");
+    expect(sortTrigger).not.toHaveTextContent("abnormal_first");
+  });
+
+  it("does not render raw sort enum values in the DOM", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText("abnormal_first")).not.toBeInTheDocument();
+  });
+
   it("shows signal counts in filter dropdown options", async () => {
     const user = userEvent.setup();
     const resources: ResourceListViewModel[] = [
