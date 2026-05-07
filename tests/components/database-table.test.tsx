@@ -553,6 +553,38 @@ describe("DatabaseTable", () => {
     expect(screen.queryByText("abnormal_first")).not.toBeInTheDocument();
   });
 
+  it("shows localized signal filter label by default instead of raw enum", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    const signalTrigger = screen.getByLabelText("Operational signal");
+    expect(signalTrigger).toHaveTextContent("All signals");
+    expect(signalTrigger).not.toHaveTextContent("all");
+  });
+
+  it("does not render raw signal enum values in the DOM", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 3),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText("needs_attention")).not.toBeInTheDocument();
+    expect(screen.queryByText("healthy")).not.toBeInTheDocument();
+    expect(screen.queryByText("unknown")).not.toBeInTheDocument();
+  });
+
   it("shows signal counts in filter dropdown options", async () => {
     const user = userEvent.setup();
     const resources: ResourceListViewModel[] = [

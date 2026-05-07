@@ -393,8 +393,13 @@ test.describe("Database operator drilldown workflow", () => {
     await page.locator('a[href="/databases"]').first().click();
     await expect(page.locator("table")).toBeVisible();
 
-    // Open signal filter
+    // Signal trigger shows localized default, not raw enum
     const signalFilter = page.locator("button[aria-label='Operational signal']");
+    await expect(signalFilter).toBeVisible();
+    await expect(signalFilter).not.toHaveText(/^all$/);
+    await expect(signalFilter).toContainText("All signals");
+
+    // Open signal filter
     await signalFilter.click();
 
     // Needs attention option with count should be visible
@@ -406,6 +411,10 @@ test.describe("Database operator drilldown workflow", () => {
 
     // URL should contain databaseSignal=needs_attention
     await expect(page).toHaveURL(/databaseSignal=needs_attention/);
+
+    // Signal trigger shows localized label, not raw "needs_attention"
+    await expect(signalFilter).toContainText("Needs attention");
+    await expect(signalFilter).not.toHaveText(/needs_attention/);
 
     // Table should still show rows (at least the CH cluster)
     await expect(page.locator("table")).toBeVisible();
