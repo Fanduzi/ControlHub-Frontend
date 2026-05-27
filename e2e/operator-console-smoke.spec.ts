@@ -23,6 +23,10 @@ test.describe("Operator console smoke", () => {
         /HMR/,
         /Download the React DevTools/,
       ],
+      allowedWarnings: [
+        // @xyflow/react CSS preload timing in dev mode
+        /was preloaded using link preload but not used/,
+      ],
     });
     networkErrors = collectNetworkErrors(page);
 
