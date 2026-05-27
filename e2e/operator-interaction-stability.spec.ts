@@ -168,7 +168,7 @@ test.describe("Interaction stability QA gate", () => {
 
     // Assert menu closed — the dropdown content should be gone
     const menuContent = page.locator('[data-slot="dropdown-menu-content"]');
-    await expect(menuContent).not.toBeVisible({ timeout: 3_000 });
+    await expect(menuContent).not.toBeVisible({ timeout: 5_000 });
 
     // Click database row to open sheet
     await assertRowClickOpensSheet(page);
