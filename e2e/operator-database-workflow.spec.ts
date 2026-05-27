@@ -21,6 +21,7 @@ test.describe("Database operator drilldown workflow", () => {
         /Fast Refresh/,
         /HMR/,
         /Download the React DevTools/,
+        /hydrated but some attributes/, // breadcrumb hydration mismatch on resource detail pages
       ],
     });
     networkErrors = collectNetworkErrors(page);
