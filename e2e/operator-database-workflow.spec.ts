@@ -56,12 +56,13 @@ test.describe("Database operator drilldown workflow", () => {
     ).toBeVisible();
     await expect(page.locator("table")).toBeVisible();
 
-    // Navigate to the ClickHouse cluster (id=14) — abnormal/needs-attention
-    const clusterLink = page.locator('a[href="/resources/14"]');
+    // Navigate to the ClickHouse cluster — abnormal/needs-attention
+    const clusterLink = page.locator("table").getByRole("link", { name: /Analytics ClickHouse Cluster/i });
     await expect(clusterLink).toBeVisible();
+    const clusterHref = await clusterLink.getAttribute("href");
     await clusterLink.click();
 
-    await expect(page).toHaveURL(/\/resources\/14/, { timeout: 10_000 });
+    await expect(page).toHaveURL(new RegExp(clusterHref!.replace(/\//g, "\\/")), { timeout: 10_000 });
 
     // Phase 22B: Assert diagnostic deck for abnormal cluster
     await expect(
@@ -189,9 +190,16 @@ test.describe("Database operator drilldown workflow", () => {
   }) => {
     await loginViaUI(page);
 
-    // Navigate directly to a known healthy instance (id=22)
-    await page.goto("/resources/22");
-    await expect(page).toHaveURL(/\/resources\/22/, { timeout: 10_000 });
+    // Navigate to the resources list to find the healthy ClickHouse instance
+    await page.locator('a[href="/resources"]').first().click();
+    await expect(page.locator("table")).toBeVisible();
+
+    // Find the healthy ClickHouse Node 01 by link text and navigate to it
+    const healthyInstanceLink = page.locator("table").getByRole("link", { name: /Analytics ClickHouse Node 01/i });
+    await expect(healthyInstanceLink).toBeVisible();
+    const instanceHref = await healthyInstanceLink.getAttribute("href");
+    await healthyInstanceLink.click();
+    await expect(page).toHaveURL(new RegExp(instanceHref!.replace(/\//g, "\\/")), { timeout: 10_000 });
 
     // Phase 22B: Compact health deck is visible
     await expect(
