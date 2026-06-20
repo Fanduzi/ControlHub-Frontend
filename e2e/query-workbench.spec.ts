@@ -69,8 +69,9 @@ test.describe("Query Workbench shell", () => {
     await expect(page.getByText(/\d+ targets/)).toBeVisible();
     await expect(page.getByText("0 targets")).toHaveCount(0);
 
-    // An active target's host fact is rendered from backend connection context.
-    await expect(page.getByText(/.+:\d+/).first()).toBeVisible();
+    // No degenerate ":0" from a missing_connection target — the switcher must
+    // carry real backend connection context, not a raw empty host:port.
+    await expect(page.getByText(":0")).toHaveCount(0);
   });
 
   test("renders no enabled Run or Execute action", async ({ page }) => {
@@ -105,13 +106,17 @@ test.describe("Query Workbench shell", () => {
     // otherwise so the suite stays green on single-target seeds.
     test.skip(optionCount < 2, "query workbench E2E needs >= 2 seeded targets");
 
-    const firstHost = await page.getByText(/.+:\d+/).first().textContent();
+    const switcher = page.locator("#query-target-switcher");
+    const before = await switcher.textContent();
 
     // Pick a different target than the currently active one.
     await options.nth(1).click();
 
-    const updatedHost = await page.getByText(/.+:\d+/).first().textContent();
-    expect(updatedHost).toBeTruthy();
-    expect(updatedHost).not.toBe(firstHost);
+    const after = await switcher.textContent();
+    expect(after).toBeTruthy();
+    expect(after).not.toBe(before);
+
+    // Still no degenerate ":0" after switching targets.
+    await expect(page.getByText(":0")).toHaveCount(0);
   });
 });

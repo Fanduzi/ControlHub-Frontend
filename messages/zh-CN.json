@@ -1020,7 +1020,8 @@
       "policyChecklist": "策略清单",
       "missingFields": "缺失配置",
       "availableActions": "可用动作",
-      "noMissingFields": "未报告配置缺口"
+      "noMissingFields": "未报告配置缺口",
+      "credentialStateLabel": "凭据状态"
     },
     "policy": {
       "multiStatement": "多语句",
@@ -1060,6 +1061,21 @@
       "redis": "Redis 命令",
       "mongo": "Mongo 查询",
       "unsupported": "不受支持"
+    },
+    "connection": {
+      "incomplete": "连接信息不完整"
+    },
+    "credentialStateValues": {
+      "missing_readonly_credential": "未配置只读凭据",
+      "configured_readonly_credential": "已配置只读凭据",
+      "not_required": "不需要",
+      "unknown": "未知"
+    },
+    "missingFieldValues": {
+      "engine": "引擎",
+      "host": "主机",
+      "port": "端口",
+      "readonlyCredential": "只读凭据"
     }
   }
 }

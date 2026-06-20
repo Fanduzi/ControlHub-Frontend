@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { QueryWorkbench } from "@/components/query/query-workbench";
-import { EMPTY_FILTERS } from "@/lib/query-target-display";
+import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import enMessages from "@/messages/en.json";
@@ -52,10 +52,11 @@ function buildTargets(): QueryTarget[] {
 function renderWorkbench(
   targets: QueryTarget[] = buildTargets(),
   messages: Record<string, unknown> = enMessages,
+  initialFilters: WorkbenchFilters = EMPTY_FILTERS,
 ) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <QueryWorkbench targets={targets} initialFilters={EMPTY_FILTERS} />
+      <QueryWorkbench targets={targets} initialFilters={initialFilters} />
     </NextIntlClientProvider>,
   );
 }
@@ -78,6 +79,9 @@ describe("QueryWorkbench", () => {
       screen.getAllByText("prod-ch-host-01.internal:8123").length,
     ).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Execution disabled")).toBeInTheDocument();
+    // readonlyCredential missing field is localized, never raw camelCase.
+    expect(screen.getByText("Read-only credential")).toBeInTheDocument();
+    expect(screen.queryAllByText(/^readonlyCredential$/)).toHaveLength(0);
   });
 
   it("renders every execution action locked (disabled) with no enabled Run/Execute button", () => {
@@ -161,5 +165,78 @@ describe("QueryWorkbench", () => {
     renderWorkbench(buildTargets(), zhMessages);
 
     expect(screen.getByText("查询执行尚未启用")).toBeInTheDocument();
+  });
+
+  it("shows the active target name in the switcher, never a bare resourceId", () => {
+    renderWorkbench();
+
+    expect(screen.getByText(/Analytics ClickHouse Node 01/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/^22$/)).toHaveLength(0);
+  });
+
+  it("renders localized labels in filter triggers, never raw enum values", () => {
+    renderWorkbench(
+      buildTargets(),
+      enMessages,
+      { ...EMPTY_FILTERS, queryKind: "sql", readiness: "credential_required" },
+    );
+
+    const queryKindTrigger = screen.getByRole("combobox", { name: "Editor mode" });
+    expect(queryKindTrigger).toHaveTextContent("SQL");
+    expect(queryKindTrigger).not.toHaveTextContent("sql");
+
+    const readinessTrigger = screen.getByRole("combobox", { name: "Readiness" });
+    expect(readinessTrigger).toHaveTextContent("Credential required");
+    expect(readinessTrigger).not.toHaveTextContent("credential_required");
+  });
+
+  it("renders the readiness trigger label for missing_connection without leaking the raw enum", () => {
+    renderWorkbench(
+      buildTargets(),
+      enMessages,
+      { ...EMPTY_FILTERS, readiness: "missing_connection" },
+    );
+
+    const readinessTrigger = screen.getByRole("combobox", { name: "Readiness" });
+    expect(readinessTrigger).toHaveTextContent("Missing connection");
+    expect(readinessTrigger).not.toHaveTextContent("missing_connection");
+  });
+
+  it("renders an incomplete-connection label and never :0 for a missing_connection target", () => {
+    const target = buildQueryTarget({
+      resourceId: 50,
+      displayName: "Unconfigured MySQL Node",
+      connectionContext: {
+        engine: "mysql",
+        host: "",
+        port: 0,
+        environment: "Production",
+        owner: "DBA Team",
+        clusterName: "",
+      },
+      readiness: "missing_connection",
+      missingFields: ["host", "port"],
+    });
+
+    renderWorkbench([target]);
+
+    // The incomplete label renders (switcher context + governance facts).
+    expect(
+      screen.getAllByText("Connection information incomplete").length,
+    ).toBeGreaterThanOrEqual(1);
+
+    // The degenerate :0 must never appear.
+    expect(screen.queryAllByText(/:0/)).toHaveLength(0);
+
+    // credentialState is localized via the label map, not raw. The label sits
+    // inside a prefixed <p>, so match by substring.
+    expect(screen.getByText(/Missing read-only credential/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/missing_readonly_credential/)).toHaveLength(0);
+
+    // missingFields are localized via the label map, not raw camelCase keys.
+    expect(screen.getAllByText("Host").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Port").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^host$/)).toHaveLength(0);
+    expect(screen.queryAllByText(/^port$/)).toHaveLength(0);
   });
 });

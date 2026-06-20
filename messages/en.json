@@ -1020,7 +1020,8 @@
       "policyChecklist": "Policy checklist",
       "missingFields": "Missing configuration",
       "availableActions": "Available actions",
-      "noMissingFields": "No configuration gaps reported"
+      "noMissingFields": "No configuration gaps reported",
+      "credentialStateLabel": "Credential state"
     },
     "policy": {
       "multiStatement": "Multi-statement",
@@ -1060,6 +1061,21 @@
       "redis": "Redis command",
       "mongo": "Mongo query",
       "unsupported": "Unsupported"
+    },
+    "connection": {
+      "incomplete": "Connection information incomplete"
+    },
+    "credentialStateValues": {
+      "missing_readonly_credential": "Missing read-only credential",
+      "configured_readonly_credential": "Read-only credential configured",
+      "not_required": "Not required",
+      "unknown": "Unknown"
+    },
+    "missingFieldValues": {
+      "engine": "Engine",
+      "host": "Host",
+      "port": "Port",
+      "readonlyCredential": "Read-only credential"
     }
   }
 }

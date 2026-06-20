@@ -4,13 +4,22 @@ import {
   ALL_FILTER_VALUE,
   EMPTY_FILTERS,
   collectEngines,
+  credentialStateLabel,
+  credentialStateLabelKey,
+  describeHostPort,
   filterTargets,
-  formatHostPort,
+  formatHostPortLabel,
   isAllFilter,
+  missingFieldLabel,
+  missingFieldLabelKey,
   queryKindLabelKey,
   readinessLabelKey,
 } from "@/lib/query-target-display";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
+
+// Translator stub: returns the key so tests can prove a known value is mapped
+// to an i18n key rather than leaking the raw machine string.
+const keyEcho = (key: string) => key;
 
 describe("filterTargets", () => {
   it("returns all targets when no filters are set", () => {
@@ -140,9 +149,96 @@ describe("collectEngines", () => {
   });
 });
 
-describe("formatHostPort", () => {
-  it("joins host and port with a colon", () => {
-    expect(formatHostPort("db.internal", 8123)).toBe("db.internal:8123");
+describe("describeHostPort", () => {
+  it("returns a complete host:port when both are present", () => {
+    expect(describeHostPort("db.internal", 8123)).toEqual({
+      kind: "complete",
+      value: "db.internal:8123",
+    });
+  });
+
+  it("returns hostOnly when the port is missing (no degenerate :0)", () => {
+    expect(describeHostPort("db.internal", 0)).toEqual({
+      kind: "hostOnly",
+      value: "db.internal",
+    });
+  });
+
+  it("returns incomplete for a missing_connection target (empty host, port 0)", () => {
+    expect(describeHostPort("", 0)).toEqual({ kind: "incomplete" });
+  });
+
+  it("returns incomplete when only a port is present (no degenerate :port)", () => {
+    expect(describeHostPort("", 6379)).toEqual({ kind: "incomplete" });
+  });
+
+  it("treats a whitespace host as missing", () => {
+    expect(describeHostPort("   ", 0)).toEqual({ kind: "incomplete" });
+  });
+});
+
+describe("formatHostPortLabel", () => {
+  it("renders host:port for complete connections", () => {
+    expect(formatHostPortLabel("db.internal", 8123, "INCOMPLETE")).toBe(
+      "db.internal:8123",
+    );
+  });
+
+  it("renders the localized incomplete label — never :0 — for missing_connection", () => {
+    expect(formatHostPortLabel("", 0, "Connection information incomplete")).toBe(
+      "Connection information incomplete",
+    );
+    // Guard the exact regression the review flagged.
+    expect(formatHostPortLabel("", 0, "Connection information incomplete")).not.toContain(":0");
+    expect(formatHostPortLabel("", 6379, "Connection information incomplete")).not.toMatch(/:6379$/);
+  });
+});
+
+describe("credentialStateLabel", () => {
+  it("maps known credential states to i18n keys (no raw enum leak)", () => {
+    expect(credentialStateLabel(keyEcho, "missing_readonly_credential")).toBe(
+      "credentialStateValues.missing_readonly_credential",
+    );
+    expect(credentialStateLabel(keyEcho, "configured_readonly_credential")).toBe(
+      "credentialStateValues.configured_readonly_credential",
+    );
+    expect(credentialStateLabel(keyEcho, "not_required")).toBe(
+      "credentialStateValues.not_required",
+    );
+    expect(credentialStateLabel(keyEcho, "unknown")).toBe(
+      "credentialStateValues.unknown",
+    );
+  });
+
+  it("humanizes unknown values as a fallback", () => {
+    expect(credentialStateLabel(keyEcho, "some_new_state")).toBe("some new state");
+  });
+
+  it("credentialStateLabelKey returns null for unknown values", () => {
+    expect(credentialStateLabelKey("missing_readonly_credential")).toBe(
+      "credentialStateValues.missing_readonly_credential",
+    );
+    expect(credentialStateLabelKey("nope")).toBeNull();
+  });
+});
+
+describe("missingFieldLabel", () => {
+  it("maps known missing fields to i18n keys (no raw field leak)", () => {
+    expect(missingFieldLabel(keyEcho, "readonlyCredential")).toBe(
+      "missingFieldValues.readonlyCredential",
+    );
+    expect(missingFieldLabel(keyEcho, "engine")).toBe("missingFieldValues.engine");
+    expect(missingFieldLabel(keyEcho, "host")).toBe("missingFieldValues.host");
+    expect(missingFieldLabel(keyEcho, "port")).toBe("missingFieldValues.port");
+  });
+
+  it("falls back to the raw field for unknown values", () => {
+    expect(missingFieldLabel(keyEcho, "customField")).toBe("customField");
+  });
+
+  it("missingFieldLabelKey returns null for unknown values", () => {
+    expect(missingFieldLabelKey("host")).toBe("missingFieldValues.host");
+    expect(missingFieldLabelKey("customField")).toBeNull();
   });
 });
 

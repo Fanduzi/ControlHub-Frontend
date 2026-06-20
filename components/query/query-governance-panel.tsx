@@ -3,7 +3,11 @@
 import { useTranslations } from "next-intl";
 
 import type { QueryTarget } from "@/types/query-target";
-import { formatHostPort } from "@/lib/query-target-display";
+import {
+  credentialStateLabel,
+  formatHostPortLabel,
+  missingFieldLabel,
+} from "@/lib/query-target-display";
 import { cn } from "@/lib/utils";
 
 type QueryGovernancePanelProps = {
@@ -19,7 +23,11 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
     {
       key: "hostPort",
       label: t("context.hostPort"),
-      value: formatHostPort(connectionContext.host, connectionContext.port),
+      value: formatHostPortLabel(
+        connectionContext.host,
+        connectionContext.port,
+        t("connection.incomplete"),
+      ),
     },
     { key: "owner", label: t("context.owner"), value: connectionContext.owner },
     { key: "environment", label: t("context.environment"), value: connectionContext.environment },
@@ -75,7 +83,8 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
           ))}
         </dl>
         <p className="mt-2 text-xs text-muted-foreground">
-          {t("governance.credentialTitle")}: {governance.credentialState.replaceAll("_", " ")}
+          {t("governance.credentialStateLabel")}:{" "}
+          {credentialStateLabel(t, governance.credentialState)}
         </p>
       </section>
 
@@ -90,7 +99,7 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
                 key={field}
                 className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300"
               >
-                {field.replaceAll("_", " ")}
+                {missingFieldLabel(t, field)}
               </li>
             ))}
           </ul>

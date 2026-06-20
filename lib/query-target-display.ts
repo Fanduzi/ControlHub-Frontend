@@ -98,8 +98,93 @@ export function collectEngines(targets: QueryTarget[]): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
-export function formatHostPort(host: string, port: number): string {
-  return `${host}:${port}`;
+/**
+ * Structured host/port display so the UI never renders a degenerate `:0` or
+ * `:port` for missing_connection targets. Pure — takes no translator; the
+ * caller resolves the incomplete case to a localized label.
+ */
+export type HostPortDisplay =
+  | { kind: "complete"; value: string }
+  | { kind: "hostOnly"; value: string }
+  | { kind: "incomplete" };
+
+export function describeHostPort(host: string, port: number): HostPortDisplay {
+  const trimmedHost = (host ?? "").trim();
+  const hasHost = trimmedHost !== "";
+  const hasPort = typeof port === "number" && port > 0;
+
+  if (hasHost && hasPort) {
+    return { kind: "complete", value: `${trimmedHost}:${port}` };
+  }
+  if (hasHost) {
+    return { kind: "hostOnly", value: trimmedHost };
+  }
+  return { kind: "incomplete" };
+}
+
+/**
+ * Render a host/port label, falling back to the supplied localized label when
+ * connection metadata is incomplete. The caller passes the translated label so
+ * this helper stays pure (no translation hook).
+ */
+export function formatHostPortLabel(
+  host: string,
+  port: number,
+  incompleteLabel: string,
+): string {
+  const display = describeHostPort(host, port);
+  return display.kind === "incomplete" ? incompleteLabel : display.value;
+}
+
+/**
+ * Known backend credentialState values. Phase 36A always returns
+ * missing_readonly_credential; the rest are documented for future phases.
+ * Unknown values fall back to a humanized raw string.
+ */
+export const KNOWN_CREDENTIAL_STATES = new Set<string>([
+  "missing_readonly_credential",
+  "configured_readonly_credential",
+  "not_required",
+  "unknown",
+]);
+
+/** Known backend missingFields values. */
+export const KNOWN_MISSING_FIELDS = new Set<string>([
+  "engine",
+  "host",
+  "port",
+  "readonlyCredential",
+]);
+
+/** i18n key (under queryWorkbench) for a known credentialState, or null. */
+export function credentialStateLabelKey(state: string): string | null {
+  return KNOWN_CREDENTIAL_STATES.has(state) ? `credentialStateValues.${state}` : null;
+}
+
+/** i18n key (under queryWorkbench) for a known missingField, or null. */
+export function missingFieldLabelKey(field: string): string | null {
+  return KNOWN_MISSING_FIELDS.has(field) ? `missingFieldValues.${field}` : null;
+}
+
+/** Translator shaped like next-intl's namespaced `t`. */
+type Translator = (key: string) => string;
+
+/**
+ * Resolve a credentialState to a localized label, humanizing unknown values.
+ * Centralizes the fallback so raw enums never leak to the UI.
+ */
+export function credentialStateLabel(t: Translator, state: string): string {
+  const key = credentialStateLabelKey(state);
+  return key ? t(key) : state.replaceAll("_", " ");
+}
+
+/**
+ * Resolve a missingField to a localized label, falling back to the raw field.
+ * Centralizes the fallback so raw field keys never leak to the UI.
+ */
+export function missingFieldLabel(t: Translator, field: string): string {
+  const key = missingFieldLabelKey(field);
+  return key ? t(key) : field;
 }
 
 /** i18n key (under the queryWorkbench namespace) for a readiness label. */

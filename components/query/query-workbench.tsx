@@ -12,7 +12,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
@@ -22,7 +21,7 @@ import {
   READINESS_OPTIONS,
   collectEngines,
   filterTargets,
-  formatHostPort,
+  formatHostPortLabel,
   isAllFilter,
   queryKindLabelKey,
   readinessLabelKey,
@@ -151,7 +150,11 @@ function TargetSwitcher({
               className="h-9 w-full min-w-[260px] max-w-xl"
               disabled={filteredTargets.length === 0}
             >
-              <SelectValue placeholder={t("switcher.placeholder")} />
+              <span>
+                {activeTarget
+                  ? `${activeTarget.displayName} · ${activeTarget.connectionContext.engine}`
+                  : t("switcher.placeholder")}
+              </span>
             </SelectTrigger>
             <SelectContent>
               {filteredTargets.map((target) => (
@@ -193,7 +196,11 @@ function buildContextRows(
     {
       key: "hostPort",
       label: t("context.hostPort"),
-      value: formatHostPort(target.connectionContext.host, target.connectionContext.port),
+      value: formatHostPortLabel(
+        target.connectionContext.host,
+        target.connectionContext.port,
+        t("connection.incomplete"),
+      ),
     },
     { key: "owner", label: t("context.owner"), value: target.connectionContext.owner },
     { key: "language", label: t("context.language"), value: target.capability.languageLabel },
@@ -282,10 +289,18 @@ function FilterSelect({
   onValueChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  // Render the selected option's localized label explicitly. We must NOT use
+  // <SelectValue /> here: its value is a raw enum/id, which would leak machine
+  // strings (e.g. "credential_required", "22") into the closed trigger.
+  const selectedLabel =
+    value === ALL_FILTER_VALUE
+      ? allLabel
+      : (options.find((option) => option.value === value)?.label ?? allLabel);
+
   return (
     <Select value={value} onValueChange={(next) => onValueChange(next ?? "")}>
       <SelectTrigger size="sm" aria-label={ariaLabel} className="min-w-[140px]">
-        <SelectValue />
+        <span>{selectedLabel}</span>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL_FILTER_VALUE}>{allLabel}</SelectItem>
