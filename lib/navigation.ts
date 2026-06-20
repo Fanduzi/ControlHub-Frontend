@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Settings,
   ServerCog,
+  SquareTerminal,
 } from "lucide-react";
 
 export const consoleNavigation = [
@@ -24,6 +25,12 @@ export const consoleNavigation = [
     href: "/databases",
     icon: Database,
     supportsEnvironment: true,
+  },
+  {
+    id: "query",
+    href: "/query",
+    icon: SquareTerminal,
+    supportsEnvironment: false,
   },
   {
     id: "audits",

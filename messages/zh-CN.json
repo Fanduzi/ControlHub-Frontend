@@ -119,6 +119,10 @@
       "title": "数据库",
       "description": "以实例和集群为中心的运行视图"
     },
+    "query": {
+      "title": "查询工作台",
+      "description": "受治理的查询工作台外壳 · 执行已锁定"
+    },
     "audits": {
       "title": "审计",
       "description": "最近的基线变更与操作动作"
@@ -336,6 +340,11 @@
         "clusters": "集群记录",
         "instances": "实例记录"
       }
+    },
+    "query": {
+      "eyebrow": "查询工作台",
+      "title": "查询工作台",
+      "description": "查看可查询的数据库目标、连接上下文与治理策略。本阶段不启用查询执行。"
     },
     "audits": {
       "eyebrow": "审计",
@@ -919,6 +928,138 @@
     "supportingDetails": {
       "title": "支撑明细",
       "description": "画像、关系和审计历史仍保留在运维视图下方。"
+    }
+  },
+  "queryWorkbench": {
+    "banner": {
+      "title": "查询执行尚未启用",
+      "description": "这是受治理查询 IDE 的外壳：连接选择、Schema 浏览、Worksheet、历史、结果区和治理面板都会出现，但本阶段不连接数据库、不执行查询。"
+    },
+    "switcher": {
+      "label": "查询目标",
+      "placeholder": "选择一个查询目标",
+      "summary": "{count} 个目标"
+    },
+    "filters": {
+      "search": "搜索目标、引擎或主机",
+      "engine": "全部引擎",
+      "queryKind": "全部类型",
+      "readiness": "全部就绪状态"
+    },
+    "context": {
+      "title": "连接上下文",
+      "environment": "环境",
+      "owner": "负责人",
+      "engine": "引擎",
+      "hostPort": "主机",
+      "cluster": "集群",
+      "language": "语言",
+      "editorMode": "编辑器模式",
+      "readiness": "就绪状态"
+    },
+    "schema": {
+      "title": "Schema 浏览器",
+      "subtitle": "仅预览 · 非实时同步",
+      "placeholderSql": "连接 Schema 元数据后，将出现数据库 / 模式 / 表 / 列占位。",
+      "placeholderRedis": "连接 Schema 元数据后，将出现 key 模式与只读命令占位。",
+      "placeholderMongo": "连接 Schema 元数据后，将出现数据库 / 集合 / 字段占位。",
+      "placeholderDefault": "连接元数据后，将出现 Schema 占位。",
+      "locked": "Schema 已锁定 — 本阶段不做实时探测。",
+      "empty": "该目标暂无可用 Schema 元数据。"
+    },
+    "editor": {
+      "worksheetTab": "Worksheet",
+      "savedSheetsTab": "已保存脚本",
+      "historyTab": "查询历史",
+      "accessTab": "访问授权",
+      "readonlyBadge": "READ_ONLY 规划中",
+      "timeout": "超时 30s",
+      "maxRows": "最大行数 100",
+      "lockTitle": "编辑器被策略锁定",
+      "lockDescription": "需要只读凭据、语句 guard、审计记录、超时和行数限制全部就绪后才能执行。",
+      "placeholderHint": "只读 SELECT 计划在后续阶段启用。",
+      "savedSheetsPlaceholder": "已保存脚本不可用 — 本阶段未启用脚本存储。",
+      "historyPlaceholder": "查询历史不可用 — 尚未执行任何查询。",
+      "accessPlaceholder": "访问授权不可用 — 访问流程计划在后续阶段实现。"
+    },
+    "actions": {
+      "run": "执行已锁定",
+      "explain": "Explain 已锁定",
+      "saveSheet": "保存脚本",
+      "export": "导出不可用",
+      "schemaSync": "Schema 同步",
+      "requestAccess": "稍后申请只读访问"
+    },
+    "result": {
+      "grid": "结果网格",
+      "json": "JSON",
+      "explain": "Explain",
+      "logs": "日志",
+      "masking": "脱敏",
+      "notExecuted": "0 行 · 未执行",
+      "lockTitle": "结果区已锁定",
+      "lockDescription": "本阶段只确认目标、权限缺口和治理策略。真实结果网格、JSON 查看器和 Explain 计划将在只读沙箱阶段启用。",
+      "lastQuery": "最近查询",
+      "lastQueryValue": "暂无查询历史",
+      "copyExport": "复制 / 导出",
+      "copyExportValue": "默认不可用 — 后续走审批",
+      "sensitive": "敏感单元格",
+      "sensitiveValue": "字段已标记 — 结果需脱敏"
+    },
+    "governance": {
+      "title": "治理与访问",
+      "executionTitle": "执行已禁用",
+      "executionDescription": "本页不会向数据库发送任何查询。前端禁用只是提示，最终必须由后端强制。",
+      "credentialTitle": "缺少只读凭据",
+      "credentialDescription": "连接元数据已存在，但尚未配置只读身份。本阶段不新增凭据模型。",
+      "auditTitle": "需要审计",
+      "auditDescription": "从沙箱阶段起，每次执行都必须记录用户、目标、语句摘要、耗时、结果规模和风险策略。",
+      "jitTitle": "JIT 访问规划中",
+      "jitDescription": "本阶段只显示权限缺口与入口 — 暂不做审批流。",
+      "targetFacts": "目标事实",
+      "policyChecklist": "策略清单",
+      "missingFields": "缺失配置",
+      "availableActions": "可用动作",
+      "noMissingFields": "未报告配置缺口"
+    },
+    "policy": {
+      "multiStatement": "多语句",
+      "ddlDml": "DDL / DML",
+      "maxRows": "最大行数",
+      "timeout": "超时",
+      "exportPolicy": "导出",
+      "adminMode": "Admin 模式",
+      "batchQuery": "批量查询",
+      "blocked": "已拦截",
+      "notAvailable": "不可用",
+      "notInScope": "不在范围内",
+      "future": "未来"
+    },
+    "actionState": {
+      "run": "执行",
+      "explain": "Explain",
+      "export": "导出",
+      "saveSheet": "保存脚本",
+      "requestAccess": "申请访问",
+      "locked": "已锁定",
+      "unavailable": "不可用"
+    },
+    "empty": {
+      "title": "没有匹配的查询目标",
+      "description": "调整筛选或清空搜索，以查看可查询的数据库资源。"
+    },
+    "readinessValues": {
+      "ready": "就绪",
+      "missing_connection": "连接缺失",
+      "credential_required": "需要凭据",
+      "unsupported_engine": "引擎不受支持",
+      "disabled": "已禁用"
+    },
+    "queryKindValues": {
+      "sql": "SQL",
+      "redis": "Redis 命令",
+      "mongo": "Mongo 查询",
+      "unsupported": "不受支持"
     }
   }
 }

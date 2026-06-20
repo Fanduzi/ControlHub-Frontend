@@ -119,6 +119,10 @@
       "title": "Databases",
       "description": "Instance and cluster-centric operational view"
     },
+    "query": {
+      "title": "Query Workbench",
+      "description": "Governed query workspace shell · execution locked"
+    },
     "audits": {
       "title": "Audits",
       "description": "Recent baseline changes and operator actions"
@@ -336,6 +340,11 @@
         "clusters": "Cluster records",
         "instances": "Instance records"
       }
+    },
+    "query": {
+      "eyebrow": "Query Workbench",
+      "title": "Query Workbench",
+      "description": "Inspect query-capable database targets, connection context, and governance. Query execution is not enabled in this phase."
     },
     "audits": {
       "eyebrow": "Audits",
@@ -919,6 +928,138 @@
     "supportingDetails": {
       "title": "Supporting details",
       "description": "Profile, relations, and audit history remain available below the operator view."
+    }
+  },
+  "queryWorkbench": {
+    "banner": {
+      "title": "Query execution is not enabled",
+      "description": "This is the shell of a governed query IDE. Target selection, schema browsing, worksheet, history, results, and governance are visible, but this phase does not connect to databases or run queries."
+    },
+    "switcher": {
+      "label": "Query target",
+      "placeholder": "Select a query target",
+      "summary": "{count} targets"
+    },
+    "filters": {
+      "search": "Search target, engine, or host",
+      "engine": "All engines",
+      "queryKind": "All kinds",
+      "readiness": "All readiness"
+    },
+    "context": {
+      "title": "Connection context",
+      "environment": "Environment",
+      "owner": "Owner",
+      "engine": "Engine",
+      "hostPort": "Host",
+      "cluster": "Cluster",
+      "language": "Language",
+      "editorMode": "Editor mode",
+      "readiness": "Readiness"
+    },
+    "schema": {
+      "title": "Schema browser",
+      "subtitle": "Preview only · not live-synced",
+      "placeholderSql": "Database / schema / table / column placeholders appear once schema metadata is connected.",
+      "placeholderRedis": "Key pattern and read-command placeholders appear once schema metadata is connected.",
+      "placeholderMongo": "Database / collection / field placeholders appear once schema metadata is connected.",
+      "placeholderDefault": "Schema placeholders appear once metadata is connected.",
+      "locked": "Schema is locked — no live introspection in this phase.",
+      "empty": "No schema metadata available for this target yet."
+    },
+    "editor": {
+      "worksheetTab": "Worksheet",
+      "savedSheetsTab": "Saved sheets",
+      "historyTab": "Query history",
+      "accessTab": "Access grants",
+      "readonlyBadge": "READ_ONLY planned",
+      "timeout": "Timeout 30s",
+      "maxRows": "Max rows 100",
+      "lockTitle": "Editor locked by policy",
+      "lockDescription": "Read-only credential, statement guard, audit record, timeout, and row limit must all be in place before execution.",
+      "placeholderHint": "Read-only SELECT is planned for a later phase.",
+      "savedSheetsPlaceholder": "Saved sheets are unavailable — sheet storage is not enabled in this phase.",
+      "historyPlaceholder": "Query history is unavailable — no queries have been executed.",
+      "accessPlaceholder": "Access grants are unavailable — the access workflow is planned for a later phase."
+    },
+    "actions": {
+      "run": "Run locked",
+      "explain": "Explain locked",
+      "saveSheet": "Save sheet",
+      "export": "Export unavailable",
+      "schemaSync": "Schema sync",
+      "requestAccess": "Request read-only access later"
+    },
+    "result": {
+      "grid": "Result grid",
+      "json": "JSON",
+      "explain": "Explain",
+      "logs": "Logs",
+      "masking": "Masking",
+      "notExecuted": "0 rows · not executed",
+      "lockTitle": "Result area is locked",
+      "lockDescription": "This phase only confirms targets, access gaps, and governance policy. The real result grid, JSON viewer, and explain plan arrive with the read-only sandbox.",
+      "lastQuery": "Last query",
+      "lastQueryValue": "No query history yet",
+      "copyExport": "Copy / export",
+      "copyExportValue": "Unavailable — routed through approval later",
+      "sensitive": "Sensitive cells",
+      "sensitiveValue": "Fields marked — results require masking"
+    },
+    "governance": {
+      "title": "Governance & access",
+      "executionTitle": "Execution disabled",
+      "executionDescription": "No query is sent to a database from this page. The frontend lock is only a hint; the backend must enforce it.",
+      "credentialTitle": "Read-only credential missing",
+      "credentialDescription": "Connection metadata exists, but no read-only identity is configured yet. This phase adds no credential model.",
+      "auditTitle": "Audit required",
+      "auditDescription": "From the sandbox phase, every execution must record user, target, statement digest, duration, result size, and risk policy.",
+      "jitTitle": "JIT access planned",
+      "jitDescription": "This phase only shows the access gap and entry point — no approval flow yet.",
+      "targetFacts": "Target facts",
+      "policyChecklist": "Policy checklist",
+      "missingFields": "Missing configuration",
+      "availableActions": "Available actions",
+      "noMissingFields": "No configuration gaps reported"
+    },
+    "policy": {
+      "multiStatement": "Multi-statement",
+      "ddlDml": "DDL / DML",
+      "maxRows": "Max rows",
+      "timeout": "Timeout",
+      "exportPolicy": "Export",
+      "adminMode": "Admin mode",
+      "batchQuery": "Batch query",
+      "blocked": "blocked",
+      "notAvailable": "not available",
+      "notInScope": "not in scope",
+      "future": "future"
+    },
+    "actionState": {
+      "run": "Run",
+      "explain": "Explain",
+      "export": "Export",
+      "saveSheet": "Save sheet",
+      "requestAccess": "Request access",
+      "locked": "locked",
+      "unavailable": "unavailable"
+    },
+    "empty": {
+      "title": "No query targets match",
+      "description": "Adjust filters or clear the search to see query-capable database resources."
+    },
+    "readinessValues": {
+      "ready": "Ready",
+      "missing_connection": "Missing connection",
+      "credential_required": "Credential required",
+      "unsupported_engine": "Unsupported engine",
+      "disabled": "Disabled"
+    },
+    "queryKindValues": {
+      "sql": "SQL",
+      "redis": "Redis command",
+      "mongo": "Mongo query",
+      "unsupported": "Unsupported"
     }
   }
 }
