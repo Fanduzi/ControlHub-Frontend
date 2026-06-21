@@ -55,8 +55,13 @@ test.describe("Query Workbench shell", () => {
     await expect(
       page.getByRole("heading", { name: /Query Workbench/i }).first(),
     ).toBeVisible();
+    // Scope to the safety banner (role="status") with an exact match — the
+    // page-header description also contains this phrase, which would otherwise
+    // trip Playwright strict mode.
     await expect(
-      page.getByText("Query execution is not enabled"),
+      page
+        .getByRole("status")
+        .getByText("Query execution is not enabled", { exact: true }),
     ).toBeVisible();
   });
 
