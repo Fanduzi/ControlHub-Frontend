@@ -980,7 +980,12 @@
       "placeholderHint": "只读 SELECT 计划在后续阶段启用。",
       "savedSheetsPlaceholder": "已保存脚本不可用 — 本阶段未启用脚本存储。",
       "historyPlaceholder": "查询历史不可用 — 尚未执行任何查询。",
-      "accessPlaceholder": "访问授权不可用 — 访问流程计划在后续阶段实现。"
+      "accessPlaceholder": "访问授权不可用 — 访问流程计划在后续阶段实现。",
+      "statementLabel": "语句",
+      "statementPlaceholder": "输入一条只读 SELECT 语句",
+      "maxRowsLabel": "最大行数",
+      "runReady": "执行",
+      "ready": "就绪"
     },
     "actions": {
       "run": "执行已锁定",
@@ -1004,7 +1009,47 @@
       "copyExport": "复制 / 导出",
       "copyExportValue": "默认不可用 — 后续走审批",
       "sensitive": "敏感单元格",
-      "sensitiveValue": "字段已标记 — 结果需脱敏"
+      "sensitiveValue": "字段已标记 — 结果需脱敏",
+      "rowCount": "{count} 行",
+      "durationMs": "{count} 毫秒",
+      "limitApplied": "限制 {limit}",
+      "truncated": "已截断",
+      "executionIdLabel": "执行",
+      "executedAtLabel": "执行时间",
+      "engineLabel": "引擎",
+      "nullMarker": "NULL",
+      "noRows": "0 行"
+    },
+    "error": {
+      "title": "查询未能执行",
+      "validation_failed": "语句被 SQL guard 拦截",
+      "query_not_allowed": "该目标不允许执行查询",
+      "query_target_not_found": "未找到查询目标",
+      "query_timeout": "查询超时",
+      "query_backend_error": "目标数据库错误",
+      "internal_error": "发生意外错误",
+      "detailLabel": "详情"
+    },
+    "history": {
+      "title": "查询历史",
+      "loading": "正在加载历史…",
+      "empty": "暂无执行记录",
+      "column": {
+        "id": "执行",
+        "status": "状态",
+        "statement": "语句",
+        "rowCount": "行数",
+        "durationMs": "耗时",
+        "error": "错误",
+        "createdAt": "执行时间"
+      },
+      "status": {
+        "success": "成功",
+        "rejected": "已拒绝",
+        "failed": "失败",
+        "timeout": "超时"
+      },
+      "emptyStatus": "—"
     },
     "governance": {
       "title": "治理与访问",

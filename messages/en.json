@@ -980,7 +980,12 @@
       "placeholderHint": "Read-only SELECT is planned for a later phase.",
       "savedSheetsPlaceholder": "Saved sheets are unavailable — sheet storage is not enabled in this phase.",
       "historyPlaceholder": "Query history is unavailable — no queries have been executed.",
-      "accessPlaceholder": "Access grants are unavailable — the access workflow is planned for a later phase."
+      "accessPlaceholder": "Access grants are unavailable — the access workflow is planned for a later phase.",
+      "statementLabel": "Statement",
+      "statementPlaceholder": "Enter a single read-only SELECT statement",
+      "maxRowsLabel": "Max rows",
+      "runReady": "Run",
+      "ready": "Ready"
     },
     "actions": {
       "run": "Run locked",
@@ -1004,7 +1009,47 @@
       "copyExport": "Copy / export",
       "copyExportValue": "Unavailable — routed through approval later",
       "sensitive": "Sensitive cells",
-      "sensitiveValue": "Fields marked — results require masking"
+      "sensitiveValue": "Fields marked — results require masking",
+      "rowCount": "{count} rows",
+      "durationMs": "{count} ms",
+      "limitApplied": "Limit {limit}",
+      "truncated": "Truncated",
+      "executionIdLabel": "Execution",
+      "executedAtLabel": "Executed at",
+      "engineLabel": "Engine",
+      "nullMarker": "NULL",
+      "noRows": "0 rows"
+    },
+    "error": {
+      "title": "Query could not run",
+      "validation_failed": "Statement blocked by the SQL guard",
+      "query_not_allowed": "Execution not allowed for this target",
+      "query_target_not_found": "Query target not found",
+      "query_timeout": "Query timed out",
+      "query_backend_error": "Target database error",
+      "internal_error": "Unexpected error",
+      "detailLabel": "Detail"
+    },
+    "history": {
+      "title": "Query history",
+      "loading": "Loading history…",
+      "empty": "No executions yet",
+      "column": {
+        "id": "Execution",
+        "status": "Status",
+        "statement": "Statement",
+        "rowCount": "Rows",
+        "durationMs": "Duration",
+        "error": "Error",
+        "createdAt": "Executed at"
+      },
+      "status": {
+        "success": "Success",
+        "rejected": "Rejected",
+        "failed": "Failed",
+        "timeout": "Timed out"
+      },
+      "emptyStatus": "—"
     },
     "governance": {
       "title": "Governance & access",
