@@ -1071,6 +1071,13 @@
       "not_required": "不需要",
       "unknown": "未知"
     },
+    "safetyStateValues": {
+      "credential_missing": "缺少只读凭据",
+      "execution_disabled": "执行未启用",
+      "unsupported_engine": "不支持的引擎",
+      "connection_incomplete": "连接信息不完整",
+      "readonly_sandbox_enabled": "只读沙箱已启用"
+    },
     "missingFieldValues": {
       "engine": "引擎",
       "host": "主机",

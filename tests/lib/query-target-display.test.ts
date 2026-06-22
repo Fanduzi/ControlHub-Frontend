@@ -14,6 +14,8 @@ import {
   missingFieldLabelKey,
   queryKindLabelKey,
   readinessLabelKey,
+  safetyStateLabel,
+  safetyStateLabelKey,
 } from "@/lib/query-target-display";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 
@@ -247,6 +249,39 @@ describe("isAllFilter", () => {
     expect(isAllFilter("")).toBe(true);
     expect(isAllFilter(ALL_FILTER_VALUE)).toBe(true);
     expect(isAllFilter("mysql")).toBe(false);
+  });
+});
+
+describe("safetyStateLabel", () => {
+  it("maps every known safety state to an i18n key, including the ready value", () => {
+    // A ready target reports readonly_sandbox_enabled. It MUST resolve to a
+    // localized label key, never leak the raw snake_case enum to the UI.
+    expect(safetyStateLabel(keyEcho, "readonly_sandbox_enabled")).toBe(
+      "safetyStateValues.readonly_sandbox_enabled",
+    );
+    expect(safetyStateLabel(keyEcho, "credential_missing")).toBe(
+      "safetyStateValues.credential_missing",
+    );
+    expect(safetyStateLabel(keyEcho, "execution_disabled")).toBe(
+      "safetyStateValues.execution_disabled",
+    );
+    expect(safetyStateLabel(keyEcho, "unsupported_engine")).toBe(
+      "safetyStateValues.unsupported_engine",
+    );
+    expect(safetyStateLabel(keyEcho, "connection_incomplete")).toBe(
+      "safetyStateValues.connection_incomplete",
+    );
+  });
+
+  it("humanizes unknown values as a fallback", () => {
+    expect(safetyStateLabel(keyEcho, "some_future_state")).toBe("some future state");
+  });
+
+  it("safetyStateLabelKey returns null for unknown values", () => {
+    expect(safetyStateLabelKey("readonly_sandbox_enabled")).toBe(
+      "safetyStateValues.readonly_sandbox_enabled",
+    );
+    expect(safetyStateLabelKey("nope")).toBeNull();
   });
 });
 

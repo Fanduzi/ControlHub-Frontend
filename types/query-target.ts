@@ -25,7 +25,8 @@ export type QueryTargetSafetyState =
   | "credential_missing"
   | "execution_disabled"
   | "unsupported_engine"
-  | "connection_incomplete";
+  | "connection_incomplete"
+  | "readonly_sandbox_enabled";
 
 /** Editor mode selected by the frontend from capability, never guessed. */
 export type QueryTargetEditorMode = "sql" | "redis" | "mongo" | "text";

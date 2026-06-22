@@ -156,6 +156,19 @@ export const KNOWN_MISSING_FIELDS = new Set<string>([
   "readonlyCredential",
 ]);
 
+/**
+ * Known backend safetyState values. A ready target reports
+ * `readonly_sandbox_enabled` (Phase 37); the rest are the Phase 36
+ * non-executable states. Unknown values fall back to a humanized raw string.
+ */
+export const KNOWN_SAFETY_STATES = new Set<string>([
+  "credential_missing",
+  "execution_disabled",
+  "unsupported_engine",
+  "connection_incomplete",
+  "readonly_sandbox_enabled",
+]);
+
 /** i18n key (under queryWorkbench) for a known credentialState, or null. */
 export function credentialStateLabelKey(state: string): string | null {
   return KNOWN_CREDENTIAL_STATES.has(state) ? `credentialStateValues.${state}` : null;
@@ -164,6 +177,11 @@ export function credentialStateLabelKey(state: string): string | null {
 /** i18n key (under queryWorkbench) for a known missingField, or null. */
 export function missingFieldLabelKey(field: string): string | null {
   return KNOWN_MISSING_FIELDS.has(field) ? `missingFieldValues.${field}` : null;
+}
+
+/** i18n key (under queryWorkbench) for a known safetyState, or null. */
+export function safetyStateLabelKey(state: string): string | null {
+  return KNOWN_SAFETY_STATES.has(state) ? `safetyStateValues.${state}` : null;
 }
 
 /** Translator shaped like next-intl's namespaced `t`. */
@@ -185,6 +203,16 @@ export function credentialStateLabel(t: Translator, state: string): string {
 export function missingFieldLabel(t: Translator, field: string): string {
   const key = missingFieldLabelKey(field);
   return key ? t(key) : field;
+}
+
+/**
+ * Resolve a safetyState to a localized label, humanizing unknown values.
+ * Centralizes the fallback so raw enums (including the ready
+ * `readonly_sandbox_enabled`) never leak to the UI.
+ */
+export function safetyStateLabel(t: Translator, state: string): string {
+  const key = safetyStateLabelKey(state);
+  return key ? t(key) : state.replaceAll("_", " ");
 }
 
 /** i18n key (under the queryWorkbench namespace) for a readiness label. */
