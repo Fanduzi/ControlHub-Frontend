@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
 import {
@@ -79,30 +79,34 @@ test.describe("Query Workbench shell", () => {
     await expect(page.getByText(":0")).toHaveCount(0);
   });
 
-  test("renders no enabled Run or Execute action", async ({ page }) => {
-    await loginViaUI(page);
-    await page.locator('a[href="/query"]').first().click();
+  test("a locked query target keeps Run disabled", async ({ page }) => {
+    await openQueryWorkbench(page);
 
-    await expect(
-      page.getByRole("button", { name: /run locked/i }),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("button", { name: /explain locked/i }),
-    ).toBeDisabled();
-
-    // No enabled button may be labelled Run or Execute.
-    const enabledExecutionButtons = await page
-      .getByRole("button", { name: /^(run|execute)$/i })
-      .count();
-    expect(enabledExecutionButtons).toBe(0);
+    // Robust to a dev-seeded ready target being present: walk the switcher and
+    // assert the locked behavior against the first non-ready target found.
+    const count = await switcherOptionCount(page);
+    let verifiedLocked = false;
+    for (let index = 0; index < count; index += 1) {
+      await selectSwitcherOption(page, index);
+      if (!(await isRunEnabled(page))) {
+        // Locked target: the Run control must be disabled and labelled "Run locked".
+        await expect(
+          page.getByRole("button", { name: /run locked/i }),
+        ).toBeDisabled();
+        verifiedLocked = true;
+        break;
+      }
+    }
+    // If every seeded target happens to be ready, there is no locked target to
+    // verify here — skip deterministically rather than fail.
+    test.skip(!verifiedLocked, "no locked query target present (every target is ready)");
   });
 
   test("switching the target updates the governance panel facts", async ({ page }) => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
-    const trigger = page.locator("#query-target-switcher");
-    await trigger.click();
+    await openSwitcher(page);
 
     const options = page.getByRole("option");
     const optionCount = await options.count();
@@ -124,4 +128,106 @@ test.describe("Query Workbench shell", () => {
     // Still no degenerate ":0" after switching targets.
     await expect(page.getByText(":0")).toHaveCount(0);
   });
+
+  test("a ready target runs a guarded SELECT and shows the result", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // The worksheet seeds a safe default statement and never auto-runs.
+    const statement = page.getByRole("textbox", { name: /statement/i });
+    await expect(statement).toHaveValue("select 1");
+
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // The backend executes `select 1` and returns a single INT cell.
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test("an unsafe statement is rejected with a controlled validation message", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    const statement = page.getByRole("textbox", { name: /statement/i });
+    await statement.fill("update resources set name = 'x'");
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // Controlled rejection: the backend guard rejects the write and the UI
+    // surfaces a controlled error (role=alert) instead of result rows.
+    await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("query history shows the recent attempt after a run", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // After the run settles, the history tab refreshes and records the attempt
+    // (metadata only — the statement preview surfaces, never result rows).
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("select 1").first()).toBeVisible({ timeout: 15_000 });
+  });
 });
+
+async function openQueryWorkbench(page: Page): Promise<void> {
+  await loginViaUI(page);
+  await page.locator('a[href="/query"]').first().click();
+  await expect(page).toHaveURL(/\/query/);
+}
+
+/** Whether the active target exposes an enabled Run control (i.e. is ready). */
+async function isRunEnabled(page: Page): Promise<boolean> {
+  const run = page.getByRole("button", { name: /^run$/i });
+  if ((await run.count()) === 0) {
+    return false;
+  }
+  return run.first().isEnabled().catch(() => false);
+}
+
+/** Open the switcher dropdown and wait for its options to render. */
+async function openSwitcher(page: Page): Promise<void> {
+  // Dismiss any open popover first (Escape closes base-ui Select), then toggle
+  // open. Deterministic regardless of prior open/closed state.
+  await page.keyboard.press("Escape");
+  await page.locator("#query-target-switcher").click();
+  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
+}
+
+async function switcherOptionCount(page: Page): Promise<number> {
+  await openSwitcher(page);
+  return page.getByRole("option").count();
+}
+
+async function selectSwitcherOption(page: Page, index: number): Promise<void> {
+  await openSwitcher(page);
+  await page.getByRole("option").nth(index).click();
+}
+
+/** Walk the switcher and return the first ready target's option index, or null. */
+async function findReadyOptionIndex(page: Page): Promise<number | null> {
+  const count = await switcherOptionCount(page);
+  for (let index = 0; index < count; index += 1) {
+    await selectSwitcherOption(page, index);
+    if (await isRunEnabled(page)) {
+      return index;
+    }
+  }
+  return null;
+}
