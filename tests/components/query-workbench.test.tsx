@@ -523,3 +523,239 @@ describe("QueryWorkbench execution (ready target)", () => {
     expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30);
   });
 });
+
+/**
+ * Phase 37F stale-state ownership. Execution results, errors, and history must
+ * belong strictly to the currently selected target. When the user switches
+ * targets while a prior target's execute or history request is still in flight,
+ * that settling promise must never write back into the new target's UI.
+ *
+ * The execute/history guards below are protected by BOTH the editor remount
+ * (key on resourceId) AND the in-shell stale-target guard — removing either one
+ * alone keeps them green. The statement-reset case is protected only by the
+ * remount, so it fails if the key is ever removed.
+ */
+describe("QueryWorkbench target switching (ready targets)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const TARGET_A_ID = 30;
+  const TARGET_B_ID = 31;
+
+  function readyTarget(overrides: DeepPartial<QueryTarget>): QueryTarget {
+    return buildQueryTarget({
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      ...overrides,
+    });
+  }
+
+  function buildSwitchTargets(): QueryTarget[] {
+    return [
+      readyTarget({
+        resourceId: TARGET_A_ID,
+        displayName: "Local MySQL Dev",
+        resourceName: "local-mysql-dev",
+        connectionContext: {
+          engine: "mysql",
+          host: "127.0.0.1",
+          port: 3306,
+          environment: "Development",
+          owner: "Platform",
+          clusterName: "",
+        },
+      }),
+      readyTarget({
+        resourceId: TARGET_B_ID,
+        displayName: "Staging MySQL",
+        resourceName: "staging-mysql",
+        connectionContext: {
+          engine: "mysql",
+          host: "staging-mysql.internal",
+          port: 3306,
+          environment: "Staging",
+          owner: "Platform",
+          clusterName: "",
+        },
+      }),
+    ];
+  }
+
+  function executeResponseForA(): QueryExecuteResponse {
+    return {
+      executionId: 1001,
+      status: "success",
+      targetResourceId: TARGET_A_ID,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "service", databaseType: "VARCHAR", nullable: true },
+      ],
+      rows: [[1, "orders-api"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 12,
+      limitApplied: 100,
+      executedAt: "2026-06-22T08:30:00Z",
+    };
+  }
+
+  function historyForA(): QueryExecutionListResponse {
+    return {
+      items: [
+        {
+          id: 9001,
+          targetResourceId: TARGET_A_ID,
+          actorUserId: 1,
+          engine: "mysql",
+          statementDigest: "digest-analytics",
+          statementPreview: "select * from analytics_log",
+          status: "success",
+          rowCount: 42,
+          durationMs: 9,
+          errorCode: "",
+          errorMessage: "",
+          createdAt: "2026-06-22T08:00:00Z",
+        },
+      ],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+    };
+  }
+
+  function renderWithTargets(targets: QueryTarget[] = buildSwitchTargets()) {
+    return render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={targets} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  /** Open the target switcher and pick the option whose label matches `name`. */
+  async function pickTarget(
+    user: ReturnType<typeof userEvent.setup>,
+    name: RegExp,
+  ): Promise<void> {
+    // The switcher trigger carries the *active* target's name as its accessible
+    // name, so a name-based lookup is brittle across a switch. Pin it by id.
+    const trigger = document.getElementById("query-target-switcher");
+    expect(trigger).not.toBeNull();
+    await user.click(trigger!);
+    await user.click(await screen.findByRole("option", { name }));
+  }
+
+  it("does not render target A's execute result under target B when A's request settles after the switch", async () => {
+    const user = userEvent.setup();
+    let resolveExecuteA!: (value: QueryExecuteResponse) => void;
+    mockExecuteQueryTarget.mockImplementationOnce(
+      () =>
+        new Promise<QueryExecuteResponse>((resolve) => {
+          resolveExecuteA = resolve;
+        }),
+    );
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+
+    renderWithTargets();
+
+    // A is active (first target). Start its execution; the request stays pending.
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    // Switch to target B before A's request settles.
+    await pickTarget(user, /Staging MySQL/);
+
+    // A's long-pending request now resolves. Its result must never render under B.
+    resolveExecuteA(executeResponseForA());
+
+    // B has not been executed → the not-executed marker, never A's rows.
+    await waitFor(() => {
+      expect(screen.getByText("0 rows · not executed")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("orders-api")).toBeNull();
+  });
+
+  it("does not leak target A's history into target B while B's history is loading", async () => {
+    const user = userEvent.setup();
+    let resolveBHistory!: (value: QueryExecutionListResponse) => void;
+    mockListQueryExecutions.mockImplementation((resourceId: number) => {
+      if (resourceId === TARGET_A_ID) return Promise.resolve(historyForA());
+      return new Promise<QueryExecutionListResponse>((resolve) => {
+        resolveBHistory = resolve;
+      });
+    });
+
+    renderWithTargets();
+
+    // A's history loads into state on mount (not yet viewed). Switch to B, whose
+    // history hangs pending, and open B's history tab.
+    await pickTarget(user, /Staging MySQL/);
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+
+    // B is loading → loading marker, never A's statement preview.
+    await waitFor(() => {
+      expect(screen.getByText("Loading history…")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("select * from analytics_log")).toBeNull();
+
+    // When B's history settles empty, A's history still must not appear.
+    resolveBHistory(emptyHistory());
+    await waitFor(() => {
+      expect(screen.getByText("No executions yet")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("select * from analytics_log")).toBeNull();
+  });
+
+  it("does not leak target A's history into target B when B's history fails to load", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockImplementation((resourceId: number) => {
+      if (resourceId === TARGET_A_ID) return Promise.resolve(historyForA());
+      return Promise.reject(new Error("history unavailable"));
+    });
+
+    renderWithTargets();
+
+    await pickTarget(user, /Staging MySQL/);
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+
+    // B's load failed → empty state, never A's statement preview.
+    await waitFor(() => {
+      expect(screen.getByText("No executions yet")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("select * from analytics_log")).toBeNull();
+  });
+
+  it("resets the worksheet statement when switching targets (key remount guard)", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+
+    renderWithTargets();
+
+    // A is active. Edit the statement away from the default seed.
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select 2 from a");
+    expect(statement).toHaveValue("select 2 from a");
+
+    // Switching targets must give B a fresh editor — never A's leftover statement.
+    // The stale-target guard cannot help here (statement is synchronous local
+    // state), so only the resourceId key remount enforces the reset.
+    await pickTarget(user, /Staging MySQL/);
+
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+  });
+});

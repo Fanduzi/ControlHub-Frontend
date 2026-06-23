@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Ban, Lock, Play, ScrollText, Save, TriangleAlert } from "lucide-react";
 
@@ -58,27 +58,51 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
   const [history, setHistory] = useState<QueryExecutionRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Identity of the target this shell currently renders. Async work (execute,
+  // history refresh) started for a previous target must not write back after the
+  // user switches targets — otherwise a settling request from target A would
+  // paint A's result/history/error under target B. Mirrored synchronously during
+  // render so it is already current before any post-switch microtask resolves.
+  const activeTargetIdRef = useRef(target.resourceId);
+  activeTargetIdRef.current = target.resourceId;
+
   const refreshHistory = useCallback(async () => {
     if (!canExecute) {
       return;
     }
+    const targetId = target.resourceId;
     setHistoryLoading(true);
     try {
-      const response = await listQueryExecutions(target.resourceId);
+      const response = await listQueryExecutions(targetId);
+      // Drop the result if the user switched targets while this request was in
+      // flight — it belongs to a target that is no longer selected.
+      if (activeTargetIdRef.current !== targetId) {
+        return;
+      }
       setHistory(response.items);
     } catch {
-      // A history load failure must never crash the worksheet. Leave the prior
-      // history in place; the backend remains the source of truth.
+      // A history load failure must never crash the worksheet. Only the current
+      // target's prior history may stay; another target's history can never
+      // reach here because the target-change effect clears it on switch.
+      if (activeTargetIdRef.current !== targetId) {
+        return;
+      }
     } finally {
-      setHistoryLoading(false);
+      if (activeTargetIdRef.current === targetId) {
+        setHistoryLoading(false);
+      }
     }
   }, [canExecute, target.resourceId]);
 
   useEffect(() => {
-    // Load history once a ready target is selected, and clear transient
-    // execution state whenever the selected target changes.
+    // Reset every target-owned field when the selected target changes so a
+    // prior target's result/error/history/progress never bleeds into the new
+    // target. History reloads for the new target when it is ready.
     setResult(null);
     setError(null);
+    setHistory([]);
+    setIsExecuting(false);
+    setHistoryLoading(false);
     if (canExecute) {
       void refreshHistory();
     }
@@ -90,23 +114,37 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
     if (!runEnabled) {
       return;
     }
+    const targetId = target.resourceId;
     setIsExecuting(true);
     setError(null);
     try {
-      const response = await executeQueryTarget(target.resourceId, {
+      const response = await executeQueryTarget(targetId, {
         statement,
         maxRows,
       });
+      // Discard the result if the user switched targets while executing — it
+      // belongs to a target that is no longer selected.
+      if (activeTargetIdRef.current !== targetId) {
+        return;
+      }
       setResult(response);
       setActiveResultTab("grid");
     } catch (caught) {
+      if (activeTargetIdRef.current !== targetId) {
+        return;
+      }
       // The service converts every failure into a controlled QueryExecuteError.
       setResult(null);
       setError(caught instanceof QueryExecuteError ? caught : null);
     } finally {
-      setIsExecuting(false);
-      // Refresh history after the attempt settles (success or controlled error).
-      void refreshHistory();
+      // Only settle this target's UI if it is still selected. If the user
+      // switched targets while executing, the new target owns its own state and
+      // history load — discard this attempt's aftermath entirely.
+      if (activeTargetIdRef.current === targetId) {
+        setIsExecuting(false);
+        // Refresh history after the attempt settles (success or controlled error).
+        void refreshHistory();
+      }
     }
   }
 

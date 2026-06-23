@@ -81,7 +81,15 @@ export function QueryWorkbench({
       {activeTarget ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
           <QuerySchemaBrowser target={activeTarget} />
-          <QueryEditorShell target={activeTarget} />
+          {/*
+            Key on resourceId so the editor remounts when the selected target
+            changes. This guarantees no target-owned local state (statement,
+            result, error, history, progress) can carry over from one target to
+            another. The editor additionally guards its async work against stale
+            targets, but the remount is the hard boundary that keeps each
+            target's worksheet fully isolated.
+          */}
+          <QueryEditorShell key={activeTarget.resourceId} target={activeTarget} />
           <QueryGovernancePanel target={activeTarget} />
         </div>
       ) : (
