@@ -18,6 +18,15 @@ import * as queryCredentialsModule from "@/services/query-credentials";
 
 const mockApiClient = vi.mocked(apiClient);
 
+/** Safely extract the parsed JSON body from the first apiClient PUT call. */
+function firstCallBody(): Record<string, unknown> {
+  const call = mockApiClient.mock.calls[0];
+  expect(call).toBeDefined();
+  const init = call![1] as Record<string, unknown> | undefined;
+  expect(init).toBeDefined();
+  return JSON.parse(init!.body as string);
+}
+
 describe("getQueryCredential", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -113,7 +122,7 @@ describe("saveQueryCredential", () => {
       confirmAllEnvironments: true,
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody.confirmAllEnvironments).toBe(true);
   });
 
@@ -126,7 +135,7 @@ describe("saveQueryCredential", () => {
       environmentPolicy: "non_prod_only",
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("actorUserId");
   });
 
@@ -139,7 +148,7 @@ describe("saveQueryCredential", () => {
       environmentPolicy: "non_prod_only",
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("dsn");
   });
 
@@ -152,7 +161,7 @@ describe("saveQueryCredential", () => {
       environmentPolicy: "non_prod_only",
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("password");
   });
 
@@ -165,7 +174,7 @@ describe("saveQueryCredential", () => {
       environmentPolicy: "non_prod_only",
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("host");
   });
 
@@ -178,7 +187,7 @@ describe("saveQueryCredential", () => {
       environmentPolicy: "non_prod_only",
     });
 
-    const callBody = JSON.parse(mockApiClient.mock.calls[0][1].body as string);
+    const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("port");
   });
 });
