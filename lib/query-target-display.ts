@@ -139,13 +139,17 @@ export function formatHostPortLabel(
 /**
  * Known backend credentialState values. Phase 36A always returns
  * missing_readonly_credential; the rest are documented for future phases.
- * Unknown values fall back to a humanized raw string.
+ * Phase 38A adds secret_missing and binding_mismatch for runtime status
+ * surfaced through the governance panel. Unknown values fall back to a
+ * humanized raw string.
  */
 export const KNOWN_CREDENTIAL_STATES = new Set<string>([
   "missing_readonly_credential",
   "configured_readonly_credential",
   "not_required",
   "unknown",
+  "secret_missing",
+  "binding_mismatch",
 ]);
 
 /** Known backend missingFields values. */
@@ -218,6 +222,38 @@ export function safetyStateLabel(t: Translator, state: string): string {
 /** i18n key (under the queryWorkbench namespace) for a readiness label. */
 export function readinessLabelKey(readiness: QueryTargetReadiness): string {
   return `readinessValues.${readiness}`;
+}
+
+/**
+ * Known backend credential runtime status values (Phase 38A). These come from
+ * the credential API and are surfaced in the admin settings page and the
+ * governance panel. Unknown values fall back to a humanized raw string.
+ */
+export const KNOWN_CREDENTIAL_RUNTIME_STATUSES = new Set<string>([
+  "missing_metadata",
+  "invalid_ref",
+  "disabled",
+  "policy_blocked",
+  "secret_missing",
+  "binding_mismatch",
+  "secret_resolved",
+  "unsupported_target",
+  "incomplete_connection",
+]);
+
+/** i18n key (under queryCredentialSettings) for a runtime status, or null. */
+export function credentialRuntimeStatusKey(status: string): string | null {
+  return KNOWN_CREDENTIAL_RUNTIME_STATUSES.has(status) ? `runtimeStatus.${status}` : null;
+}
+
+/**
+ * Resolve a credential runtime status to a localized label, humanizing
+ * unknown values. Used by both the admin settings page and the governance
+ * panel.
+ */
+export function credentialRuntimeStatusLabel(t: Translator, status: string): string {
+  const key = credentialRuntimeStatusKey(status);
+  return key ? t(key) : status.replaceAll("_", " ");
 }
 
 /** i18n key (under the queryWorkbench namespace) for a query-kind label. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { ExternalLink, Settings } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import {
@@ -86,6 +87,9 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
           {t("governance.credentialStateLabel")}:{" "}
           {credentialStateLabel(t, governance.credentialState)}
         </p>
+
+        {/* Phase 38A: read-only credential status and admin link */}
+        <CredentialStatusSection credentialState={governance.credentialState} />
       </section>
 
       <section>
@@ -162,6 +166,42 @@ function StatusCard({ tone, title, description }: StatusCardProps) {
         {title}
       </p>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+/**
+ * Phase 38A: Read-only credential status section for the governance panel.
+ * Shows credential state and either an admin settings link or a contact
+ * administrator message. Never renders credential edit controls.
+ */
+function CredentialStatusSection({ credentialState }: { credentialState: string }) {
+  const tCred = useTranslations("queryCredentialSettings");
+  const tWorkbench = useTranslations("queryWorkbench");
+  const isAdmin =
+    typeof window !== "undefined" &&
+    window.sessionStorage.getItem("controlhub.role") === "admin";
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      <p className="text-xs text-muted-foreground">
+        {tCred("workbench.statusLabel")}:{" "}
+        {credentialStateLabel(tWorkbench, credentialState)}
+      </p>
+      {isAdmin ? (
+        <a
+          href="/settings/query-credentials"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+        >
+          <Settings className="size-3" aria-hidden />
+          {tCred("workbench.adminLink")}
+          <ExternalLink className="size-3" aria-hidden />
+        </a>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {tCred("workbench.credentialManagedByAdmin")}
+        </p>
+      )}
     </div>
   );
 }

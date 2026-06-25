@@ -257,9 +257,10 @@ describe("QueryWorkbench", () => {
     expect(screen.queryAllByText(/:0/)).toHaveLength(0);
 
     // credentialState is localized via the label map, not raw. The label sits
-    // inside a prefixed <p>, so match by substring.
-    expect(screen.getByText(/Missing read-only credential/)).toBeInTheDocument();
-    expect(screen.queryAllByText(/missing_readonly_credential/)).toHaveLength(0);
+    // inside a prefixed <p>, so match by substring. Phase 38A also renders the
+    // label in the credential status section, so there may be multiple matches.
+    expect(screen.getAllByText(/Missing read-only credential/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^missing_readonly_credential$/)).toHaveLength(0);
 
     // missingFields are localized via the label map, not raw camelCase keys.
     expect(screen.getAllByText("Host").length).toBeGreaterThanOrEqual(1);
@@ -757,5 +758,146 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     await pickTarget(user, /Staging MySQL/);
 
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+  });
+});
+
+/**
+ * Phase 38A: Credential status in the governance panel. The Query Workbench
+ * shows read-only credential status and an admin/settings link, but NEVER
+ * renders credential edit controls.
+ */
+describe("QueryWorkbench credential status (Phase 38A)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  function buildTargetWithCredentialState(
+    credentialState: string,
+    overrides: Record<string, unknown> = {},
+  ): QueryTarget {
+    return buildQueryTarget({
+      readiness: "credential_required",
+      governance: {
+        executionEnabled: false,
+        credentialState,
+        auditRequired: true,
+        safetyState: "credential_missing",
+        safetyNote: "Credential required.",
+        policyNotes: [],
+      },
+      ...overrides,
+    });
+  }
+
+  function renderWithCredentialState(
+    credentialState: string,
+    messages: Record<string, unknown> = enMessages,
+  ) {
+    const target = buildTargetWithCredentialState(credentialState);
+    return render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryWorkbench targets={[target]} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("renders secret_missing as a localized label, never the raw enum", () => {
+    renderWithCredentialState("secret_missing");
+
+    // Label appears in both the credential state line and the status section.
+    expect(screen.getAllByText(/Server secret missing/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^secret_missing$/)).toHaveLength(0);
+  });
+
+  it("renders binding_mismatch as a localized label, never the raw enum", () => {
+    renderWithCredentialState("binding_mismatch");
+
+    expect(screen.getAllByText(/Credential does not match target/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^binding_mismatch$/)).toHaveLength(0);
+  });
+
+  it("renders missing_readonly_credential as a localized label", () => {
+    renderWithCredentialState("missing_readonly_credential");
+
+    expect(screen.getAllByText(/Missing read-only credential/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^missing_readonly_credential$/)).toHaveLength(0);
+  });
+
+  it("renders configured_readonly_credential as a localized label", () => {
+    renderWithCredentialState("configured_readonly_credential");
+
+    expect(screen.getAllByText(/Read-only credential configured/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText(/^configured_readonly_credential$/)).toHaveLength(0);
+  });
+
+  it("renders the credential status section in the governance panel", () => {
+    renderWithCredentialState("missing_readonly_credential");
+
+    // The credential status label appears in the governance panel's new section.
+    expect(screen.getAllByText(/Credential status/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("never renders credential edit controls in the governance panel", () => {
+    renderWithCredentialState("missing_readonly_credential");
+
+    // No credential reference input.
+    expect(screen.queryByRole("textbox", { name: /credential ref/i })).toBeNull();
+    expect(screen.queryByLabelText(/credential reference/i)).toBeNull();
+    // No enabled checkbox in the governance panel.
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    // No environment policy select in the governance panel.
+    expect(screen.queryByRole("combobox", { name: /environment policy/i })).toBeNull();
+    // No save/remove/configure buttons in the governance panel.
+    expect(screen.queryByRole("button", { name: /save metadata/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /remove credential/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /configure credential/i })).toBeNull();
+  });
+
+  it("renders the admin settings link for admin users", () => {
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    renderWithCredentialState("missing_readonly_credential");
+
+    const link = screen.getByRole("link", { name: /open credential settings/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/settings/query-credentials");
+
+    window.sessionStorage.removeItem("controlhub.role");
+  });
+
+  it("renders contact administrator message for non-admin users", () => {
+    window.sessionStorage.setItem("controlhub.role", "viewer");
+    renderWithCredentialState("missing_readonly_credential");
+
+    expect(screen.getByText(/Credential configuration is managed by administrators/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /open credential settings/i })).toBeNull();
+
+    window.sessionStorage.removeItem("controlhub.role");
+  });
+
+  it("renders contact administrator message when no role is stored", () => {
+    window.sessionStorage.removeItem("controlhub.role");
+    renderWithCredentialState("missing_readonly_credential");
+
+    expect(screen.getByText(/Credential configuration is managed by administrators/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /open credential settings/i })).toBeNull();
+  });
+
+  it("renders localized credential status labels under zh-CN locale", () => {
+    renderWithCredentialState("secret_missing", zhMessages);
+
+    // The label appears in both the credential state line and the status section.
+    expect(screen.getAllByText(/服务端密钥缺失/).length).toBeGreaterThanOrEqual(1);
+    // Raw enum never leaks.
+    expect(screen.queryAllByText(/^secret_missing$/)).toHaveLength(0);
+  });
+
+  it("renders binding_mismatch under zh-CN locale without raw enum", () => {
+    renderWithCredentialState("binding_mismatch", zhMessages);
+
+    // The label appears in both the credential state line and the status section.
+    expect(screen.getAllByText(/凭据与目标不匹配/).length).toBeGreaterThanOrEqual(1);
+    // Raw enum never leaks.
+    expect(screen.queryAllByText(/^binding_mismatch$/)).toHaveLength(0);
   });
 });

@@ -1114,7 +1114,9 @@
       "missing_readonly_credential": "未配置只读凭据",
       "configured_readonly_credential": "已配置只读凭据",
       "not_required": "不需要",
-      "unknown": "未知"
+      "unknown": "未知",
+      "secret_missing": "服务端密钥缺失",
+      "binding_mismatch": "凭据与目标不匹配"
     },
     "safetyStateValues": {
       "credential_missing": "缺少只读凭据",
@@ -1128,6 +1130,80 @@
       "host": "主机",
       "port": "端口",
       "readonlyCredential": "只读凭据"
+    }
+  },
+  "queryCredentialSettings": {
+    "eyebrow": "设置",
+    "title": "查询凭据管理",
+    "description": "管理数据库查询目标的只读凭据元数据。ControlHub 仅存储不透明引用 — DSN 和密码保留在服务端。",
+    "dbaStandardAccount": "标准只读账户",
+    "dbaStandardAccountDescription": "DBA/平台团队在服务端预置标准化只读账户。通过命名约定将多个目标绑定到相同的凭据引用。",
+    "clusterOverride": "集群专属覆盖",
+    "clusterOverrideDescription": "当标准账户不可用时，将此特定目标绑定到不同的凭据引用。",
+    "searchPlaceholder": "搜索目标名称、主机或环境",
+    "targetList": {
+      "title": "查询目标",
+      "emptyTitle": "暂无查询目标",
+      "emptyDescription": "数据库资源登记后，查询目标将显示在这里。",
+      "emptyFilterTitle": "无匹配目标",
+      "emptyFilterDescription": "当前搜索条件下没有匹配的目标。请尝试不同的关键词。"
+    },
+    "detail": {
+      "title": "凭据绑定",
+      "noSelection": "选择一个查询目标以管理其凭据元数据。",
+      "targetLabel": "目标",
+      "runtimeLabel": "运行时状态",
+      "credentialRefLabel": "凭据引用",
+      "credentialRefPlaceholder": "例如 ORDER_MYSQL_RO",
+      "credentialRefHint": "不透明引用，在服务端解析为 CONTROLHUB_QUERY_CREDENTIAL_{ref}。切勿输入 DSN 或密码。",
+      "enabledLabel": "已启用",
+      "environmentPolicyLabel": "环境策略",
+      "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "configureButton": "配置凭据元数据",
+      "editButton": "编辑凭据元数据",
+      "removeButton": "移除凭据元数据",
+      "removeConfirmTitle": "移除凭据元数据？",
+      "removeConfirmDescription": "这将移除此目标的凭据绑定。目标仍将可见且处于锁定状态。实际凭据不会被删除。",
+      "saveButton": "保存元数据",
+      "saveDisabled": "确认前无法保存",
+      "saving": "保存中...",
+      "removing": "移除中..."
+    },
+    "environmentPolicies": {
+      "non_prod_only": "仅非生产环境",
+      "all_environments": "所有环境（含生产）"
+    },
+    "confirmAllEnvironments": {
+      "label": "我理解这可能会在后端凭据解析并绑定到所选目标时，启用生产目标的只读查询执行。",
+      "required": "使用全环境策略前需要确认"
+    },
+    "runtimeStatus": {
+      "missing_metadata": "未配置凭据元数据",
+      "invalid_ref": "无效的凭据引用",
+      "disabled": "凭据已禁用",
+      "policy_blocked": "被环境策略阻止",
+      "secret_missing": "服务端密钥缺失",
+      "binding_mismatch": "凭据与目标不匹配",
+      "secret_resolved": "就绪 — 密钥已解析并绑定",
+      "unsupported_target": "目标引擎不受支持",
+      "incomplete_connection": "目标连接不完整"
+    },
+    "runtimeTone": {
+      "missing_metadata": "amber",
+      "invalid_ref": "red",
+      "disabled": "amber",
+      "policy_blocked": "amber",
+      "secret_missing": "amber",
+      "binding_mismatch": "red",
+      "secret_resolved": "green",
+      "unsupported_target": "red",
+      "incomplete_connection": "amber"
+    },
+    "workbench": {
+      "adminLink": "打开凭据设置",
+      "contactAdmin": "联系管理员",
+      "credentialManagedByAdmin": "凭据配置由管理员管理。",
+      "statusLabel": "凭据状态"
     }
   }
 }

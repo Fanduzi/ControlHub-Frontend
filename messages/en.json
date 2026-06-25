@@ -1114,7 +1114,9 @@
       "missing_readonly_credential": "Missing read-only credential",
       "configured_readonly_credential": "Read-only credential configured",
       "not_required": "Not required",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "secret_missing": "Server secret missing",
+      "binding_mismatch": "Credential does not match target"
     },
     "safetyStateValues": {
       "credential_missing": "Read-only credential missing",
@@ -1128,6 +1130,80 @@
       "host": "Host",
       "port": "Port",
       "readonlyCredential": "Read-only credential"
+    }
+  },
+  "queryCredentialSettings": {
+    "eyebrow": "Settings",
+    "title": "Query credential administration",
+    "description": "Manage read-only credential metadata for database query targets. ControlHub stores only the opaque reference — the DSN and password remain server-side.",
+    "dbaStandardAccount": "Standard read-only account",
+    "dbaStandardAccountDescription": "DBA/platform teams provision standardized read-only accounts server-side. Bind many targets to the same credential reference by naming convention.",
+    "clusterOverride": "Cluster-specific override",
+    "clusterOverrideDescription": "Bind this specific target to a different credential reference when the standard account cannot be used.",
+    "searchPlaceholder": "Search target name, host, or environment",
+    "targetList": {
+      "title": "Query targets",
+      "emptyTitle": "No query targets",
+      "emptyDescription": "Query targets will appear here once database resources are registered.",
+      "emptyFilterTitle": "No matching targets",
+      "emptyFilterDescription": "No targets match your current search. Try different keywords."
+    },
+    "detail": {
+      "title": "Credential binding",
+      "noSelection": "Select a query target to manage its credential metadata.",
+      "targetLabel": "Target",
+      "runtimeLabel": "Runtime status",
+      "credentialRefLabel": "Credential reference",
+      "credentialRefPlaceholder": "e.g. ORDER_MYSQL_RO",
+      "credentialRefHint": "Opaque reference resolved server-side as CONTROLHUB_QUERY_CREDENTIAL_{ref}. Never enter a DSN or password.",
+      "enabledLabel": "Enabled",
+      "environmentPolicyLabel": "Environment policy",
+      "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "configureButton": "Configure credential metadata",
+      "editButton": "Edit credential metadata",
+      "removeButton": "Remove credential metadata",
+      "removeConfirmTitle": "Remove credential metadata?",
+      "removeConfirmDescription": "This removes the credential binding for this target. The target will remain visible and locked. The actual credential is not deleted.",
+      "saveButton": "Save metadata",
+      "saveDisabled": "Save disabled until confirmation",
+      "saving": "Saving...",
+      "removing": "Removing..."
+    },
+    "environmentPolicies": {
+      "non_prod_only": "Non-production only",
+      "all_environments": "All environments (including production)"
+    },
+    "confirmAllEnvironments": {
+      "label": "I understand this can enable read-only query execution for production targets when the backend credential resolves and binds to the selected target.",
+      "required": "Confirmation required to save with all-environments policy"
+    },
+    "runtimeStatus": {
+      "missing_metadata": "No credential metadata configured",
+      "invalid_ref": "Invalid credential reference",
+      "disabled": "Credential disabled",
+      "policy_blocked": "Blocked by environment policy",
+      "secret_missing": "Server secret missing",
+      "binding_mismatch": "Credential does not match target",
+      "secret_resolved": "Ready — secret resolved and bound",
+      "unsupported_target": "Target engine not supported",
+      "incomplete_connection": "Target connection incomplete"
+    },
+    "runtimeTone": {
+      "missing_metadata": "amber",
+      "invalid_ref": "red",
+      "disabled": "amber",
+      "policy_blocked": "amber",
+      "secret_missing": "amber",
+      "binding_mismatch": "red",
+      "secret_resolved": "green",
+      "unsupported_target": "red",
+      "incomplete_connection": "amber"
+    },
+    "workbench": {
+      "adminLink": "Open credential settings",
+      "contactAdmin": "Contact administrator",
+      "credentialManagedByAdmin": "Credential configuration is managed by administrators.",
+      "statusLabel": "Credential status"
     }
   }
 }
