@@ -97,15 +97,38 @@ describe("QueryCredentialSettings admin gate", () => {
     window.sessionStorage.clear();
   });
 
-  it("renders the restricted view when no role is stored (SSR-equivalent)", async () => {
-    // In jsdom (where typeof window !== "undefined"), readIsAdmin() returns
-    // false when no role is stored — same as the SSR loading guard on the
-    // server where typeof window === "undefined" returns null and the
-    // component renders a loading skeleton. In both cases, non-admin users
-    // never see the management form.
+  it("does not leak admin UI to non-admin users (hydration-safe gate)", async () => {
+    // This test verifies the core hydration-safety guarantee: the admin gate
+    // never shows admin UI to a non-admin user. The component uses
+    // useState(null) + useEffect to read sessionStorage after hydration,
+    // ensuring SSR and client first render both produce the loading skeleton.
+    // In the test environment (jsdom + act()), effects fire synchronously,
+    // so we verify the end-state behavior: non-admin never sees admin UI.
+    window.sessionStorage.setItem("controlhub.role", "viewer");
+
     renderSettings();
 
     await waitFor(() => {
+      expect(
+        screen.getByText(/managed by administrators/i),
+      ).toBeInTheDocument();
+    });
+
+    // No management UI elements should ever be visible.
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.queryByText("Order MySQL Instance")).toBeNull();
+    expect(screen.queryByText("Payment MySQL Instance")).toBeNull();
+    expect(screen.queryByLabelText(/credential ref/i)).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("renders the restricted view when no role is stored", async () => {
+    renderSettings();
+
+    // First: loading skeleton
+    await waitFor(() => {
+      // After effect fires with null role → isAdmin=false → restricted view.
       expect(
         screen.getByText(/managed by administrators/i),
       ).toBeInTheDocument();

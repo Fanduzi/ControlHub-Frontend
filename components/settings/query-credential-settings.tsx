@@ -45,26 +45,12 @@ type QueryCredentialSettingsProps = {
 };
 
 /**
- * Read the admin role from sessionStorage. Returns `null` during SSR
- * (window undefined) so the component renders a loading skeleton on the
- * server and never leaks the management form to non-admin users via
- * the initial HTML.
- */
-function readIsAdmin(): boolean | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage.getItem("controlhub.role") === "admin";
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Admin-only credential settings gate.
  *
- * Reads `sessionStorage["controlhub.role"]` synchronously on the client.
- * On the server (SSR), renders a loading skeleton — never the management
- * form. Non-admin users see a "managed by administrators" message.
+ * Reads `sessionStorage["controlhub.role"]` in a `useEffect` after
+ * hydration so the SSR output and the client first render are identical
+ * (both produce the loading skeleton). Non-admin users see a "managed
+ * by administrators" message.
  *
  * This matches the pattern used in `query-governance-panel.tsx` for the
  * admin-link / contact-admin gate.
@@ -75,9 +61,18 @@ export function QueryCredentialSettings({
   const t = useTranslations("queryCredentialSettings");
   const [search, setSearch] = useState("");
   const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  // --- Admin gate: null = SSR (loading), true = admin, false = non-admin ---
-  const isAdmin = readIsAdmin();
+  useEffect(() => {
+    try {
+      // Intentional: read sessionStorage once after hydration to determine
+      // admin gate. This fires exactly once on mount, not a cascading loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsAdmin(window.sessionStorage.getItem("controlhub.role") === "admin");
+    } catch {
+      setIsAdmin(false);
+    }
+  }, []);
 
   const filteredTargets = useMemo(() => {
     const q = search.trim().toLowerCase();
