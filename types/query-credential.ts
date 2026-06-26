@@ -18,8 +18,20 @@ export type QueryCredentialRuntimeStatus =
   | "unsupported_target"
   | "incomplete_connection";
 
-/** Environment policy for credential metadata. */
+/**
+ * Environment policy values returned by the backend.
+ *
+ * The backend may return `"disabled"` when no metadata row exists or the
+ * metadata is invalid. This value is read-only — it must never be sent in
+ * an upsert request.
+ */
 export type QueryCredentialEnvironmentPolicy =
+  | "disabled"
+  | "non_prod_only"
+  | "all_environments";
+
+/** Writable environment policy values accepted by PUT requests. */
+export type QueryCredentialWritableEnvironmentPolicy =
   | "non_prod_only"
   | "all_environments";
 
@@ -40,7 +52,7 @@ export type QueryCredentialStatusResponse = {
 export type QueryCredentialUpsertRequest = {
   credentialRef: string;
   enabled: boolean;
-  environmentPolicy: QueryCredentialEnvironmentPolicy;
+  environmentPolicy: QueryCredentialWritableEnvironmentPolicy;
   confirmAllEnvironments?: boolean;
 };
 
@@ -57,8 +69,9 @@ export const KNOWN_CREDENTIAL_RUNTIME_STATUSES = new Set<string>([
   "incomplete_connection",
 ]);
 
-/** All known environment policy values. */
+/** All known environment policy values (including read-only `disabled`). */
 export const KNOWN_ENVIRONMENT_POLICIES = new Set<string>([
+  "disabled",
   "non_prod_only",
   "all_environments",
 ]);

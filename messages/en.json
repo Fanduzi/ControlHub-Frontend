@@ -1170,6 +1170,7 @@
       "removing": "Removing..."
     },
     "environmentPolicies": {
+      "disabled": "Disabled",
       "non_prod_only": "Non-production only",
       "all_environments": "All environments (including production)"
     },

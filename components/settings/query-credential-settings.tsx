@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertTriangle,
@@ -20,6 +20,7 @@ import type {
   QueryCredentialRuntimeStatus,
   QueryCredentialStatusResponse,
   QueryCredentialUpsertRequest,
+  QueryCredentialWritableEnvironmentPolicy,
 } from "@/types/query-credential";
 import {
   deleteQueryCredential,
@@ -43,12 +44,40 @@ type QueryCredentialSettingsProps = {
   targets: QueryTarget[];
 };
 
+/**
+ * Read the admin role from sessionStorage. Returns `null` during SSR
+ * (window undefined) so the component renders a loading skeleton on the
+ * server and never leaks the management form to non-admin users via
+ * the initial HTML.
+ */
+function readIsAdmin(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem("controlhub.role") === "admin";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Admin-only credential settings gate.
+ *
+ * Reads `sessionStorage["controlhub.role"]` synchronously on the client.
+ * On the server (SSR), renders a loading skeleton — never the management
+ * form. Non-admin users see a "managed by administrators" message.
+ *
+ * This matches the pattern used in `query-governance-panel.tsx` for the
+ * admin-link / contact-admin gate.
+ */
 export function QueryCredentialSettings({
   targets,
 }: QueryCredentialSettingsProps) {
   const t = useTranslations("queryCredentialSettings");
   const [search, setSearch] = useState("");
   const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
+
+  // --- Admin gate: null = SSR (loading), true = admin, false = non-admin ---
+  const isAdmin = readIsAdmin();
 
   const filteredTargets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -74,6 +103,31 @@ export function QueryCredentialSettings({
     [filteredTargets, activeTargetId],
   );
 
+  // --- Hydration-safe loading state ---
+  if (isAdmin === null) {
+    return (
+      <div className="flex h-[400px] items-center justify-center rounded-xl border border-border bg-card">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
+      </div>
+    );
+  }
+
+  // --- Non-admin: restricted view ---
+  if (!isAdmin) {
+    return (
+      <div className="flex h-[400px] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card p-6 text-center">
+        <Shield className="size-8 text-muted-foreground" aria-hidden />
+        <p className="text-sm font-medium text-foreground">
+          {t("workbench.credentialManagedByAdmin")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t("workbench.contactAdmin")}
+        </p>
+      </div>
+    );
+  }
+
+  // --- Admin: full management UI ---
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       {/* Left panel: target list */}
@@ -147,10 +201,13 @@ export function QueryCredentialSettings({
         </div>
       </aside>
 
-      {/* Right panel: credential detail */}
+      {/* Right panel: credential detail — key forces remount on target switch */}
       <div className="min-w-0">
         {activeTarget ? (
-          <CredentialDetailPanel target={activeTarget} />
+          <CredentialDetailPanel
+            key={activeTarget.resourceId}
+            target={activeTarget}
+          />
         ) : (
           <div className="flex h-full min-h-[400px] items-center justify-center rounded-xl border border-border bg-card">
             <EmptyState
@@ -185,6 +242,17 @@ function CredentialStateBadge({ state }: { state: string }) {
   );
 }
 
+/**
+ * Map a backend environment policy to a writable form value.
+ * The backend may return `"disabled"` which is not a valid form option.
+ */
+function toWritablePolicy(
+  policy: QueryCredentialEnvironmentPolicy,
+): QueryCredentialWritableEnvironmentPolicy {
+  if (policy === "all_environments") return "all_environments";
+  return "non_prod_only";
+}
+
 function CredentialDetailPanel({ target }: { target: QueryTarget }) {
   const t = useTranslations("queryCredentialSettings");
   const tWorkbench = useTranslations("queryWorkbench");
@@ -197,11 +265,14 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
   const [credentialRef, setCredentialRef] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [environmentPolicy, setEnvironmentPolicy] =
-    useState<QueryCredentialEnvironmentPolicy>("non_prod_only");
+    useState<QueryCredentialWritableEnvironmentPolicy>("non_prod_only");
   const [confirmAllEnvironments, setConfirmAllEnvironments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  // --- Stale target guard: tracks the targetId that initiated the current request ---
+  const activeTargetIdRef = useRef(target.resourceId);
 
   const isConfigured = credential?.configured ?? false;
   const isAllEnvironments = environmentPolicy === "all_environments";
@@ -209,28 +280,36 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
     credentialRef.trim() !== "" && (!isAllEnvironments || confirmAllEnvironments);
 
   const loadCredential = useCallback(async (targetId: number) => {
+    activeTargetIdRef.current = targetId;
     setLoading(true);
     setError(null);
     try {
       const data = await getQueryCredential(targetId);
+      // Guard: only apply if the target hasn't changed during the request.
+      if (activeTargetIdRef.current !== targetId) return;
       setCredential(data);
       setCredentialRef(data.credentialRef);
       setEnabled(data.enabled);
-      setEnvironmentPolicy(data.environmentPolicy);
+      setEnvironmentPolicy(toWritablePolicy(data.environmentPolicy));
       setConfirmAllEnvironments(false);
     } catch {
+      if (activeTargetIdRef.current !== targetId) return;
       setError("Failed to load credential status");
     } finally {
-      setLoading(false);
+      if (activeTargetIdRef.current === targetId) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    activeTargetIdRef.current = target.resourceId;
     void loadCredential(target.resourceId);
   }, [target.resourceId, loadCredential]);
 
   async function handleSave() {
     if (!canSave) return;
+    const targetId = target.resourceId;
     setSaving(true);
     setError(null);
     try {
@@ -242,32 +321,42 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
       if (isAllEnvironments) {
         input.confirmAllEnvironments = true;
       }
-      const result = await saveQueryCredential(target.resourceId, input);
+      const result = await saveQueryCredential(targetId, input);
+      if (activeTargetIdRef.current !== targetId) return;
       setCredential(result);
     } catch (caught) {
+      if (activeTargetIdRef.current !== targetId) return;
       setError(
         caught instanceof Error ? caught.message : "Failed to save credential",
       );
     } finally {
-      setSaving(false);
+      if (activeTargetIdRef.current === targetId) {
+        setSaving(false);
+      }
     }
   }
 
   async function handleDelete() {
+    const targetId = target.resourceId;
     setRemoving(true);
     setError(null);
     try {
-      await deleteQueryCredential(target.resourceId);
-      await loadCredential(target.resourceId);
+      await deleteQueryCredential(targetId);
+      if (activeTargetIdRef.current !== targetId) return;
+      await loadCredential(targetId);
+      if (activeTargetIdRef.current !== targetId) return;
       setShowRemoveConfirm(false);
     } catch (caught) {
+      if (activeTargetIdRef.current !== targetId) return;
       setError(
         caught instanceof Error
           ? caught.message
           : "Failed to remove credential",
       );
     } finally {
-      setRemoving(false);
+      if (activeTargetIdRef.current === targetId) {
+        setRemoving(false);
+      }
     }
   }
 
@@ -423,7 +512,7 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
           </label>
         </div>
 
-        {/* Environment policy */}
+        {/* Environment policy — only writable options shown */}
         <div>
           <label
             htmlFor="environment-policy"
@@ -434,7 +523,9 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
           <Select
             value={environmentPolicy}
             onValueChange={(v) => {
-              setEnvironmentPolicy(v as QueryCredentialEnvironmentPolicy);
+              setEnvironmentPolicy(
+                v as QueryCredentialWritableEnvironmentPolicy,
+              );
               if (v !== "all_environments") {
                 setConfirmAllEnvironments(false);
               }

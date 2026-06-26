@@ -190,6 +190,94 @@ describe("saveQueryCredential", () => {
     const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("port");
   });
+
+  it("request body never contains engine", async () => {
+    mockApiClient.mockResolvedValueOnce({});
+
+    await saveQueryCredential(42, {
+      credentialRef: "TEST_REF",
+      enabled: true,
+      environmentPolicy: "non_prod_only",
+    });
+
+    const callBody = firstCallBody();
+    expect(callBody).not.toHaveProperty("engine");
+  });
+
+  it("drops extra fields from the input object (whitelist body)", async () => {
+    mockApiClient.mockResolvedValueOnce({});
+
+    const pollutedInput = {
+      credentialRef: "TEST_REF",
+      enabled: true,
+      environmentPolicy: "non_prod_only" as const,
+      actorUserId: 999,
+      dsn: "mysql://root:secret@db:3306/prod",
+      password: "hunter2",
+      host: "db.internal",
+      port: 3306,
+      engine: "mysql",
+      unknownField: "should not appear",
+    };
+
+    await saveQueryCredential(42, pollutedInput);
+
+    const callBody = firstCallBody();
+    // Whitelist: only these four keys may appear.
+    expect(Object.keys(callBody).sort()).toEqual([
+      "credentialRef",
+      "enabled",
+      "environmentPolicy",
+    ]);
+    // Explicitly verify the dangerous fields are stripped.
+    expect(callBody).not.toHaveProperty("actorUserId");
+    expect(callBody).not.toHaveProperty("dsn");
+    expect(callBody).not.toHaveProperty("password");
+    expect(callBody).not.toHaveProperty("host");
+    expect(callBody).not.toHaveProperty("port");
+    expect(callBody).not.toHaveProperty("engine");
+    expect(callBody).not.toHaveProperty("unknownField");
+  });
+
+  it("includes confirmAllEnvironments in the whitelist body only when explicitly provided", async () => {
+    mockApiClient.mockResolvedValueOnce({});
+
+    const pollutedInput = {
+      credentialRef: "TEST_REF",
+      enabled: true,
+      environmentPolicy: "all_environments" as const,
+      confirmAllEnvironments: true,
+      actorUserId: 42,
+      dsn: "mysql://...",
+    };
+
+    await saveQueryCredential(42, pollutedInput);
+
+    const callBody = firstCallBody();
+    expect(callBody).toHaveProperty("confirmAllEnvironments", true);
+    expect(callBody).not.toHaveProperty("actorUserId");
+    expect(callBody).not.toHaveProperty("dsn");
+    // Only the four allowed keys.
+    expect(Object.keys(callBody).sort()).toEqual([
+      "confirmAllEnvironments",
+      "credentialRef",
+      "enabled",
+      "environmentPolicy",
+    ]);
+  });
+
+  it("omits confirmAllEnvironments when input does not provide it", async () => {
+    mockApiClient.mockResolvedValueOnce({});
+
+    await saveQueryCredential(42, {
+      credentialRef: "TEST_REF",
+      enabled: true,
+      environmentPolicy: "non_prod_only",
+    });
+
+    const callBody = firstCallBody();
+    expect(callBody).not.toHaveProperty("confirmAllEnvironments");
+  });
 });
 
 describe("deleteQueryCredential", () => {

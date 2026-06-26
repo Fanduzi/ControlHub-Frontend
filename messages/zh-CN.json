@@ -1170,6 +1170,7 @@
       "removing": "移除中..."
     },
     "environmentPolicies": {
+      "disabled": "已禁用",
       "non_prod_only": "仅非生产环境",
       "all_environments": "所有环境（含生产）"
     },

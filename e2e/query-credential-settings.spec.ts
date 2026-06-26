@@ -8,6 +8,15 @@ import {
   collectNetworkErrors,
 } from "./harness/console-guards";
 
+/**
+ * Non-admin access to /settings/query-credentials is covered by component
+ * tests (query-credential-settings.test.tsx) because the backend seed
+ * account is admin-only and there is no non-admin seed. The component
+ * tests verify:
+ *   - Non-admin sees "managed by administrators" message
+ *   - Non-admin never sees credential input / checkbox / policy select / buttons
+ *   - Non-admin never triggers getQueryCredential / saveQueryCredential / deleteQueryCredential
+ */
 test.describe("Query credential settings", () => {
   let consoleMessages: ReturnType<typeof collectConsoleMessages>;
   let networkErrors: string[];

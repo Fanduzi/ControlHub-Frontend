@@ -21,19 +21,27 @@ export async function getQueryCredential(
 /**
  * Save (create or update) credential metadata for a query target.
  *
- * The request body contains only: credentialRef, enabled, environmentPolicy,
- * and optionally confirmAllEnvironments. It must never contain actorUserId,
- * dsn, password, host, or port.
+ * The request body is explicitly whitelisted to contain only the four
+ * allowed fields. Extra properties on `input` (e.g. actorUserId, dsn,
+ * password, host, port) are silently dropped.
  */
 export async function saveQueryCredential(
   targetResourceId: number,
   input: QueryCredentialUpsertRequest,
 ): Promise<QueryCredentialStatusResponse> {
+  const body: Record<string, unknown> = {
+    credentialRef: input.credentialRef,
+    enabled: input.enabled,
+    environmentPolicy: input.environmentPolicy,
+  };
+  if (input.confirmAllEnvironments !== undefined) {
+    body.confirmAllEnvironments = input.confirmAllEnvironments;
+  }
   return apiClient<QueryCredentialStatusResponse>(
     `/query-targets/${targetResourceId}/credential`,
     {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
     },
   );
 }
