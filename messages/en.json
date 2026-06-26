@@ -1113,10 +1113,17 @@
     "credentialStateValues": {
       "missing_readonly_credential": "Missing read-only credential",
       "configured_readonly_credential": "Read-only credential configured",
-      "not_required": "Not required",
-      "unknown": "Unknown",
+      "secret_resolved": "Credential resolved",
       "secret_missing": "Server secret missing",
-      "binding_mismatch": "Credential does not match target"
+      "binding_mismatch": "Credential does not match target",
+      "invalid_ref": "Invalid credential reference",
+      "missing_metadata": "No credential metadata",
+      "unsupported_target": "Unsupported target",
+      "incomplete_connection": "Connection incomplete",
+      "disabled": "Credential disabled",
+      "policy_blocked": "Policy blocked",
+      "not_required": "Not required",
+      "unknown": "Unknown"
     },
     "safetyStateValues": {
       "credential_missing": "Read-only credential missing",
@@ -1155,10 +1162,10 @@
       "runtimeLabel": "Runtime status",
       "credentialRefLabel": "Credential reference",
       "credentialRefPlaceholder": "e.g. ORDER_MYSQL_RO",
-      "credentialRefHint": "Opaque reference resolved server-side as CONTROLHUB_QUERY_CREDENTIAL_{ref}. Never enter a DSN or password.",
+      "credentialRefHint": "Opaque reference resolved server-side as CONTROLHUB_QUERY_CREDENTIAL_your-ref. Never enter a DSN or password.",
       "enabledLabel": "Enabled",
       "environmentPolicyLabel": "Environment policy",
-      "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_your-ref",
       "configureButton": "Configure credential metadata",
       "editButton": "Edit credential metadata",
       "removeButton": "Remove credential metadata",

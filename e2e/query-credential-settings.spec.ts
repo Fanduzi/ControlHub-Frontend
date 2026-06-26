@@ -70,11 +70,11 @@ test.describe("Query credential settings", () => {
     await page.goto("/settings/query-credentials");
 
     // The target list should render at least one target from the backend.
-    const targetList = page.locator("ul");
+    const targetList = page.locator("ul.divide-y");
     await expect(targetList).toBeVisible({ timeout: 15_000 });
 
     // At least one list item should be present (from the backend target list).
-    const items = page.locator("ul li");
+    const items = page.locator("ul.divide-y li");
     const count = await items.count();
     expect(count).toBeGreaterThanOrEqual(1);
   });
@@ -86,7 +86,7 @@ test.describe("Query credential settings", () => {
     await page.goto("/settings/query-credentials");
 
     // Click the first target in the list.
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 
@@ -102,14 +102,14 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 
     // Runtime status section should be visible.
-    await expect(
-      page.getByText("Runtime status").first(),
-    ).toBeVisible();
+    // During loading it shows "Runtime status…", after loading the status text.
+    // Wait for the detail panel to fully load (credential-ref input appears).
+    await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
 
     // Credential reference input should be visible.
     await expect(page.locator("#credential-ref")).toBeVisible();
@@ -127,26 +127,31 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 
-    // No DSN input.
-    const bodyText = await page.locator("body").textContent();
-    expect(bodyText).not.toContain("DSN");
-    expect(bodyText).not.toContain("dsn");
-    expect(bodyText).not.toContain("password");
-    expect(bodyText).not.toContain("Password");
+    // Wait for detail panel to load (credential-ref input appears).
+    await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
 
-    // No password input field.
-    expect(page.locator('input[type="password"]')).toHaveCount(0);
+    // No password input field anywhere on the page.
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+
+    // No DSN or password input fields by name.
+    await expect(page.locator('input[name="dsn"], input[name="password"]')).toHaveCount(0);
+
+    // The credential form only has: credential-ref, enabled checkbox, environment-policy select.
+    // No other text inputs for DSN or password.
+    await expect(page.locator("#credential-ref")).toBeVisible();
+    await expect(page.locator("#credential-enabled")).toBeVisible();
+    await expect(page.locator("#environment-policy")).toBeVisible();
   });
 
   test("DBA operating model guidance is visible", async ({ page }) => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 
@@ -167,7 +172,7 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 
@@ -200,9 +205,9 @@ test.describe("Query credential settings", () => {
     ).toBeVisible();
 
     // No credential edit controls in the workbench.
-    expect(page.locator("#credential-ref")).toHaveCount(0);
-    expect(page.locator("#credential-enabled")).toHaveCount(0);
-    expect(page.locator("#environment-policy")).toHaveCount(0);
+    await expect(page.locator("#credential-ref")).toHaveCount(0);
+    await expect(page.locator("#credential-enabled")).toHaveCount(0);
+    await expect(page.locator("#environment-policy")).toHaveCount(0);
   });
 
   test("Query Workbench shows admin link for admin users", async ({
@@ -246,7 +251,7 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul li button").first();
+    const firstItem = page.locator("ul.divide-y li button").first();
     await expect(firstItem).toBeVisible({ timeout: 15_000 });
     await firstItem.click();
 

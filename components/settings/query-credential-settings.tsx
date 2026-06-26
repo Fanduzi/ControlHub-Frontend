@@ -224,9 +224,9 @@ function CredentialStateBadge({ state }: { state: string }) {
   });
 
   const tone =
-    state === "configured_readonly_credential"
+    state === "configured_readonly_credential" || state === "secret_resolved"
       ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-      : state === "secret_missing" || state === "binding_mismatch"
+      : state === "secret_missing" || state === "binding_mismatch" || state === "invalid_ref"
         ? "border-rose-500/30 text-rose-600 dark:text-rose-400"
         : "border-amber-500/30 text-amber-600 dark:text-amber-400";
 
@@ -575,9 +575,7 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
       {/* Boundary note */}
       <div className="rounded-lg border border-border bg-muted/20 p-3">
         <p className="text-xs text-muted-foreground">
-          {t("detail.boundaryNote", {
-            ref: credentialRef || "{ref}",
-          })}
+          {t("detail.boundaryNote")}
         </p>
       </div>
 
