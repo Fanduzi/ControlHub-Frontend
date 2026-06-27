@@ -256,6 +256,33 @@ export function credentialRuntimeStatusLabel(t: Translator, status: string): str
   return key ? t(key) : status.replaceAll("_", " ");
 }
 
+/**
+ * Get the visual tone for a credential runtime status. Used by the operations
+ * table to color-code status badges. Pure — no hooks.
+ */
+export function credentialRuntimeStatusTone(
+  status: string,
+): "green" | "amber" | "red" {
+  switch (status) {
+    case "secret_resolved":
+      return "green";
+    case "missing_metadata":
+    case "disabled":
+    case "policy_blocked":
+    case "secret_missing":
+    case "incomplete_connection":
+    case "fetch_pending":
+      return "amber";
+    case "invalid_ref":
+    case "binding_mismatch":
+    case "unsupported_target":
+    case "fetch_error":
+      return "red";
+    default:
+      return "amber";
+  }
+}
+
 /** i18n key (under the queryWorkbench namespace) for a query-kind label. */
 export function queryKindLabelKey(kind: QueryKind): string {
   return `queryKindValues.${kind}`;

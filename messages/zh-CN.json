@@ -1205,6 +1205,114 @@
       "contactAdmin": "联系管理员",
       "credentialManagedByAdmin": "凭据配置由管理员管理。",
       "statusLabel": "凭据状态"
+    },
+    "coverage": {
+      "title": "覆盖率概览",
+      "total": "目标总数",
+      "ready": "就绪",
+      "missingMetadata": "缺少元数据",
+      "secretMissing": "密钥缺失",
+      "bindingMismatch": "绑定不匹配",
+      "policyBlocked": "策略阻止",
+      "disabled": "已禁用",
+      "unsupportedOrIncomplete": "不支持/不完整",
+      "fetchPending": "加载中…",
+      "fetchError": "获取失败"
+    },
+    "operations": {
+      "title": "凭据操作",
+      "selectTarget": "选择目标",
+      "selectedCount": "已选择 {count} 个",
+      "noTargets": "当前筛选条件下没有匹配的目标。",
+      "columns": {
+        "target": "目标",
+        "engine": "引擎",
+        "environment": "环境",
+        "cluster": "集群",
+        "hostPort": "主机:端口",
+        "runtimeStatus": "运行时状态",
+        "credentialRef": "凭据引用",
+        "policy": "策略",
+        "enabled": "启用",
+        "configured": "已配置",
+        "actions": "操作"
+      },
+      "configuredYes": "是",
+      "configuredNo": "否",
+      "notSelectable": {
+        "unsupported_engine": "不支持的引擎",
+        "incomplete_connection": "连接不完整"
+      },
+      "fetchErrorLabel": "加载凭据状态失败",
+      "retryFetch": "重试"
+    },
+    "filters": {
+      "title": "筛选",
+      "search": "搜索目标、主机或环境",
+      "environment": "环境",
+      "cluster": "集群",
+      "engine": "引擎",
+      "runtimeStatus": "运行时状态",
+      "configuredState": "配置状态",
+      "readiness": "就绪状态",
+      "allEnvironments": "所有环境",
+      "allClusters": "所有集群",
+      "allEngines": "所有引擎",
+      "allStatuses": "所有状态",
+      "all": "全部",
+      "configured": "已配置",
+      "unconfigured": "未配置",
+      "ready": "就绪",
+      "notReady": "未就绪",
+      "none": "无"
+    },
+    "grouping": {
+      "mode": "分组方式",
+      "flat": "不分组",
+      "environment": "按环境",
+      "cluster": "按集群"
+    },
+    "bulkApply": {
+      "button": "应用元数据",
+      "title": "应用凭据元数据",
+      "description": "将凭据引用应用到选定的目标。",
+      "credentialRef": "凭据引用",
+      "credentialRefPlaceholder": "例如 ORDER_MYSQL_RO",
+      "enabled": "启用",
+      "environmentPolicy": "环境策略",
+      "confirmAllEnvironments": "我理解这可能会启用生产目标的只读查询执行。",
+      "confirmAllEnvironmentsRequired": "使用全环境策略前需要确认。",
+      "targetCount": "将更新 {count} 个目标",
+      "applyButton": "应用到选定目标",
+      "applying": "应用中…",
+      "cancel": "取消",
+      "drySummary": "这将更新选定目标的凭据引用、启用标志和环境策略。",
+      "success": "元数据应用成功",
+      "partialFailure": "部分目标失败 — 请查看下方详情。",
+      "allSuccess": "所有目标更新成功。",
+      "allFailure": "所有目标均失败。"
+    },
+    "bulkRemove": {
+      "button": "移除元数据",
+      "title": "移除凭据元数据",
+      "description": "移除选定目标的凭据绑定。目标仍将可见且处于锁定状态。服务端实际凭据不会被删除。",
+      "targetCount": "将移除 {count} 个目标的元数据",
+      "confirmButton": "从选定目标移除",
+      "removing": "移除中…",
+      "cancel": "取消",
+      "warning": "仅移除元数据绑定，服务端凭据不受影响。",
+      "success": "元数据移除成功",
+      "partialFailure": "部分目标失败 — 请查看下方详情。",
+      "allSuccess": "所有元数据移除成功。",
+      "allFailure": "所有移除均失败。"
+    },
+    "operationResults": {
+      "title": "操作结果",
+      "pending": "待处理…",
+      "success": "成功",
+      "failure": "失败",
+      "retryFailed": "重试失败",
+      "clearResults": "清除结果"
     }
   }
 }

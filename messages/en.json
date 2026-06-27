@@ -1212,6 +1212,114 @@
       "contactAdmin": "Contact administrator",
       "credentialManagedByAdmin": "Credential configuration is managed by administrators.",
       "statusLabel": "Credential status"
+    },
+    "coverage": {
+      "title": "Coverage overview",
+      "total": "Total targets",
+      "ready": "Ready",
+      "missingMetadata": "Missing metadata",
+      "secretMissing": "Secret missing",
+      "bindingMismatch": "Binding mismatch",
+      "policyBlocked": "Policy blocked",
+      "disabled": "Disabled",
+      "unsupportedOrIncomplete": "Unsupported / incomplete",
+      "fetchPending": "Loading…",
+      "fetchError": "Fetch error"
+    },
+    "operations": {
+      "title": "Credential operations",
+      "selectTarget": "Select target",
+      "selectedCount": "{count} selected",
+      "noTargets": "No targets match the current filters.",
+      "columns": {
+        "target": "Target",
+        "engine": "Engine",
+        "environment": "Environment",
+        "cluster": "Cluster",
+        "hostPort": "Host:Port",
+        "runtimeStatus": "Runtime status",
+        "credentialRef": "Credential ref",
+        "policy": "Policy",
+        "enabled": "Enabled",
+        "configured": "Configured",
+        "actions": "Actions"
+      },
+      "configuredYes": "Yes",
+      "configuredNo": "No",
+      "notSelectable": {
+        "unsupported_engine": "Unsupported engine",
+        "incomplete_connection": "Incomplete connection"
+      },
+      "fetchErrorLabel": "Failed to load credential status",
+      "retryFetch": "Retry"
+    },
+    "filters": {
+      "title": "Filters",
+      "search": "Search target, host, or environment",
+      "environment": "Environment",
+      "cluster": "Cluster",
+      "engine": "Engine",
+      "runtimeStatus": "Runtime status",
+      "configuredState": "Configuration",
+      "readiness": "Readiness",
+      "allEnvironments": "All environments",
+      "allClusters": "All clusters",
+      "allEngines": "All engines",
+      "allStatuses": "All statuses",
+      "all": "All",
+      "configured": "Configured",
+      "unconfigured": "Unconfigured",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "none": "None"
+    },
+    "grouping": {
+      "mode": "Group by",
+      "flat": "No grouping",
+      "environment": "Environment",
+      "cluster": "Cluster"
+    },
+    "bulkApply": {
+      "button": "Apply metadata",
+      "title": "Apply credential metadata",
+      "description": "Apply a credential reference to the selected targets.",
+      "credentialRef": "Credential reference",
+      "credentialRefPlaceholder": "e.g. ORDER_MYSQL_RO",
+      "enabled": "Enabled",
+      "environmentPolicy": "Environment policy",
+      "confirmAllEnvironments": "I understand this can enable read-only query execution for production targets.",
+      "confirmAllEnvironmentsRequired": "Confirmation required for all-environments policy.",
+      "targetCount": "{count} targets will be updated",
+      "applyButton": "Apply to selected targets",
+      "applying": "Applying…",
+      "cancel": "Cancel",
+      "drySummary": "This will update the credential reference, enabled flag, and environment policy for the selected targets.",
+      "success": "Metadata applied successfully",
+      "partialFailure": "Some targets failed — see details below.",
+      "allSuccess": "All targets updated successfully.",
+      "allFailure": "All targets failed."
+    },
+    "bulkRemove": {
+      "button": "Remove metadata",
+      "title": "Remove credential metadata",
+      "description": "Remove the credential binding from the selected targets. The targets will remain visible and locked. The actual server-side credentials are not deleted.",
+      "targetCount": "{count} targets will have metadata removed",
+      "confirmButton": "Remove from selected targets",
+      "removing": "Removing…",
+      "cancel": "Cancel",
+      "warning": "Only the metadata binding is removed. Server-side credentials are not affected.",
+      "success": "Metadata removed successfully",
+      "partialFailure": "Some targets failed — see details below.",
+      "allSuccess": "All metadata removed successfully.",
+      "allFailure": "All removals failed."
+    },
+    "operationResults": {
+      "title": "Operation results",
+      "pending": "Pending…",
+      "success": "Success",
+      "failure": "Failed",
+      "retryFailed": "Retry failed",
+      "clearResults": "Clear results"
     }
   }
 }
