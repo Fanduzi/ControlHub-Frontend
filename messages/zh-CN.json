@@ -1217,7 +1217,8 @@
       "disabled": "已禁用",
       "unsupportedOrIncomplete": "不支持/不完整",
       "fetchPending": "加载中…",
-      "fetchError": "获取失败"
+      "fetchError": "获取失败",
+      "invalidRef": "无效引用"
     },
     "operations": {
       "title": "凭据操作",
@@ -1290,7 +1291,8 @@
       "success": "元数据应用成功",
       "partialFailure": "部分目标失败 — 请查看下方详情。",
       "allSuccess": "所有目标更新成功。",
-      "allFailure": "所有目标均失败。"
+      "allFailure": "所有目标均失败。",
+      "crossTargetWarning": "所选目标跨越多个环境、集群或主机:端口。请确认凭证引用对所有选定目标均有效。"
     },
     "bulkRemove": {
       "button": "移除元数据",

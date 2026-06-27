@@ -1035,3 +1035,344 @@ describe("QueryCredentialSettings — bulk remove", () => {
     expect(screen.getByText(/1 Failed/)).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 38B hardening P1: bulk operations scope — only operates on visible
+// filtered selectable targets, not all selectedIds
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — bulk operation scope (P1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("bulk apply only operates on currently filtered selectable targets", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+    mockSaveQueryCredential.mockResolvedValue(
+      credentialResponse({ runtimeStatus: "secret_resolved" }),
+    );
+
+    renderSettings();
+
+    // Wait for targets to render.
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all targets (both visible).
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Verify 2 selected.
+    expect(screen.getByText(/2 selected/)).toBeInTheDocument();
+
+    // Change environment filter to "Production" to hide "Payment MySQL Instance".
+    // The environment filter is the first combobox in the filter controls.
+    const comboboxes = screen.getAllByRole("combobox");
+    const envTrigger = comboboxes[0];
+    await user.click(envTrigger);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Production" }),
+      ).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("option", { name: "Production" }));
+
+    // After filtering, only 1 target (Order MySQL) should be visible and selected.
+    await waitFor(() => {
+      expect(screen.getByText(/1 selected/)).toBeInTheDocument();
+    });
+
+    // Payment MySQL should not be visible.
+    expect(screen.queryByText("Payment MySQL Instance")).toBeNull();
+
+    // Click "Apply metadata".
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // Fill credential ref and apply.
+    const refInput = screen.getByLabelText(/credential reference/i);
+    await user.type(refInput, "TEST_REF");
+    const submitButton = screen.getByRole("button", {
+      name: /apply to selected targets/i,
+    });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockSaveQueryCredential).toHaveBeenCalled();
+    });
+
+    // saveQueryCredential should only have been called for target 42 (Order MySQL).
+    // It should NOT have been called for target 43 (Payment MySQL).
+    const calledIds = mockSaveQueryCredential.mock.calls.map((c) => c[0]);
+    expect(calledIds).toContain(42);
+    expect(calledIds).not.toContain(43);
+  });
+
+  it("bulk remove only operates on currently filtered selectable targets", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+    mockDeleteQueryCredential.mockResolvedValue(undefined);
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all targets.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Filter to "Staging" environment to hide "Order MySQL Instance".
+    const comboboxes = screen.getAllByRole("combobox");
+    const envTrigger = comboboxes[0];
+    await user.click(envTrigger);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Staging" }),
+      ).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("option", { name: "Staging" }));
+
+    // After filtering, only Payment MySQL should be visible and selected.
+    await waitFor(() => {
+      expect(screen.getByText(/1 selected/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Order MySQL Instance")).toBeNull();
+
+    // Open bulk remove.
+    const removeButton = screen.getByRole("button", {
+      name: /remove metadata/i,
+    });
+    await user.click(removeButton);
+
+    // Confirm.
+    const confirmCheckbox = screen.getByRole("checkbox", {
+      name: /this removes the credential binding/i,
+    });
+    await user.click(confirmCheckbox);
+
+    const submitButton = screen.getByRole("button", {
+      name: /remove from selected targets/i,
+    });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockDeleteQueryCredential).toHaveBeenCalled();
+    });
+
+    // Should only call delete for target 43 (Payment MySQL).
+    const calledIds = mockDeleteQueryCredential.mock.calls.map((c) => c[0]);
+    expect(calledIds).toContain(43);
+    expect(calledIds).not.toContain(42);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B hardening P2: runtime status labels use correct helper
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — runtime status labels (P2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("does not render raw credentialStateValues keys or raw enum values", async () => {
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({ runtimeStatus: "secret_resolved" }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Wait for credential statuses to load and badges to render.
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready — secret resolved/i).length).toBeGreaterThan(0);
+    });
+
+    // Must not show raw credentialStateValues keys.
+    expect(screen.queryByText(/credentialStateValues/)).toBeNull();
+    // Must not show raw enum values like "secret_resolved", "binding_mismatch".
+    expect(screen.queryByText("secret_resolved")).toBeNull();
+    expect(screen.queryByText("binding_mismatch")).toBeNull();
+    expect(screen.queryByText("secret_missing")).toBeNull();
+    expect(screen.queryByText("invalid_ref")).toBeNull();
+    expect(screen.queryByText("missing_metadata")).toBeNull();
+  });
+
+  it("renders localized runtime status in the operations table", async () => {
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({ runtimeStatus: "binding_mismatch" }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Wait for the badge to render with the localized label.
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Credential does not match target/i).length,
+      ).toBeGreaterThan(0);
+    });
+
+    // Raw enum must not appear.
+    expect(screen.queryByText("binding_mismatch")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B hardening P2: invalid_ref is separate from binding_mismatch
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — coverage cards separate invalid_ref (P2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows separate Invalid reference card", async () => {
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Coverage overview")).toBeInTheDocument();
+    });
+
+    // The "Invalid reference" card should be present (distinct from "Binding mismatch").
+    expect(screen.getByText("Invalid reference")).toBeInTheDocument();
+    expect(screen.getByText("Binding mismatch")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B hardening P4: cross-environment/cluster/host:port warning
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — cross-target warning in bulk apply (P4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows warning when selected targets span multiple environments", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    // buildTargets() creates targets in Production and Staging.
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all (Production + Staging).
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Open bulk apply.
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // Warning about spanning multiple environments should appear.
+    await waitFor(() => {
+      expect(
+        screen.getByText(/multiple environments/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not show warning when all selected targets share same environment", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    const sameEnvTargets = [
+      buildQueryTarget({
+        resourceId: 42,
+        displayName: "Order MySQL Instance",
+        resourceName: "order-mysql",
+        connectionContext: {
+          engine: "mysql",
+          host: "shared-db.internal",
+          port: 3306,
+          environment: "Production",
+          owner: "DBA Team",
+          clusterName: "Order MySQL Cluster",
+        },
+      }),
+      buildQueryTarget({
+        resourceId: 44,
+        displayName: "Inventory MySQL Instance",
+        resourceName: "inventory-mysql",
+        connectionContext: {
+          engine: "mysql",
+          host: "shared-db.internal",
+          port: 3306,
+          environment: "Production",
+          owner: "DBA Team",
+          clusterName: "Order MySQL Cluster",
+        },
+      }),
+    ];
+
+    renderSettings(sameEnvTargets);
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Open bulk apply.
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // No cross-environment warning should appear.
+    await waitFor(() => {
+      expect(screen.getByText(/targets will be updated/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/multiple environments/i)).toBeNull();
+  });
+});

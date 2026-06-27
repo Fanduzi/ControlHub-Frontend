@@ -48,6 +48,7 @@ export type CoverageCounts = {
   missingMetadata: number;
   secretMissing: number;
   bindingMismatch: number;
+  invalidRef: number;
   policyBlocked: number;
   disabled: number;
   unsupportedOrIncomplete: number;
@@ -135,6 +136,7 @@ export function deriveCoverageCounts(
     missingMetadata: 0,
     secretMissing: 0,
     bindingMismatch: 0,
+    invalidRef: 0,
     policyBlocked: 0,
     disabled: 0,
     unsupportedOrIncomplete: 0,
@@ -154,8 +156,10 @@ export function deriveCoverageCounts(
         counts.secretMissing += 1;
         break;
       case "binding_mismatch":
-      case "invalid_ref":
         counts.bindingMismatch += 1;
+        break;
+      case "invalid_ref":
+        counts.invalidRef += 1;
         break;
       case "policy_blocked":
         counts.policyBlocked += 1;

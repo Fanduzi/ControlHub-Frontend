@@ -149,13 +149,22 @@ describe("deriveCoverageCounts", () => {
     expect(counts.secretMissing).toBe(1);
   });
 
-  it("counts binding_mismatch and invalid_ref under bindingMismatch", () => {
+  it("counts binding_mismatch under bindingMismatch", () => {
+    const rows: CredentialOperationRow[] = [
+      { resourceId: 1, runtimeStatus: "binding_mismatch" } as CredentialOperationRow,
+    ];
+    const counts = deriveCoverageCounts(rows);
+    expect(counts.bindingMismatch).toBe(1);
+  });
+
+  it("counts invalid_ref under invalidRef (not bindingMismatch)", () => {
     const rows: CredentialOperationRow[] = [
       { resourceId: 1, runtimeStatus: "binding_mismatch" } as CredentialOperationRow,
       { resourceId: 2, runtimeStatus: "invalid_ref" } as CredentialOperationRow,
     ];
     const counts = deriveCoverageCounts(rows);
-    expect(counts.bindingMismatch).toBe(2);
+    expect(counts.bindingMismatch).toBe(1);
+    expect(counts.invalidRef).toBe(1);
   });
 
   it("counts policy_blocked targets", () => {

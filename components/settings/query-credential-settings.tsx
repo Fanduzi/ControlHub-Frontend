@@ -40,8 +40,8 @@ import {
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
+  credentialRuntimeStatusLabel,
   credentialRuntimeStatusTone,
-  credentialStateLabel,
   formatHostPortLabel,
 } from "@/lib/query-target-display";
 import { cn } from "@/lib/utils";
@@ -238,6 +238,27 @@ export function QueryCredentialSettings({
   const allFilteredSelected =
     selectableRows.length > 0 && selectedCount === selectableRows.length;
 
+  // --- P1 fix: actual operation targets = visible + selectable + selected ---
+  const selectedOperationTargets = useMemo(
+    () =>
+      selectableRows
+        .filter((row) => selectedIds.has(row.resourceId))
+        .map((row) => ({
+          resourceId: row.resourceId,
+          displayName: row.displayName,
+          resourceName: row.resourceName,
+          connectionContext: {
+            engine: row.engine,
+            host: row.host,
+            port: row.port,
+            environment: row.environment,
+            owner: "",
+            clusterName: row.clusterName,
+          },
+        })) as QueryTarget[],
+    [selectableRows, selectedIds],
+  );
+
   function toggleSelectAll() {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
@@ -328,8 +349,7 @@ export function QueryCredentialSettings({
       {/* Bulk action bar */}
       <BulkActionBar
         selectedCount={selectedCount}
-        targets={targets}
-        selectedIds={selectedIds}
+        selectedTargets={selectedOperationTargets}
         operationResults={operationResults}
         onClearResults={clearResults}
         onResultsAppended={(results) =>
@@ -397,6 +417,11 @@ function CoverageSummaryCards({
     {
       key: "bindingMismatch",
       label: t("coverage.bindingMismatch"),
+      tone: "text-rose-600 dark:text-rose-400",
+    },
+    {
+      key: "invalidRef",
+      label: t("coverage.invalidRef"),
       tone: "text-rose-600 dark:text-rose-400",
     },
     {
@@ -573,10 +598,7 @@ function FilterControls({
           <SelectTrigger className="h-9 w-[160px]">
             <span>
               {filters.runtimeStatus
-                ? credentialStateLabel(
-                    (key: string) => key,
-                    filters.runtimeStatus,
-                  )
+                ? credentialRuntimeStatusLabel(t, filters.runtimeStatus)
                 : t("filters.allStatuses")}
             </span>
           </SelectTrigger>
@@ -586,10 +608,7 @@ function FilterControls({
             </SelectItem>
             {runtimeStatuses.map((s) => (
               <SelectItem key={s} value={s}>
-                {credentialStateLabel(
-                  (key: string) => key,
-                  s,
-                ).replaceAll("_", " ")}
+                {credentialRuntimeStatusLabel(t, s)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -681,16 +700,14 @@ function FilterControls({
 
 function BulkActionBar({
   selectedCount,
-  targets,
-  selectedIds,
+  selectedTargets,
   operationResults,
   onClearResults,
   onResultsAppended,
   onRefreshStatuses,
 }: {
   selectedCount: number;
-  targets: QueryTarget[];
-  selectedIds: Set<number>;
+  selectedTargets: QueryTarget[];
   operationResults: TargetOperationResult[];
   onClearResults: () => void;
   onResultsAppended: (results: TargetOperationResult[]) => void;
@@ -741,7 +758,7 @@ function BulkActionBar({
       {/* Bulk apply dialog */}
       {showBulkApply && (
         <BulkApplyDialog
-          selectedTargets={targets.filter((t) => selectedIds.has(t.resourceId))}
+          selectedTargets={selectedTargets}
           onClose={() => setShowBulkApply(false)}
           onResults={(results) => {
             onResultsAppended(results);
@@ -753,7 +770,7 @@ function BulkActionBar({
       {/* Bulk remove dialog */}
       {showBulkRemove && (
         <BulkRemoveDialog
-          selectedTargets={targets.filter((t) => selectedIds.has(t.resourceId))}
+          selectedTargets={selectedTargets}
           onClose={() => setShowBulkRemove(false)}
           onResults={(results) => {
             onResultsAppended(results);
@@ -789,6 +806,23 @@ function BulkApplyDialog({
   const isAllEnvironments = environmentPolicy === "all_environments";
   const canApply =
     credentialRef.trim() !== "" && (!isAllEnvironments || confirmAllEnvironments);
+
+  // P4: detect cross-environment/cluster/host:port selection
+  const crossTargetWarning = useMemo(() => {
+    const envs = new Set(selectedTargets.map((t) => t.connectionContext.environment));
+    const clusters = new Set(
+      selectedTargets.map((t) => t.connectionContext.clusterName ?? ""),
+    );
+    const hostPorts = new Set(
+      selectedTargets.map(
+        (t) => `${t.connectionContext.host}:${t.connectionContext.port}`,
+      ),
+    );
+    if (envs.size > 1 || clusters.size > 1 || hostPorts.size > 1) {
+      return t("bulkApply.crossTargetWarning");
+    }
+    return null;
+  }, [selectedTargets, t]);
 
   async function handleApply() {
     if (!canApply) return;
@@ -841,6 +875,24 @@ function BulkApplyDialog({
       <p className="text-xs font-medium text-foreground">
         {t("bulkApply.targetCount", { count: selectedTargets.length })}
       </p>
+
+      {/* P4: Cross-environment/cluster/host:port warning */}
+      {crossTargetWarning && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden
+            />
+            <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+              {crossTargetWarning}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {/* Credential ref */}
@@ -1309,14 +1361,13 @@ function OperationRow({
   onRetryFetch: (id: number) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
-  const tWorkbench = useTranslations("queryWorkbench");
 
   const statusLabel =
     row.runtimeStatus === "fetch_pending"
       ? t("coverage.fetchPending")
       : row.runtimeStatus === "fetch_error"
         ? t("coverage.fetchError")
-        : credentialStateLabel(tWorkbench, row.runtimeStatus);
+        : credentialRuntimeStatusLabel(t, row.runtimeStatus);
 
   const tone =
     row.runtimeStatus === "fetch_pending"

@@ -1224,7 +1224,8 @@
       "disabled": "Disabled",
       "unsupportedOrIncomplete": "Unsupported / incomplete",
       "fetchPending": "Loading…",
-      "fetchError": "Fetch error"
+      "fetchError": "Fetch error",
+      "invalidRef": "Invalid reference"
     },
     "operations": {
       "title": "Credential operations",
@@ -1297,7 +1298,8 @@
       "success": "Metadata applied successfully",
       "partialFailure": "Some targets failed — see details below.",
       "allSuccess": "All targets updated successfully.",
-      "allFailure": "All targets failed."
+      "allFailure": "All targets failed.",
+      "crossTargetWarning": "Selected targets span multiple environments, clusters, or host:ports. Verify the credential reference is valid for all selected targets."
     },
     "bulkRemove": {
       "button": "Remove metadata",
