@@ -16,6 +16,7 @@ import {
  *   - Non-admin sees "managed by administrators" message
  *   - Non-admin never sees credential input / checkbox / policy select / buttons
  *   - Non-admin never triggers getQueryCredential / saveQueryCredential / deleteQueryCredential
+ *   - Non-admin never sees coverage summary, operations table, or filter controls
  */
 test.describe("Query credential settings", () => {
   let consoleMessages: ReturnType<typeof collectConsoleMessages>;
@@ -63,32 +64,57 @@ test.describe("Query credential settings", () => {
     ).toBeVisible();
   });
 
-  test("shows the query target list with credential state badges", async ({
+  test("shows coverage summary cards", async ({ page }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    // Coverage overview section should be visible.
+    await expect(
+      page.getByText("Coverage overview"),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Summary card labels should be visible.
+    await expect(page.getByText("Total targets").first()).toBeVisible();
+    await expect(page.getByText("Ready").first()).toBeVisible();
+    await expect(page.getByText("Missing metadata").first()).toBeVisible();
+  });
+
+  test("shows the operations table with credential data", async ({
     page,
   }) => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // The target list should render at least one target from the backend.
-    const targetList = page.locator("ul.divide-y");
-    await expect(targetList).toBeVisible({ timeout: 15_000 });
+    // Wait for the operations table to render with at least one row.
+    const tableRows = page.locator("table tbody tr");
+    await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
 
-    // At least one list item should be present (from the backend target list).
-    const items = page.locator("ul.divide-y li");
-    const count = await items.count();
+    const count = await tableRows.count();
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test("selecting a target shows the credential detail panel", async ({
+  test("shows filter controls", async ({ page }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    // Filter section should be visible.
+    await expect(page.getByText("Filters")).toBeVisible({ timeout: 15_000 });
+
+    // Search input should be visible.
+    const searchInput = page.locator('input[type="search"]');
+    await expect(searchInput).toBeVisible();
+  });
+
+  test("selecting a target in the table shows the credential detail panel", async ({
     page,
   }) => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // Click the first target in the list.
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    // Wait for the table to render.
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
     // The detail panel should show the credential binding title.
     await expect(
@@ -102,12 +128,10 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
-    // Runtime status section should be visible.
-    // During loading it shows "Runtime status…", after loading the status text.
     // Wait for the detail panel to fully load (credential-ref input appears).
     await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
 
@@ -127,9 +151,9 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
     // Wait for detail panel to load (credential-ref input appears).
     await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
@@ -141,7 +165,6 @@ test.describe("Query credential settings", () => {
     await expect(page.locator('input[name="dsn"], input[name="password"]')).toHaveCount(0);
 
     // The credential form only has: credential-ref, enabled checkbox, environment-policy select.
-    // No other text inputs for DSN or password.
     await expect(page.locator("#credential-ref")).toBeVisible();
     await expect(page.locator("#credential-enabled")).toBeVisible();
     await expect(page.locator("#environment-policy")).toBeVisible();
@@ -151,9 +174,9 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
     // Standard read-only account guidance.
     await expect(
@@ -172,9 +195,9 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
     // Select "All environments" policy.
     const policySelect = page.locator("#environment-policy");
@@ -229,19 +252,19 @@ test.describe("Query credential settings", () => {
     );
   });
 
-  test("search filters the target list", async ({ page }) => {
+  test("search filters the operations table", async ({ page }) => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
     const searchInput = page.locator('input[type="search"]');
     await expect(searchInput).toBeVisible({ timeout: 15_000 });
 
-    // Type a search term.
+    // Type a search term that won't match any target.
     await searchInput.fill("nonexistent-xyz-123");
 
-    // The empty filter state should appear.
+    // The empty state should appear.
     await expect(
-      page.getByText(/No matching targets/),
+      page.getByText(/No targets match/),
     ).toBeVisible();
   });
 
@@ -251,9 +274,9 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const firstItem = page.locator("ul.divide-y li button").first();
-    await expect(firstItem).toBeVisible({ timeout: 15_000 });
-    await firstItem.click();
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+    await firstTargetButton.click();
 
     // Boundary note should explain that DSN/password stays server-side.
     await expect(

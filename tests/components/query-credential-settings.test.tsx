@@ -21,7 +21,10 @@ import {
 import { QueryCredentialSettings } from "@/components/settings/query-credential-settings";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
-import type { QueryCredentialStatusResponse } from "@/types/query-credential";
+import type {
+  QueryCredentialStatusResponse,
+  QueryCredentialUpsertRequest,
+} from "@/types/query-credential";
 import enMessages from "@/messages/en.json";
 
 const mockGetQueryCredential = vi.mocked(getQueryCredential);
@@ -143,11 +146,11 @@ describe("QueryCredentialSettings admin gate", () => {
 
     renderSettings();
 
-    // After role resolution, the target list search box should appear.
+    // After role resolution, the filter search box should appear.
     await waitFor(() => {
       expect(
         screen.getByRole("searchbox", {
-          name: /search target name, host, or environment/i,
+          name: /search target, host, or environment/i,
         }),
       ).toBeInTheDocument();
     });
@@ -504,9 +507,9 @@ describe("QueryCredentialSettings — disabled environmentPolicy response", () =
       name: /environment policy/i,
     });
     expect(policySelect).toHaveTextContent("Non-production only");
-    // The raw "disabled" value must never appear.
-    expect(screen.queryByText("disabled")).toBeNull();
-    expect(screen.queryByText(/^disabled$/i)).toBeNull();
+    // The raw "disabled" value must never appear in the policy select.
+    expect(policySelect).not.toHaveTextContent("disabled");
+    expect(policySelect).not.toHaveTextContent("Disabled");
   });
 
   it("does not render disabled as the selected policy label", async () => {
@@ -541,5 +544,494 @@ describe("QueryCredentialSettings — disabled environmentPolicy response", () =
     expect(
       screen.getByRole("button", { name: /configure credential metadata/i }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Coverage summary cards
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — coverage summary cards", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("renders coverage summary cards for admin users", async () => {
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Coverage overview")).toBeInTheDocument();
+    });
+
+    // Summary card labels should be visible.
+    expect(screen.getByText("Total targets")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Missing metadata")).toBeInTheDocument();
+    expect(screen.getByText("Secret missing")).toBeInTheDocument();
+    expect(screen.getByText("Binding mismatch")).toBeInTheDocument();
+    expect(screen.getByText("Policy blocked")).toBeInTheDocument();
+    // "Disabled" appears in multiple places (card, filter, table) — check count.
+    expect(screen.getAllByText("Disabled").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows total count matching the number of targets", async () => {
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Total targets")).toBeInTheDocument();
+    });
+
+    // Total should be 2 (the number of targets in buildTargets()).
+    // The number appears in the coverage card next to "Total targets".
+    const totalLabel = screen.getByText("Total targets");
+    const card = totalLabel.closest("div");
+    expect(card).toHaveTextContent("2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Credential status fan-out
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — credential status fan-out", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("fetches credential status for all targets on mount", async () => {
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(mockGetQueryCredential).toHaveBeenCalled();
+    });
+
+    // Should have been called for both targets.
+    expect(mockGetQueryCredential).toHaveBeenCalledWith(42);
+    expect(mockGetQueryCredential).toHaveBeenCalledWith(43);
+  });
+
+  it("shows per-row fetch error badge when credential fetch fails", async () => {
+    mockGetQueryCredential.mockRejectedValue(new Error("Network error"));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Wait for the fetch to complete and error badges to appear.
+    await waitFor(() => {
+      expect(screen.getAllByText("Fetch error").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows retry button for failed credential fetches", async () => {
+    mockGetQueryCredential.mockRejectedValue(new Error("Network error"));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Wait for error badges.
+    await waitFor(() => {
+      expect(screen.getAllByText("Retry").length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Non-admin never sees management controls
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — Phase 38B non-admin boundary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("never shows coverage summary for non-admin", async () => {
+    window.sessionStorage.setItem("controlhub.role", "viewer");
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/managed by administrators/i),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Coverage overview")).toBeNull();
+    expect(screen.queryByText("Total targets")).toBeNull();
+  });
+
+  it("never shows operations table for non-admin", async () => {
+    window.sessionStorage.setItem("controlhub.role", "viewer");
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/managed by administrators/i),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Credential operations")).toBeNull();
+    expect(screen.queryByText("Apply metadata")).toBeNull();
+    expect(screen.queryByText("Remove metadata")).toBeNull();
+  });
+
+  it("never shows filter controls for non-admin", async () => {
+    window.sessionStorage.setItem("controlhub.role", "viewer");
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/managed by administrators/i),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Filters")).toBeNull();
+    expect(screen.queryByText("Group by")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Bulk apply request body whitelist
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — bulk apply request body", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("sends only whitelisted fields in bulk apply", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+    mockSaveQueryCredential.mockResolvedValue(
+      credentialResponse({ runtimeStatus: "secret_resolved" }),
+    );
+
+    renderSettings();
+
+    // Wait for targets to render.
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all targets via the header checkbox.
+    const checkboxes = screen.getAllByRole("checkbox");
+    const headerCheckbox = checkboxes[0];
+    await user.click(headerCheckbox);
+
+    // Click "Apply metadata" button.
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // Fill in the bulk apply form.
+    const refInput = screen.getByLabelText(/credential reference/i);
+    await user.type(refInput, "TEST_REF");
+
+    // Click apply.
+    const submitButton = screen.getByRole("button", {
+      name: /apply to selected targets/i,
+    });
+    await user.click(submitButton);
+
+    // Wait for the save calls.
+    await waitFor(() => {
+      expect(mockSaveQueryCredential).toHaveBeenCalled();
+    });
+
+    // Verify the request body only contains allowed fields.
+    const calls = mockSaveQueryCredential.mock.calls;
+    for (const call of calls) {
+      const body = call[1] as QueryCredentialUpsertRequest;
+      expect(body).not.toHaveProperty("actorUserId");
+      expect(body).not.toHaveProperty("dsn");
+      expect(body).not.toHaveProperty("password");
+      expect(body).not.toHaveProperty("host");
+      expect(body).not.toHaveProperty("port");
+      expect(body).not.toHaveProperty("engine");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: all_environments confirmation
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — bulk apply all_environments confirmation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("disables apply button until all_environments is confirmed", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Click "Apply metadata".
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // Fill credential ref.
+    const refInput = screen.getByLabelText(/credential reference/i);
+    await user.type(refInput, "TEST_REF");
+
+    // The all-environments confirmation checkbox should not be visible yet.
+    expect(screen.queryByLabelText(/i understand/i)).toBeNull();
+
+    // Select "All environments" policy using the trigger button.
+    const policyTrigger = document.getElementById("bulk-environment-policy");
+    expect(policyTrigger).not.toBeNull();
+    await user.click(policyTrigger!);
+
+    // Wait for options to appear and click "All environments".
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: /all environments/i }),
+      ).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByRole("option", { name: /all environments/i }),
+    );
+
+    // Now the confirmation checkbox should be visible.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/i understand/i)).toBeInTheDocument();
+    });
+
+    // Apply button should be disabled until confirmation.
+    const submitButton = screen.getByRole("button", {
+      name: /apply to selected targets/i,
+    });
+    expect(submitButton).toBeDisabled();
+
+    // Confirm all environments.
+    const confirmCheckbox = screen.getByLabelText(/i understand/i);
+    await user.click(confirmCheckbox);
+
+    // Now the button should be enabled.
+    expect(submitButton).toBeEnabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Bulk partial success/failure display
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — bulk partial results", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows per-target success and failure results after bulk apply", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    // First target succeeds, second fails.
+    mockSaveQueryCredential.mockImplementation((targetId: number) => {
+      if (targetId === 42) {
+        return Promise.resolve(
+          credentialResponse({ runtimeStatus: "secret_resolved" }),
+        );
+      }
+      return Promise.reject(new Error("403 forbidden"));
+    });
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Open bulk apply.
+    const applyButton = screen.getByRole("button", {
+      name: /apply metadata/i,
+    });
+    await user.click(applyButton);
+
+    // Fill and submit.
+    const refInput = screen.getByLabelText(/credential reference/i);
+    await user.type(refInput, "TEST_REF");
+
+    const submitButton = screen.getByRole("button", {
+      name: /apply to selected targets/i,
+    });
+    await user.click(submitButton);
+
+    // Wait for results to appear.
+    await waitFor(() => {
+      expect(screen.getByText(/Some targets failed/)).toBeInTheDocument();
+    });
+
+    // Both success and failure counts should be shown.
+    expect(screen.getByText(/1 Success/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Failed/)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 38B: Bulk remove
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — bulk remove", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("requires confirmation before bulk remove", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Click "Remove metadata".
+    const removeButton = screen.getByRole("button", {
+      name: /remove metadata/i,
+    });
+    await user.click(removeButton);
+
+    // The remove confirmation dialog should appear.
+    expect(
+      screen.getByText("Remove credential metadata"),
+    ).toBeInTheDocument();
+
+    // The confirm button should be disabled until the confirmation checkbox is checked.
+    const confirmButton = screen.getByRole("button", {
+      name: /remove from selected targets/i,
+    });
+    expect(confirmButton).toBeDisabled();
+
+    // Check the confirmation checkbox.
+    const confirmCheckbox = screen.getByRole("checkbox", {
+      name: /this removes the credential binding/i,
+    });
+    await user.click(confirmCheckbox);
+
+    // Now the button should be enabled.
+    expect(confirmButton).toBeEnabled();
+  });
+
+  it("shows per-target results after bulk remove", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    // First target succeeds, second fails.
+    mockDeleteQueryCredential.mockImplementation((targetId: number) => {
+      if (targetId === 42) {
+        return Promise.resolve();
+      }
+      return Promise.reject(new Error("403 forbidden"));
+    });
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select all.
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]);
+
+    // Open bulk remove.
+    const removeButton = screen.getByRole("button", {
+      name: /remove metadata/i,
+    });
+    await user.click(removeButton);
+
+    // Confirm.
+    const confirmCheckbox = screen.getByRole("checkbox", {
+      name: /this removes the credential binding/i,
+    });
+    await user.click(confirmCheckbox);
+
+    const submitButton = screen.getByRole("button", {
+      name: /remove from selected targets/i,
+    });
+    await user.click(submitButton);
+
+    // Wait for results.
+    await waitFor(() => {
+      expect(screen.getByText(/Some targets failed/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/1 Success/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Failed/)).toBeInTheDocument();
   });
 });
