@@ -106,20 +106,34 @@ test.describe("Query Workbench shell", () => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
-    await openSwitcher(page);
-
-    const options = page.getByRole("option");
-    const optionCount = await options.count();
-
-    // Requires a seed with at least two query targets. Skips deterministically
-    // otherwise so the suite stays green on single-target seeds.
-    test.skip(optionCount < 2, "query workbench E2E needs >= 2 seeded targets");
-
+    // Record the current switcher text before switching.
     const switcher = page.locator("#query-target-switcher");
     const before = await switcher.textContent();
 
-    // Pick a different target than the currently active one.
-    await options.nth(1).click();
+    // Open the picker and get available option names.
+    await openSwitcher(page);
+    const options = page.getByRole("option");
+    const optionCount = await options.count();
+
+    // Requires a seed with at least two query targets.
+    test.skip(optionCount < 2, "query workbench E2E needs >= 2 seeded targets");
+
+    // Find and click an option whose text differs from the current selection.
+    let clicked = false;
+    for (let i = 0; i < optionCount; i += 1) {
+      const optionText = await options.nth(i).textContent();
+      if (optionText && before && !before.includes(optionText.trim().split("·")[0].trim())) {
+        await options.nth(i).click();
+        clicked = true;
+        break;
+      }
+    }
+
+    // If all options match the current selection, skip.
+    test.skip(!clicked, "all picker options match the current target");
+
+    // Wait for the switcher to update.
+    await page.waitForTimeout(500);
 
     const after = await switcher.textContent();
     expect(after).toBeTruthy();
@@ -163,13 +177,12 @@ test.describe("Query Workbench shell", () => {
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // The backend executes SHOW TABLES and returns a result set.
-    // The result grid should show at least one row (the table name).
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // The backend executes SHOW TABLES and returns a result table.
+    // The result is rendered as an HTML <table>, not a grid.
+    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
 
     // The result should contain at least one cell with a table name.
-    // We don't assert a specific table name since it depends on the fixture.
-    const cells = page.getByRole("gridcell");
+    const cells = page.getByRole("cell");
     const cellCount = await cells.count();
     expect(cellCount).toBeGreaterThan(0);
   });
@@ -187,12 +200,11 @@ test.describe("Query Workbench shell", () => {
     await statement.fill("SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Wait for the result grid to show table names.
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // Wait for the result table to show table names.
+    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
 
     // Get the first table name from a data cell (not a header).
-    // The grid has header rows and data rows; we want a data cell.
-    const dataCells = page.getByRole("gridcell");
+    const dataCells = page.getByRole("cell");
     const cellCount = await dataCells.count();
     test.skip(cellCount === 0, "SHOW TABLES returned no data cells");
 
@@ -203,7 +215,7 @@ test.describe("Query Workbench shell", () => {
     await statement.fill(`DESCRIBE ${tableName}`);
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Wait for the result grid to update with DESCRIBE output.
+    // Wait for the result table to update with DESCRIBE output.
     // DESCRIBE returns columns: Field, Type, Null, Key, Default, Extra.
     // We assert that at least one DESCRIBE-specific column header appears,
     // which proves the DESCRIBE result replaced the SHOW TABLES result.
@@ -212,7 +224,7 @@ test.describe("Query Workbench shell", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // Additionally verify at least one data row exists (a column definition).
-    const describeDataCells = page.getByRole("gridcell");
+    const describeDataCells = page.getByRole("cell");
     const describeCellCount = await describeDataCells.count();
     expect(describeCellCount).toBeGreaterThan(0);
   });
@@ -265,8 +277,8 @@ test.describe("Query Workbench shell", () => {
     await statement.fill("SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Wait for the result to appear.
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // Wait for the result table to appear.
+    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
 
     // Switch to history tab and verify the SHOW TABLES attempt is recorded.
     await page.getByRole("tab", { name: /query history/i }).click();
