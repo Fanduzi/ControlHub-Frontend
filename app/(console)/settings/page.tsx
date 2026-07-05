@@ -13,6 +13,7 @@ import {
   listRoles,
 } from "@/services/settings";
 import { OwnersSection } from "@/components/settings/owners-section";
+import { QueryCredentialEntry } from "@/components/settings/query-credential-entry";
 
 function getDictionaryDescription(
   t: Awaited<ReturnType<typeof getTranslations>>,
@@ -96,6 +97,15 @@ export default async function SettingsPage() {
               <AccentSwitcher variant="inline" />
             </div>
           </div>
+        </div>
+      </DetailPanel>
+
+      <DetailPanel
+        title={t("pages.settings.queryCredentials.sectionTitle")}
+        description={t("pages.settings.queryCredentials.sectionDescription")}
+      >
+        <div className="grid gap-3 lg:grid-cols-3">
+          <QueryCredentialEntry />
         </div>
       </DetailPanel>
 

@@ -286,4 +286,64 @@ test.describe("Query credential settings", () => {
       page.getByText(/CONTROLHUB_QUERY_CREDENTIAL_/).first(),
     ).toBeVisible();
   });
+
+  test("/settings page exposes Query Credential settings entry", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+    await page.goto("/settings");
+
+    await expect(page).toHaveURL(/\/settings$/);
+
+    // The query credentials section should be visible.
+    await expect(
+      page.getByText("Query credential settings").first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The description should mention metadata references.
+    await expect(
+      page.getByText(/metadata reference/i).first(),
+    ).toBeVisible();
+
+    // Admin action link should be visible.
+    const adminLink = page.getByRole("link", {
+      name: /open credential settings/i,
+    });
+    await expect(adminLink).toBeVisible();
+    await expect(adminLink).toHaveAttribute(
+      "href",
+      "/settings/query-credentials",
+    );
+  });
+
+  test("direct URL /settings/query-credentials shows admin controls after role recovery", async ({
+    page,
+  }) => {
+    // Login to establish session (this sets sessionStorage role).
+    await loginViaUI(page);
+
+    // Navigate away from settings first to simulate a fresh direct URL load.
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/overview/);
+
+    // Clear the sessionStorage role to simulate a direct URL navigation
+    // where the role was not persisted (e.g. new tab, page refresh).
+    await page.evaluate(() => {
+      window.sessionStorage.removeItem("controlhub.role");
+    });
+
+    // Navigate directly to the query-credentials page.
+    await page.goto("/settings/query-credentials");
+    await expect(page).toHaveURL(/\/settings\/query-credentials/);
+
+    // Admin controls should still appear after role recovery from the
+    // bearer token (the token contains the role).
+    await expect(
+      page.getByText("Coverage overview"),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The operations table should render.
+    const tableRows = page.locator("table tbody tr");
+    await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
+  });
 });

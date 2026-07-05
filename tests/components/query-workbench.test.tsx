@@ -174,19 +174,23 @@ describe("QueryWorkbench", () => {
     const user = userEvent.setup();
     renderWorkbench();
 
-    await user.type(
-      screen.getByRole("searchbox", { name: "Search target, engine, or host" }),
-      "redis",
-    );
+    // Open the popover via the trigger element (pinned by id, same pattern
+    // as the target-switching tests).
+    const trigger = document.getElementById("query-target-switcher");
+    expect(trigger).not.toBeNull();
+    await user.click(trigger!);
 
-    // Only the redis target survives; it becomes the active target.
-    expect(
-      screen.getAllByText("redis-payment.internal:6379").length,
-    ).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("1 targets")).toBeInTheDocument();
-    expect(
-      screen.queryByText("prod-ch-host-01.internal:8123"),
-    ).not.toBeInTheDocument();
+    // Both targets should be visible as options initially.
+    const options = await screen.findAllByRole("option");
+    expect(options.length).toBeGreaterThanOrEqual(2);
+
+    // Type into the picker search to narrow the list.
+    const searchInput = screen.getByPlaceholderText("Search by name, engine, host…");
+    await user.type(searchInput, "redis");
+
+    // Only the redis target survives the cmdk filter.
+    const filteredOptions = screen.getAllByRole("option");
+    expect(filteredOptions).toHaveLength(1);
   });
 
   it("renders localized copy under the zh-CN locale", () => {
@@ -202,12 +206,18 @@ describe("QueryWorkbench", () => {
     expect(screen.queryAllByText(/^22$/)).toHaveLength(0);
   });
 
-  it("renders localized labels in filter triggers, never raw enum values", () => {
+  it("renders localized labels in filter triggers, never raw enum values", async () => {
+    const user = userEvent.setup();
     renderWorkbench(
       buildTargets(),
       enMessages,
       { ...EMPTY_FILTERS, queryKind: "sql", readiness: "credential_required" },
     );
+
+    // Open the popover to access filter selects (now inside the picker)
+    const trigger = document.getElementById("query-target-switcher");
+    expect(trigger).not.toBeNull();
+    await user.click(trigger!);
 
     const queryKindTrigger = screen.getByRole("combobox", { name: "Editor mode" });
     expect(queryKindTrigger).toHaveTextContent("SQL");
@@ -218,12 +228,37 @@ describe("QueryWorkbench", () => {
     expect(readinessTrigger).not.toHaveTextContent("credential_required");
   });
 
-  it("renders the readiness trigger label for missing_connection without leaking the raw enum", () => {
+  it("renders the readiness trigger label for missing_connection without leaking the raw enum", async () => {
+    const user = userEvent.setup();
+    // Include a target with missing_connection readiness so the filter
+    // does not empty the list and the popover button stays enabled.
+    const targets = [
+      ...buildTargets(),
+      buildQueryTarget({
+        resourceId: 99,
+        displayName: "Offline Node",
+        connectionContext: {
+          engine: "mysql",
+          host: "",
+          port: 0,
+          environment: "Production",
+          owner: "DBA Team",
+          clusterName: "",
+        },
+        readiness: "missing_connection",
+        missingFields: ["host", "port"],
+      }),
+    ];
     renderWorkbench(
-      buildTargets(),
+      targets,
       enMessages,
       { ...EMPTY_FILTERS, readiness: "missing_connection" },
     );
+
+    // Open the popover to access filter selects (now inside the picker)
+    const trigger = document.getElementById("query-target-switcher");
+    expect(trigger).not.toBeNull();
+    await user.click(trigger!);
 
     const readinessTrigger = screen.getByRole("combobox", { name: "Readiness" });
     expect(readinessTrigger).toHaveTextContent("Missing connection");
@@ -248,10 +283,12 @@ describe("QueryWorkbench", () => {
 
     renderWorkbench([target]);
 
-    // The incomplete label renders (switcher context + governance facts).
-    expect(
-      screen.getAllByText("Connection information incomplete").length,
-    ).toBeGreaterThanOrEqual(1);
+    // The compact chips show engine and environment, but NOT the host:port
+    // chip (since the connection is incomplete). The readiness chip shows
+    // "Missing connection".
+    expect(screen.getByText("mysql")).toBeInTheDocument();
+    expect(screen.getByText("Production")).toBeInTheDocument();
+    expect(screen.getByText("Missing connection")).toBeInTheDocument();
 
     // The degenerate :0 must never appear.
     expect(screen.queryAllByText(/:0/)).toHaveLength(0);

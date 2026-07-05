@@ -399,6 +399,14 @@
         "lifecycleStatus": "资源生命周期状态分类。",
         "healthStatusLabel": "健康状态",
         "healthStatus": "运维健康状态信号。"
+      },
+      "queryCredentials": {
+        "sectionTitle": "查询凭据",
+        "sectionDescription": "管理查询凭据元数据引用。DSN 和密码仅存储在服务端。",
+        "title": "查询凭据设置",
+        "description": "管理员管理凭据名称和环境策略等元数据引用。连接密钥（DSN、密码）不会暴露到浏览器。",
+        "adminAction": "打开凭据设置",
+        "nonAdminCopy": "由管理员管理。如需变更凭据，请联系管理员。"
       }
     }
   },
@@ -940,7 +948,9 @@
       "placeholder": "选择一个查询目标",
       "searchPlaceholder": "按名称、引擎、主机搜索…",
       "noMatch": "没有匹配的查询目标。",
-      "summary": "{count} 个目标"
+      "summary": "{count} 个目标",
+      "activeFilters": "{count} 个筛选",
+      "details": "详情"
     },
     "filters": {
       "search": "搜索目标、引擎或主机",

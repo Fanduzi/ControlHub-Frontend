@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronsUpDown, TriangleAlert } from "lucide-react";
+import { Check, ChevronsUpDown, ChevronDown, TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -45,12 +44,6 @@ import { QueryGovernancePanel } from "@/components/query/query-governance-panel"
 type QueryWorkbenchProps = {
   targets: QueryTarget[];
   initialFilters?: WorkbenchFilters;
-};
-
-type ContextRow = {
-  key: string;
-  label: string;
-  value: string;
 };
 
 export function QueryWorkbench({
@@ -85,9 +78,10 @@ export function QueryWorkbench({
         activeTarget={activeTarget}
         filteredTargets={filteredTargets}
         onSelect={setActiveTargetId}
+        filters={filters}
+        engines={engines}
+        onFilterChange={updateFilter}
       />
-
-      <FilterBar filters={filters} engines={engines} onChange={updateFilter} />
 
       {activeTarget ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
@@ -155,7 +149,9 @@ function targetSearchHaystack(target: QueryTarget): string {
     target.connectionContext.engine,
     target.connectionContext.environment,
     target.connectionContext.host,
+    String(target.connectionContext.port),
     target.connectionContext.clusterName ?? "",
+    target.readiness,
   ]
     .join(" ")
     .toLowerCase();
@@ -165,19 +161,32 @@ function TargetSwitcher({
   activeTarget,
   filteredTargets,
   onSelect,
+  filters,
+  engines,
+  onFilterChange,
 }: {
   activeTarget: QueryTarget | null;
   filteredTargets: QueryTarget[];
   onSelect: (id: number) => void;
+  filters: WorkbenchFilters;
+  engines: string[];
+  onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
 }) {
   const t = useTranslations("queryWorkbench");
   const [open, setOpen] = useState(false);
-  const contextRows = activeTarget ? buildContextRows(activeTarget, t) : [];
+  const [showDetails, setShowDetails] = useState(false);
 
   const sortedTargets = useMemo(
     () => sortTargetsForPicker(filteredTargets),
     [filteredTargets],
   );
+
+  // Active filter count (excluding free-text search)
+  const activeFilterCount = [
+    !isAllFilter(filters.engine),
+    !isAllFilter(filters.queryKind),
+    !isAllFilter(filters.readiness),
+  ].filter(Boolean).length;
 
   return (
     <section
@@ -210,9 +219,38 @@ function TargetSwitcher({
               className="w-[var(--popover-anchor-width)] p-0"
               align="start"
             >
+              {/* Advanced filters inside the picker popover */}
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2">
+                <FilterSelect
+                  ariaLabel={t("context.engine")}
+                  value={isAllFilter(filters.engine) ? ALL_FILTER_VALUE : filters.engine}
+                  allLabel={t("filters.engine")}
+                  onValueChange={(value) => onFilterChange({ engine: value })}
+                  options={engines.map((engine) => ({ value: engine, label: engine }))}
+                />
+                <FilterSelect
+                  ariaLabel={t("context.editorMode")}
+                  value={isAllFilter(filters.queryKind) ? ALL_FILTER_VALUE : filters.queryKind}
+                  allLabel={t("filters.queryKind")}
+                  onValueChange={(value) => onFilterChange({ queryKind: value })}
+                  options={QUERY_KIND_OPTIONS.map((kind) => ({
+                    value: kind,
+                    label: t(queryKindLabelKey(kind)),
+                  }))}
+                />
+                <FilterSelect
+                  ariaLabel={t("context.readiness")}
+                  value={isAllFilter(filters.readiness) ? ALL_FILTER_VALUE : filters.readiness}
+                  allLabel={t("filters.readiness")}
+                  onValueChange={(value) => onFilterChange({ readiness: value })}
+                  options={READINESS_OPTIONS.map((readiness) => ({
+                    value: readiness,
+                    label: t(readinessLabelKey(readiness)),
+                  }))}
+                />
+              </div>
               <Command
                 filter={(value, search) => {
-                  // value is the resourceId string; search against the haystack
                   const target = sortedTargets.find(
                     (t) => String(t.resourceId) === value,
                   );
@@ -293,114 +331,87 @@ function TargetSwitcher({
             </PopoverContent>
           </Popover>
         </div>
-        <Badge variant="outline" className="self-start lg:self-auto">
-          {t("switcher.summary", { count: filteredTargets.length })}
-        </Badge>
+        <div className="flex items-center gap-2 self-start lg:self-auto">
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {t("switcher.activeFilters", { count: activeFilterCount })}
+            </Badge>
+          )}
+          <Badge variant="outline">
+            {t("switcher.summary", { count: filteredTargets.length })}
+          </Badge>
+        </div>
       </div>
 
+      {/* Compact target summary chips */}
       {activeTarget ? (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-3 lg:grid-cols-4">
-          {contextRows.map((row) => (
-            <div key={row.key} className="flex flex-col gap-0.5">
-              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {row.label}
-              </dt>
-              <dd className="text-sm font-medium text-foreground">{row.value}</dd>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="text-xs">
+            {activeTarget.connectionContext.engine}
+          </Badge>
+          <Badge variant="secondary" className="text-xs">
+            {activeTarget.connectionContext.environment}
+          </Badge>
+          <Badge
+            variant="secondary"
+            className={cn(
+              "text-xs",
+              activeTarget.readiness === "ready"
+                ? "border-green-500/30 text-green-700 dark:text-green-300"
+                : "border-amber-500/30 text-amber-700 dark:text-amber-300",
+            )}
+          >
+            {t(readinessLabelKey(activeTarget.readiness))}
+          </Badge>
+          {formatHostPortLabel(
+            activeTarget.connectionContext.host,
+            activeTarget.connectionContext.port,
+            t("connection.incomplete"),
+          ) !== t("connection.incomplete") && (
+            <Badge variant="outline" className="text-xs font-mono">
+              {formatHostPortLabel(
+                activeTarget.connectionContext.host,
+                activeTarget.connectionContext.port,
+                t("connection.incomplete"),
+              )}
+            </Badge>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowDetails((prev) => !prev)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            aria-expanded={showDetails}
+          >
+            {t("switcher.details")}
+            <ChevronDown
+              className={cn(
+                "size-3 transition-transform",
+                showDetails && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+          {showDetails && (
+            <div className="flex w-full flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-muted-foreground">
+              <span>
+                <span className="font-medium">{t("context.owner")}:</span>{" "}
+                {activeTarget.connectionContext.owner}
+              </span>
+              <span>
+                <span className="font-medium">{t("context.language")}:</span>{" "}
+                {activeTarget.capability.languageLabel}
+              </span>
+              {activeTarget.connectionContext.clusterName && (
+                <span>
+                  <span className="font-medium">{t("context.cluster")}:</span>{" "}
+                  {activeTarget.connectionContext.clusterName}
+                </span>
+              )}
             </div>
-          ))}
-        </dl>
+          )}
+        </div>
       ) : null}
     </section>
-  );
-}
-
-function buildContextRows(
-  target: QueryTarget,
-  t: ReturnType<typeof useTranslations<"queryWorkbench">>,
-): ContextRow[] {
-  const rows: ContextRow[] = [
-    { key: "engine", label: t("context.engine"), value: target.connectionContext.engine },
-    { key: "environment", label: t("context.environment"), value: target.connectionContext.environment },
-    {
-      key: "hostPort",
-      label: t("context.hostPort"),
-      value: formatHostPortLabel(
-        target.connectionContext.host,
-        target.connectionContext.port,
-        t("connection.incomplete"),
-      ),
-    },
-    { key: "owner", label: t("context.owner"), value: target.connectionContext.owner },
-    { key: "language", label: t("context.language"), value: target.capability.languageLabel },
-    {
-      key: "readiness",
-      label: t("context.readiness"),
-      value: t(readinessLabelKey(target.readiness)),
-    },
-  ];
-
-  if (target.connectionContext.clusterName) {
-    rows.push({
-      key: "cluster",
-      label: t("context.cluster"),
-      value: target.connectionContext.clusterName,
-    });
-  }
-
-  return rows;
-}
-
-function FilterBar({
-  filters,
-  engines,
-  onChange,
-}: {
-  filters: WorkbenchFilters;
-  engines: string[];
-  onChange: (patch: Partial<WorkbenchFilters>) => void;
-}) {
-  const t = useTranslations("queryWorkbench");
-
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center">
-      <Input
-        type="search"
-        value={filters.q}
-        onChange={(event) => onChange({ q: event.target.value })}
-        placeholder={t("filters.search")}
-        aria-label={t("filters.search")}
-        className="h-9 sm:max-w-xs"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect
-          ariaLabel={t("context.engine")}
-          value={isAllFilter(filters.engine) ? ALL_FILTER_VALUE : filters.engine}
-          allLabel={t("filters.engine")}
-          onValueChange={(value) => onChange({ engine: value })}
-          options={engines.map((engine) => ({ value: engine, label: engine }))}
-        />
-        <FilterSelect
-          ariaLabel={t("context.editorMode")}
-          value={isAllFilter(filters.queryKind) ? ALL_FILTER_VALUE : filters.queryKind}
-          allLabel={t("filters.queryKind")}
-          onValueChange={(value) => onChange({ queryKind: value })}
-          options={QUERY_KIND_OPTIONS.map((kind) => ({
-            value: kind,
-            label: t(queryKindLabelKey(kind)),
-          }))}
-        />
-        <FilterSelect
-          ariaLabel={t("context.readiness")}
-          value={isAllFilter(filters.readiness) ? ALL_FILTER_VALUE : filters.readiness}
-          allLabel={t("filters.readiness")}
-          onValueChange={(value) => onChange({ readiness: value })}
-          options={READINESS_OPTIONS.map((readiness) => ({
-            value: readiness,
-            label: t(readinessLabelKey(readiness)),
-          }))}
-        />
-      </div>
-    </div>
   );
 }
 

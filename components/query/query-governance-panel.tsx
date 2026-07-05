@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ExternalLink, Info, Settings } from "lucide-react";
 
@@ -17,6 +16,7 @@ import {
   missingFieldLabel,
 } from "@/lib/query-target-display";
 import { cn } from "@/lib/utils";
+import { useAdminRole } from "@/lib/auth-role";
 
 type QueryGovernancePanelProps = {
   target: QueryTarget;
@@ -225,19 +225,13 @@ function PolicyBadges() {
  * Phase 38A: Read-only credential status section for the governance panel.
  * Shows either an admin settings link or a contact administrator message.
  * Never renders credential edit controls. Compact inline layout.
+ *
+ * Uses the shared `useAdminRole` hook which reads sessionStorage first,
+ * then falls back to decoding the bearer token payload.
  */
 function CredentialStatusSection() {
   const tCred = useTranslations("queryCredentialSettings");
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsAdmin(window.sessionStorage.getItem("controlhub.role") === "admin");
-    } catch {
-      setIsAdmin(false);
-    }
-  }, []);
+  const isAdmin = useAdminRole();
 
   if (isAdmin === null) {
     return <span className="text-xs text-muted-foreground" aria-hidden>&nbsp;</span>;

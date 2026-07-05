@@ -45,6 +45,7 @@ import {
   formatHostPortLabel,
 } from "@/lib/query-target-display";
 import { cn } from "@/lib/utils";
+import { useAdminRole } from "@/lib/auth-role";
 import type {
   CredentialOperationRow,
   CoverageCounts,
@@ -86,8 +87,9 @@ type QueryCredentialSettingsProps = {
 /**
  * Admin-only credential operations surface (Phase 38B).
  *
- * Reads `sessionStorage["controlhub.role"]` in a `useEffect` after
- * hydration so the SSR output and the client first render are identical
+ * Uses the shared `useAdminRole` hook which reads
+ * `sessionStorage["controlhub.role"]` first, then falls back to decoding
+ * the bearer token payload.  SSR and first client render are identical
  * (both produce the loading skeleton). Non-admin users see a "managed
  * by administrators" message.
  */
@@ -95,7 +97,7 @@ export function QueryCredentialSettings({
   targets,
 }: QueryCredentialSettingsProps) {
   const t = useTranslations("queryCredentialSettings");
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const isAdmin = useAdminRole();
 
   // Credential status map: resourceId -> status or null
   const [credentialMap, setCredentialMap] = useState<
@@ -120,15 +122,6 @@ export function QueryCredentialSettings({
 
   // Active detail target (for single-target edit panel)
   const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
-
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsAdmin(window.sessionStorage.getItem("controlhub.role") === "admin");
-    } catch {
-      setIsAdmin(false);
-    }
-  }, []);
 
   // --- Fetch all credential statuses with bounded fan-out ---
   const fetchAllCredentialStatuses = useCallback(

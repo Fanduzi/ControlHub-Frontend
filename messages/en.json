@@ -399,6 +399,14 @@
         "lifecycleStatus": "Resource lifecycle state classification.",
         "healthStatusLabel": "Health Status",
         "healthStatus": "Operator health posture signal."
+      },
+      "queryCredentials": {
+        "sectionTitle": "Query credentials",
+        "sectionDescription": "Manage query credential metadata references. DSN and password are stored server-side only.",
+        "title": "Query credential settings",
+        "description": "Administrators manage metadata references such as credential name and environment policy. Connection secrets (DSN, password) are never exposed to the browser.",
+        "adminAction": "Open credential settings",
+        "nonAdminCopy": "Managed by administrators. Contact your admin for credential changes."
       }
     }
   },
@@ -940,7 +948,9 @@
       "placeholder": "Select a query target",
       "searchPlaceholder": "Search by name, engine, host…",
       "noMatch": "No targets match your search.",
-      "summary": "{count} targets"
+      "summary": "{count} targets",
+      "activeFilters": "{count} filters",
+      "details": "Details"
     },
     "filters": {
       "search": "Search target, engine, or host",
