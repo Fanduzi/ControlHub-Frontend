@@ -316,28 +316,33 @@ test.describe("Query credential settings", () => {
     );
   });
 
-  test("direct URL /settings/query-credentials shows admin controls after role recovery", async ({
+  test("direct URL /settings/query-credentials shows admin controls after role recovery (cookie-only)", async ({
     page,
   }) => {
-    // Login to establish session (this sets sessionStorage role).
+    // Login to establish session (sets sessionStorage token/role and cookie).
     await loginViaUI(page);
 
-    // Navigate away from settings first to simulate a fresh direct URL load.
+    // Navigate away first.
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
 
-    // Clear the sessionStorage role to simulate a direct URL navigation
-    // where the role was not persisted (e.g. new tab, page refresh).
-    await page.evaluate(() => {
+    // Save the cookie token, then clear ALL sessionStorage auth state.
+    // This simulates a new-tab / direct-URL scenario where only the
+    // httpOnly-style cookie survives.
+    const cookieToken = await page.evaluate(() => {
+      const token = window.sessionStorage.getItem("controlhub.token");
+      window.sessionStorage.removeItem("controlhub.token");
       window.sessionStorage.removeItem("controlhub.role");
+      return token;
     });
+    expect(cookieToken).toBeTruthy();
 
     // Navigate directly to the query-credentials page.
     await page.goto("/settings/query-credentials");
     await expect(page).toHaveURL(/\/settings\/query-credentials/);
 
-    // Admin controls should still appear after role recovery from the
-    // bearer token (the token contains the role).
+    // Admin controls should appear after role recovery from the cookie
+    // bearer token (the token contains the role, decoded client-side).
     await expect(
       page.getByText("Coverage overview"),
     ).toBeVisible({ timeout: 15_000 });
@@ -345,5 +350,11 @@ test.describe("Query credential settings", () => {
     // The operations table should render.
     const tableRows = page.locator("table tbody tr");
     await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
+
+    // sessionStorage should have been backfilled.
+    const backfilledRole = await page.evaluate(() =>
+      window.sessionStorage.getItem("controlhub.role"),
+    );
+    expect(backfilledRole).toBe("admin");
   });
 });
