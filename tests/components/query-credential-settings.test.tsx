@@ -1376,3 +1376,82 @@ describe("QueryCredentialSettings — cross-target warning in bulk apply (P4)", 
     expect(screen.queryByText(/multiple environments/i)).toBeNull();
   });
 });
+
+describe("QueryCredentialSettings ICU formatting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("renders zh-CN credentialRefHint without ICU formatting error", async () => {
+    const zhMessages = await import("@/messages/zh-CN.json");
+    const targets = buildTargets();
+
+    // The zh-CN messages previously used {ref} as an ICU placeholder,
+    // which would be stripped at runtime. After the fix, the literal
+    // text "CONTROLHUB_QUERY_CREDENTIAL_your-ref" should appear.
+    renderSettings(targets, zhMessages.default);
+
+    // Select a target to show the detail panel.
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    // The credentialRefHint should contain the literal text, not a
+    // stripped ICU placeholder. There are multiple elements matching
+    // (credentialRefHint and boundaryNote both contain the text).
+    await waitFor(() => {
+      const elements = screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_your-ref/);
+      expect(elements.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Should NOT show "CONTROLHUB_QUERY_CREDENTIAL_" (without the ref)
+    // which would indicate the ICU placeholder was stripped.
+    expect(
+      screen.queryByText(/CONTROLHUB_QUERY_CREDENTIAL_\s*。/),
+    ).toBeNull();
+  });
+
+  it("renders zh-CN boundaryNote without ICU formatting error", async () => {
+    const zhMessages = await import("@/messages/zh-CN.json");
+    const targets = buildTargets();
+
+    renderSettings(targets, zhMessages.default);
+
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    // The boundaryNote should contain the literal text.
+    await waitFor(() => {
+      const elements = screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_your-ref/);
+      expect(elements.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("renders en credentialRefHint without ICU formatting error", async () => {
+    const targets = buildTargets();
+
+    renderSettings(targets);
+
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      const elements = screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_your-ref/);
+      expect(elements.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});

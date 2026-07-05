@@ -938,6 +938,8 @@
     "switcher": {
       "label": "查询目标",
       "placeholder": "选择一个查询目标",
+      "searchPlaceholder": "按名称、引擎、主机搜索…",
+      "noMatch": "没有匹配的查询目标。",
       "summary": "{count} 个目标"
     },
     "filters": {
@@ -977,12 +979,12 @@
       "maxRows": "最大行数 100",
       "lockTitle": "编辑器被策略锁定",
       "lockDescription": "需要只读凭据、语句 guard、审计记录、超时和行数限制全部就绪后才能执行。",
-      "placeholderHint": "只读 SELECT 计划在后续阶段启用。",
+      "placeholderHint": "只读 SQL 计划在后续阶段启用。",
       "savedSheetsPlaceholder": "已保存脚本不可用 — 本阶段未启用脚本存储。",
       "historyPlaceholder": "查询历史不可用 — 尚未执行任何查询。",
       "accessPlaceholder": "访问授权不可用 — 访问流程计划在后续阶段实现。",
       "statementLabel": "语句",
-      "statementPlaceholder": "输入一条只读 SELECT 语句",
+      "statementPlaceholder": "输入一条只读 SQL 语句（如 SELECT … 或 SHOW TABLES）",
       "maxRowsLabel": "最大行数",
       "runReady": "执行",
       "ready": "就绪"
@@ -1087,6 +1089,7 @@
       "export": "导出",
       "saveSheet": "保存脚本",
       "requestAccess": "申请访问",
+      "available": "可用",
       "locked": "已锁定",
       "unavailable": "不可用"
     },
@@ -1155,10 +1158,10 @@
       "runtimeLabel": "运行时状态",
       "credentialRefLabel": "凭据引用",
       "credentialRefPlaceholder": "例如 ORDER_MYSQL_RO",
-      "credentialRefHint": "不透明引用，在服务端解析为 CONTROLHUB_QUERY_CREDENTIAL_{ref}。切勿输入 DSN 或密码。",
+      "credentialRefHint": "不透明引用，在服务端解析为 CONTROLHUB_QUERY_CREDENTIAL_your-ref。切勿输入 DSN 或密码。",
       "enabledLabel": "已启用",
       "environmentPolicyLabel": "环境策略",
-      "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_your-ref",
       "configureButton": "配置凭据元数据",
       "editButton": "编辑凭据元数据",
       "removeButton": "移除凭据元数据",

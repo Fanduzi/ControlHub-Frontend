@@ -938,6 +938,8 @@
     "switcher": {
       "label": "Query target",
       "placeholder": "Select a query target",
+      "searchPlaceholder": "Search by name, engine, host…",
+      "noMatch": "No targets match your search.",
       "summary": "{count} targets"
     },
     "filters": {
@@ -977,12 +979,12 @@
       "maxRows": "Max rows 100",
       "lockTitle": "Editor locked by policy",
       "lockDescription": "Read-only credential, statement guard, audit record, timeout, and row limit must all be in place before execution.",
-      "placeholderHint": "Read-only SELECT is planned for a later phase.",
+      "placeholderHint": "Read-only SQL is planned for a later phase.",
       "savedSheetsPlaceholder": "Saved sheets are unavailable — sheet storage is not enabled in this phase.",
       "historyPlaceholder": "Query history is unavailable — no queries have been executed.",
       "accessPlaceholder": "Access grants are unavailable — the access workflow is planned for a later phase.",
       "statementLabel": "Statement",
-      "statementPlaceholder": "Enter a single read-only SELECT statement",
+      "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",
       "runReady": "Run",
       "ready": "Ready"
@@ -1087,6 +1089,7 @@
       "export": "Export",
       "saveSheet": "Save sheet",
       "requestAccess": "Request access",
+      "available": "available",
       "locked": "locked",
       "unavailable": "unavailable"
     },

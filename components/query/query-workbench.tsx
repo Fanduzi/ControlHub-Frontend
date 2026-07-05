@@ -2,11 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { TriangleAlert } from "lucide-react";
+import { Check, ChevronsUpDown, TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -14,6 +24,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { cn } from "@/lib/utils";
 import {
   ALL_FILTER_VALUE,
   EMPTY_FILTERS,
@@ -120,6 +131,36 @@ function SafetyBanner() {
   );
 }
 
+/**
+ * Sort targets: ready targets first, then alphabetically by display name.
+ * Pure — returns a new array, never mutates the input.
+ */
+function sortTargetsForPicker(targets: QueryTarget[]): QueryTarget[] {
+  return [...targets].sort((a, b) => {
+    const aReady = a.readiness === "ready" ? 0 : 1;
+    const bReady = b.readiness === "ready" ? 0 : 1;
+    if (aReady !== bReady) return aReady - bReady;
+    return a.displayName.localeCompare(b.displayName);
+  });
+}
+
+/**
+ * Build a searchable haystack for a target. Includes all fields that the
+ * picker should match against. Pure — no hooks.
+ */
+function targetSearchHaystack(target: QueryTarget): string {
+  return [
+    target.displayName,
+    target.resourceName,
+    target.connectionContext.engine,
+    target.connectionContext.environment,
+    target.connectionContext.host,
+    target.connectionContext.clusterName ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
 function TargetSwitcher({
   activeTarget,
   filteredTargets,
@@ -130,7 +171,13 @@ function TargetSwitcher({
   onSelect: (id: number) => void;
 }) {
   const t = useTranslations("queryWorkbench");
+  const [open, setOpen] = useState(false);
   const contextRows = activeTarget ? buildContextRows(activeTarget, t) : [];
+
+  const sortedTargets = useMemo(
+    () => sortTargetsForPicker(filteredTargets),
+    [filteredTargets],
+  );
 
   return (
     <section
@@ -145,33 +192,106 @@ function TargetSwitcher({
           >
             {t("switcher.label")}
           </label>
-          <Select
-            value={activeTarget ? String(activeTarget.resourceId) : undefined}
-            onValueChange={(value) => {
-              if (value) {
-                onSelect(Number(value));
-              }
-            }}
-          >
-            <SelectTrigger
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
               id="query-target-switcher"
-              className="h-9 w-full min-w-[260px] max-w-xl"
+              className="h-9 w-full min-w-[300px] max-w-xl"
               disabled={filteredTargets.length === 0}
+              render={<Button variant="outline" />}
             >
-              <span>
+              <span className="flex-1 truncate text-left">
                 {activeTarget
                   ? `${activeTarget.displayName} · ${activeTarget.connectionContext.engine}`
                   : t("switcher.placeholder")}
               </span>
-            </SelectTrigger>
-            <SelectContent>
-              {filteredTargets.map((target) => (
-                <SelectItem key={target.resourceId} value={String(target.resourceId)}>
-                  {target.displayName} · {target.connectionContext.engine}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[var(--popover-anchor-width)] p-0"
+              align="start"
+            >
+              <Command
+                filter={(value, search) => {
+                  // value is the resourceId string; search against the haystack
+                  const target = sortedTargets.find(
+                    (t) => String(t.resourceId) === value,
+                  );
+                  if (!target) return 0;
+                  return targetSearchHaystack(target).includes(
+                    search.toLowerCase(),
+                  )
+                    ? 1
+                    : 0;
+                }}
+              >
+                <CommandInput placeholder={t("switcher.searchPlaceholder")} />
+                <CommandList>
+                  <CommandEmpty>{t("switcher.noMatch")}</CommandEmpty>
+                  <CommandGroup>
+                    {sortedTargets.map((target) => {
+                      const hostPort = formatHostPortLabel(
+                        target.connectionContext.host,
+                        target.connectionContext.port,
+                        t("connection.incomplete"),
+                      );
+                      const isReady = target.readiness === "ready";
+                      return (
+                        <CommandItem
+                          key={target.resourceId}
+                          value={String(target.resourceId)}
+                          onSelect={(value) => {
+                            onSelect(Number(value));
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            "flex flex-col items-start gap-0.5 py-2",
+                            isReady &&
+                              "border-l-2 border-l-green-500",
+                          )}
+                        >
+                          <div className="flex w-full items-center gap-2">
+                            <span className="flex-1 truncate font-medium">
+                              {target.displayName}
+                            </span>
+                            <Check
+                              className={cn(
+                                "size-4 shrink-0",
+                                activeTarget?.resourceId ===
+                                  target.resourceId
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                            <span>{target.connectionContext.engine}</span>
+                            <span className="text-border">·</span>
+                            <span>{target.connectionContext.environment}</span>
+                            {hostPort !== t("connection.incomplete") && (
+                              <>
+                                <span className="text-border">·</span>
+                                <span>{hostPort}</span>
+                              </>
+                            )}
+                            <span className="text-border">·</span>
+                            <span
+                              className={cn(
+                                isReady
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-amber-600 dark:text-amber-400",
+                              )}
+                            >
+                              {t(readinessLabelKey(target.readiness))}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <Badge variant="outline" className="self-start lg:self-auto">
           {t("switcher.summary", { count: filteredTargets.length })}

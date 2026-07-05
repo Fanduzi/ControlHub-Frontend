@@ -149,6 +149,74 @@ test.describe("Query Workbench shell", () => {
     });
   });
 
+  test("a ready target runs SHOW TABLES and shows the result", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // Replace the default statement with SHOW TABLES.
+    const statement = page.getByRole("textbox", { name: /statement/i });
+    await statement.fill("SHOW TABLES");
+
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // The backend executes SHOW TABLES and returns a result set.
+    // The result grid should show at least one row (the table name).
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // The result should contain at least one cell with a table name.
+    // We don't assert a specific table name since it depends on the fixture.
+    const cells = page.getByRole("gridcell");
+    const cellCount = await cells.count();
+    expect(cellCount).toBeGreaterThan(0);
+  });
+
+  test("a ready target runs DESCRIBE and shows the result", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // First, run SHOW TABLES to discover a table name.
+    const statement = page.getByRole("textbox", { name: /statement/i });
+    await statement.fill("SHOW TABLES");
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // Wait for the result grid to show table names.
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Get the first table name from a data cell (not a header).
+    // The grid has header rows and data rows; we want a data cell.
+    const dataCells = page.getByRole("gridcell");
+    const cellCount = await dataCells.count();
+    test.skip(cellCount === 0, "SHOW TABLES returned no data cells");
+
+    const tableName = await dataCells.first().textContent();
+    test.skip(!tableName, "SHOW TABLES returned empty table name");
+
+    // Now run DESCRIBE on that table.
+    await statement.fill(`DESCRIBE ${tableName}`);
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // Wait for the result grid to update with DESCRIBE output.
+    // DESCRIBE returns columns: Field, Type, Null, Key, Default, Extra.
+    // We assert that at least one DESCRIBE-specific column header appears,
+    // which proves the DESCRIBE result replaced the SHOW TABLES result.
+    await expect(
+      page.getByRole("columnheader", { name: /Field|Type|Null|Key|Default|Extra/i }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Additionally verify at least one data row exists (a column definition).
+    const describeDataCells = page.getByRole("gridcell");
+    const describeCellCount = await describeDataCells.count();
+    expect(describeCellCount).toBeGreaterThan(0);
+  });
+
   test("an unsafe statement is rejected with a controlled validation message", async ({ page }) => {
     await openQueryWorkbench(page);
 
@@ -184,6 +252,26 @@ test.describe("Query Workbench shell", () => {
     await page.getByRole("tab", { name: /query history/i }).click();
     await expect(page.getByText("select 1").first()).toBeVisible({ timeout: 15_000 });
   });
+
+  test("query history records SHOW TABLES attempt", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    const statement = page.getByRole("textbox", { name: /statement/i });
+    await statement.fill("SHOW TABLES");
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // Wait for the result to appear.
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Switch to history tab and verify the SHOW TABLES attempt is recorded.
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SHOW TABLES").first()).toBeVisible({ timeout: 15_000 });
+  });
 });
 
 async function openQueryWorkbench(page: Page): Promise<void> {
@@ -201,12 +289,16 @@ async function isRunEnabled(page: Page): Promise<boolean> {
   return run.first().isEnabled().catch(() => false);
 }
 
-/** Open the switcher dropdown and wait for its options to render. */
+/**
+ * Open the target picker popover and wait for its options to render.
+ * Phase 38C replaced the Select dropdown with a Command-based searchable picker.
+ */
 async function openSwitcher(page: Page): Promise<void> {
-  // Dismiss any open popover first (Escape closes base-ui Select), then toggle
+  // Dismiss any open popover first (Escape closes the popover), then toggle
   // open. Deterministic regardless of prior open/closed state.
   await page.keyboard.press("Escape");
   await page.locator("#query-target-switcher").click();
+  // Wait for the Command list to appear with at least one item.
   await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
 }
 
@@ -218,6 +310,8 @@ async function switcherOptionCount(page: Page): Promise<number> {
 async function selectSwitcherOption(page: Page, index: number): Promise<void> {
   await openSwitcher(page);
   await page.getByRole("option").nth(index).click();
+  // Wait for the popover to close after selection.
+  await page.waitForTimeout(300);
 }
 
 /** Walk the switcher and return the first ready target's option index, or null. */
