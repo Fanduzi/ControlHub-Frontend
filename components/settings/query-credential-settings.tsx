@@ -371,6 +371,7 @@ export function QueryCredentialSettings({
           target={
             targets.find((t) => t.resourceId === activeTargetId) ?? targets[0]
           }
+          onCredentialChanged={() => void fetchAllCredentialStatuses(targets)}
         />
       )}
     </div>
@@ -1482,13 +1483,20 @@ function toWritablePolicy(
   return "non_prod_only";
 }
 
-function CredentialDetailPanel({ target }: { target: QueryTarget }) {
+function CredentialDetailPanel({
+  target,
+  onCredentialChanged,
+}: {
+  target: QueryTarget;
+  onCredentialChanged: () => void;
+}) {
   const t = useTranslations("queryCredentialSettings");
   const tWorkbench = useTranslations("queryWorkbench");
   const [credential, setCredential] =
     useState<QueryCredentialStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [credentialRef, setCredentialRef] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -1510,6 +1518,7 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
     activeTargetIdRef.current = targetId;
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const data = await getQueryCredential(targetId);
       if (activeTargetIdRef.current !== targetId) return;
@@ -1538,6 +1547,7 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
     const targetId = target.resourceId;
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       const body = buildCredentialPutBody({
         credentialRef: credentialRef.trim(),
@@ -1548,6 +1558,8 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
       const result = await saveQueryCredential(targetId, body);
       if (activeTargetIdRef.current !== targetId) return;
       setCredential(result);
+      setSuccess(t("detail.saved"));
+      onCredentialChanged();
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) return;
       setError(
@@ -1564,12 +1576,14 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
     const targetId = target.resourceId;
     setRemoving(true);
     setError(null);
+    setSuccess(null);
     try {
       await deleteQueryCredential(targetId);
       if (activeTargetIdRef.current !== targetId) return;
       await loadCredential(targetId);
       if (activeTargetIdRef.current !== targetId) return;
       setShowRemoveConfirm(false);
+      onCredentialChanged();
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) return;
       setError(
@@ -1697,6 +1711,16 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
         </div>
       )}
 
+      {/* Success display */}
+      {success && (
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300"
+        >
+          {success}
+        </div>
+      )}
+
       {/* Form fields */}
       <div className="space-y-3">
         <div>
@@ -1816,9 +1840,7 @@ function CredentialDetailPanel({ target }: { target: QueryTarget }) {
           ) : (
             <>
               <ExternalLink className="size-3.5" aria-hidden />
-              {isConfigured
-                ? t("detail.editButton")
-                : t("detail.configureButton")}
+              {t("detail.saveButton")}
             </>
           )}
         </Button>

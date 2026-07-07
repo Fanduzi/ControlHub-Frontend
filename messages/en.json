@@ -1184,7 +1184,8 @@
       "removeButton": "Remove credential metadata",
       "removeConfirmTitle": "Remove credential metadata?",
       "removeConfirmDescription": "This removes the credential binding for this target. The target will remain visible and locked. The actual credential is not deleted.",
-      "saveButton": "Save metadata",
+      "saveButton": "Save credential metadata",
+      "saved": "Credential metadata saved.",
       "saveDisabled": "Save disabled until confirmation",
       "saving": "Saving...",
       "removing": "Removing..."

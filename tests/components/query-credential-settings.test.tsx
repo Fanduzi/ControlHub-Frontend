@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -387,7 +387,7 @@ describe("QueryCredentialSettings stale target guard", () => {
     await user.type(input, "NEW_REF");
 
     const saveButton = screen.getByRole("button", {
-      name: /edit credential metadata/i,
+      name: /save credential metadata/i,
     });
     await user.click(saveButton);
 
@@ -470,6 +470,111 @@ describe("QueryCredentialSettings stale target guard", () => {
   });
 });
 
+describe("QueryCredentialSettings — detail save feedback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows save feedback and refreshes the operations row after saving a target credential", async () => {
+    const user = userEvent.setup();
+    let target42Reads = 0;
+
+    mockGetQueryCredential.mockImplementation((targetId: number) => {
+      if (targetId === 42) {
+        target42Reads += 1;
+        if (target42Reads === 1) {
+          return Promise.resolve(credentialResponse({ resourceId: 42 }));
+        }
+        if (target42Reads === 2) {
+          return Promise.resolve(
+            credentialResponse({
+              resourceId: 42,
+              configured: true,
+              credentialRef: "ORDER_OLD_RO",
+              enabled: true,
+              environmentPolicy: "non_prod_only",
+              runtimeStatus: "secret_missing",
+            }),
+          );
+        }
+        return Promise.resolve(
+          credentialResponse({
+            resourceId: 42,
+            configured: true,
+            credentialRef: "ORDER_NEW_RO",
+            enabled: true,
+            environmentPolicy: "non_prod_only",
+            runtimeStatus: "secret_resolved",
+            executionEligible: true,
+          }),
+        );
+      }
+
+      return Promise.resolve(
+        credentialResponse({
+          resourceId: targetId,
+          configured: false,
+          credentialRef: "",
+        }),
+      );
+    });
+
+    mockSaveQueryCredential.mockResolvedValue(
+      credentialResponse({
+        resourceId: 42,
+        configured: true,
+        credentialRef: "ORDER_NEW_RO",
+        enabled: true,
+        environmentPolicy: "non_prod_only",
+        runtimeStatus: "secret_resolved",
+        executionEligible: true,
+      }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    const input = await screen.findByLabelText(/credential ref/i);
+    await waitFor(() => {
+      expect(input).toHaveValue("ORDER_OLD_RO");
+    });
+
+    await user.clear(input);
+    await user.type(input, "ORDER_NEW_RO");
+
+    await user.click(
+      screen.getByRole("button", { name: /save credential metadata/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Credential metadata saved."),
+      ).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const orderRow = screen
+        .getAllByRole("row")
+        .find((row) =>
+          within(row).queryByText("Order MySQL Instance"),
+        );
+      expect(orderRow).toBeDefined();
+      expect(within(orderRow!).getByText("ORDER_NEW_RO")).toBeInTheDocument();
+    });
+  });
+});
+
 describe("QueryCredentialSettings — disabled environmentPolicy response", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -542,7 +647,7 @@ describe("QueryCredentialSettings — disabled environmentPolicy response", () =
     // The form should be functional — "All environments" should be selectable.
     // Verify the save button is present (admin UI is fully rendered).
     expect(
-      screen.getByRole("button", { name: /configure credential metadata/i }),
+      screen.getByRole("button", { name: /save credential metadata/i }),
     ).toBeInTheDocument();
   });
 });

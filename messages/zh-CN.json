@@ -1177,7 +1177,8 @@
       "removeButton": "移除凭据元数据",
       "removeConfirmTitle": "移除凭据元数据？",
       "removeConfirmDescription": "这将移除此目标的凭据绑定。目标仍将可见且处于锁定状态。实际凭据不会被删除。",
-      "saveButton": "保存元数据",
+      "saveButton": "保存凭据元数据",
+      "saved": "凭据元数据已保存。",
       "saveDisabled": "确认前无法保存",
       "saving": "保存中...",
       "removing": "移除中..."
