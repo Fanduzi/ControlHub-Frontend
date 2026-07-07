@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Filter,
   Layers,
@@ -1506,6 +1507,7 @@ function CredentialDetailPanel({
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [showBindingHelp, setShowBindingHelp] = useState(false);
 
   const activeTargetIdRef = useRef(target.resourceId);
 
@@ -1623,26 +1625,44 @@ function CredentialDetailPanel({
         </p>
       </div>
 
-      {/* DBA model guidance */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-muted/10 p-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Shield className="size-4 text-blue-500" aria-hidden />
-            {t("dbaStandardAccount")}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {t("dbaStandardAccountDescription")}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-muted/10 p-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Link className="size-4 text-purple-500" aria-hidden />
-            {t("clusterOverride")}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {t("clusterOverrideDescription")}
-          </p>
-        </div>
+      {/* DBA model guidance - collapsible */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowBindingHelp(!showBindingHelp)}
+          className="flex w-full items-center gap-2 text-sm font-semibold text-foreground hover:underline"
+        >
+          <ChevronDown
+            className={cn(
+              "size-4 text-muted-foreground transition-transform",
+              showBindingHelp && "rotate-180",
+            )}
+            aria-hidden
+          />
+          {t("detail.howThisBindingWorks")}
+        </button>
+        {showBindingHelp && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Shield className="size-4 text-blue-500" aria-hidden />
+                {t("dbaStandardAccount")}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("dbaStandardAccountDescription")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Link className="size-4 text-purple-500" aria-hidden />
+                {t("clusterOverride")}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("clusterOverrideDescription")}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Runtime status */}
@@ -1740,6 +1760,16 @@ function CredentialDetailPanel({
           <p className="mt-1 text-xs text-muted-foreground">
             {t("detail.credentialRefHint")}
           </p>
+          {credentialRef.trim() !== "" && (
+            <div className="mt-2 rounded-md border border-border bg-muted/20 p-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t("detail.derivedEnvVarLabel")}
+              </p>
+              <code className="mt-0.5 block font-mono text-xs text-foreground">
+                CONTROLHUB_QUERY_CREDENTIAL_{credentialRef.trim()}
+              </code>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

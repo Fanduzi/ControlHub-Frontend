@@ -1078,7 +1078,8 @@
       "missingFields": "Missing configuration",
       "availableActions": "Available actions",
       "noMissingFields": "No configuration gaps reported",
-      "credentialStateLabel": "Credential state"
+      "credentialStateLabel": "Credential state",
+      "blocker": "Blocker"
     },
     "policy": {
       "multiStatement": "Multi-statement",
@@ -1173,9 +1174,13 @@
       "noSelection": "Select a query target to manage its credential metadata.",
       "targetLabel": "Target",
       "runtimeLabel": "Runtime status",
-      "credentialRefLabel": "Credential reference",
+      "credentialRefLabel": "Server secret reference",
       "credentialRefPlaceholder": "e.g. ORDER_MYSQL_RO",
-      "credentialRefHint": "Opaque reference resolved server-side as CONTROLHUB_QUERY_CREDENTIAL_your-ref. Never enter a DSN or password.",
+      "credentialRefHint": "Opaque server-side reference. The backend resolves it as CONTROLHUB_QUERY_CREDENTIAL_your-ref. Never enter a DSN or password.",
+      "derivedEnvVarLabel": "Backend environment variable",
+      "derivedEnvVar": "CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "howThisBindingWorks": "How this binding works",
+      "howThisBindingWorksDescription": "The real DSN, username, and password are stored in the backend runtime environment. ControlHub only stores this reference.",
       "enabledLabel": "Enabled",
       "environmentPolicyLabel": "Environment policy",
       "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_your-ref",

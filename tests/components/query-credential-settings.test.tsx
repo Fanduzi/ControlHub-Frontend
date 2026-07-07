@@ -121,7 +121,7 @@ describe("QueryCredentialSettings admin gate", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(screen.queryByText("Order MySQL Instance")).toBeNull();
     expect(screen.queryByText("Payment MySQL Instance")).toBeNull();
-    expect(screen.queryByLabelText(/credential ref/i)).toBeNull();
+    expect(screen.queryByLabelText(/server secret reference/i)).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
   });
@@ -227,7 +227,7 @@ describe("QueryCredentialSettings admin gate", () => {
     });
 
     // No credential form elements.
-    expect(screen.queryByLabelText(/credential ref/i)).toBeNull();
+    expect(screen.queryByLabelText(/server secret reference/i)).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
     // No action buttons.
@@ -344,7 +344,7 @@ describe("QueryCredentialSettings stale target guard", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     // B's credentialRef input should be empty, not A's "ORDER_MYSQL_RO".
-    const input = screen.getByLabelText(/credential ref/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/server secret reference/i) as HTMLInputElement;
     expect(input.value).toBe("");
     expect(screen.queryByText("ORDER_MYSQL_RO")).toBeNull();
   });
@@ -382,7 +382,7 @@ describe("QueryCredentialSettings stale target guard", () => {
     });
 
     // Fill in and save for target A.
-    const input = screen.getByLabelText(/credential ref/i);
+    const input = screen.getByLabelText(/server secret reference/i);
     await user.clear(input);
     await user.type(input, "NEW_REF");
 
@@ -545,7 +545,7 @@ describe("QueryCredentialSettings — detail save feedback", () => {
 
     await user.click(screen.getByText("Order MySQL Instance"));
 
-    const input = await screen.findByLabelText(/credential ref/i);
+    const input = await screen.findByLabelText(/server secret reference/i);
     await waitFor(() => {
       expect(input).toHaveValue("ORDER_OLD_RO");
     });
@@ -1558,5 +1558,96 @@ describe("QueryCredentialSettings ICU formatting", () => {
       const elements = screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_your-ref/);
       expect(elements.length).toBeGreaterThanOrEqual(1);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F0b: Credential Terminology and Secret Location Clarity
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — F0b credential terminology", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows server secret reference label and derived env var", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "ORDER_MYSQL_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/server secret reference/i)).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("CONTROLHUB_QUERY_CREDENTIAL_ORDER_MYSQL_RO"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show derived env var when credential ref is empty", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/server secret reference/i)).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText("CONTROLHUB_QUERY_CREDENTIAL_"),
+    ).toBeNull();
+  });
+
+  it("collapses DBA guidance under 'How this binding works'", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Standard read-only account")).toBeNull();
+    expect(screen.queryByText("Cluster-specific override")).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: /how this binding works/i }),
+    );
+
+    expect(screen.getByText("Standard read-only account")).toBeInTheDocument();
+    expect(screen.getByText("Cluster-specific override")).toBeInTheDocument();
   });
 });

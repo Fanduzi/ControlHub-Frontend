@@ -1078,7 +1078,8 @@
       "missingFields": "缺失配置",
       "availableActions": "可用动作",
       "noMissingFields": "未报告配置缺口",
-      "credentialStateLabel": "凭据状态"
+      "credentialStateLabel": "凭据状态",
+      "blocker": "阻塞项"
     },
     "policy": {
       "multiStatement": "多语句",
@@ -1166,9 +1167,13 @@
       "noSelection": "选择一个查询目标以管理其凭据元数据。",
       "targetLabel": "目标",
       "runtimeLabel": "运行时状态",
-      "credentialRefLabel": "凭据引用",
+      "credentialRefLabel": "服务端密钥引用",
       "credentialRefPlaceholder": "例如 ORDER_MYSQL_RO",
-      "credentialRefHint": "不透明引用，在服务端解析为 CONTROLHUB_QUERY_CREDENTIAL_your-ref。切勿输入 DSN 或密码。",
+      "credentialRefHint": "服务端不透明引用。后端运行时会将其解析为 CONTROLHUB_QUERY_CREDENTIAL_your-ref。切勿输入 DSN 或密码。",
+      "derivedEnvVarLabel": "后端环境变量",
+      "derivedEnvVar": "CONTROLHUB_QUERY_CREDENTIAL_{ref}",
+      "howThisBindingWorks": "绑定说明",
+      "howThisBindingWorksDescription": "真实的 DSN、用户名和密码存储在后端运行环境中。ControlHub 仅存储此引用。",
       "enabledLabel": "已启用",
       "environmentPolicyLabel": "环境策略",
       "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_your-ref",
