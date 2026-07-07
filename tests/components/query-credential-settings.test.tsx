@@ -1624,7 +1624,7 @@ describe("QueryCredentialSettings — F0b credential terminology", () => {
     ).toBeNull();
   });
 
-  it("collapses DBA guidance under 'How this binding works'", async () => {
+  it("collapses help under 'How this binding works'", async () => {
     const user = userEvent.setup();
     mockGetQueryCredential.mockResolvedValue(credentialResponse());
 
@@ -1640,14 +1640,205 @@ describe("QueryCredentialSettings — F0b credential terminology", () => {
       expect(screen.getByText("Credential binding")).toBeInTheDocument();
     });
 
+    // Old cards should NOT be visible.
     expect(screen.queryByText("Standard read-only account")).toBeNull();
     expect(screen.queryByText("Cluster-specific override")).toBeNull();
 
+    // Click the help disclosure.
     await user.click(
       screen.getByRole("button", { name: /how this binding works/i }),
     );
 
-    expect(screen.getByText("Standard read-only account")).toBeInTheDocument();
-    expect(screen.getByText("Cluster-specific override")).toBeInTheDocument();
+    // Old cards should still NOT be visible.
+    expect(screen.queryByText("Standard read-only account")).toBeNull();
+    expect(screen.queryByText("Cluster-specific override")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review Finding 1: Credential delete success feedback
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — delete success feedback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows success feedback after successful delete", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "ORDER_MYSQL_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+    mockDeleteQueryCredential.mockResolvedValue(undefined);
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+    });
+
+    // Click remove button to show confirmation.
+    await user.click(screen.getByText("Remove credential metadata"));
+
+    // Click confirm delete.
+    await user.click(screen.getByText("Remove credential metadata?"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/credential metadata removed/i);
+    });
+  });
+
+  it("does not show stale delete success after switching targets", async () => {
+    const user = userEvent.setup();
+
+    let resolveDeleteA!: () => void;
+    mockDeleteQueryCredential.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDeleteA = resolve; }),
+    );
+
+    // First target load.
+    mockGetQueryCredential.mockResolvedValueOnce(
+      credentialResponse({
+        configured: true,
+        credentialRef: "ORDER_MYSQL_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Select first target and start delete.
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Remove credential metadata"));
+    await user.click(screen.getByText("Remove credential metadata?"));
+
+    // Second target load (while delete A is in-flight).
+    mockGetQueryCredential.mockResolvedValueOnce(
+      credentialResponse({
+        configured: false,
+        credentialRef: "",
+        runtimeStatus: "missing_metadata",
+      }),
+    );
+
+    await user.click(screen.getByText("Payment MySQL Instance"));
+
+    // Resolve delete A (stale).
+    resolveDeleteA();
+
+    // Wait to ensure no success message appears.
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review Finding 2: Server secret reference explanation in help section
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — server secret reference help", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("expanded help explains server secret references", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "LOCAL_QUERY_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    // Click the help disclosure.
+    await user.click(
+      screen.getByRole("button", { name: /how this binding works/i }),
+    );
+
+    // Should explain server secret reference model.
+    expect(screen.getByText(/LOCAL_QUERY_RO is a server-side secret reference/)).toBeInTheDocument();
+    // Multiple elements contain the env var name (derived display + help section).
+    expect(screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/real DSN, database username, and password/)).toBeInTheDocument();
+    expect(screen.getByText(/backend runtime environment/)).toBeInTheDocument();
+  });
+
+  it("does not render old abstract operating-model cards", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "LOCAL_QUERY_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    // Click the help disclosure.
+    await user.click(
+      screen.getByRole("button", { name: /how this binding works/i }),
+    );
+
+    // Old cards should NOT be rendered.
+    expect(screen.queryByText("Standard read-only account")).toBeNull();
+    expect(screen.queryByText("Cluster-specific override")).toBeNull();
   });
 });

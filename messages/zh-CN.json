@@ -1174,6 +1174,9 @@
       "derivedEnvVar": "CONTROLHUB_QUERY_CREDENTIAL_{ref}",
       "howThisBindingWorks": "绑定说明",
       "howThisBindingWorksDescription": "真实的 DSN、用户名和密码存储在后端运行环境中。ControlHub 仅存储此引用。",
+      "secretReferenceExplanation": "{ref} 是服务端密钥引用，不是数据库用户名、密码、DSN 或数据库行 ID。",
+      "secretReferenceEnvVar": "它在后端解析为 {envVar}。",
+      "secretLocation": "真实的 DSN、数据库用户名和密码配置在后端运行环境中。ControlHub 只存储目标到引用的元数据。浏览器不会输入、存储或显示 DSN/密码。",
       "enabledLabel": "已启用",
       "environmentPolicyLabel": "环境策略",
       "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_your-ref",
@@ -1186,7 +1189,8 @@
       "saved": "凭据元数据已保存。",
       "saveDisabled": "确认前无法保存",
       "saving": "保存中...",
-      "removing": "移除中..."
+      "removing": "移除中...",
+      "removed": "凭据元数据已移除。"
     },
     "environmentPolicies": {
       "disabled": "已禁用",

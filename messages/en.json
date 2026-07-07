@@ -1181,6 +1181,9 @@
       "derivedEnvVar": "CONTROLHUB_QUERY_CREDENTIAL_{ref}",
       "howThisBindingWorks": "How this binding works",
       "howThisBindingWorksDescription": "The real DSN, username, and password are stored in the backend runtime environment. ControlHub only stores this reference.",
+      "secretReferenceExplanation": "{ref} is a server-side secret reference, not a database username, password, DSN, or database row ID.",
+      "secretReferenceEnvVar": "It resolves on the backend as {envVar}.",
+      "secretLocation": "The real DSN, database username, and password are configured in the backend runtime environment. ControlHub stores only target-to-reference metadata. The browser never inputs, stores, or displays DSN/password.",
       "enabledLabel": "Enabled",
       "environmentPolicyLabel": "Environment policy",
       "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_your-ref",
@@ -1193,7 +1196,8 @@
       "saved": "Credential metadata saved.",
       "saveDisabled": "Save disabled until confirmation",
       "saving": "Saving...",
-      "removing": "Removing..."
+      "removing": "Removing...",
+      "removed": "Credential metadata removed."
     },
     "environmentPolicies": {
       "disabled": "Disabled",

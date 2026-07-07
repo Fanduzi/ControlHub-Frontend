@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Filter,
   Layers,
-  Link,
   Loader2,
   Search,
   Shield,
@@ -1584,6 +1583,7 @@ function CredentialDetailPanel({
       if (activeTargetIdRef.current !== targetId) return;
       await loadCredential(targetId);
       if (activeTargetIdRef.current !== targetId) return;
+      setSuccess(t("detail.removed"));
       setShowRemoveConfirm(false);
       onCredentialChanged();
     } catch (caught) {
@@ -1625,7 +1625,7 @@ function CredentialDetailPanel({
         </p>
       </div>
 
-      {/* DBA model guidance - collapsible */}
+      {/* Server secret reference explanation - collapsible */}
       <div>
         <button
           type="button"
@@ -1642,25 +1642,20 @@ function CredentialDetailPanel({
           {t("detail.howThisBindingWorks")}
         </button>
         {showBindingHelp && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Shield className="size-4 text-blue-500" aria-hidden />
-                {t("dbaStandardAccount")}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {t("dbaStandardAccountDescription")}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Link className="size-4 text-purple-500" aria-hidden />
-                {t("clusterOverride")}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {t("clusterOverrideDescription")}
-              </p>
-            </div>
+          <div className="mt-3 space-y-3 rounded-lg border border-border bg-muted/10 p-3">
+            {credentialRef.trim() !== "" && (
+              <>
+                <p className="text-sm text-foreground">
+                  {t("detail.secretReferenceExplanation", { ref: credentialRef.trim() })}
+                </p>
+                <p className="text-sm text-foreground">
+                  {t("detail.secretReferenceEnvVar", { envVar: `CONTROLHUB_QUERY_CREDENTIAL_${credentialRef.trim()}` })}
+                </p>
+              </>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {t("detail.secretLocation")}
+            </p>
           </div>
         )}
       </div>
