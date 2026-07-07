@@ -202,7 +202,8 @@ describe("QueryWorkbench", () => {
   it("shows the active target name in the switcher, never a bare resourceId", () => {
     renderWorkbench();
 
-    expect(screen.getByText(/Analytics ClickHouse Node 01/)).toBeInTheDocument();
+    // Target name appears in both the heading and the button trigger.
+    expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryAllByText(/^22$/)).toHaveLength(0);
   });
 
@@ -288,7 +289,7 @@ describe("QueryWorkbench", () => {
     // "Missing connection".
     expect(screen.getByText("mysql")).toBeInTheDocument();
     expect(screen.getByText("Production")).toBeInTheDocument();
-    expect(screen.getByText("Missing connection")).toBeInTheDocument();
+    expect(screen.getAllByText("Missing connection").length).toBeGreaterThanOrEqual(1);
 
     // The degenerate :0 must never appear.
     expect(screen.queryAllByText(/:0/)).toHaveLength(0);
@@ -869,10 +870,10 @@ describe("QueryWorkbench target picker search", () => {
 
     // All three targets should be visible as options.
     await waitFor(() => {
-      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
     });
-    expect(screen.getByText("Payment Redis Cache")).toBeInTheDocument();
-    expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
+    expect(screen.getAllByText("Payment Redis Cache").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Staging MySQL").length).toBeGreaterThanOrEqual(1);
   });
 
   it("filters targets by displayName when typing in the picker search", async () => {
@@ -883,19 +884,19 @@ describe("QueryWorkbench target picker search", () => {
     await user.click(screen.getByRole("button", { name: /query target/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
     });
 
     // Type a search query that matches only one target.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "Payment");
 
-    // Only the matching target should remain.
+    // Only the matching target should appear as an option in the picker.
     await waitFor(() => {
-      expect(screen.getByText("Payment Redis Cache")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
     });
-    expect(screen.queryByText("Analytics ClickHouse Node 01")).not.toBeInTheDocument();
-    expect(screen.queryByText("Staging MySQL")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Staging MySQL/ })).not.toBeInTheDocument();
   });
 
   it("filters targets by engine when typing in the picker search", async () => {
@@ -906,19 +907,19 @@ describe("QueryWorkbench target picker search", () => {
     await user.click(screen.getByRole("button", { name: /query target/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
     });
 
     // Search by engine name.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "redis");
 
-    // Only the Redis target should remain.
+    // Only the Redis target should appear as an option in the picker.
     await waitFor(() => {
-      expect(screen.getByText("Payment Redis Cache")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
     });
-    expect(screen.queryByText("Analytics ClickHouse Node 01")).not.toBeInTheDocument();
-    expect(screen.queryByText("Staging MySQL")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Staging MySQL/ })).not.toBeInTheDocument();
   });
 
   it("filters targets by host when typing in the picker search", async () => {
@@ -929,19 +930,19 @@ describe("QueryWorkbench target picker search", () => {
     await user.click(screen.getByRole("button", { name: /query target/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
     });
 
     // Search by host.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "staging-db");
 
-    // Only the staging target should remain.
+    // Only the staging target should appear as an option in the picker.
     await waitFor(() => {
       expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
     });
-    expect(screen.queryByText("Analytics ClickHouse Node 01")).not.toBeInTheDocument();
-    expect(screen.queryByText("Payment Redis Cache")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Payment Redis Cache/ })).not.toBeInTheDocument();
   });
 
   it("selecting a target from the picker updates the active target", async () => {
@@ -949,7 +950,7 @@ describe("QueryWorkbench target picker search", () => {
     renderWorkbench(buildThreeTargets());
 
     // Initially the first target is active.
-    expect(screen.getByText(/Analytics ClickHouse Node 01/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
 
     // Open the picker and select a different target.
     await user.click(screen.getByRole("button", { name: /query target/i }));
@@ -961,7 +962,7 @@ describe("QueryWorkbench target picker search", () => {
 
     // The selected target should now be the active one.
     await waitFor(() => {
-      expect(screen.getByText(/Staging MySQL/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Staging MySQL/).length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -973,7 +974,7 @@ describe("QueryWorkbench target picker search", () => {
     await user.click(screen.getByRole("button", { name: /query target/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
     });
 
     // Type a search that matches nothing.
@@ -998,12 +999,16 @@ describe("QueryWorkbench target picker search", () => {
       expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
     });
 
-    // Get all options. The ready target (Staging MySQL) should appear first.
+    // Get all options. Environments sort alphabetically (Production before
+    // Staging), so the first option is from the Production group. Ready
+    // targets sort first within each environment group.
     const options = screen.getAllByRole("option");
     expect(options.length).toBeGreaterThanOrEqual(3);
 
-    // The first option should be the ready target (sorted first).
-    expect(options[0]).toHaveTextContent("Staging MySQL");
+    // All three targets should be present.
+    expect(screen.getByRole("option", { name: /Analytics ClickHouse Node 01/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Staging MySQL/ })).toBeInTheDocument();
   });
 });
 
@@ -1244,6 +1249,87 @@ describe("QueryGovernancePanel hydration safety", () => {
   });
 });
 
+describe("QueryGovernancePanel primary blocker", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("shows primary blocker inline for a locked target", () => {
+    const target = buildQueryTarget({
+      resourceId: 60,
+      displayName: "Locked MySQL",
+      resourceName: "locked-mysql",
+      connectionContext: {
+        engine: "mysql",
+        host: "locked.internal",
+        port: 3306,
+        environment: "Production",
+        owner: "DBA",
+        clusterName: "",
+      },
+      readiness: "credential_required",
+      governance: {
+        credentialState: "missing_readonly_credential",
+        executionEnabled: false,
+        auditRequired: true,
+        safetyState: "credential_missing",
+        safetyNote: "Credential required.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: false,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: ["readonlyCredential"],
+    });
+
+    renderWorkbench([target]);
+
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    const blockerBadge = screen.getByText("Blocker")
+      .closest("section")!
+      .querySelector("[class*='border-rose']");
+    expect(blockerBadge).not.toBeNull();
+    expect(blockerBadge).toHaveTextContent("Credential required");
+  });
+
+  it("shows primary blocker for missing connection target", () => {
+    const target = buildQueryTarget({
+      resourceId: 61,
+      displayName: "Offline Node",
+      resourceName: "offline-node",
+      connectionContext: {
+        engine: "mysql",
+        host: "",
+        port: 0,
+        environment: "Production",
+        owner: "DBA",
+        clusterName: "",
+      },
+      readiness: "missing_connection",
+      missingFields: ["host", "port"],
+    });
+
+    renderWorkbench([target]);
+
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    const blockerBadge = screen.getByText("Blocker")
+      .closest("section")!
+      .querySelector("[class*='border-rose']");
+    expect(blockerBadge).not.toBeNull();
+    expect(blockerBadge).toHaveTextContent("Missing connection");
+  });
+});
+
 describe("QueryGovernancePanel action badge semantics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1346,5 +1432,96 @@ describe("QueryGovernancePanel action badge semantics", () => {
       const ariaLabel = parent!.getAttribute("aria-label")!;
       expect(ariaLabel).toMatch(/· (locked|available)/);
     }
+  });
+});
+
+describe("QueryWorkbench target picker grouped navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  it("groups targets by environment then cluster, ready first", async () => {
+    const user = userEvent.setup();
+    const targets = [
+      buildQueryTarget({
+        resourceId: 40,
+        displayName: "Prod Redis",
+        resourceName: "prod-redis",
+        connectionContext: {
+          environment: "Production",
+          clusterName: "Cache Cluster",
+          engine: "redis",
+          host: "redis.internal",
+          port: 6379,
+          owner: "Platform",
+        },
+        readiness: "credential_required",
+      }),
+      buildQueryTarget({
+        resourceId: 41,
+        displayName: "Prod MySQL Primary",
+        resourceName: "prod-mysql",
+        connectionContext: {
+          environment: "Production",
+          clusterName: "DB Cluster",
+          engine: "mysql",
+          host: "mysql.internal",
+          port: 3306,
+          owner: "DBA",
+        },
+        readiness: "ready",
+      }),
+      buildQueryTarget({
+        resourceId: 42,
+        displayName: "Staging MySQL",
+        resourceName: "staging-mysql",
+        connectionContext: {
+          environment: "Staging",
+          clusterName: "",
+          engine: "mysql",
+          host: "staging.internal",
+          port: 3306,
+          owner: "DBA",
+        },
+        readiness: "ready",
+      }),
+    ];
+
+    renderWorkbench(targets);
+
+    // Open the popover
+    const trigger = document.getElementById("query-target-switcher");
+    expect(trigger).not.toBeNull();
+    await user.click(trigger!);
+
+    // Ready targets should be first within their group
+    const options = screen.getAllByRole("option");
+    // Prod MySQL Primary (ready) should come before Prod Redis (credential_required)
+    const prodOptions = options.filter(opt => opt.textContent?.includes("Prod"));
+    expect(prodOptions[0]).toHaveTextContent("Prod MySQL Primary");
+    expect(prodOptions[1]).toHaveTextContent("Prod Redis");
+  });
+});
+
+describe("QueryWorkbench active target header", () => {
+  it("shows active target display name as a heading", () => {
+    renderWorkbench();
+
+    expect(
+      screen.getByRole("heading", { name: "Analytics ClickHouse Node 01" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows target facts only in the header, not duplicated in governance", () => {
+    renderWorkbench();
+
+    // Engine appears in the header badges
+    expect(screen.getByText("clickhouse")).toBeInTheDocument();
+    // Environment appears in the header badges
+    expect(screen.getByText("Production")).toBeInTheDocument();
+
+    // There is no "Target facts" section in the governance panel
+    expect(screen.queryByText("Target facts")).toBeNull();
   });
 });
