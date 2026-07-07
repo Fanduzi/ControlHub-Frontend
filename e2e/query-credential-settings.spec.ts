@@ -170,13 +170,22 @@ test.describe("Query credential settings", () => {
     await expect(page.locator("#environment-policy")).toBeVisible();
   });
 
-  test("DBA operating model guidance is visible", async ({ page }) => {
+  test("DBA operating model guidance is visible under collapsed help", async ({ page }) => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
     const firstTargetButton = page.locator("table tbody tr td button").first();
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
     await firstTargetButton.click();
+
+    // The guidance cards are collapsed under "How this binding works".
+    // They should NOT be visible until the disclosure is opened.
+    await expect(
+      page.getByText("Standard read-only account"),
+    ).toHaveCount(0);
+
+    // Click the disclosure to expand.
+    await page.getByRole("button", { name: /how this binding works/i }).click();
 
     // Standard read-only account guidance.
     await expect(
