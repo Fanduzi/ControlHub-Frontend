@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ExternalLink, Info, Settings } from "lucide-react";
+import { ExternalLink, Info, Settings, TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
 import {
   credentialStateLabel,
   missingFieldLabel,
+  readinessLabelKey,
 } from "@/lib/query-target-display";
 import { cn } from "@/lib/utils";
 import { useAdminRole } from "@/lib/auth-role";
@@ -22,9 +23,23 @@ type QueryGovernancePanelProps = {
   target: QueryTarget;
 };
 
+function derivePrimaryBlocker(
+  t: (key: string) => string,
+  target: QueryTarget,
+): string | null {
+  if (target.readiness !== "ready") {
+    return t(readinessLabelKey(target.readiness));
+  }
+  if (target.missingFields.length > 0) {
+    return missingFieldLabel(t, target.missingFields[0]!);
+  }
+  return null;
+}
+
 export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
   const t = useTranslations("queryWorkbench");
   const { governance, availableActions } = target;
+  const blocker = derivePrimaryBlocker(t, target);
 
   return (
     <TooltipProvider>
@@ -59,6 +74,21 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
             tooltip={t("governance.jitDescription")}
           />
         </div>
+
+        {blocker && (
+          <section>
+            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              {t("governance.blocker")}
+            </h3>
+            <Badge
+              variant="outline"
+              className="gap-1.5 border-rose-500/30 text-rose-700 dark:text-rose-300"
+            >
+              <TriangleAlert className="size-3" aria-hidden />
+              {blocker}
+            </Badge>
+          </section>
+        )}
 
         {/* Credential status and admin link */}
         <section>
