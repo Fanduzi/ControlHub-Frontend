@@ -178,23 +178,24 @@ test.describe("Query credential settings", () => {
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
     await firstTargetButton.click();
 
-    // The guidance cards are collapsed under "How this binding works".
-    // They should NOT be visible until the disclosure is opened.
+    // The help section is collapsed under "How this binding works".
+    // Old cards should NOT be visible.
     await expect(
       page.getByText("Standard read-only account"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Cluster-specific override"),
     ).toHaveCount(0);
 
     // Click the disclosure to expand.
     await page.getByRole("button", { name: /how this binding works/i }).click();
 
-    // Standard read-only account guidance.
+    // Server secret reference explanation should be visible.
     await expect(
-      page.getByText("Standard read-only account").first(),
+      page.getByText(/real DSN, database username, and password/).first(),
     ).toBeVisible();
-
-    // Cluster-specific override guidance.
     await expect(
-      page.getByText("Cluster-specific override").first(),
+      page.getByText(/backend runtime environment/).first(),
     ).toBeVisible();
   });
 
