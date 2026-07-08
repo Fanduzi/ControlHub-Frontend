@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql, MySQL, StandardSQL } from "@codemirror/lang-sql";
-import { keymap } from "@codemirror/view";
+import { keymap, type EditorView } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
 
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ export type SqlCodeEditorProps = {
   engine?: string;
   onRun?: () => void;
   onFormat?: () => void;
+  onEditorView?: (view: EditorView) => void;
   ariaLabel?: string;
   disabled?: boolean;
   className?: string;
@@ -25,10 +26,18 @@ export function SqlCodeEditorClient({
   engine,
   onRun,
   onFormat,
+  onEditorView,
   ariaLabel,
   disabled = false,
   className,
 }: SqlCodeEditorProps) {
+  const viewRef = useRef<EditorView | null>(null);
+
+  const handleCreateEditor = useCallback((view: EditorView) => {
+    viewRef.current = view;
+    onEditorView?.(view);
+  }, [onEditorView]);
+
   const extensions = useMemo(() => {
     const normalizedEngine = engine?.trim().toLowerCase();
     const dialect =
@@ -67,6 +76,7 @@ export function SqlCodeEditorClient({
       className={cn("text-sm", className)}
       extensions={extensions}
       onChange={onChange}
+      onCreateEditor={handleCreateEditor}
       editable={!disabled}
       readOnly={disabled}
       aria-label={ariaLabel}

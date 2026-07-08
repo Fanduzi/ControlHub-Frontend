@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Ban, Lock, Play, ScrollText, Save, TriangleAlert } from "lucide-react";
+import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
 import type {
@@ -89,6 +90,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     createWorksheet(1, activeTarget.resourceId),
   ]);
   const [activeWorksheetId, setActiveWorksheetId] = useState(worksheets[0]!.id);
+  const editorViewRef = useRef<EditorView | null>(null);
 
   const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
 
@@ -271,6 +273,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
     if (result.ok) {
       updateActiveWorksheet({ statement: result.formatted, formatError: null });
+      const view = editorViewRef.current;
+      if (view) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: result.formatted },
+        });
+      }
     } else {
       updateActiveWorksheet({ formatError: result.error });
     }
@@ -408,6 +416,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             isExecuting={activeWorksheet.isExecuting}
             onRun={handleRun}
             onFormat={handleFormat}
+            onEditorView={(view) => { editorViewRef.current = view; }}
             formatError={activeWorksheet.formatError}
             engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
             result={activeWorksheet.result}
@@ -463,6 +472,7 @@ function ReadyWorksheet({
   isExecuting,
   onRun,
   onFormat,
+  onEditorView,
   formatError,
   engine,
   result,
@@ -478,6 +488,7 @@ function ReadyWorksheet({
   isExecuting: boolean;
   onRun: () => void;
   onFormat: () => void;
+  onEditorView?: (view: EditorView) => void;
   formatError: string | null;
   engine?: string;
   result: QueryExecuteResponse | null;
@@ -540,6 +551,7 @@ function ReadyWorksheet({
           engine={engine}
           onRun={onRun}
           onFormat={onFormat}
+          onEditorView={onEditorView}
           ariaLabel={t("editor.statementLabel")}
           disabled={isExecuting}
         />
