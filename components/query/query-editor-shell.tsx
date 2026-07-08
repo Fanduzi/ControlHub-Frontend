@@ -85,9 +85,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const actions = activeTarget.availableActions;
-  const canExecute = actions.run === true;
-
   const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
     createWorksheet(1, activeTarget.resourceId),
   ]);
@@ -99,6 +96,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     () => new Map(targets.map((t) => [t.resourceId, t])),
     [targets],
   );
+
+  // Derive execution permissions from the worksheet's own target, not the
+  // parent's activeTarget. This prevents a race where switching worksheets
+  // briefly uses the wrong target's availableActions.
+  const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? activeTarget;
+  const actions = worksheetTarget.availableActions;
+  const canExecute = actions.run === true;
 
   function updateWorksheetById(worksheetId: string, patch: Partial<LocalWorksheet>) {
     setWorksheets((previous) =>

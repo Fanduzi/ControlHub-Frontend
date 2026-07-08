@@ -1674,6 +1674,47 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     expect(runButton).toBeDisabled();
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
   });
+
+  it("does not bypass locked target via shortcut when switching from ready worksheet", async () => {
+    const user = userEvent.setup();
+    const readyTarget = buildQueryTarget({
+      resourceId: 30,
+      displayName: "Ready Target",
+      readiness: "ready",
+      availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false },
+    });
+    const lockedTarget = buildQueryTarget({
+      resourceId: 40,
+      displayName: "Locked Target",
+      readiness: "credential_required",
+      availableActions: { run: false, explain: false, export: false, saveSheet: false, requestAccess: false },
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={[readyTarget, lockedTarget]} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+
+    // Worksheet 1 targets ready target - Run should be enabled
+    const runButton = screen.getByRole("button", { name: /^run$/i });
+    expect(runButton).toBeEnabled();
+
+    // Add Worksheet 2 and switch to locked target
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+    
+    // Switch target for Worksheet 2 to locked target
+    const trigger = document.getElementById("query-target-switcher");
+    await user.click(trigger!);
+    await user.click(screen.getByRole("option", { name: /locked target/i }));
+
+    // Now Worksheet 2 targets locked target - Run should be disabled
+    const lockedRunButton = screen.getByRole("button", { name: /run locked/i });
+    expect(lockedRunButton).toBeDisabled();
+
+    // executeQueryTarget should NOT have been called for the locked target
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
 });
 
 describe("QueryWorkbench worksheet rename", () => {
