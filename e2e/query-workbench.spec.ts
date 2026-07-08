@@ -284,6 +284,104 @@ test.describe("Query Workbench shell", () => {
     await page.getByRole("tab", { name: /query history/i }).click();
     await expect(page.getByText("SHOW TABLES").first()).toBeVisible({ timeout: 15_000 });
   });
+
+  test("Format button visibly formats messy SQL", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // Type messy SQL into the CodeMirror editor
+    const editor = page.locator(".cm-content");
+    await editor.click();
+    await page.keyboard.type("select id,name from query_e2e_items where id=1");
+
+    // Click Format button
+    await page.getByRole("button", { name: /format/i }).click();
+
+    // Wait for formatting to apply
+    await page.waitForTimeout(500);
+
+    // Verify formatted SQL contains uppercase keywords
+    const content = await page.evaluate(() => {
+      const cm = document.querySelector(".cm-content");
+      return cm?.textContent ?? "";
+    });
+    expect(content).toContain("SELECT");
+    expect(content).toContain("FROM");
+  });
+
+  test("Cmd/Ctrl+Enter runs the active worksheet", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // Focus the CodeMirror editor
+    const editor = page.locator(".cm-content");
+    await editor.click();
+
+    // Press Cmd+Enter (Mac) or Ctrl+Enter (other platforms)
+    const isMac = process.platform === "darwin";
+    await page.keyboard.press(isMac ? "Meta+Enter" : "Control+Enter");
+
+    // Should execute the default select 1 and show the result
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test("two worksheets keep separate statements and results", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // Worksheet 1: run the default SELECT 1
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Add Worksheet 2
+    await page.getByRole("button", { name: /add worksheet/i }).click();
+
+    // Worksheet 2 should have its own editor visible
+    const editor2 = page.locator(".cm-content");
+    await expect(editor2).toBeVisible();
+
+    // Switch back to Worksheet 1
+    await page.getByRole("tab", { name: /worksheet 1/i }).click();
+
+    // Worksheet 1 should still show its result
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible();
+  });
+
+  test("unsafe SQL remains rejected by backend", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectSwitcherOption(page, readyIndex);
+
+    // Type unsafe SQL into the CodeMirror editor
+    const editor = page.locator(".cm-content");
+    await editor.click();
+    await page.keyboard.type("update resources set name = 'x'");
+
+    // Run it
+    await page.getByRole("button", { name: /^run$/i }).click();
+
+    // Should show controlled rejection via alert
+    await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+  });
 });
 
 async function openQueryWorkbench(page: Page): Promise<void> {
