@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
+import { SqlCodeEditor } from "@/components/query/sql-code-editor";
+import { formatQueryStatement } from "@/lib/query-sql-format";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
@@ -53,6 +55,7 @@ type LocalWorksheet = {
   isExecuting: boolean;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
+  formatError: string | null;
   history: QueryExecutionRecord[];
   historyLoading: boolean;
   requestId: string;
@@ -69,6 +72,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     isExecuting: false,
     result: null,
     error: null,
+    formatError: null,
     history: [],
     historyLoading: false,
     requestId: crypto.randomUUID(),
@@ -226,6 +230,21 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }
 
+  function handleFormat() {
+    const worksheet = activeWorksheet;
+    const target = targetsById.get(worksheet.targetResourceId);
+    const result = formatQueryStatement(
+      target?.connectionContext.engine ?? "sql",
+      worksheet.statement,
+    );
+
+    if (result.ok) {
+      updateActiveWorksheet({ statement: result.formatted, formatError: null });
+    } else {
+      updateActiveWorksheet({ formatError: result.error });
+    }
+  }
+
   return (
     <section
       aria-label={t("editor.worksheetTab")}
@@ -309,6 +328,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       {activeTab === "worksheet" ? (
         canExecute ? (
           <ReadyWorksheet
+            worksheetId={activeWorksheet.id}
             statement={activeWorksheet.statement}
             onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
             maxRows={activeWorksheet.maxRows}
@@ -317,6 +337,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             runEnabled={runEnabled}
             isExecuting={activeWorksheet.isExecuting}
             onRun={handleRun}
+            onFormat={handleFormat}
+            formatError={activeWorksheet.formatError}
+            engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
             result={activeWorksheet.result}
             error={activeWorksheet.error}
           />
@@ -360,6 +383,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 }
 
 function ReadyWorksheet({
+  worksheetId,
   statement,
   onStatementChange,
   maxRows,
@@ -368,9 +392,13 @@ function ReadyWorksheet({
   runEnabled,
   isExecuting,
   onRun,
+  onFormat,
+  formatError,
+  engine,
   result,
   error,
 }: {
+  worksheetId: string;
   statement: string;
   onStatementChange: (value: string) => void;
   maxRows: number;
@@ -379,6 +407,9 @@ function ReadyWorksheet({
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
+  onFormat: () => void;
+  formatError: string | null;
+  engine?: string;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
 }) {
@@ -390,6 +421,15 @@ function ReadyWorksheet({
         <Button type="button" size="sm" disabled={!runEnabled} onClick={onRun}>
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onFormat}
+          disabled={isExecuting}
+        >
+          {t("editor.format")}
         </Button>
         <Button variant="outline" size="sm" disabled={!actions.explain}>
           <ScrollText className="size-3.5" aria-hidden />
@@ -423,15 +463,23 @@ function ReadyWorksheet({
         <label className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {t("editor.statementLabel")}
         </label>
-        <textarea
+        <SqlCodeEditor
+          key={worksheetId}
           value={statement}
-          onChange={(event) => onStatementChange(event.target.value)}
-          placeholder={t("editor.statementPlaceholder")}
-          aria-label={t("editor.statementLabel")}
-          spellCheck={false}
-          rows={4}
-          className="block w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onChange={onStatementChange}
+          engine={engine}
+          onRun={onRun}
+          onFormat={onFormat}
+          ariaLabel={t("editor.statementLabel")}
+          disabled={isExecuting}
         />
+        {formatError && (
+          <div role="alert" className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/5 p-3">
+            <p className="text-sm text-rose-700 dark:text-rose-300">
+              {formatError}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="p-3">

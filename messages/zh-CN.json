@@ -997,7 +997,9 @@
       "statementPlaceholder": "输入一条只读 SQL 语句（如 SELECT … 或 SHOW TABLES）",
       "maxRowsLabel": "最大行数",
       "runReady": "执行",
-      "ready": "就绪"
+      "ready": "就绪",
+      "format": "格式化",
+      "formatError": "SQL 格式化失败。请检查语句语法后重试。"
     },
     "actions": {
       "run": "执行已锁定",

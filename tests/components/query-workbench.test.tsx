@@ -12,6 +12,28 @@ vi.mock("@/services/query-executions", async () => {
   };
 });
 
+vi.mock("@/components/query/sql-code-editor", () => ({
+  SqlCodeEditor: ({
+    value,
+    onChange,
+    ariaLabel,
+    disabled,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    ariaLabel?: string;
+    disabled?: boolean;
+  }) => (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      rows={4}
+    />
+  ),
+}));
+
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import {

@@ -997,7 +997,9 @@
       "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",
       "runReady": "Run",
-      "ready": "Ready"
+      "ready": "Ready",
+      "format": "Format",
+      "formatError": "SQL formatting failed. Check the statement syntax and try again."
     },
     "actions": {
       "run": "Run locked",
