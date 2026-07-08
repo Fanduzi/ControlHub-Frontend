@@ -16,17 +16,31 @@ vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
     value,
     onChange,
+    onRun,
+    onFormat,
     ariaLabel,
     disabled,
   }: {
     value: string;
     onChange: (v: string) => void;
+    onRun?: () => void;
+    onFormat?: () => void;
     ariaLabel?: string;
     disabled?: boolean;
   }) => (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+          e.preventDefault();
+          onRun?.();
+        }
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          onFormat?.();
+        }
+      }}
       aria-label={ariaLabel}
       disabled={disabled}
       rows={4}

@@ -296,6 +296,9 @@ test.describe("Query Workbench shell", () => {
     // Type messy SQL into the CodeMirror editor
     const editor = page.locator(".cm-content");
     await editor.click();
+    // Select all and replace with messy SQL
+    const isMac = process.platform === "darwin";
+    await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
     await page.keyboard.type("select id,name from query_e2e_items where id=1");
 
     // Click Format button
@@ -374,6 +377,9 @@ test.describe("Query Workbench shell", () => {
     // Type unsafe SQL into the CodeMirror editor
     const editor = page.locator(".cm-content");
     await editor.click();
+    // Select all and replace with unsafe SQL
+    const isMac = process.platform === "darwin";
+    await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
     await page.keyboard.type("update resources set name = 'x'");
 
     // Run it

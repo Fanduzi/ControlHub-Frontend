@@ -99,7 +99,7 @@ export function QueryWorkbench({
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
           <QuerySchemaBrowser target={activeTarget} />
           <QueryEditorShell
-            targets={filteredTargets}
+            targets={targets}
             activeTarget={activeTarget}
             targetSelectionVersion={targetSelectionVersion}
             onActiveTargetChange={setActiveTargetFromWorksheet}

@@ -82,6 +82,8 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
 export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
+  const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const actions = activeTarget.availableActions;
   const canExecute = actions.run === true;
@@ -98,12 +100,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     [targets],
   );
 
-  function updateActiveWorksheet(patch: Partial<LocalWorksheet>) {
+  function updateWorksheetById(worksheetId: string, patch: Partial<LocalWorksheet>) {
     setWorksheets((previous) =>
       previous.map((ws) =>
-        ws.id === activeWorksheetId ? { ...ws, ...patch } : ws,
+        ws.id === worksheetId ? { ...ws, ...patch } : ws,
       ),
     );
+  }
+
+  function updateActiveWorksheet(patch: Partial<LocalWorksheet>) {
+    updateWorksheetById(activeWorksheetId, patch);
   }
 
   function guardedUpdateWorksheet(
@@ -143,31 +149,47 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function renameWorksheet(id: string, newName: string) {
+    const trimmed = newName.trim();
+    if (trimmed.length === 0) return;
     setWorksheets((previous) =>
       previous.map((ws) =>
-        ws.id === id ? { ...ws, name: newName } : ws,
+        ws.id === id ? { ...ws, name: trimmed } : ws,
       ),
     );
+    setRenamingWorksheetId(null);
   }
 
-  const refreshHistory = useCallback(async () => {
-    if (!canExecute) {
-      return;
-    }
+  function startRename(id: string, currentName: string) {
+    setRenamingWorksheetId(id);
+    setRenameValue(currentName);
+  }
 
-    const targetId = activeTarget.resourceId;
+  const worksheetsRef = useRef(worksheets);
+  worksheetsRef.current = worksheets;
+  
+  const targetsByIdRef = useRef(targetsById);
+  targetsByIdRef.current = targetsById;
 
-    updateActiveWorksheet({ historyLoading: true });
+  const refreshHistory = useCallback(async (worksheetId?: string) => {
+    const targetWorksheetId = worksheetId ?? activeWorksheetId;
+    const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+    if (!worksheet) return;
+    
+    const target = targetsByIdRef.current.get(worksheet.targetResourceId);
+    if (!target?.availableActions.run) return;
+
+    const targetId = worksheet.targetResourceId;
+    updateWorksheetById(targetWorksheetId, { historyLoading: true });
 
     try {
       const response = await listQueryExecutions(targetId);
-      updateActiveWorksheet({ history: response.items });
+      updateWorksheetById(targetWorksheetId, { history: response.items });
     } catch {
       // Keep existing history on error.
     } finally {
-      updateActiveWorksheet({ historyLoading: false });
+      updateWorksheetById(targetWorksheetId, { historyLoading: false });
     }
-  }, [canExecute, activeTarget.resourceId, activeWorksheetId]);
+  }, [activeWorksheetId]);
 
   const lastSeenVersionRef = useRef<number | undefined>(undefined);
 
@@ -175,22 +197,18 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (targetSelectionVersion !== lastSeenVersionRef.current) {
       lastSeenVersionRef.current = targetSelectionVersion;
 
-      updateActiveWorksheet({
-        targetResourceId: activeTarget.resourceId,
-        result: null,
-        error: null,
-        history: [],
-        historyLoading: false,
-        isExecuting: false,
-        activeResultTab: "grid",
-        requestId: crypto.randomUUID(),
-      });
+      // Update the ref immediately so refreshHistory sees the latest state
+      const newWorksheets = worksheetsRef.current.map((ws) =>
+        ws.id === activeWorksheetId ? { ...ws, targetResourceId: activeTarget.resourceId, result: null, error: null, history: [], historyLoading: false, isExecuting: false, activeResultTab: "grid" as const, requestId: crypto.randomUUID() } : ws,
+      );
+      worksheetsRef.current = newWorksheets;
+      setWorksheets(newWorksheets);
 
       if (activeTarget.availableActions.run) {
         void refreshHistory();
       }
     }
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory]);
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory, activeWorksheetId]);
 
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
@@ -226,7 +244,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       });
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-      void refreshHistory();
+      void refreshHistory(worksheetId);
     }
   }
 
@@ -250,10 +268,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       aria-label={t("editor.worksheetTab")}
       className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
     >
-      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1">
+      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label="Worksheet tabs">
         {worksheets.map((ws) => (
-          <div
+          <button
             key={ws.id}
+            type="button"
+            role="tab"
+            aria-selected={ws.id === activeWorksheetId}
             className={cn(
               "flex items-center gap-1 rounded-t-md px-3 py-1.5 text-sm cursor-pointer",
               ws.id === activeWorksheetId
@@ -265,22 +286,49 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 setActiveWorksheetId(ws.id);
               }
             }}
+            onDoubleClick={() => startRename(ws.id, ws.name)}
           >
-            <span>{ws.name}</span>
+            {renamingWorksheetId === ws.id ? (
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={() => renameWorksheet(ws.id, renameValue)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    renameWorksheet(ws.id, renameValue);
+                  } else if (e.key === "Escape") {
+                    setRenamingWorksheetId(null);
+                  }
+                }}
+                className="w-24 bg-transparent text-sm outline-none"
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span>{ws.name}</span>
+            )}
             {worksheets.length > 1 && (
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   closeWorksheet(ws.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    closeWorksheet(ws.id);
+                  }
                 }}
                 className="ml-1 text-muted-foreground hover:text-foreground"
                 aria-label={`Close ${ws.name}`}
               >
                 ×
-              </button>
+              </span>
             )}
-          </div>
+          </button>
         ))}
         <button
           type="button"
