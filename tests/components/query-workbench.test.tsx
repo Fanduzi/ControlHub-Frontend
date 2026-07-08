@@ -1560,3 +1560,286 @@ describe("QueryWorkbench active target header", () => {
     expect(screen.queryByText("Target facts")).toBeNull();
   });
 });
+
+describe("QueryWorkbench keyboard shortcuts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  function buildReadyTarget(): QueryTarget {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+    });
+  }
+
+  it("runs query with Cmd/Ctrl+Enter shortcut", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-08T10:00:00Z",
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={[buildReadyTarget()]} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.click(statement);
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
+      statement: "select 1",
+      maxRows: 100,
+    });
+  });
+
+  it("formats query with Cmd/Ctrl+Shift+F shortcut", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={[buildReadyTarget()]} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select * from users where id=1");
+    await user.click(statement);
+    await user.keyboard("{Meta>}{Shift>}f{/Shift}{/Meta}");
+
+    // Should format the SQL (uppercase keywords)
+    const value = (statement as HTMLTextAreaElement).value;
+    expect(value).toContain("SELECT");
+    expect(value).toContain("FROM");
+  });
+
+  it("does not run via shortcut when target is locked", async () => {
+    const user = userEvent.setup();
+    const lockedTarget = buildQueryTarget({
+      resourceId: 40,
+      readiness: "credential_required",
+      availableActions: { run: false, explain: false, export: false, saveSheet: false, requestAccess: false },
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={[lockedTarget]} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+
+    // Locked target shows "Run locked" button, not an enabled Run button
+    const runButton = screen.getByRole("button", { name: /run locked/i });
+    expect(runButton).toBeDisabled();
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+});
+
+describe("QueryWorkbench worksheet rename", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  it("renames worksheet via rename button", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildQueryTarget({ resourceId: 30, readiness: "ready", availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false } })]}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Click rename button
+    const renameButton = screen.getByRole("button", { name: /rename worksheet 1/i });
+    await user.click(renameButton);
+
+    // Should show input field (the rename input, not the statement textarea)
+    const renameInput = screen.getByDisplayValue("Worksheet 1");
+    expect(renameInput).toBeInTheDocument();
+
+    // Type new name and press Enter
+    await user.clear(renameInput);
+    await user.type(renameInput, "Orders lookup");
+    await user.keyboard("{Enter}");
+
+    // Tab should show new name
+    expect(screen.getByRole("tab", { name: /orders lookup/i })).toBeInTheDocument();
+  });
+
+  it("cancels rename on Escape", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildQueryTarget({ resourceId: 30, readiness: "ready", availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false } })]}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Click rename button
+    const renameButton = screen.getByRole("button", { name: /rename worksheet 1/i });
+    await user.click(renameButton);
+
+    // Type new name and press Escape
+    const renameInput = screen.getByDisplayValue("Worksheet 1");
+    await user.clear(renameInput);
+    await user.type(renameInput, "Should not save");
+    await user.keyboard("{Escape}");
+
+    // Tab should still show original name
+    expect(screen.getByRole("tab", { name: /worksheet 1/i })).toBeInTheDocument();
+  });
+});
+
+describe("QueryWorkbench filter-hidden target", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  it("keeps active target visible even when filtered out of picker", async () => {
+    const user = userEvent.setup();
+    const targets = [
+      buildQueryTarget({
+        resourceId: 30,
+        displayName: "MySQL Dev",
+        connectionContext: { engine: "mysql", host: "localhost", port: 3306, environment: "Development", owner: "DBA", clusterName: "" },
+        readiness: "ready",
+      }),
+      buildQueryTarget({
+        resourceId: 31,
+        displayName: "Redis Cache",
+        connectionContext: { engine: "redis", host: "redis.local", port: 6379, environment: "Production", owner: "Platform", clusterName: "" },
+        readiness: "ready",
+      }),
+    ];
+
+    // Filter to only show redis targets
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={targets} initialFilters={{ ...EMPTY_FILTERS, engine: "redis" }} />
+      </NextIntlClientProvider>,
+    );
+
+    // Active target should still be MySQL Dev (first target), even though it's filtered out
+    expect(screen.getByRole("heading", { name: "MySQL Dev" })).toBeInTheDocument();
+    expect(screen.getByText("mysql")).toBeInTheDocument();
+  });
+});
+
+describe("QueryWorkbench history target-race guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("discards stale history when worksheet target changes during pending request", async () => {
+    const user = userEvent.setup();
+    let resolveHistoryA!: (value: QueryExecutionListResponse) => void;
+    
+    mockListQueryExecutions.mockImplementation((resourceId: number) => {
+      if (resourceId === 30) {
+        return new Promise((resolve) => { resolveHistoryA = resolve; });
+      }
+      return Promise.resolve(emptyHistory());
+    });
+
+    const targets = [
+      buildQueryTarget({
+        resourceId: 30,
+        displayName: "Target A",
+        readiness: "ready",
+        availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false },
+      }),
+      buildQueryTarget({
+        resourceId: 31,
+        displayName: "Target B",
+        readiness: "ready",
+        availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench targets={targets} initialFilters={EMPTY_FILTERS} />
+      </NextIntlClientProvider>,
+    );
+
+    // Wait for initial history load to start
+    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30));
+
+    // Switch to target B while A's history is pending
+    const trigger = document.getElementById("query-target-switcher");
+    await user.click(trigger!);
+    await user.click(screen.getByRole("option", { name: /target b/i }));
+
+    // A's history resolves with data
+    resolveHistoryA({
+      items: [{
+        id: 9001,
+        targetResourceId: 30,
+        actorUserId: 1,
+        engine: "mysql",
+        statementDigest: "digest-a",
+        statementPreview: "select * from target_a_table",
+        status: "success",
+        rowCount: 10,
+        durationMs: 5,
+        errorCode: "",
+        errorMessage: "",
+        createdAt: "2026-07-08T10:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+    });
+
+    // History tab should NOT show target A's data
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+    expect(screen.queryByText("select * from target_a_table")).toBeNull();
+  });
+});
