@@ -62,7 +62,7 @@ export function QueryWorkbench({
     () => filterTargets(targets, filters),
     [targets, filters],
   );
-  
+
   // Resolve activeTarget from full targets array, not filteredTargets.
   // Filter only affects the picker list, not the current worksheet target.
   const activeTarget =

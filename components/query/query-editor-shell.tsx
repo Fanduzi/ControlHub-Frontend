@@ -172,7 +172,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   const worksheetsRef = useRef(worksheets);
   worksheetsRef.current = worksheets;
-  
+
   const targetsByIdRef = useRef(targetsById);
   targetsByIdRef.current = targetsById;
 
@@ -180,7 +180,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const targetWorksheetId = worksheetId ?? activeWorksheetId;
     const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
     if (!worksheet) return;
-    
+
     const target = targetsByIdRef.current.get(worksheet.targetResourceId);
     if (!target?.availableActions.run) return;
 

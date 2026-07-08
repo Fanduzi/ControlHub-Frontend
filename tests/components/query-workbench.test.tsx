@@ -1702,7 +1702,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     // Add Worksheet 2 and switch to locked target
     await user.click(screen.getByRole("button", { name: /add worksheet/i }));
-    
+
     // Switch target for Worksheet 2 to locked target
     const trigger = document.getElementById("query-target-switcher");
     await user.click(trigger!);
@@ -1841,7 +1841,7 @@ describe("QueryWorkbench history target-race guard", () => {
   it("discards stale history when worksheet target changes during pending request", async () => {
     const user = userEvent.setup();
     let resolveHistoryA!: (value: QueryExecutionListResponse) => void;
-    
+
     mockListQueryExecutions.mockImplementation((resourceId: number) => {
       if (resourceId === 30) {
         return new Promise((resolve) => { resolveHistoryA = resolve; });
