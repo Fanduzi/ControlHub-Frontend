@@ -179,14 +179,23 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (!target?.availableActions.run) return;
 
     const targetId = worksheet.targetResourceId;
+    const requestId = worksheet.requestId;
     updateWorksheetById(targetWorksheetId, { historyLoading: true });
 
     try {
       const response = await listQueryExecutions(targetId);
+      // Guard: only write history if the worksheet still targets the same resource
+      // and the request hasn't been superseded.
+      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
       updateWorksheetById(targetWorksheetId, { history: response.items });
     } catch {
-      // Keep existing history on error.
+      // Guard: only update loading state if still valid.
+      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
     } finally {
+      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
       updateWorksheetById(targetWorksheetId, { historyLoading: false });
     }
   }, [activeWorksheetId]);
@@ -270,23 +279,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     >
       <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label="Worksheet tabs">
         {worksheets.map((ws) => (
-          <button
+          <div
             key={ws.id}
-            type="button"
-            role="tab"
-            aria-selected={ws.id === activeWorksheetId}
             className={cn(
-              "flex items-center gap-1 rounded-t-md px-3 py-1.5 text-sm cursor-pointer",
+              "group flex items-center rounded-t-md",
               ws.id === activeWorksheetId
                 ? "bg-background border border-border border-b-transparent"
                 : "text-muted-foreground hover:text-foreground",
             )}
-            onClick={() => {
-              if (ws.id !== activeWorksheetId) {
-                setActiveWorksheetId(ws.id);
-              }
-            }}
-            onDoubleClick={() => startRename(ws.id, ws.name)}
           >
             {renamingWorksheetId === ws.id ? (
               <input
@@ -301,34 +301,52 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                     setRenamingWorksheetId(null);
                   }
                 }}
-                className="w-24 bg-transparent text-sm outline-none"
+                className="w-24 bg-transparent px-3 py-1.5 text-sm outline-none"
                 autoFocus
-                onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span>{ws.name}</span>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={ws.id === activeWorksheetId}
+                className="px-3 py-1.5 text-sm cursor-pointer"
+                onClick={() => {
+                  if (ws.id !== activeWorksheetId) {
+                    setActiveWorksheetId(ws.id);
+                  }
+                }}
+                onDoubleClick={() => startRename(ws.id, ws.name)}
+              >
+                {ws.name}
+              </button>
             )}
             {worksheets.length > 1 && (
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeWorksheet(ws.id);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    closeWorksheet(ws.id);
-                  }
-                }}
-                className="ml-1 text-muted-foreground hover:text-foreground"
+                className="pr-1 text-muted-foreground hover:text-foreground"
                 aria-label={`Close ${ws.name}`}
               >
                 ×
-              </span>
+              </button>
             )}
-          </button>
+            {renamingWorksheetId !== ws.id && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startRename(ws.id, ws.name);
+                }}
+                className="pr-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100"
+                aria-label={`Rename ${ws.name}`}
+              >
+                ✎
+              </button>
+            )}
+          </div>
         ))}
         <button
           type="button"
