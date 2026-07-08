@@ -778,7 +778,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     expect(screen.queryByText("select * from analytics_log")).toBeNull();
   });
 
-  it("resets the worksheet statement when switching targets (key remount guard)", async () => {
+  it("clears target-owned state but preserves statement when switching targets", async () => {
     const user = userEvent.setup();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
 
@@ -790,12 +790,11 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     await user.type(statement, "select 2 from a");
     expect(statement).toHaveValue("select 2 from a");
 
-    // Switching targets must give B a fresh editor — never A's leftover statement.
-    // The stale-target guard cannot help here (statement is synchronous local
-    // state), so only the resourceId key remount enforces the reset.
+    // Switching targets via navigator clears target-owned state (result,
+    // error, history, execution progress) but preserves the user's statement.
     await pickTarget(user, /Staging MySQL/);
 
-    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 2 from a");
   });
 });
 

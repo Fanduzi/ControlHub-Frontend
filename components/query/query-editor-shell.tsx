@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Ban, Lock, Play, ScrollText, Save, TriangleAlert } from "lucide-react";
 
@@ -22,7 +22,10 @@ import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 
 type QueryEditorShellProps = {
-  target: QueryTarget;
+  targets: QueryTarget[];
+  activeTarget: QueryTarget;
+  targetSelectionVersion: number;
+  onActiveTargetChange: (resourceId: number) => void;
 };
 
 type WorksheetTab = "worksheet" | "savedSheets" | "history" | "access";
@@ -72,19 +75,24 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
   };
 }
 
-export function QueryEditorShell({ target }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
 
-  const actions = target.availableActions;
+  const actions = activeTarget.availableActions;
   const canExecute = actions.run === true;
 
   const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
-    createWorksheet(1, target.resourceId),
+    createWorksheet(1, activeTarget.resourceId),
   ]);
   const [activeWorksheetId, setActiveWorksheetId] = useState(worksheets[0]!.id);
 
   const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
+
+  const targetsById = useMemo(
+    () => new Map(targets.map((t) => [t.resourceId, t])),
+    [targets],
+  );
 
   function updateActiveWorksheet(patch: Partial<LocalWorksheet>) {
     setWorksheets((previous) =>
@@ -94,9 +102,23 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
     );
   }
 
+  function guardedUpdateWorksheet(
+    worksheetId: string,
+    requestId: string,
+    patch: Partial<LocalWorksheet>,
+  ) {
+    setWorksheets((previous) => {
+      const ws = previous.find((w) => w.id === worksheetId);
+      if (!ws || ws.requestId !== requestId) return previous;
+      return previous.map((w) =>
+        w.id === worksheetId ? { ...w, ...patch } : w,
+      );
+    });
+  }
+
   function addWorksheet() {
     const newIndex = worksheets.length + 1;
-    const newWs = createWorksheet(newIndex, target.resourceId);
+    const newWs = createWorksheet(newIndex, activeTarget.resourceId);
     setWorksheets((previous) => [...previous, newWs]);
     setActiveWorksheetId(newWs.id);
   }
@@ -124,57 +146,54 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
     );
   }
 
-  // Identity of the target this shell currently renders. Async work (execute,
-  // history refresh) started for a previous target must not write back after the
-  // user switches targets — otherwise a settling request from target A would
-  // paint A's result/history/error under target B. Mirrored synchronously during
-  // render so it is already current before any post-switch microtask resolves.
-  const activeTargetIdRef = useRef(target.resourceId);
-  activeTargetIdRef.current = target.resourceId;
-
   const refreshHistory = useCallback(async () => {
     if (!canExecute) {
       return;
     }
-    const targetId = target.resourceId;
+
+    const targetId = activeTarget.resourceId;
+
     updateActiveWorksheet({ historyLoading: true });
+
     try {
       const response = await listQueryExecutions(targetId);
-      // Drop the result if the user switched targets while this request was in
-      // flight — it belongs to a target that is no longer selected.
-      if (activeTargetIdRef.current !== targetId) {
-        return;
-      }
       updateActiveWorksheet({ history: response.items });
     } catch {
-      // A history load failure must never crash the worksheet. Only the current
-      // target's prior history may stay; another target's history can never
-      // reach here because the target-change effect clears it on switch.
-      if (activeTargetIdRef.current !== targetId) {
-        return;
-      }
+      // Keep existing history on error.
     } finally {
-      if (activeTargetIdRef.current === targetId) {
-        updateActiveWorksheet({ historyLoading: false });
-      }
+      updateActiveWorksheet({ historyLoading: false });
     }
-  }, [canExecute, target.resourceId, activeWorksheetId]);
+  }, [canExecute, activeTarget.resourceId, activeWorksheetId]);
+
+  const lastSeenVersionRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    // Reset every target-owned field when the selected target changes so a
-    // prior target's result/error/history/progress never bleeds into the new
-    // target. History reloads for the new target when it is ready.
-    updateActiveWorksheet({
-      result: null,
-      error: null,
-      history: [],
-      isExecuting: false,
-      historyLoading: false,
-    });
-    if (canExecute) {
-      void refreshHistory();
+    if (targetSelectionVersion !== lastSeenVersionRef.current) {
+      lastSeenVersionRef.current = targetSelectionVersion;
+
+      updateActiveWorksheet({
+        targetResourceId: activeTarget.resourceId,
+        result: null,
+        error: null,
+        history: [],
+        historyLoading: false,
+        isExecuting: false,
+        activeResultTab: "grid",
+        requestId: crypto.randomUUID(),
+      });
+
+      if (activeTarget.availableActions.run) {
+        void refreshHistory();
+      }
     }
-  }, [target.resourceId, canExecute, refreshHistory]);
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory]);
+
+  useEffect(() => {
+    const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
+    if (worksheet && worksheet.targetResourceId !== activeTarget.resourceId) {
+      onActiveTargetChange(worksheet.targetResourceId);
+    }
+  }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
 
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
 
@@ -182,37 +201,28 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
     if (!runEnabled) {
       return;
     }
-    const targetId = target.resourceId;
-    updateActiveWorksheet({ isExecuting: true, error: null });
+
+    const worksheetId = activeWorksheetId;
+    const targetId = activeWorksheet.targetResourceId;
+    const requestId = crypto.randomUUID();
+
+    updateActiveWorksheet({ isExecuting: true, error: null, requestId });
+
     try {
       const response = await executeQueryTarget(targetId, {
         statement: activeWorksheet.statement,
         maxRows: activeWorksheet.maxRows,
       });
-      // Discard the result if the user switched targets while executing — it
-      // belongs to a target that is no longer selected.
-      if (activeTargetIdRef.current !== targetId) {
-        return;
-      }
-      updateActiveWorksheet({ result: response, activeResultTab: "grid" });
+
+      guardedUpdateWorksheet(worksheetId, requestId, { result: response, activeResultTab: "grid" });
     } catch (caught) {
-      if (activeTargetIdRef.current !== targetId) {
-        return;
-      }
-      // The service converts every failure into a controlled QueryExecuteError.
-      updateActiveWorksheet({
+      guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
         error: caught instanceof QueryExecuteError ? caught : null,
       });
     } finally {
-      // Only settle this target's UI if it is still selected. If the user
-      // switched targets while executing, the new target owns its own state and
-      // history load — discard this attempt's aftermath entirely.
-      if (activeTargetIdRef.current === targetId) {
-        updateActiveWorksheet({ isExecuting: false });
-        // Refresh history after the attempt settles (success or controlled error).
-        void refreshHistory();
-      }
+      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
+      void refreshHistory();
     }
   }
 

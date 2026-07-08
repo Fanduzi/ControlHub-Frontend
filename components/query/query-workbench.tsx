@@ -55,6 +55,7 @@ export function QueryWorkbench({
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
     targets[0]?.resourceId ?? null,
   );
+  const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
 
   const engines = useMemo(() => collectEngines(targets), [targets]);
   const filteredTargets = useMemo(
@@ -70,6 +71,17 @@ export function QueryWorkbench({
     setFilters((previous) => ({ ...previous, ...patch }));
   }
 
+  /** Navigator-originated target change: increment version so the editor can detect it. */
+  function setActiveTargetFromNavigator(resourceId: number) {
+    setActiveTargetId(resourceId);
+    setTargetSelectionVersion((version) => version + 1);
+  }
+
+  /** Worksheet-originated target change: no version increment. */
+  function setActiveTargetFromWorksheet(resourceId: number) {
+    setActiveTargetId(resourceId);
+  }
+
   return (
     <div className="space-y-4">
       <SafetyBanner />
@@ -77,7 +89,7 @@ export function QueryWorkbench({
       <TargetSwitcher
         activeTarget={activeTarget}
         filteredTargets={filteredTargets}
-        onSelect={setActiveTargetId}
+        onSelect={setActiveTargetFromNavigator}
         filters={filters}
         engines={engines}
         onFilterChange={updateFilter}
@@ -86,15 +98,12 @@ export function QueryWorkbench({
       {activeTarget ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
           <QuerySchemaBrowser target={activeTarget} />
-          {/*
-            Key on resourceId so the editor remounts when the selected target
-            changes. This guarantees no target-owned local state (statement,
-            result, error, history, progress) can carry over from one target to
-            another. The editor additionally guards its async work against stale
-            targets, but the remount is the hard boundary that keeps each
-            target's worksheet fully isolated.
-          */}
-          <QueryEditorShell key={activeTarget.resourceId} target={activeTarget} />
+          <QueryEditorShell
+            targets={filteredTargets}
+            activeTarget={activeTarget}
+            targetSelectionVersion={targetSelectionVersion}
+            onActiveTargetChange={setActiveTargetFromWorksheet}
+          />
           <QueryGovernancePanel target={activeTarget} />
         </div>
       ) : (
