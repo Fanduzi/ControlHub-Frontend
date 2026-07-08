@@ -152,8 +152,8 @@ test.describe("Query Workbench shell", () => {
     await selectSwitcherOption(page, readyIndex);
 
     // The worksheet seeds a safe default statement and never auto-runs.
-    const statement = page.getByRole("textbox", { name: /statement/i });
-    await expect(statement).toHaveValue("select 1");
+    const content = await getEditorContent(page);
+    expect(content).toContain("select 1");
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
@@ -172,8 +172,7 @@ test.describe("Query Workbench shell", () => {
     await selectSwitcherOption(page, readyIndex);
 
     // Replace the default statement with SHOW TABLES.
-    const statement = page.getByRole("textbox", { name: /statement/i });
-    await statement.fill("SHOW TABLES");
+    await clearAndType(page, "SHOW TABLES");
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
@@ -196,8 +195,7 @@ test.describe("Query Workbench shell", () => {
     await selectSwitcherOption(page, readyIndex);
 
     // First, run SHOW TABLES to discover a table name.
-    const statement = page.getByRole("textbox", { name: /statement/i });
-    await statement.fill("SHOW TABLES");
+    await clearAndType(page, "SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Wait for the result table to show table names.
@@ -212,7 +210,7 @@ test.describe("Query Workbench shell", () => {
     test.skip(!tableName, "SHOW TABLES returned empty table name");
 
     // Now run DESCRIBE on that table.
-    await statement.fill(`DESCRIBE ${tableName}`);
+    await clearAndType(page, `DESCRIBE ${tableName}`);
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Wait for the result table to update with DESCRIBE output.
@@ -237,8 +235,7 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectSwitcherOption(page, readyIndex);
 
-    const statement = page.getByRole("textbox", { name: /statement/i });
-    await statement.fill("update resources set name = 'x'");
+    await clearAndType(page, "update resources set name = 'x'");
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Controlled rejection: the backend guard rejects the write and the UI
@@ -273,8 +270,7 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectSwitcherOption(page, readyIndex);
 
-    const statement = page.getByRole("textbox", { name: /statement/i });
-    await statement.fill("SHOW TABLES");
+    await clearAndType(page, "SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Wait for the result table to appear.
@@ -294,12 +290,7 @@ test.describe("Query Workbench shell", () => {
     await selectSwitcherOption(page, readyIndex);
 
     // Type messy SQL into the CodeMirror editor
-    const editor = page.locator(".cm-content");
-    await editor.click();
-    // Select all and replace with messy SQL
-    const isMac = process.platform === "darwin";
-    await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
-    await page.keyboard.type("select id,name from query_e2e_items where id=1");
+    await clearAndType(page, "select id,name from query_e2e_items where id=1");
 
     // Click Format button
     await page.getByRole("button", { name: /format/i }).click();
@@ -308,10 +299,7 @@ test.describe("Query Workbench shell", () => {
     await page.waitForTimeout(500);
 
     // Verify formatted SQL contains uppercase keywords
-    const content = await page.evaluate(() => {
-      const cm = document.querySelector(".cm-content");
-      return cm?.textContent ?? "";
-    });
+    const content = await getEditorContent(page);
     expect(content).toContain("SELECT");
     expect(content).toContain("FROM");
   });
@@ -324,11 +312,9 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectSwitcherOption(page, readyIndex);
 
-    // Focus the CodeMirror editor
-    const editor = page.locator(".cm-content");
+    // Focus the CodeMirror editor and press Cmd/Ctrl+Enter
+    const editor = getEditor(page);
     await editor.click();
-
-    // Press Cmd+Enter (Mac) or Ctrl+Enter (other platforms)
     const isMac = process.platform === "darwin";
     await page.keyboard.press(isMac ? "Meta+Enter" : "Control+Enter");
 
@@ -375,12 +361,7 @@ test.describe("Query Workbench shell", () => {
     await selectSwitcherOption(page, readyIndex);
 
     // Type unsafe SQL into the CodeMirror editor
-    const editor = page.locator(".cm-content");
-    await editor.click();
-    // Select all and replace with unsafe SQL
-    const isMac = process.platform === "darwin";
-    await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
-    await page.keyboard.type("update resources set name = 'x'");
+    await clearAndType(page, "update resources set name = 'x'");
 
     // Run it
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -394,6 +375,28 @@ async function openQueryWorkbench(page: Page): Promise<void> {
   await loginViaUI(page);
   await page.locator('a[href="/query"]').first().click();
   await expect(page).toHaveURL(/\/query/);
+}
+
+/** Get the CodeMirror editor content element. */
+function getEditor(page: Page) {
+  return page.locator(".cm-content");
+}
+
+/** Get the current text content of the CodeMirror editor. */
+async function getEditorContent(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const cm = document.querySelector(".cm-content");
+    return cm?.textContent ?? "";
+  });
+}
+
+/** Clear the editor and type new content. */
+async function clearAndType(page: Page, text: string): Promise<void> {
+  const editor = getEditor(page);
+  await editor.click();
+  const isMac = process.platform === "darwin";
+  await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
+  await page.keyboard.type(text);
 }
 
 /** Whether the active target exposes an enabled Run control (i.e. is ready). */
