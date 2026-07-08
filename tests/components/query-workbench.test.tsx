@@ -1712,8 +1712,26 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     const lockedRunButton = screen.getByRole("button", { name: /run locked/i });
     expect(lockedRunButton).toBeDisabled();
 
-    // executeQueryTarget should NOT have been called for the locked target
+    // Locked target shows placeholder instead of editor textbox,
+    // so shortcut cannot be triggered. Verify execution never happened.
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+
+    // Switch back to Worksheet 1 (ready target) to verify it still works
+    await user.click(screen.getByRole("tab", { name: /worksheet 1/i }));
+    const readyRunButton = screen.getByRole("button", { name: /^run$/i });
+    expect(readyRunButton).toBeEnabled();
+
+    // Now trigger shortcut on ready worksheet - should execute
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.click(statement);
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+
+    // executeQueryTarget should have been called once for the ready target
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
+      statement: "select 1",
+      maxRows: 100,
+    });
   });
 });
 
