@@ -40,23 +40,89 @@ type ResultTab = (typeof RESULT_TABS)[number];
 const DEFAULT_STATEMENT = "select 1";
 const DEFAULT_MAX_ROWS = 100;
 
+type LocalWorksheet = {
+  id: string;
+  name: string;
+  targetResourceId: number;
+  statement: string;
+  maxRows: number;
+  activeResultTab: ResultTab;
+  isExecuting: boolean;
+  result: QueryExecuteResponse | null;
+  error: QueryExecuteError | null;
+  history: QueryExecutionRecord[];
+  historyLoading: boolean;
+  requestId: string;
+};
+
+function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
+  return {
+    id: `worksheet-${Date.now()}-${index}`,
+    name: `Worksheet ${index}`,
+    targetResourceId,
+    statement: DEFAULT_STATEMENT,
+    maxRows: DEFAULT_MAX_ROWS,
+    activeResultTab: "grid",
+    isExecuting: false,
+    result: null,
+    error: null,
+    history: [],
+    historyLoading: false,
+    requestId: crypto.randomUUID(),
+  };
+}
+
 export function QueryEditorShell({ target }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
-  const [activeResultTab, setActiveResultTab] = useState<ResultTab>("grid");
 
   const actions = target.availableActions;
   const canExecute = actions.run === true;
 
-  // Execution state — local to the client. The actor is derived from the
-  // verified Bearer token on the server; nothing here sends actorUserId.
-  const [statement, setStatement] = useState(DEFAULT_STATEMENT);
-  const [maxRows, setMaxRows] = useState(DEFAULT_MAX_ROWS);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [result, setResult] = useState<QueryExecuteResponse | null>(null);
-  const [error, setError] = useState<QueryExecuteError | null>(null);
-  const [history, setHistory] = useState<QueryExecutionRecord[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
+    createWorksheet(1, target.resourceId),
+  ]);
+  const [activeWorksheetId, setActiveWorksheetId] = useState(worksheets[0]!.id);
+
+  const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
+
+  function updateActiveWorksheet(patch: Partial<LocalWorksheet>) {
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === activeWorksheetId ? { ...ws, ...patch } : ws,
+      ),
+    );
+  }
+
+  function addWorksheet() {
+    const newIndex = worksheets.length + 1;
+    const newWs = createWorksheet(newIndex, target.resourceId);
+    setWorksheets((previous) => [...previous, newWs]);
+    setActiveWorksheetId(newWs.id);
+  }
+
+  function closeWorksheet(id: string) {
+    // Can't close last worksheet
+    if (worksheets.length <= 1) return;
+
+    setWorksheets((previous) => {
+      const filtered = previous.filter((ws) => ws.id !== id);
+      if (activeWorksheetId === id) {
+        const closedIndex = previous.findIndex((ws) => ws.id === id);
+        const newActiveIndex = Math.min(closedIndex, filtered.length - 1);
+        setActiveWorksheetId(filtered[newActiveIndex]!.id);
+      }
+      return filtered;
+    });
+  }
+
+  function renameWorksheet(id: string, newName: string) {
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === id ? { ...ws, name: newName } : ws,
+      ),
+    );
+  }
 
   // Identity of the target this shell currently renders. Async work (execute,
   // history refresh) started for a previous target must not write back after the
@@ -71,7 +137,7 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
       return;
     }
     const targetId = target.resourceId;
-    setHistoryLoading(true);
+    updateActiveWorksheet({ historyLoading: true });
     try {
       const response = await listQueryExecutions(targetId);
       // Drop the result if the user switched targets while this request was in
@@ -79,7 +145,7 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
       if (activeTargetIdRef.current !== targetId) {
         return;
       }
-      setHistory(response.items);
+      updateActiveWorksheet({ history: response.items });
     } catch {
       // A history load failure must never crash the worksheet. Only the current
       // target's prior history may stay; another target's history can never
@@ -89,59 +155,61 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
       }
     } finally {
       if (activeTargetIdRef.current === targetId) {
-        setHistoryLoading(false);
+        updateActiveWorksheet({ historyLoading: false });
       }
     }
-  }, [canExecute, target.resourceId]);
+  }, [canExecute, target.resourceId, activeWorksheetId]);
 
   useEffect(() => {
     // Reset every target-owned field when the selected target changes so a
     // prior target's result/error/history/progress never bleeds into the new
     // target. History reloads for the new target when it is ready.
-    setResult(null);
-    setError(null);
-    setHistory([]);
-    setIsExecuting(false);
-    setHistoryLoading(false);
+    updateActiveWorksheet({
+      result: null,
+      error: null,
+      history: [],
+      isExecuting: false,
+      historyLoading: false,
+    });
     if (canExecute) {
       void refreshHistory();
     }
   }, [target.resourceId, canExecute, refreshHistory]);
 
-  const runEnabled = canExecute && !isExecuting && statement.trim() !== "";
+  const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
 
   async function handleRun() {
     if (!runEnabled) {
       return;
     }
     const targetId = target.resourceId;
-    setIsExecuting(true);
-    setError(null);
+    updateActiveWorksheet({ isExecuting: true, error: null });
     try {
       const response = await executeQueryTarget(targetId, {
-        statement,
-        maxRows,
+        statement: activeWorksheet.statement,
+        maxRows: activeWorksheet.maxRows,
       });
       // Discard the result if the user switched targets while executing — it
       // belongs to a target that is no longer selected.
       if (activeTargetIdRef.current !== targetId) {
         return;
       }
-      setResult(response);
-      setActiveResultTab("grid");
+      updateActiveWorksheet({ result: response, activeResultTab: "grid" });
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) {
         return;
       }
       // The service converts every failure into a controlled QueryExecuteError.
-      setResult(null);
-      setError(caught instanceof QueryExecuteError ? caught : null);
+      updateActiveWorksheet({
+        result: null,
+        error: caught instanceof QueryExecuteError ? caught : null,
+      });
     } finally {
       // Only settle this target's UI if it is still selected. If the user
       // switched targets while executing, the new target owns its own state and
       // history load — discard this attempt's aftermath entirely.
       if (activeTargetIdRef.current === targetId) {
-        setIsExecuting(false);
+        updateActiveWorksheet({ isExecuting: false });
         // Refresh history after the attempt settles (success or controlled error).
         void refreshHistory();
       }
@@ -153,6 +221,48 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
       aria-label={t("editor.worksheetTab")}
       className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
     >
+      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1">
+        {worksheets.map((ws) => (
+          <div
+            key={ws.id}
+            className={cn(
+              "flex items-center gap-1 rounded-t-md px-3 py-1.5 text-sm cursor-pointer",
+              ws.id === activeWorksheetId
+                ? "bg-background border border-border border-b-transparent"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => {
+              if (ws.id !== activeWorksheetId) {
+                setActiveWorksheetId(ws.id);
+              }
+            }}
+          >
+            <span>{ws.name}</span>
+            {worksheets.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeWorksheet(ws.id);
+                }}
+                className="ml-1 text-muted-foreground hover:text-foreground"
+                aria-label={`Close ${ws.name}`}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addWorksheet}
+          className="ml-1 rounded p-1 text-muted-foreground hover:text-foreground"
+          aria-label="Add worksheet"
+        >
+          +
+        </button>
+      </div>
+
       <div className="flex items-center justify-between border-b border-border bg-muted/30">
         <ul role="tablist" className="flex flex-wrap">
           {WORKSHEET_TABS.map((tab) => {
@@ -189,16 +299,16 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
       {activeTab === "worksheet" ? (
         canExecute ? (
           <ReadyWorksheet
-            statement={statement}
-            onStatementChange={setStatement}
-            maxRows={maxRows}
-            onMaxRowsChange={setMaxRows}
+            statement={activeWorksheet.statement}
+            onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
+            maxRows={activeWorksheet.maxRows}
+            onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
             actions={actions}
             runEnabled={runEnabled}
-            isExecuting={isExecuting}
+            isExecuting={activeWorksheet.isExecuting}
             onRun={handleRun}
-            result={result}
-            error={error}
+            result={activeWorksheet.result}
+            error={activeWorksheet.error}
           />
         ) : (
           <div className="flex flex-col">
@@ -224,11 +334,14 @@ export function QueryEditorShell({ target }: QueryEditorShellProps) {
               </div>
             </div>
 
-            <LockedResult activeTab={activeResultTab} onSelect={setActiveResultTab} />
+            <LockedResult
+              activeTab={activeWorksheet.activeResultTab}
+              onSelect={(tab) => updateActiveWorksheet({ activeResultTab: tab })}
+            />
           </div>
         )
       ) : activeTab === "history" && canExecute ? (
-        <QueryHistoryPanel history={history} loading={historyLoading} />
+        <QueryHistoryPanel history={activeWorksheet.history} loading={activeWorksheet.historyLoading} />
       ) : (
         <PlaceholderTab tab={activeTab} />
       )}
