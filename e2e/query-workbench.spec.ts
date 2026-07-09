@@ -47,7 +47,7 @@ test.describe("Query Workbench shell", () => {
     assertClean(consoleMessages, networkErrors);
   });
 
-  test("loads with real backend data and an execution-disabled banner", async ({ page }) => {
+  test("loads with real backend data and a governed-execution banner", async ({ page }) => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
@@ -61,38 +61,35 @@ test.describe("Query Workbench shell", () => {
     await expect(
       page
         .getByRole("status")
-        .getByText("Query execution is not enabled", { exact: true }),
+        .getByText("Governed query execution", { exact: true }),
     ).toBeVisible();
   });
 
-  test("target switcher surfaces at least one database target", async ({ page }) => {
+  test("connection navigator surfaces at least one database target", async ({ page }) => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
-    // The switcher is populated from the backend query-target list.
-    await expect(page.locator("#query-target-switcher")).toBeVisible();
-    await expect(page.getByText(/\d+ targets/)).toBeVisible();
-    await expect(page.getByText("0 targets")).toHaveCount(0);
+    await expect(getConnectionNavigator(page)).toBeVisible();
+    await expect(getConnectionTargetButtons(page).first()).toBeVisible();
+    expect(await connectionTargetCount(page)).toBeGreaterThan(0);
 
     // No degenerate ":0" from a missing_connection target — the switcher must
     // carry real backend connection context, not a raw empty host:port.
     await expect(page.getByText(":0")).toHaveCount(0);
   });
 
-  test("a locked query target keeps Run disabled", async ({ page }) => {
+  test("a locked query target hides Run and shows the blocker state", async ({ page }) => {
     await openQueryWorkbench(page);
 
-    // Robust to a dev-seeded ready target being present: walk the switcher and
-    // assert the locked behavior against the first non-ready target found.
-    const count = await switcherOptionCount(page);
+    const count = await connectionTargetCount(page);
     let verifiedLocked = false;
     for (let index = 0; index < count; index += 1) {
-      await selectSwitcherOption(page, index);
+      await selectConnectionTarget(page, index);
       if (!(await isRunEnabled(page))) {
-        // Locked target: the Run control must be disabled and labelled "Run locked".
-        await expect(
-          page.getByRole("button", { name: /run locked/i }),
-        ).toBeDisabled();
+        await expect(page.getByRole("button", { name: /^run$/i })).toHaveCount(0);
+        await expect(page.getByText("Editor locked by policy")).toBeVisible();
+        await expect(page.getByText("Result area is locked")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Blocker" })).toBeVisible();
         verifiedLocked = true;
         break;
       }
@@ -106,36 +103,17 @@ test.describe("Query Workbench shell", () => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
-    // Record the current switcher text before switching.
-    const switcher = page.locator("#query-target-switcher");
-    const before = await switcher.textContent();
-
-    // Open the picker and get available option names.
-    await openSwitcher(page);
-    const options = page.getByRole("option");
+    const activeSummary = page.getByRole("region", { name: "Active connection" });
+    const before = await activeSummary.textContent();
+    const options = getInactiveConnectionTargetButtons(page);
     const optionCount = await options.count();
 
     // Requires a seed with at least two query targets.
-    test.skip(optionCount < 2, "query workbench E2E needs >= 2 seeded targets");
+    test.skip(optionCount < 1, "query workbench E2E needs >= 2 seeded targets");
 
-    // Find and click an option whose text differs from the current selection.
-    let clicked = false;
-    for (let i = 0; i < optionCount; i += 1) {
-      const optionText = await options.nth(i).textContent();
-      if (optionText && before && !before.includes(optionText.trim().split("·")[0].trim())) {
-        await options.nth(i).click();
-        clicked = true;
-        break;
-      }
-    }
+    await options.first().click();
 
-    // If all options match the current selection, skip.
-    test.skip(!clicked, "all picker options match the current target");
-
-    // Wait for the switcher to update.
-    await page.waitForTimeout(500);
-
-    const after = await switcher.textContent();
+    const after = await activeSummary.textContent();
     expect(after).toBeTruthy();
     expect(after).not.toBe(before);
 
@@ -149,7 +127,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // The worksheet seeds a safe default statement and never auto-runs.
     const content = await getEditorContent(page);
@@ -169,7 +147,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // Replace the default statement with SHOW TABLES.
     await clearAndType(page, "SHOW TABLES");
@@ -192,7 +170,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // First, run SHOW TABLES to discover a table name.
     await clearAndType(page, "SHOW TABLES");
@@ -233,7 +211,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     await clearAndType(page, "update resources set name = 'x'");
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -249,7 +227,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
@@ -268,7 +246,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     await clearAndType(page, "SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -287,7 +265,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // Type messy SQL into the CodeMirror editor
     await clearAndType(page, "select id,name from query_e2e_items where id=1");
@@ -310,7 +288,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // Focus the CodeMirror editor and press Cmd/Ctrl+Enter
     const editor = getEditor(page);
@@ -330,7 +308,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // Worksheet 1: run the default SELECT 1
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -358,7 +336,7 @@ test.describe("Query Workbench shell", () => {
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded");
     if (readyIndex === null) return;
-    await selectSwitcherOption(page, readyIndex);
+    await selectConnectionTarget(page, readyIndex);
 
     // Type unsafe SQL into the CodeMirror editor
     await clearAndType(page, "update resources set name = 'x'");
@@ -368,6 +346,103 @@ test.describe("Query Workbench shell", () => {
 
     // Should show controlled rejection via alert
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("dark-mode editor and result table maintain readable contrast", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    await setThemeToDark(page);
+
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const contrast = await page.evaluate(() => {
+      function relativeLuminance([r, g, b]: number[]) {
+        const channel = [r, g, b].map((v) => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+      }
+      function contrastRatio(rgb1: number[], rgb2: number[]) {
+        const l1 = relativeLuminance(rgb1) + 0.05;
+        const l2 = relativeLuminance(rgb2) + 0.05;
+        return Math.max(l1, l2) / Math.min(l1, l2);
+      }
+      function parseRgb(color: string): number[] | null {
+        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+      }
+      function effectiveBackground(element: Element): string {
+        let el: Element | null = element;
+        while (el) {
+          const bg = getComputedStyle(el).backgroundColor;
+          if (bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg;
+          el = el.parentElement;
+        }
+        return getComputedStyle(document.body).backgroundColor;
+      }
+
+      const editor = document.querySelector(".cm-content");
+      const resultCell = document.querySelector("table tbody td");
+      const resultHeader = document.querySelector("table thead th");
+
+      const editorFg = editor ? parseRgb(getComputedStyle(editor).color) : null;
+      const editorBg = editor ? parseRgb(effectiveBackground(editor)) : null;
+      const cellFg = resultCell ? parseRgb(getComputedStyle(resultCell).color) : null;
+      const cellBg = resultCell ? parseRgb(effectiveBackground(resultCell)) : null;
+      const headerFg = resultHeader ? parseRgb(getComputedStyle(resultHeader).color) : null;
+      const headerBg = resultHeader ? parseRgb(effectiveBackground(resultHeader)) : null;
+
+      return {
+        editor: editorFg && editorBg ? contrastRatio(editorFg, editorBg) : 0,
+        cell: cellFg && cellBg ? contrastRatio(cellFg, cellBg) : 0,
+        header: headerFg && headerBg ? contrastRatio(headerFg, headerBg) : 0,
+      };
+    });
+
+    expect(contrast.editor).toBeGreaterThanOrEqual(4.5);
+    expect(contrast.cell).toBeGreaterThanOrEqual(4.5);
+    expect(contrast.header).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("SQL editor resize handle persists height across reload", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    const initialHeight = await getEditorHeight(page);
+    expect(initialHeight).toBeGreaterThan(0);
+
+    const handle = page.getByRole("separator", { name: "Resize SQL editor" });
+    await handle.scrollIntoViewIfNeeded();
+    const box = await handle.boundingBox();
+    expect(box).toBeTruthy();
+
+    const targetY = box!.y + 120;
+    await page.mouse.move(box!.x + box!.width / 2, box!.y);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2, targetY, { steps: 10 });
+    await page.mouse.up();
+
+    const resizedHeight = await getEditorHeight(page);
+    expect(resizedHeight).toBeGreaterThan(initialHeight + 50);
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: /^run$/i })).toBeVisible({ timeout: 15_000 });
+
+    const heightAfterReload = await getEditorHeight(page);
+    expect(heightAfterReload).toBe(resizedHeight);
   });
 });
 
@@ -408,39 +483,65 @@ async function isRunEnabled(page: Page): Promise<boolean> {
   return run.first().isEnabled().catch(() => false);
 }
 
-/**
- * Open the target picker popover and wait for its options to render.
- * Phase 38C replaced the Select dropdown with a Command-based searchable picker.
- */
-async function openSwitcher(page: Page): Promise<void> {
-  // Dismiss any open popover first (Escape closes the popover), then toggle
-  // open. Deterministic regardless of prior open/closed state.
-  await page.keyboard.press("Escape");
-  await page.locator("#query-target-switcher").click();
-  // Wait for the Command list to appear with at least one item.
-  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
+function getConnectionNavigator(page: Page) {
+  return page.getByRole("complementary", { name: "Connections" });
 }
 
-async function switcherOptionCount(page: Page): Promise<number> {
-  await openSwitcher(page);
-  return page.getByRole("option").count();
+function getConnectionTargetButtons(page: Page) {
+  return getConnectionNavigator(page).locator('ul button[aria-label]');
 }
 
-async function selectSwitcherOption(page: Page, index: number): Promise<void> {
-  await openSwitcher(page);
-  await page.getByRole("option").nth(index).click();
-  // Wait for the popover to close after selection.
-  await page.waitForTimeout(300);
+function getInactiveConnectionTargetButtons(page: Page) {
+  return getConnectionNavigator(page).locator(
+    'ul button[aria-label]:not([aria-current="true"])',
+  );
 }
 
-/** Walk the switcher and return the first ready target's option index, or null. */
+async function connectionTargetCount(page: Page): Promise<number> {
+  await expect(getConnectionTargetButtons(page).first()).toBeVisible({ timeout: 5_000 });
+  return getConnectionTargetButtons(page).count();
+}
+
+async function selectConnectionTarget(page: Page, index: number): Promise<void> {
+  const target = getConnectionTargetButtons(page).nth(index);
+  await expect(target).toBeVisible({ timeout: 5_000 });
+  await target.click();
+}
+
 async function findReadyOptionIndex(page: Page): Promise<number | null> {
-  const count = await switcherOptionCount(page);
+  const count = await connectionTargetCount(page);
   for (let index = 0; index < count; index += 1) {
-    await selectSwitcherOption(page, index);
+    await selectConnectionTarget(page, index);
     if (await isRunEnabled(page)) {
       return index;
     }
   }
   return null;
+}
+
+async function setThemeToDark(page: Page): Promise<void> {
+  let isDark = await page.evaluate(() =>
+    document.documentElement.classList.contains("dark"),
+  );
+  if (isDark) return;
+
+  const toggle = page.getByRole("button", { name: /theme/i });
+  for (let i = 0; i < 3; i += 1) {
+    await toggle.click();
+    await page.waitForTimeout(150);
+    isDark = await page.evaluate(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+    if (isDark) break;
+  }
+
+  expect(isDark).toBe(true);
+}
+
+async function getEditorHeight(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const editor = document.querySelector(".cm-editor") as HTMLElement | null;
+    if (!editor) return 0;
+    return Math.round(editor.getBoundingClientRect().height);
+  });
 }
