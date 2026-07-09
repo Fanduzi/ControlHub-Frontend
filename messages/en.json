@@ -121,7 +121,7 @@
     },
     "query": {
       "title": "Query Workbench",
-      "description": "Governed query workspace shell · execution locked"
+      "description": "Governed query workspace shell · runs only against ready targets"
     },
     "audits": {
       "title": "Audits",
@@ -344,7 +344,7 @@
     "query": {
       "eyebrow": "Query Workbench",
       "title": "Query Workbench",
-      "description": "Inspect query-capable database targets, connection context, and governance. Query execution is not enabled in this phase."
+      "description": "Inspect query-capable database targets, connection context, and governance. Execution is allowed only for ready targets with read-only credentials."
     },
     "audits": {
       "eyebrow": "Audits",
@@ -940,8 +940,8 @@
   },
   "queryWorkbench": {
     "banner": {
-      "title": "Query execution is not enabled",
-      "description": "This is the shell of a governed query IDE. Target selection, schema browsing, worksheet, history, results, and governance are visible, but this phase does not connect to databases or run queries."
+      "title": "Governed query execution",
+      "description": "This workbench runs queries only against ready targets with configured read-only credentials. The backend enforces statement guards, audit logging, and result limits."
     },
     "switcher": {
       "label": "Query target",
@@ -1067,10 +1067,11 @@
     },
     "governance": {
       "title": "Governance & access",
-      "executionTitle": "Execution disabled",
-      "executionDescription": "No query is sent to a database from this page. The frontend lock is only a hint; the backend must enforce it.",
-      "credentialTitle": "Read-only credential missing",
-      "credentialDescription": "Connection metadata exists, but no read-only identity is configured yet. This phase adds no credential model.",
+      "executionTitleReady": "Execution ready",
+      "executionDescriptionReady": "Read-only sandbox is enabled. The backend enforces statement guards, audit logging, and row limits.",
+      "executionTitleLocked": "Execution disabled",
+      "executionDescriptionLocked": "This target is not ready to execute queries. Resolve the blocker to enable execution.",
+      "credentialDescription": "Credential state for this target.",
       "auditTitle": "Audit required",
       "auditDescription": "From the sandbox phase, every execution must record user, target, statement digest, duration, result size, and risk policy.",
       "jitTitle": "JIT access planned",
@@ -1153,6 +1154,18 @@
       "host": "Host",
       "port": "Port",
       "readonlyCredential": "Read-only credential"
+    },
+    "connectionNavigator": {
+      "title": "Connections",
+      "searchPlaceholder": "Search by name, engine, host…",
+      "activeConnection": "Active connection",
+      "ready": "Ready",
+      "locked": "Locked",
+      "noMatches": "No targets match your filters.",
+      "filters": "Filters",
+      "allEngines": "All engines",
+      "allModes": "All kinds",
+      "allReadiness": "All readiness"
     }
   },
   "queryCredentialSettings": {
@@ -1173,6 +1186,9 @@
     },
     "detail": {
       "title": "Credential binding",
+      "emptyTitle": "Select a target",
+      "emptyDescription": "Choose a credential target from the operations table to edit its metadata.",
+      "inspectorLabel": "Credential detail inspector",
       "noSelection": "Select a query target to manage its credential metadata.",
       "targetLabel": "Target",
       "runtimeLabel": "Runtime status",

@@ -121,7 +121,7 @@
     },
     "query": {
       "title": "查询工作台",
-      "description": "受治理的查询工作台外壳 · 执行已锁定"
+      "description": "受治理的查询工作台外壳 · 仅对已就绪目标运行"
     },
     "audits": {
       "title": "审计",
@@ -344,7 +344,7 @@
     "query": {
       "eyebrow": "查询工作台",
       "title": "查询工作台",
-      "description": "查看可查询的数据库目标、连接上下文与治理策略。本阶段不启用查询执行。"
+      "description": "查看可查询的数据库目标、连接上下文与治理策略。仅已就绪且配置只读凭据的目标允许执行查询。"
     },
     "audits": {
       "eyebrow": "审计",
@@ -940,8 +940,8 @@
   },
   "queryWorkbench": {
     "banner": {
-      "title": "查询执行尚未启用",
-      "description": "这是受治理查询 IDE 的外壳：连接选择、Schema 浏览、Worksheet、历史、结果区和治理面板都会出现，但本阶段不连接数据库、不执行查询。"
+      "title": "受治理的查询执行",
+      "description": "该工作台仅对已就绪且配置只读凭据的目标执行查询。后端强制语句 guard、审计日志和结果限制。"
     },
     "switcher": {
       "label": "查询目标",
@@ -1067,10 +1067,11 @@
     },
     "governance": {
       "title": "治理与访问",
-      "executionTitle": "执行已禁用",
-      "executionDescription": "本页不会向数据库发送任何查询。前端禁用只是提示，最终必须由后端强制。",
-      "credentialTitle": "缺少只读凭据",
-      "credentialDescription": "连接元数据已存在，但尚未配置只读身份。本阶段不新增凭据模型。",
+      "executionTitleReady": "执行已就绪",
+      "executionDescriptionReady": "只读沙箱已启用。后端强制语句 guard、审计日志和行数限制。",
+      "executionTitleLocked": "执行已禁用",
+      "executionDescriptionLocked": "该目标尚未准备好执行查询。解决阻塞项后可启用执行。",
+      "credentialDescription": "该目标的凭据状态。",
       "auditTitle": "需要审计",
       "auditDescription": "从沙箱阶段起，每次执行都必须记录用户、目标、语句摘要、耗时、结果规模和风险策略。",
       "jitTitle": "JIT 访问规划中",
@@ -1146,6 +1147,18 @@
       "host": "主机",
       "port": "端口",
       "readonlyCredential": "只读凭据"
+    },
+    "connectionNavigator": {
+      "title": "连接",
+      "searchPlaceholder": "按名称、引擎、主机搜索…",
+      "activeConnection": "当前连接",
+      "ready": "就绪",
+      "locked": "已锁定",
+      "noMatches": "没有匹配的目标。",
+      "filters": "筛选",
+      "allEngines": "全部引擎",
+      "allModes": "全部类型",
+      "allReadiness": "全部就绪状态"
     }
   },
   "queryCredentialSettings": {
@@ -1166,6 +1179,9 @@
     },
     "detail": {
       "title": "凭据绑定",
+      "emptyTitle": "选择目标",
+      "emptyDescription": "从操作表中选择一个凭据目标以编辑其元数据。",
+      "inspectorLabel": "凭据详情检查器",
       "noSelection": "选择一个查询目标以管理其凭据元数据。",
       "targetLabel": "目标",
       "runtimeLabel": "运行时状态",
