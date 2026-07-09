@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
-import { Ban, Lock, Play, ScrollText, Save, TriangleAlert } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Lock, Play, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -22,6 +24,14 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { SqlCodeEditor } from "@/components/query/sql-code-editor";
+import {
+  clampEditorHeight,
+  DEFAULT_QUERY_EDITOR_HEIGHT,
+  normalizeEditorTheme,
+  parseStoredEditorHeight,
+  QUERY_EDITOR_HEIGHT_STORAGE_KEY,
+} from "@/lib/query-editor-preferences";
+import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
 
 type QueryEditorShellProps = {
@@ -82,15 +92,19 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
 
 export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
+  const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
 
   const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
     createWorksheet(1, activeTarget.resourceId),
   ]);
   const [activeWorksheetId, setActiveWorksheetId] = useState(worksheets[0]!.id);
   const editorViewRef = useRef<EditorView | null>(null);
+  const editorHeightRef = useRef(editorHeight);
+  editorHeightRef.current = editorHeight;
 
   const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
 
@@ -233,6 +247,48 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
 
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
+  const editorThemePreference = normalizeEditorTheme(
+    theme === "system" ? resolvedTheme ?? "system" : theme,
+  );
+
+  useEffect(() => {
+    const storedHeight = parseStoredEditorHeight(
+      window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY),
+    );
+    if (storedHeight !== null) {
+      setEditorHeight(storedHeight);
+    }
+  }, []);
+
+  function handleEditorResizePointerDown(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const startY = event.clientY;
+    const startHeight = editorHeightRef.current;
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      const nextHeight = clampEditorHeight(
+        startHeight + moveEvent.clientY - startY,
+      );
+      editorHeightRef.current = nextHeight;
+      setEditorHeight(nextHeight);
+    }
+
+    function handlePointerUp() {
+      window.localStorage.setItem(
+        QUERY_EDITOR_HEIGHT_STORAGE_KEY,
+        String(editorHeightRef.current),
+      );
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
 
   async function handleRun() {
     if (!runEnabled) {
@@ -411,7 +467,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
             maxRows={activeWorksheet.maxRows}
             onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
-            actions={actions}
             runEnabled={runEnabled}
             isExecuting={activeWorksheet.isExecuting}
             onRun={handleRun}
@@ -419,16 +474,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             onEditorView={(view) => { editorViewRef.current = view; }}
             formatError={activeWorksheet.formatError}
             engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
+            themePreference={editorThemePreference}
+            editorHeight={editorHeight}
+            onEditorResizePointerDown={handleEditorResizePointerDown}
             result={activeWorksheet.result}
             error={activeWorksheet.error}
           />
         ) : (
           <div className="flex flex-col">
             <LockedActionBar
-              run={actions.run}
-              explain={actions.explain}
-              exportEnabled={actions.export}
-              saveSheet={actions.saveSheet}
+              blockerLabelKey={actions.run ? "actions.explain" : "actionState.locked"}
             />
 
             <div className="relative border-b border-border bg-muted/20 p-4">
@@ -467,7 +522,6 @@ function ReadyWorksheet({
   onStatementChange,
   maxRows,
   onMaxRowsChange,
-  actions,
   runEnabled,
   isExecuting,
   onRun,
@@ -475,6 +529,9 @@ function ReadyWorksheet({
   onEditorView,
   formatError,
   engine,
+  themePreference,
+  editorHeight,
+  onEditorResizePointerDown,
   result,
   error,
 }: {
@@ -483,7 +540,6 @@ function ReadyWorksheet({
   onStatementChange: (value: string) => void;
   maxRows: number;
   onMaxRowsChange: (value: number) => void;
-  actions: QueryTarget["availableActions"];
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
@@ -491,6 +547,9 @@ function ReadyWorksheet({
   onEditorView?: (view: EditorView) => void;
   formatError: string | null;
   engine?: string;
+  themePreference: QueryEditorThemePreference;
+  editorHeight: number;
+  onEditorResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
 }) {
@@ -511,18 +570,6 @@ function ReadyWorksheet({
           disabled={isExecuting}
         >
           {t("editor.format")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={!actions.explain}>
-          <ScrollText className="size-3.5" aria-hidden />
-          {t("actions.explain")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={!actions.saveSheet}>
-          <Save className="size-3.5" aria-hidden />
-          {t("actions.saveSheet")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={!actions.export}>
-          <Ban className="size-3.5" aria-hidden />
-          {t("actions.export")}
         </Button>
         <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span>{t("editor.maxRowsLabel")}</span>
@@ -554,7 +601,19 @@ function ReadyWorksheet({
           onEditorView={onEditorView}
           ariaLabel={t("editor.statementLabel")}
           disabled={isExecuting}
+          themePreference={themePreference}
+          height={editorHeight}
         />
+        <button
+          type="button"
+          role="separator"
+          aria-label="Resize SQL editor"
+          aria-orientation="horizontal"
+          onPointerDown={onEditorResizePointerDown}
+          className="mt-2 flex h-3 w-full cursor-row-resize items-center justify-center rounded-md border border-transparent text-muted-foreground hover:border-border hover:bg-muted/60 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        >
+          <span className="h-1 w-12 rounded-full bg-border" aria-hidden />
+        </button>
         {formatError && (
           <div role="alert" className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/5 p-3">
             <p className="text-sm text-rose-700 dark:text-rose-300">
@@ -696,40 +755,15 @@ function PlaceholderTab({ tab }: { tab: Exclude<WorksheetTab, "worksheet"> }) {
   );
 }
 
-function LockedActionBar({
-  run,
-  explain,
-  exportEnabled,
-  saveSheet,
-}: {
-  run: boolean;
-  explain: boolean;
-  exportEnabled: boolean;
-  saveSheet: boolean;
-}) {
+function LockedActionBar({ blockerLabelKey }: { blockerLabelKey: string }) {
   const t = useTranslations("queryWorkbench");
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-      <Button variant="outline" size="sm" disabled={!run}>
-        <Play className="size-3.5" aria-hidden />
-        {t("actions.run")}
-      </Button>
-      <Button variant="outline" size="sm" disabled={!explain}>
-        <ScrollText className="size-3.5" aria-hidden />
-        {t("actions.explain")}
-      </Button>
-      <Button variant="outline" size="sm" disabled={!saveSheet}>
-        <Save className="size-3.5" aria-hidden />
-        {t("actions.saveSheet")}
-      </Button>
-      <Button variant="outline" size="sm" disabled={!exportEnabled}>
-        <Ban className="size-3.5" aria-hidden />
-        {t("actions.export")}
-      </Button>
-      <span className="ml-auto text-xs text-muted-foreground">
-        {t("actionState.locked")}
-      </span>
+      <Badge variant="outline" className="gap-1.5 border-rose-500/30 text-rose-700 dark:text-rose-300">
+        <Lock className="size-3" aria-hidden />
+        {t(blockerLabelKey)}
+      </Badge>
     </div>
   );
 }
