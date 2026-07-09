@@ -377,8 +377,22 @@ test.describe("Query Workbench shell", () => {
         return Math.max(l1, l2) / Math.min(l1, l2);
       }
       function parseRgb(color: string): number[] | null {
-        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-        return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+        const rgb = color.match(/rgba?\(\s*(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)/);
+        if (rgb) {
+          return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return null;
+
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
       }
       function effectiveBackground(element: Element): string {
         let el: Element | null = element;
@@ -441,8 +455,9 @@ test.describe("Query Workbench shell", () => {
     await page.reload();
     await expect(page.getByRole("button", { name: /^run$/i })).toBeVisible({ timeout: 15_000 });
 
-    const heightAfterReload = await getEditorHeight(page);
-    expect(heightAfterReload).toBe(resizedHeight);
+    await expect
+      .poll(() => getEditorHeight(page), { timeout: 15_000 })
+      .toBe(resizedHeight);
   });
 });
 

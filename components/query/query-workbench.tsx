@@ -21,6 +21,14 @@ type QueryWorkbenchProps = {
   initialFilters?: WorkbenchFilters;
 };
 
+function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
+  return (
+    targets.find((target) => target.availableActions.run === true)?.resourceId ??
+    targets[0]?.resourceId ??
+    null
+  );
+}
+
 export function QueryWorkbench({
   targets,
   initialFilters = EMPTY_FILTERS,
@@ -28,7 +36,7 @@ export function QueryWorkbench({
   const t = useTranslations("queryWorkbench");
   const [filters, setFilters] = useState<WorkbenchFilters>(initialFilters);
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
-    targets[0]?.resourceId ?? null,
+    getInitialActiveTargetId(targets),
   );
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
 

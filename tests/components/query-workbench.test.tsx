@@ -1061,12 +1061,12 @@ describe("QueryWorkbench target picker search", () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(/Staging MySQL/).length).toBeGreaterThanOrEqual(2);
 
-    await user.click(screen.getByRole("button", { name: "Staging MySQL" }));
+    await user.click(screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }));
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Staging MySQL/).length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
     });
   });
 
