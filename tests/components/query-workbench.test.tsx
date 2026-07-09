@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +20,8 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     onFormat,
     ariaLabel,
     disabled,
+    themePreference,
+    height,
   }: {
     value: string;
     onChange: (v: string) => void;
@@ -27,6 +29,8 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     onFormat?: () => void;
     ariaLabel?: string;
     disabled?: boolean;
+    themePreference?: string;
+    height?: number;
   }) => (
     <textarea
       value={value}
@@ -43,12 +47,22 @@ vi.mock("@/components/query/sql-code-editor", () => ({
       }}
       aria-label={ariaLabel}
       disabled={disabled}
+      data-theme-preference={themePreference}
+      data-editor-height={height}
       rows={4}
     />
   ),
 }));
 
+vi.mock("next-themes", () => ({
+  useTheme: () => ({
+    theme: "dark",
+    resolvedTheme: "dark",
+  }),
+}));
+
 import { QueryWorkbench } from "@/components/query/query-workbench";
+import { QUERY_EDITOR_HEIGHT_STORAGE_KEY } from "@/lib/query-editor-preferences";
 import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import {
   executeQueryTarget,
@@ -125,53 +139,135 @@ function renderWorkbench(
   );
 }
 
+function buildReadyWorkbenchTarget(): QueryTarget {
+  return buildQueryTarget({
+    resourceId: 30,
+    displayName: "Local MySQL Dev",
+    resourceName: "local-mysql-dev",
+    connectionContext: {
+      engine: "mysql",
+      host: "127.0.0.1",
+      port: 3306,
+      environment: "Development",
+      owner: "Platform",
+      clusterName: "",
+    },
+    capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+    readiness: "ready",
+    governance: {
+      executionEnabled: true,
+      credentialState: "configured_readonly_credential",
+      auditRequired: true,
+      safetyState: "readonly_sandbox_enabled",
+      safetyNote: "Read-only sandbox is enabled.",
+      policyNotes: [],
+    },
+    availableActions: {
+      run: true,
+      explain: false,
+      export: false,
+      saveSheet: false,
+      requestAccess: false,
+    },
+    missingFields: [],
+  });
+}
+
 describe("QueryWorkbench", () => {
-  it("renders the safety banner stating execution is not enabled", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("renders the SQL editor with dark theme preference", () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    expect(screen.getByLabelText("Statement")).toHaveAttribute(
+      "data-theme-preference",
+      "dark",
+    );
+  });
+
+  it("keeps editor controls readable in dark mode", () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+    expect(screen.getByLabelText("Statement")).toHaveAttribute(
+      "data-theme-preference",
+      "dark",
+    );
+  });
+
+  it("loads stored editor height after hydration", async () => {
+    window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, "360");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Statement")).toHaveAttribute(
+        "data-editor-height",
+        "360",
+      );
+    });
+  });
+
+  it("ignores invalid stored editor height", async () => {
+    window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, "50");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Statement")).toHaveAttribute(
+        "data-editor-height",
+        "260",
+      );
+    });
+  });
+
+  it("clamps and persists editor height after resize", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    const handle = screen.getByRole("separator", { name: "Resize SQL editor" });
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientY: 900, pointerId: 1 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Statement")).toHaveAttribute(
+        "data-editor-height",
+        "640",
+      );
+    });
+    expect(window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY)).toBe("640");
+  });
+
+  it("renders the safety banner explaining governed execution", () => {
     renderWorkbench();
 
     expect(
-      screen.getByText("Query execution is not enabled"),
+      screen.getByText("Governed query execution"),
     ).toBeInTheDocument();
   });
 
-  it("renders the active target's facts in the switcher context and governance panel", () => {
+  it("renders the active target's facts in the navigator and governance panel", () => {
     renderWorkbench();
 
-    // The active target's host surfaces in both the switcher context card and
-    // the governance "Target facts" list.
     expect(
       screen.getAllByText("prod-ch-host-01.internal:8123").length,
     ).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Execution disabled")).toBeInTheDocument();
-    // readonlyCredential missing field is localized, never raw camelCase.
     expect(screen.getByText("Read-only credential")).toBeInTheDocument();
     expect(screen.queryAllByText(/^readonlyCredential$/)).toHaveLength(0);
   });
 
-  it("renders every execution action locked (disabled) with no enabled Run/Execute button", () => {
+  it("locked target shows one primary blocker, not a row of disabled action buttons", () => {
     renderWorkbench();
 
-    const runButton = screen.getByRole("button", { name: "Run locked" });
-    const explainButton = screen.getByRole("button", { name: "Explain locked" });
-    const saveSheetButton = screen.getByRole("button", { name: "Save sheet" });
-    const exportButton = screen.getByRole("button", { name: "Export unavailable" });
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
 
-    expect(runButton).toBeDisabled();
-    expect(explainButton).toBeDisabled();
-    expect(saveSheetButton).toBeDisabled();
-    expect(exportButton).toBeDisabled();
-
-    // No enabled Run or Execute action may be present anywhere.
-    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^execute$/i })).toBeNull();
-    const enabledExecutionButtons = screen
-      .getAllByRole("button")
-      .filter(
-        (button) =>
-          !button.hasAttribute("disabled") &&
-          /^(run|execute)$/i.test(button.textContent ?? ""),
-      );
-    expect(enabledExecutionButtons).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Run locked" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Explain locked" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save sheet" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export unavailable" })).toBeNull();
   });
 
   it("renders an honest locked schema placeholder for a SQL target without schema metadata", () => {
@@ -206,55 +302,49 @@ describe("QueryWorkbench", () => {
     expect(screen.getByText(/Access grants are unavailable/)).toBeInTheDocument();
   });
 
-  it("narrows the target list with search and reflects the new active target in governance", async () => {
+  it("narrows the target list with search in the connection navigator", async () => {
     const user = userEvent.setup();
     renderWorkbench();
 
-    // Open the popover via the trigger element (pinned by id, same pattern
-    // as the target-switching tests).
-    const trigger = document.getElementById("query-target-switcher");
-    expect(trigger).not.toBeNull();
-    await user.click(trigger!);
+    expect(
+      screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Payment Redis Cache" }),
+    ).toBeInTheDocument();
 
-    // Both targets should be visible as options initially.
-    const options = await screen.findAllByRole("option");
-    expect(options.length).toBeGreaterThanOrEqual(2);
-
-    // Type into the picker search to narrow the list.
     const searchInput = screen.getByPlaceholderText("Search by name, engine, host…");
     await user.type(searchInput, "redis");
 
-    // Only the redis target survives the cmdk filter.
-    const filteredOptions = screen.getAllByRole("option");
-    expect(filteredOptions).toHaveLength(1);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Payment Redis Cache" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders localized copy under the zh-CN locale", () => {
     renderWorkbench(buildTargets(), zhMessages);
 
-    expect(screen.getByText("查询执行尚未启用")).toBeInTheDocument();
+    expect(screen.getByText("受治理的查询执行")).toBeInTheDocument();
   });
 
-  it("shows the active target name in the switcher, never a bare resourceId", () => {
+  it("shows the active target name in the navigator and header, never a bare resourceId", () => {
     renderWorkbench();
 
-    // Target name appears in both the heading and the button trigger.
     expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryAllByText(/^22$/)).toHaveLength(0);
   });
 
-  it("renders localized labels in filter triggers, never raw enum values", async () => {
-    const user = userEvent.setup();
+  it("renders localized labels in filter triggers, never raw enum values", () => {
     renderWorkbench(
       buildTargets(),
       enMessages,
       { ...EMPTY_FILTERS, queryKind: "sql", readiness: "credential_required" },
     );
-
-    // Open the popover to access filter selects (now inside the picker)
-    const trigger = document.getElementById("query-target-switcher");
-    expect(trigger).not.toBeNull();
-    await user.click(trigger!);
 
     const queryKindTrigger = screen.getByRole("combobox", { name: "Editor mode" });
     expect(queryKindTrigger).toHaveTextContent("SQL");
@@ -265,10 +355,7 @@ describe("QueryWorkbench", () => {
     expect(readinessTrigger).not.toHaveTextContent("credential_required");
   });
 
-  it("renders the readiness trigger label for missing_connection without leaking the raw enum", async () => {
-    const user = userEvent.setup();
-    // Include a target with missing_connection readiness so the filter
-    // does not empty the list and the popover button stays enabled.
+  it("renders the readiness trigger label for missing_connection without leaking the raw enum", () => {
     const targets = [
       ...buildTargets(),
       buildQueryTarget({
@@ -291,11 +378,6 @@ describe("QueryWorkbench", () => {
       enMessages,
       { ...EMPTY_FILTERS, readiness: "missing_connection" },
     );
-
-    // Open the popover to access filter selects (now inside the picker)
-    const trigger = document.getElementById("query-target-switcher");
-    expect(trigger).not.toBeNull();
-    await user.click(trigger!);
 
     const readinessTrigger = screen.getByRole("combobox", { name: "Readiness" });
     expect(readinessTrigger).toHaveTextContent("Missing connection");
@@ -320,23 +402,16 @@ describe("QueryWorkbench", () => {
 
     renderWorkbench([target]);
 
-    // The compact chips show engine and environment, but NOT the host:port
-    // chip (since the connection is incomplete). The readiness chip shows
-    // "Missing connection".
-    expect(screen.getByText("mysql")).toBeInTheDocument();
-    expect(screen.getByText("Production")).toBeInTheDocument();
-    expect(screen.getAllByText("Missing connection").length).toBeGreaterThanOrEqual(1);
+    const activeSummary = screen.getByRole("region", { name: "Active connection" });
+    expect(within(activeSummary).getByText("mysql")).toBeInTheDocument();
+    expect(within(activeSummary).getByText("Production")).toBeInTheDocument();
+    expect(within(activeSummary).getAllByText("Missing connection").length).toBeGreaterThanOrEqual(1);
 
-    // The degenerate :0 must never appear.
     expect(screen.queryAllByText(/:0/)).toHaveLength(0);
 
-    // credentialState is localized via the label map, not raw. The label sits
-    // inside a prefixed <p>, so match by substring. Phase 38A also renders the
-    // label in the credential status section, so there may be multiple matches.
     expect(screen.getAllByText(/Missing read-only credential/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryAllByText(/^missing_readonly_credential$/)).toHaveLength(0);
 
-    // missingFields are localized via the label map, not raw camelCase keys.
     expect(screen.getAllByText("Host").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Port").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryAllByText(/^host$/)).toHaveLength(0);
@@ -441,8 +516,8 @@ describe("QueryWorkbench execution (ready target)", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByRole("button", { name: /run locked/i })).toBeDisabled();
-    // No history fetch is issued for a locked target.
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
     expect(mockListQueryExecutions).not.toHaveBeenCalled();
   });
 
@@ -450,6 +525,21 @@ describe("QueryWorkbench execution (ready target)", () => {
     renderReady();
 
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+  });
+
+  it("shows only implemented primary actions in the worksheet toolbar", () => {
+    renderReady();
+
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^format$/i })).toBeInTheDocument();
+  });
+
+  it("does not show export save sheet or access as primary buttons", () => {
+    renderReady();
+
+    expect(screen.queryByRole("button", { name: /explain/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /save sheet/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /export/i })).toBeNull();
   });
 
   it("clicking Run calls executeQueryTarget once with statement and maxRows", async () => {
@@ -722,17 +812,11 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     );
   }
 
-  /** Open the target switcher and pick the option whose label matches `name`. */
   async function pickTarget(
     user: ReturnType<typeof userEvent.setup>,
     name: RegExp,
   ): Promise<void> {
-    // The switcher trigger carries the *active* target's name as its accessible
-    // name, so a name-based lookup is brittle across a switch. Pin it by id.
-    const trigger = document.getElementById("query-target-switcher");
-    expect(trigger).not.toBeNull();
-    await user.click(trigger!);
-    await user.click(await screen.findByRole("option", { name }));
+    await user.click(await screen.findByRole("button", { name }));
   }
 
   it("does not render target A's execute result under target B when A's request settles after the switch", async () => {
@@ -896,106 +980,91 @@ describe("QueryWorkbench target picker search", () => {
     ];
   }
 
-  it("opens the target picker and shows all targets", async () => {
-    const user = userEvent.setup();
+  it("shows all targets in the connection navigator grouped by environment", () => {
     renderWorkbench(buildThreeTargets());
 
-    // Click the target switcher to open the popover.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
+    expect(screen.getByRole("heading", { name: "Production" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Staging" })).toBeInTheDocument();
 
-    // All three targets should be visible as options.
-    await waitFor(() => {
-      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
-    });
-    expect(screen.getAllByText("Payment Redis Cache").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Staging MySQL").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Payment Redis Cache" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Staging MySQL" }),
+    ).toBeInTheDocument();
   });
 
-  it("filters targets by displayName when typing in the picker search", async () => {
+  it("filters targets by displayName when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    // Open the picker.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Type a search query that matches only one target.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "Payment");
 
-    // Only the matching target should appear as an option in the picker.
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Payment Redis Cache" }),
+      ).toBeInTheDocument();
     });
-    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Staging MySQL/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Staging MySQL" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("filters targets by engine when typing in the picker search", async () => {
+  it("filters targets by engine when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    // Open the picker.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Search by engine name.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "redis");
 
-    // Only the Redis target should appear as an option in the picker.
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Payment Redis Cache" }),
+      ).toBeInTheDocument();
     });
-    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Staging MySQL/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Staging MySQL" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("filters targets by host when typing in the picker search", async () => {
+  it("filters targets by host when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    // Open the picker.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Search by host.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "staging-db");
 
-    // Only the staging target should appear as an option in the picker.
     await waitFor(() => {
-      expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Staging MySQL" }),
+      ).toBeInTheDocument();
     });
-    expect(screen.queryByRole("option", { name: /Analytics ClickHouse Node 01/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Payment Redis Cache/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Payment Redis Cache" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("selecting a target from the picker updates the active target", async () => {
+  it("selecting a target from the navigator updates the active target", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    // Initially the first target is active.
     expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
 
-    // Open the picker and select a different target.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
+    await user.click(screen.getByRole("button", { name: "Staging MySQL" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
-    });
-    await user.click(screen.getByText("Staging MySQL"));
-
-    // The selected target should now be the active one.
     await waitFor(() => {
       expect(screen.getAllByText(/Staging MySQL/).length).toBeGreaterThanOrEqual(2);
     });
@@ -1005,45 +1074,20 @@ describe("QueryWorkbench target picker search", () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
 
-    // Open the picker.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Analytics ClickHouse Node 01").length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Type a search that matches nothing.
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "nonexistent-xyz");
 
-    // The "no match" message should appear.
     await waitFor(() => {
-      expect(screen.getByText(/No targets match your search/)).toBeInTheDocument();
+      expect(screen.getByText("No targets match your filters.")).toBeInTheDocument();
     });
   });
 
-  it("sorts ready targets first in the picker", async () => {
-    const user = userEvent.setup();
+  it("shows ready targets in the navigator", () => {
     renderWorkbench(buildThreeTargets());
 
-    // Open the picker.
-    await user.click(screen.getByRole("button", { name: /query target/i }));
-
-    // Wait for options to render.
-    await waitFor(() => {
-      expect(screen.getByText("Staging MySQL")).toBeInTheDocument();
-    });
-
-    // Get all options. Environments sort alphabetically (Production before
-    // Staging), so the first option is from the Production group. Ready
-    // targets sort first within each environment group.
-    const options = screen.getAllByRole("option");
-    expect(options.length).toBeGreaterThanOrEqual(3);
-
-    // All three targets should be present.
-    expect(screen.getByRole("option", { name: /Analytics ClickHouse Node 01/ })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Payment Redis Cache/ })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Staging MySQL/ })).toBeInTheDocument();
+    const stagingButton = screen.getByRole("button", { name: "Staging MySQL" });
+    expect(stagingButton).toBeInTheDocument();
+    expect(stagingButton).toHaveTextContent("Ready");
   });
 });
 
@@ -1279,8 +1323,8 @@ describe("QueryGovernancePanel hydration safety", () => {
 
     // The credential state label should be visible immediately.
     expect(
-      screen.getByText(/Missing read-only credential/i),
-    ).toBeInTheDocument();
+      screen.getAllByText(/Missing read-only credential/i).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -1377,30 +1421,13 @@ describe("QueryGovernancePanel action badge semantics", () => {
   });
 
   it("shows locked action badges with aria-label for a locked target", () => {
-    // Default target is locked (all actions false).
     renderWithCredentialState("missing_readonly_credential");
 
-    // The governance panel has action badges with aria-label.
-    // Use getAllByText and filter to the governance panel badges (with aria-label).
-    const allBadges = screen.getAllByText(/Run|Explain|Export|Save sheet|Request access/);
-    const semanticBadges = allBadges.filter((el) => {
-      const parent = el.closest("[aria-label]");
-      return parent?.getAttribute("aria-label")?.includes("·");
-    });
-
-    // At least 5 action badges should exist with semantic aria-labels.
-    expect(semanticBadges.length).toBeGreaterThanOrEqual(5);
-
-    // Each badge's aria-label should contain "· locked".
-    for (const badge of semanticBadges) {
-      const parent = badge.closest("[aria-label]");
-      expect(parent).not.toBeNull();
-      expect(parent!.getAttribute("aria-label")).toContain("· locked");
-    }
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    expect(screen.getAllByText("Credential required").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows available action badges with aria-label for a ready target", () => {
-    // Build a target with run=true (ready for execution).
     const target = buildQueryTarget({
       readiness: "ready",
       governance: {
@@ -1426,47 +1453,21 @@ describe("QueryGovernancePanel action badge semantics", () => {
       </NextIntlClientProvider>,
     );
 
-    // Find all action badges in the governance panel (those with aria-label containing "·").
-    const allBadges = screen.getAllByText(/Run|Explain|Export|Save sheet|Request access/);
-    const semanticBadges = allBadges.filter((el) => {
-      const parent = el.closest("[aria-label]");
-      return parent?.getAttribute("aria-label")?.includes("·");
-    });
-
-    // Find the Run and Explain badges specifically.
-    const runBadge = semanticBadges.find((el) => el.textContent === "Run");
-    const explainBadge = semanticBadges.find((el) => el.textContent === "Explain");
-    const exportBadge = semanticBadges.find((el) => el.textContent === "Export");
-
-    expect(runBadge).toBeDefined();
-    expect(explainBadge).toBeDefined();
-    expect(exportBadge).toBeDefined();
-
-    // Run and Explain should show "available" in aria-label.
-    expect(runBadge!.closest("[aria-label]")!.getAttribute("aria-label")).toContain("Run · available");
-    expect(explainBadge!.closest("[aria-label]")!.getAttribute("aria-label")).toContain("Explain · available");
-
-    // Export should still show "locked".
-    expect(exportBadge!.closest("[aria-label]")!.getAttribute("aria-label")).toContain("Export · locked");
+    expect(screen.getByText("Governance & access")).toBeInTheDocument();
+    expect(screen.getByText("Execution ready")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Read-only credential configured").length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Execution disabled")).toBeNull();
+    expect(screen.queryByText("Missing read-only credential")).toBeNull();
+    expect(screen.queryByText("Available actions")).toBeNull();
   });
 
   it("never shows bare action name without state qualifier in aria-label", () => {
     renderWithCredentialState("missing_readonly_credential");
 
-    // Find all action badges in the governance panel (those with aria-label containing "·").
-    const allBadges = screen.getAllByText(/Run|Explain|Export|Save sheet|Request access/);
-    const semanticBadges = allBadges.filter((el) => {
-      const parent = el.closest("[aria-label]");
-      return parent?.getAttribute("aria-label")?.includes("·");
-    });
-
-    // All badges should have aria-label containing "· locked" or "· available".
-    for (const badge of semanticBadges) {
-      const parent = badge.closest("[aria-label]");
-      expect(parent).not.toBeNull();
-      const ariaLabel = parent!.getAttribute("aria-label")!;
-      expect(ariaLabel).toMatch(/· (locked|available)/);
-    }
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    expect(screen.queryByText("Available actions")).toBeNull();
   });
 });
 
@@ -1476,8 +1477,7 @@ describe("QueryWorkbench target picker grouped navigation", () => {
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
   });
 
-  it("groups targets by environment then cluster, ready first", async () => {
-    const user = userEvent.setup();
+  it("groups targets by environment then cluster, ready first", () => {
     const targets = [
       buildQueryTarget({
         resourceId: 40,
@@ -1525,38 +1525,33 @@ describe("QueryWorkbench target picker grouped navigation", () => {
 
     renderWorkbench(targets);
 
-    // Open the popover
-    const trigger = document.getElementById("query-target-switcher");
-    expect(trigger).not.toBeNull();
-    await user.click(trigger!);
+    expect(screen.getByRole("heading", { name: "Production" })).toBeInTheDocument();
 
-    // Ready targets should be first within their group
-    const options = screen.getAllByRole("option");
-    // Prod MySQL Primary (ready) should come before Prod Redis (credential_required)
-    const prodOptions = options.filter(opt => opt.textContent?.includes("Prod"));
-    expect(prodOptions[0]).toHaveTextContent("Prod MySQL Primary");
-    expect(prodOptions[1]).toHaveTextContent("Prod Redis");
+    const prodButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.textContent?.includes("Prod"));
+    expect(prodButtons[0]).toHaveTextContent("Prod MySQL Primary");
+    expect(prodButtons[1]).toHaveTextContent("Prod Redis");
   });
 });
 
 describe("QueryWorkbench active target header", () => {
-  it("shows active target display name as a heading", () => {
+  it("shows active target display name in the active connection summary", () => {
     renderWorkbench();
 
+    const activeSummary = screen.getByRole("region", { name: "Active connection" });
     expect(
-      screen.getByRole("heading", { name: "Analytics ClickHouse Node 01" }),
+      within(activeSummary).getByText("Analytics ClickHouse Node 01"),
     ).toBeInTheDocument();
   });
 
-  it("shows target facts only in the header, not duplicated in governance", () => {
+  it("shows target facts in the active summary, not duplicated in governance", () => {
     renderWorkbench();
 
-    // Engine appears in the header badges
-    expect(screen.getByText("clickhouse")).toBeInTheDocument();
-    // Environment appears in the header badges
-    expect(screen.getByText("Production")).toBeInTheDocument();
+    const activeSummary = screen.getByRole("region", { name: "Active connection" });
+    expect(within(activeSummary).getByText("clickhouse")).toBeInTheDocument();
+    expect(within(activeSummary).getByText("Production")).toBeInTheDocument();
 
-    // There is no "Target facts" section in the governance panel
     expect(screen.queryByText("Target facts")).toBeNull();
   });
 });
@@ -1656,7 +1651,6 @@ describe("QueryWorkbench keyboard shortcuts", () => {
   });
 
   it("does not run via shortcut when target is locked", async () => {
-    const user = userEvent.setup();
     const lockedTarget = buildQueryTarget({
       resourceId: 40,
       readiness: "credential_required",
@@ -1669,9 +1663,8 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       </NextIntlClientProvider>,
     );
 
-    // Locked target shows "Run locked" button, not an enabled Run button
-    const runButton = screen.getByRole("button", { name: /run locked/i });
-    expect(runButton).toBeDisabled();
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
   });
 
@@ -1696,37 +1689,26 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       </NextIntlClientProvider>,
     );
 
-    // Worksheet 1 targets ready target - Run should be enabled
     const runButton = screen.getByRole("button", { name: /^run$/i });
     expect(runButton).toBeEnabled();
 
-    // Add Worksheet 2 and switch to locked target
     await user.click(screen.getByRole("button", { name: /add worksheet/i }));
 
-    // Switch target for Worksheet 2 to locked target
-    const trigger = document.getElementById("query-target-switcher");
-    await user.click(trigger!);
-    await user.click(screen.getByRole("option", { name: /locked target/i }));
+    await user.click(screen.getByRole("button", { name: "Locked Target" }));
 
-    // Now Worksheet 2 targets locked target - Run should be disabled
-    const lockedRunButton = screen.getByRole("button", { name: /run locked/i });
-    expect(lockedRunButton).toBeDisabled();
+    expect(screen.getByText("Blocker")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
 
-    // Locked target shows placeholder instead of editor textbox,
-    // so shortcut cannot be triggered. Verify execution never happened.
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
 
-    // Switch back to Worksheet 1 (ready target) to verify it still works
     await user.click(screen.getByRole("tab", { name: /worksheet 1/i }));
     const readyRunButton = screen.getByRole("button", { name: /^run$/i });
     expect(readyRunButton).toBeEnabled();
 
-    // Now trigger shortcut on ready worksheet - should execute
     const statement = screen.getByRole("textbox", { name: /statement/i });
     await user.click(statement);
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
-    // executeQueryTarget should have been called once for the ready target
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
@@ -1803,8 +1785,7 @@ describe("QueryWorkbench filter-hidden target", () => {
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
   });
 
-  it("keeps active target visible even when filtered out of picker", async () => {
-    const user = userEvent.setup();
+  it("keeps active target visible even when filtered out of navigator", async () => {
     const targets = [
       buildQueryTarget({
         resourceId: 30,
@@ -1820,16 +1801,15 @@ describe("QueryWorkbench filter-hidden target", () => {
       }),
     ];
 
-    // Filter to only show redis targets
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <QueryWorkbench targets={targets} initialFilters={{ ...EMPTY_FILTERS, engine: "redis" }} />
       </NextIntlClientProvider>,
     );
 
-    // Active target should still be MySQL Dev (first target), even though it's filtered out
-    expect(screen.getByRole("heading", { name: "MySQL Dev" })).toBeInTheDocument();
-    expect(screen.getByText("mysql")).toBeInTheDocument();
+    const activeSummary = screen.getByRole("region", { name: "Active connection" });
+    expect(within(activeSummary).getByText("MySQL Dev")).toBeInTheDocument();
+    expect(within(activeSummary).getByText("mysql")).toBeInTheDocument();
   });
 });
 
@@ -1870,15 +1850,10 @@ describe("QueryWorkbench history target-race guard", () => {
       </NextIntlClientProvider>,
     );
 
-    // Wait for initial history load to start
     await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30));
 
-    // Switch to target B while A's history is pending
-    const trigger = document.getElementById("query-target-switcher");
-    await user.click(trigger!);
-    await user.click(screen.getByRole("option", { name: /target b/i }));
+    await user.click(screen.getByRole("button", { name: "Target B" }));
 
-    // A's history resolves with data
     resolveHistoryA({
       items: [{
         id: 9001,
@@ -1897,7 +1872,6 @@ describe("QueryWorkbench history target-race guard", () => {
       pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
     });
 
-    // History tab should NOT show target A's data
     await user.click(screen.getByRole("tab", { name: /query history/i }));
     expect(screen.queryByText("select * from target_a_table")).toBeNull();
   });

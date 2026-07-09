@@ -36,10 +36,95 @@ function derivePrimaryBlocker(
   return null;
 }
 
+type GovernanceStatus = {
+  tone: "red" | "amber" | "blue" | "green";
+  label: string;
+  tooltip: string;
+};
+
+function deriveGovernanceBadges(
+  t: (key: string) => string,
+  target: QueryTarget,
+): GovernanceStatus[] {
+  return [
+    deriveExecutionStatus(t, target),
+    deriveCredentialStatus(t, target),
+    deriveAuditStatus(t),
+    deriveJitStatus(t),
+  ];
+}
+
+function deriveExecutionStatus(
+  t: (key: string) => string,
+  target: QueryTarget,
+): GovernanceStatus {
+  if (target.governance.executionEnabled) {
+    return {
+      tone: "green",
+      label: t("governance.executionTitleReady"),
+      tooltip: t("governance.executionDescriptionReady"),
+    };
+  }
+
+  return {
+    tone: "red",
+    label: t("governance.executionTitleLocked"),
+    tooltip: t("governance.executionDescriptionLocked"),
+  };
+}
+
+function deriveCredentialStatus(
+  t: (key: string) => string,
+  target: QueryTarget,
+): GovernanceStatus {
+  const label = credentialStateLabel(t, target.governance.credentialState);
+  return {
+    tone: credentialStateTone(target.governance.credentialState),
+    label,
+    tooltip: label,
+  };
+}
+
+function credentialStateTone(state: string): GovernanceStatus["tone"] {
+  switch (state) {
+    case "configured_readonly_credential":
+    case "secret_resolved":
+    case "not_required":
+      return "green";
+    case "binding_mismatch":
+    case "invalid_ref":
+    case "unsupported_target":
+      return "red";
+    default:
+      return "amber";
+  }
+}
+
+function deriveAuditStatus(
+  t: (key: string) => string,
+): GovernanceStatus {
+  return {
+    tone: "blue",
+    label: t("governance.auditTitle"),
+    tooltip: t("governance.auditDescription"),
+  };
+}
+
+function deriveJitStatus(
+  t: (key: string) => string,
+): GovernanceStatus {
+  return {
+    tone: "green",
+    label: t("governance.jitTitle"),
+    tooltip: t("governance.jitDescription"),
+  };
+}
+
 export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
   const t = useTranslations("queryWorkbench");
-  const { governance, availableActions } = target;
+  const { governance } = target;
   const blocker = derivePrimaryBlocker(t, target);
+  const statusBadges = deriveGovernanceBadges(t, target);
 
   return (
     <TooltipProvider>
@@ -53,26 +138,14 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
 
         {/* Compact status badges with tooltip details */}
         <div className="flex flex-wrap gap-1.5">
-          <StatusBadge
-            tone="red"
-            label={t("governance.executionTitle")}
-            tooltip={t("governance.executionDescription")}
-          />
-          <StatusBadge
-            tone="amber"
-            label={t("governance.credentialTitle")}
-            tooltip={t("governance.credentialDescription")}
-          />
-          <StatusBadge
-            tone="blue"
-            label={t("governance.auditTitle")}
-            tooltip={t("governance.auditDescription")}
-          />
-          <StatusBadge
-            tone="green"
-            label={t("governance.jitTitle")}
-            tooltip={t("governance.jitDescription")}
-          />
+          {statusBadges.map((status) => (
+            <StatusBadge
+              key={status.label}
+              tone={status.tone}
+              label={status.label}
+              tooltip={status.tooltip}
+            />
+          ))}
         </div>
 
         {blocker && (
@@ -128,43 +201,6 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
             {t("governance.policyChecklist")}
           </h3>
           <PolicyBadges />
-        </section>
-
-        {/* Available actions - compact badges with semantic tooltip */}
-        <section>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("governance.availableActions")}
-          </h3>
-          <div className="flex flex-wrap gap-1.5">
-            {(
-              ["run", "explain", "export", "saveSheet", "requestAccess"] as const
-            ).map((key) => {
-              const isAvailable = availableActions[key];
-              const actionLabel = t(`actionState.${key}`);
-              const stateLabel = isAvailable
-                ? t("actionState.available")
-                : t("actionState.locked");
-              const semanticLabel = `${actionLabel} · ${stateLabel}`;
-              return (
-                <Tooltip key={key}>
-                  <TooltipTrigger
-                    render={
-                      <Badge
-                        variant={isAvailable ? "default" : "secondary"}
-                        className="text-xs"
-                        aria-label={semanticLabel}
-                      />
-                    }
-                  >
-                    {actionLabel}
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    {semanticLabel}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
         </section>
       </aside>
     </TooltipProvider>
