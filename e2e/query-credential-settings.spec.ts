@@ -367,4 +367,36 @@ test.describe("Query credential settings", () => {
     );
     expect(backfilledRole).toBe("admin");
   });
+
+  test("selecting a credential target opens the visible inspector", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    // Wait for the table to render.
+    const firstTargetButton = page.locator("table tbody tr td button").first();
+    await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
+
+    // The aside inspector should already be present with an empty state.
+    const inspector = page.getByRole("complementary", {
+      name: /credential detail inspector/i,
+    });
+    await expect(inspector).toBeVisible();
+
+    // Click the first target row.
+    await firstTargetButton.click();
+
+    // The selected row should be highlighted.
+    const selectedRow = page.locator("table tbody tr[aria-selected='true']");
+    await expect(selectedRow).toBeVisible({ timeout: 10_000 });
+
+    // The inspector should show the credential detail form.
+    await expect(
+      page.getByText("Credential binding").first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The credential ref input should be visible inside the inspector.
+    await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
+  });
 });

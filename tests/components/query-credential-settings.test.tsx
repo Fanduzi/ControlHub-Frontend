@@ -1842,3 +1842,233 @@ describe("QueryCredentialSettings — server secret reference help", () => {
     expect(screen.queryByText("Cluster-specific override")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 38G Task G5: Master-detail credential inspector
+// ---------------------------------------------------------------------------
+
+describe("QueryCredentialSettings — master-detail inspector", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("selecting an operations row opens the detail inspector beside the table", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Before clicking, the aside inspector should be present with an empty state.
+    const inspector = screen.getByRole("complementary", {
+      name: /credential detail inspector/i,
+    });
+    expect(inspector).toBeInTheDocument();
+
+    // Click the first target.
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    // The detail form content should appear inside the aside.
+    await waitFor(() => {
+      expect(within(inspector).getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    // The credential ref input should be inside the inspector.
+    expect(within(inspector).getByLabelText(/server secret reference/i)).toBeInTheDocument();
+  });
+
+  it("selected operations row is highlighted", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    // Click the first target.
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    // The selected row should have aria-selected="true".
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row");
+      const orderRow = rows.find((row) =>
+        within(row).queryByText("Order MySQL Instance"),
+      );
+      expect(orderRow).toBeDefined();
+      expect(orderRow).toHaveAttribute("aria-selected", "true");
+    });
+  });
+
+  it("detail form is not appended after the full table on desktop", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    // The inspector (aside) and the operations table container should be
+    // siblings in a grid layout, not stacked vertically. The aside should
+    // NOT be a descendant of the operations table area.
+    const inspector = screen.getByRole("complementary", {
+      name: /credential detail inspector/i,
+    });
+
+    // The inspector should be a direct child (or near-direct child) of a
+    // grid container that also contains the operations table.
+    // Verify the inspector exists and is NOT after the table in a simple
+    // vertical stack by checking it has a parent with grid-like classes.
+    const parent = inspector.parentElement;
+    expect(parent).not.toBeNull();
+    // The parent (or its parent) should have a grid class.
+    // We check that the inspector is NOT at the same level as the top-level
+    // space-y-6 div — it should be nested inside a grid.
+    const gridContainer = inspector.closest("[class*='grid']");
+    expect(gridContainer).not.toBeNull();
+  });
+
+  it("delete success remains visible in the inspector", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "ORDER_MYSQL_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
+    mockDeleteQueryCredential.mockResolvedValue(undefined);
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+    });
+
+    // Click remove button.
+    await user.click(screen.getByText("Remove credential metadata"));
+
+    // Click confirm delete.
+    await user.click(screen.getByText("Remove credential metadata?"));
+
+    // Success should appear inside the inspector.
+    await waitFor(() => {
+      const inspector = screen.getByRole("complementary", {
+        name: /credential detail inspector/i,
+      });
+      expect(
+        within(inspector).getByText(/credential metadata removed/i),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+function mockMatchMedia(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("(min-width: 1280px)") ? matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
+describe("QueryCredentialSettings — small-screen detail adjacency (P2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    mockMatchMedia(false);
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  it("renders the selected credential detail immediately after the selected row on small screens", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    const rows = screen.getAllByRole("row");
+    const selectedRow = rows.find(
+      (row) =>
+        within(row).queryByText("Order MySQL Instance") &&
+        row.getAttribute("aria-selected") === "true",
+    );
+    expect(selectedRow).toBeDefined();
+
+    const detailRow = selectedRow!.nextElementSibling;
+    expect(detailRow).toBeInstanceOf(HTMLTableRowElement);
+    expect(detailRow).toHaveAttribute("data-credential-detail-row");
+    expect(
+      within(detailRow as HTMLElement).getByText("Credential binding"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the desktop inspector after the operations table on small screens", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Order MySQL Instance"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Credential binding")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("complementary", {
+        name: /credential detail inspector/i,
+      }),
+    ).toBeNull();
+  });
+});

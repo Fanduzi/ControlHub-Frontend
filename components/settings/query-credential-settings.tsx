@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertTriangle,
@@ -72,6 +80,37 @@ import {
 // ---------------------------------------------------------------------------
 const FAN_OUT_CONCURRENCY = 4;
 
+function useIsMobile(breakpoint = "1280px") {
+  const query = useMemo(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return null;
+    }
+    return window.matchMedia(`(min-width: ${breakpoint})`);
+  }, [breakpoint]);
+
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      if (!query) return () => {};
+      const handler = () => callback();
+      query.addEventListener("change", handler);
+      return () => query.removeEventListener("change", handler);
+    },
+    [query],
+  );
+
+  const getSnapshot = useCallback(() => {
+    if (!query) return false;
+    return !query.matches;
+  }, [query]);
+
+  const getServerSnapshot = useCallback(() => false, []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -98,6 +137,7 @@ export function QueryCredentialSettings({
 }: QueryCredentialSettingsProps) {
   const t = useTranslations("queryCredentialSettings");
   const isAdmin = useAdminRole();
+  const isMobile = useIsMobile();
 
   // Credential status map: resourceId -> status or null
   const [credentialMap, setCredentialMap] = useState<
@@ -351,29 +391,53 @@ export function QueryCredentialSettings({
         onRefreshStatuses={() => void fetchAllCredentialStatuses(targets)}
       />
 
-      {/* Operations table */}
-      <OperationsTable
-        groups={groups}
-        selectedIds={selectedIds}
-        onToggleSelect={toggleSelect}
-        onToggleSelectAll={toggleSelectAll}
-        allFilteredSelected={allFilteredSelected}
-        selectableCount={selectableRows.length}
-        activeTargetId={activeTargetId}
-        onSelectTarget={setActiveTargetId}
-        onRetryFetch={retryFetchForTarget}
-      />
-
-      {/* Single-target detail panel */}
-      {activeTargetId !== null && (
-        <CredentialDetailPanel
-          key={activeTargetId}
-          target={
-            targets.find((t) => t.resourceId === activeTargetId) ?? targets[0]
-          }
-          onCredentialChanged={() => void fetchAllCredentialStatuses(targets)}
+      {/* Master-detail: operations table + credential inspector */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:gap-6">
+        <OperationsTable
+          groups={groups}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectAll={toggleSelectAll}
+          allFilteredSelected={allFilteredSelected}
+          selectableCount={selectableRows.length}
+          activeTargetId={activeTargetId}
+          onSelectTarget={setActiveTargetId}
+          onRetryFetch={retryFetchForTarget}
+          isMobile={isMobile}
+          targets={targets}
+          onRefreshStatuses={() => void fetchAllCredentialStatuses(targets)}
         />
-      )}
+
+        {!isMobile && (
+          <aside
+            aria-label={t("detail.inspectorLabel")}
+            className="mt-6 xl:mt-0 xl:sticky xl:top-4 xl:self-start"
+          >
+            {activeTargetId !== null ? (
+              <CredentialDetailPanel
+                key={activeTargetId}
+                target={
+                  targets.find((t) => t.resourceId === activeTargetId) ??
+                  targets[0]
+                }
+                onCredentialChanged={() =>
+                  void fetchAllCredentialStatuses(targets)
+                }
+              />
+            ) : (
+              <div className="space-y-2 rounded-xl border border-border bg-card p-6 text-center">
+                <Layers className="mx-auto size-6 text-muted-foreground" aria-hidden />
+                <p className="text-sm font-semibold text-foreground">
+                  {t("detail.emptyTitle")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("detail.emptyDescription")}
+                </p>
+              </div>
+            )}
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
@@ -1239,6 +1303,9 @@ function OperationsTable({
   activeTargetId,
   onSelectTarget,
   onRetryFetch,
+  isMobile,
+  targets,
+  onRefreshStatuses,
 }: {
   groups: { key: string; label: string; rows: CredentialOperationRow[] }[];
   selectedIds: Set<number>;
@@ -1249,6 +1316,9 @@ function OperationsTable({
   activeTargetId: number | null;
   onSelectTarget: (id: number) => void;
   onRetryFetch: (id: number) => void;
+  isMobile: boolean;
+  targets: QueryTarget[];
+  onRefreshStatuses: () => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
 
@@ -1316,15 +1386,31 @@ function OperationsTable({
               </thead>
               <tbody className="divide-y divide-border">
                 {group.rows.map((row) => (
-                  <OperationRow
-                    key={row.resourceId}
-                    row={row}
-                    selected={selectedIds.has(row.resourceId)}
-                    onToggleSelect={onToggleSelect}
-                    isActive={activeTargetId === row.resourceId}
-                    onSelectTarget={onSelectTarget}
-                    onRetryFetch={onRetryFetch}
-                  />
+                  <Fragment key={row.resourceId}>
+                    <OperationRow
+                      row={row}
+                      selected={selectedIds.has(row.resourceId)}
+                      onToggleSelect={onToggleSelect}
+                      isActive={activeTargetId === row.resourceId}
+                      onSelectTarget={onSelectTarget}
+                      onRetryFetch={onRetryFetch}
+                    />
+                    {isMobile && activeTargetId === row.resourceId && (
+                      <tr data-credential-detail-row>
+                        <td colSpan={10} className="p-0">
+                          <CredentialDetailPanel
+                            key={row.resourceId}
+                            target={
+                              targets.find(
+                                (t) => t.resourceId === row.resourceId,
+                              ) ?? targets[0]
+                            }
+                            onCredentialChanged={onRefreshStatuses}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -1383,6 +1469,7 @@ function OperationRow({
 
   return (
     <tr
+      aria-selected={isActive}
       className={cn(
         "transition-colors hover:bg-muted/30",
         isActive && "bg-muted/50",
