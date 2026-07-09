@@ -77,8 +77,12 @@ export function filterTargets(
         target.displayName,
         target.resourceName,
         target.connectionContext.engine,
+        target.connectionContext.environment,
         target.connectionContext.host,
         target.connectionContext.owner,
+        target.connectionContext.clusterName ?? "",
+        target.readiness,
+        String(target.connectionContext.port),
       ]
         .join(" ")
         .toLowerCase();
@@ -96,6 +100,56 @@ export function collectEngines(targets: QueryTarget[]): string[] {
   return [...new Set(targets.map((target) => target.connectionContext.engine))]
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
+}
+
+/** Ready targets first, then alphabetically by display name. */
+export function sortTargetsForPicker(targets: QueryTarget[]): QueryTarget[] {
+  return [...targets].sort((a, b) => {
+    const aReady = a.readiness === "ready" ? 0 : 1;
+    const bReady = b.readiness === "ready" ? 0 : 1;
+    if (aReady !== bReady) return aReady - bReady;
+    return a.displayName.localeCompare(b.displayName);
+  });
+}
+
+export type TargetGroup = {
+  environment: string;
+  clusters: {
+    clusterName: string | null;
+    targets: QueryTarget[];
+  }[];
+};
+
+/** Group targets by environment and cluster, sorting ready groups first. */
+export function groupTargetsByEnvironmentAndCluster(
+  targets: QueryTarget[],
+): TargetGroup[] {
+  const byEnv = new Map<string, Map<string | null, QueryTarget[]>>();
+
+  for (const target of targets) {
+    const env = target.connectionContext.environment || "Unknown";
+    const cluster = target.connectionContext.clusterName || null;
+    if (!byEnv.has(env)) byEnv.set(env, new Map());
+    if (!byEnv.get(env)!.has(cluster)) byEnv.get(env)!.set(cluster, []);
+    byEnv.get(env)!.get(cluster)!.push(target);
+  }
+
+  return [...byEnv.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([environment, clusters]) => ({
+      environment,
+      clusters: [...clusters.entries()]
+        .map(([clusterName, targets]) => ({
+          clusterName,
+          targets: sortTargetsForPicker(targets),
+        }))
+        .sort((a, b) => {
+          const aHasReady = a.targets.some((t) => t.readiness === "ready") ? 0 : 1;
+          const bHasReady = b.targets.some((t) => t.readiness === "ready") ? 0 : 1;
+          if (aHasReady !== bHasReady) return aHasReady - bHasReady;
+          return (a.clusterName ?? "").localeCompare(b.clusterName ?? "");
+        }),
+    }));
 }
 
 /**

@@ -39,7 +39,7 @@ const DEFAULT_GOVERNANCE: QueryTargetGovernance = {
   credentialState: "missing_readonly_credential",
   auditRequired: true,
   safetyState: "credential_missing",
-  safetyNote: "Query execution is not enabled in this phase.",
+  safetyNote: "Credential required.",
   policyNotes: ["Read-only credentials are required before execution."],
 };
 
