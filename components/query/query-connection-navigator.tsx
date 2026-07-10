@@ -2,21 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ChevronDown } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
+import type { PageInfo } from "@/types/resource";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import {
   filterTargets,
   groupTargetsByEnvironmentAndCluster,
   type WorkbenchFilters,
 } from "@/lib/query-target-display";
+import { cn } from "@/lib/utils";
 import { NavigatorBody } from "@/components/query/query-connection-navigator-body";
 
 export type QueryConnectionNavigatorProps = {
@@ -24,6 +20,7 @@ export type QueryConnectionNavigatorProps = {
   activeTargetId: number | null;
   filters: WorkbenchFilters;
   engines: string[];
+  pageInfo: PageInfo;
   onSelect: (resourceId: number) => void;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
 };
@@ -33,6 +30,7 @@ export function QueryConnectionNavigator({
   activeTargetId,
   filters,
   engines,
+  pageInfo,
   onSelect,
   onFilterChange,
 }: QueryConnectionNavigatorProps) {
@@ -52,6 +50,11 @@ export function QueryConnectionNavigator({
     [filteredTargets],
   );
 
+  const pageInfoLabel = useMemo(
+    () => `Showing ${targets.length} loaded targets from ${pageInfo.totalItems} total`,
+    [targets.length, pageInfo.totalItems],
+  );
+
   function handleSelect(resourceId: number) {
     onSelect(resourceId);
     setMobileOpen(false);
@@ -63,6 +66,7 @@ export function QueryConnectionNavigator({
       filters={filters}
       groupedTargets={groupedTargets}
       engines={engines}
+      pageInfo={pageInfoLabel}
       onFilterChange={onFilterChange}
       onSelect={handleSelect}
     />
@@ -70,22 +74,32 @@ export function QueryConnectionNavigator({
 
   return (
     <>
-      <div className="xl:hidden">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger
-            render={
-              <Button variant="outline" className="w-full justify-between">
-                <span>{t("connectionNavigator.title")}</span>
-              </Button>
-            }
+      <div className="xl:hidden space-y-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-between"
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-connection-navigator"
+          onClick={() => setMobileOpen((open) => !open)}
+        >
+          <span>{t("connectionNavigator.title")}</span>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform",
+              mobileOpen && "rotate-180",
+            )}
           />
-          <SheetContent side="left" className="w-80 sm:max-w-sm p-0">
-            <SheetHeader className="px-4 pt-4">
-              <SheetTitle>{t("connectionNavigator.title")}</SheetTitle>
-            </SheetHeader>
-            <div className="px-4 pb-4">{content}</div>
-          </SheetContent>
-        </Sheet>
+        </Button>
+        {mobileOpen && (
+          <div
+            id="mobile-connection-navigator"
+            className="rounded-xl border border-border bg-card p-3"
+            aria-label={t("connectionNavigator.title")}
+          >
+            {content}
+          </div>
+        )}
       </div>
 
       <aside

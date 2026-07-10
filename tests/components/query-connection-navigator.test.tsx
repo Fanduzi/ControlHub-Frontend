@@ -48,6 +48,7 @@ function renderNavigator(
     activeTargetId: number | null;
     filters: WorkbenchFilters;
     engines: string[];
+    pageInfo: { page: number; pageSize: number; totalItems: number; totalPages: number };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   }> = {},
@@ -61,6 +62,7 @@ function renderNavigatorElement(
     activeTargetId: number | null;
     filters: WorkbenchFilters;
     engines: string[];
+    pageInfo: { page: number; pageSize: number; totalItems: number; totalPages: number };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   }> = {},
@@ -73,6 +75,7 @@ function renderNavigatorElement(
         activeTargetId={props.activeTargetId ?? targets[0]!.resourceId}
         filters={props.filters ?? EMPTY_FILTERS}
         engines={props.engines ?? ["clickhouse", "mysql"]}
+        pageInfo={props.pageInfo ?? { page: 1, pageSize: 50, totalItems: targets.length, totalPages: 1 }}
         onSelect={props.onSelect ?? vi.fn()}
         onFilterChange={props.onFilterChange ?? vi.fn()}
       />
@@ -162,5 +165,21 @@ describe("QueryConnectionNavigator", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(targets[1]!.resourceId);
+  });
+
+  /**
+   * Phase 38H: The navigator must display bounded pagination metadata so the
+   * user knows how many targets exist and that the list is paginated, not an
+   * unbounded dump of all targets.
+   */
+  it("renders page info showing bounded target count", () => {
+    renderNavigator({
+      targets: buildTwoTargets(),
+      pageInfo: { page: 1, pageSize: 2, totalItems: 64, totalPages: 32 },
+    });
+
+    expect(
+      screen.getByText("Showing 2 loaded targets from 64 total"),
+    ).toBeInTheDocument();
   });
 });

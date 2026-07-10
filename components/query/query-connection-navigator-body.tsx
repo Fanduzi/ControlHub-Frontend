@@ -31,6 +31,7 @@ type NavigatorBodyProps = {
   filters: WorkbenchFilters;
   groupedTargets: TargetGroup[];
   engines: string[];
+  pageInfo?: string;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   onSelect: (resourceId: number) => void;
 };
@@ -40,6 +41,7 @@ export function NavigatorBody({
   filters,
   groupedTargets,
   engines,
+  pageInfo,
   onFilterChange,
   onSelect,
 }: NavigatorBodyProps) {
@@ -98,11 +100,19 @@ export function NavigatorBody({
         </div>
       </div>
 
-      <ConnectionTargetGroups
-        activeTarget={activeTarget}
-        groups={groupedTargets}
-        onSelect={onSelect}
-      />
+      <div className="max-h-[340px] overflow-y-auto">
+        <ConnectionTargetGroups
+          activeTarget={activeTarget}
+          groups={groupedTargets}
+          onSelect={onSelect}
+        />
+      </div>
+
+      {pageInfo && (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {pageInfo}
+        </p>
+      )}
     </div>
   );
 }
