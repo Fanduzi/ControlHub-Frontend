@@ -1,4 +1,5 @@
 import type { ResourceType } from "@/types/resource";
+import type { PageInfo } from "@/types/resource";
 
 /**
  * Query target context read model consumed by the locked Query Workbench shell
@@ -93,13 +94,18 @@ export type QueryTarget = {
 /** Envelope for `GET /query-targets`. */
 export type QueryTargetListResponse = {
   items: QueryTarget[];
+  pageInfo: PageInfo;
 };
 
 /**
- * Server-side filters for `GET /query-targets`. Only engine and environmentId
- * are filtered server-side; query kind and readiness are derived client-side.
+ * Server-side filters for `GET /query-targets`. Query kind and readiness are
+ * derived client-side from the bounded page of server-returned targets.
  */
 export type QueryTargetListParams = {
   engine?: string;
   environmentId?: number;
+  q?: string;
+  targetId?: number;
+  page?: number;
+  pageSize?: number;
 };

@@ -94,5 +94,13 @@ export function buildQueryTarget(
 export function buildQueryTargetList(
   items: QueryTarget[] = [buildQueryTarget()],
 ): QueryTargetListResponse {
-  return { items };
+  return {
+    items,
+    pageInfo: {
+      page: 1,
+      pageSize: 50,
+      totalItems: items.length,
+      totalPages: items.length === 0 ? 0 : 1,
+    },
+  };
 }

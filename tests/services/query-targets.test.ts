@@ -38,11 +38,26 @@ describe("getQueryTargets", () => {
     );
   });
 
-  it("returns the { items } envelope from the backend unchanged", async () => {
-    const response = buildQueryTargetList([
-      buildQueryTarget({ resourceId: 1 }),
-      buildQueryTarget({ resourceId: 2 }),
-    ]);
+  it("appends search target and pagination params when provided", async () => {
+    mockApiClient.mockResolvedValueOnce(buildQueryTargetList());
+
+    await getQueryTargets({ q: "order mysql", targetId: 42, page: 2, pageSize: 100 });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets?q=order+mysql&targetId=42&page=2&pageSize=100",
+    );
+  });
+
+  it("returns the paged envelope from the backend unchanged", async () => {
+    const response = {
+      items: [buildQueryTarget({ resourceId: 1 }), buildQueryTarget({ resourceId: 2 })],
+      pageInfo: {
+        page: 1,
+        pageSize: 50,
+        totalItems: 2,
+        totalPages: 1,
+      },
+    };
     mockApiClient.mockResolvedValueOnce(response);
 
     await expect(getQueryTargets()).resolves.toEqual(response);

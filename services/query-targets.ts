@@ -13,6 +13,18 @@ function buildQueryTargetsPath(params: QueryTargetListParams = {}) {
   if (params.environmentId !== undefined) {
     searchParams.set("environmentId", String(params.environmentId));
   }
+  if (params.q) {
+    searchParams.set("q", params.q);
+  }
+  if (params.targetId !== undefined) {
+    searchParams.set("targetId", String(params.targetId));
+  }
+  if (params.page !== undefined) {
+    searchParams.set("page", String(params.page));
+  }
+  if (params.pageSize !== undefined) {
+    searchParams.set("pageSize", String(params.pageSize));
+  }
 
   const query = searchParams.toString();
   return query ? `/query-targets?${query}` : "/query-targets";
