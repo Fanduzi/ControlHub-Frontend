@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ExternalLink, Info, Settings, TriangleAlert } from "lucide-react";
+import { ExternalLink, Settings, TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
@@ -31,100 +31,15 @@ function derivePrimaryBlocker(
     return t(readinessLabelKey(target.readiness));
   }
   if (target.missingFields.length > 0) {
-    return missingFieldLabel(t, target.missingFields[0]!);
+    return missingFieldLabel(t, target.missingFields[0]);
   }
   return null;
-}
-
-type GovernanceStatus = {
-  tone: "red" | "amber" | "blue" | "green";
-  label: string;
-  tooltip: string;
-};
-
-function deriveGovernanceBadges(
-  t: (key: string) => string,
-  target: QueryTarget,
-): GovernanceStatus[] {
-  return [
-    deriveExecutionStatus(t, target),
-    deriveCredentialStatus(t, target),
-    deriveAuditStatus(t),
-    deriveJitStatus(t),
-  ];
-}
-
-function deriveExecutionStatus(
-  t: (key: string) => string,
-  target: QueryTarget,
-): GovernanceStatus {
-  if (target.governance.executionEnabled) {
-    return {
-      tone: "green",
-      label: t("governance.executionTitleReady"),
-      tooltip: t("governance.executionDescriptionReady"),
-    };
-  }
-
-  return {
-    tone: "red",
-    label: t("governance.executionTitleLocked"),
-    tooltip: t("governance.executionDescriptionLocked"),
-  };
-}
-
-function deriveCredentialStatus(
-  t: (key: string) => string,
-  target: QueryTarget,
-): GovernanceStatus {
-  const label = credentialStateLabel(t, target.governance.credentialState);
-  return {
-    tone: credentialStateTone(target.governance.credentialState),
-    label,
-    tooltip: label,
-  };
-}
-
-function credentialStateTone(state: string): GovernanceStatus["tone"] {
-  switch (state) {
-    case "configured_readonly_credential":
-    case "secret_resolved":
-    case "not_required":
-      return "green";
-    case "binding_mismatch":
-    case "invalid_ref":
-    case "unsupported_target":
-      return "red";
-    default:
-      return "amber";
-  }
-}
-
-function deriveAuditStatus(
-  t: (key: string) => string,
-): GovernanceStatus {
-  return {
-    tone: "blue",
-    label: t("governance.auditTitle"),
-    tooltip: t("governance.auditDescription"),
-  };
-}
-
-function deriveJitStatus(
-  t: (key: string) => string,
-): GovernanceStatus {
-  return {
-    tone: "green",
-    label: t("governance.jitTitle"),
-    tooltip: t("governance.jitDescription"),
-  };
 }
 
 export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
   const t = useTranslations("queryWorkbench");
   const { governance } = target;
   const blocker = derivePrimaryBlocker(t, target);
-  const statusBadges = deriveGovernanceBadges(t, target);
 
   return (
     <TooltipProvider>
@@ -132,22 +47,6 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
         aria-label={t("governance.title")}
         className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4"
       >
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{t("governance.title")}</h2>
-        </div>
-
-        {/* Compact status badges with tooltip details */}
-        <div className="flex flex-wrap gap-1.5">
-          {statusBadges.map((status) => (
-            <StatusBadge
-              key={status.label}
-              tone={status.tone}
-              label={status.label}
-              tooltip={status.tooltip}
-            />
-          ))}
-        </div>
-
         {blocker && (
           <section>
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -176,8 +75,8 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
           </div>
         </section>
 
-        {/* Missing fields */}
-        {target.missingFields.length > 0 && (
+        {/* Missing connection metadata */}
+        {target.readiness === "missing_connection" && target.missingFields.length > 0 && (
           <section>
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {t("governance.missingFields")}
@@ -204,42 +103,6 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
         </section>
       </aside>
     </TooltipProvider>
-  );
-}
-
-const toneDot: Record<StatusBadgeProps["tone"], string> = {
-  red: "bg-rose-500",
-  amber: "bg-amber-500",
-  blue: "bg-blue-500",
-  green: "bg-emerald-500",
-};
-
-type StatusBadgeProps = {
-  tone: "red" | "amber" | "blue" | "green";
-  label: string;
-  tooltip: string;
-};
-
-/**
- * Compact status badge with a tooltip for the full description.
- * Replaces the large StatusCard to save vertical space.
- */
-function StatusBadge({ tone, label, tooltip }: StatusBadgeProps) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Badge variant="outline" className="gap-1.5 text-xs" />
-        }
-      >
-        <span className={cn("size-2 shrink-0 rounded-full", toneDot[tone])} aria-hidden />
-        {label}
-        <Info className="size-3 opacity-50" aria-hidden />
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-xs">
-        {tooltip}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
