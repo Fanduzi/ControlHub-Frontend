@@ -368,7 +368,7 @@ test.describe("Query credential settings", () => {
     expect(backfilledRole).toBe("admin");
   });
 
-  test("selecting a credential target opens the visible inspector", async ({
+  test("selecting a credential target opens the credential dialog", async ({
     page,
   }) => {
     await loginViaUI(page);
@@ -378,25 +378,78 @@ test.describe("Query credential settings", () => {
     const firstTargetButton = page.locator("table tbody tr td button").first();
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
 
-    // The aside inspector should already be present with an empty state.
-    const inspector = page.getByRole("complementary", {
+    await expect(page.getByRole("complementary", {
       name: /credential detail inspector/i,
-    });
-    await expect(inspector).toBeVisible();
+    })).toHaveCount(0);
 
-    // Click the first target row.
     await firstTargetButton.click();
 
-    // The selected row should be highlighted.
     const selectedRow = page.locator("table tbody tr[aria-selected='true']");
     await expect(selectedRow).toBeVisible({ timeout: 10_000 });
 
-    // The inspector should show the credential detail form.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+
     await expect(
-      page.getByText("Credential binding").first(),
+      dialog.getByText("Credential binding").first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    // The credential ref input should be visible inside the inspector.
-    await expect(page.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
+    await expect(dialog.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
+
+    await expect(page.getByRole("complementary", {
+      name: /credential detail inspector/i,
+    })).toHaveCount(0);
+  });
+
+  test("operations pagination navigates to next page with different rows", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    const tableRows = page.locator("table tbody tr");
+    await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
+
+    const firstPageFirstTarget = await tableRows
+      .first()
+      .locator("td button")
+      .first()
+      .textContent();
+    expect(firstPageFirstTarget).toBeTruthy();
+
+    const showingText = page.getByText(/Showing \d+–\d+ of \d+/);
+    await expect(showingText).toBeVisible();
+
+    const match = (await showingText.textContent())?.match(
+      /Showing (\d+)–(\d+) of (\d+)/,
+    );
+    if (match === null || match === undefined) {
+      throw new Error("Pagination showing text must match expected format");
+    }
+    const end = Number(match[2]);
+    const total = Number(match[3]);
+    expect(
+      total,
+      `Backend must seed enough targets for pagination (total=${total}, need > page size)`,
+    ).toBeGreaterThan(end);
+
+    const nextButton = page.getByRole("button", { name: "Next page" });
+    await expect(nextButton).toBeEnabled();
+    await nextButton.click();
+
+    await expect(showingText).toContainText(
+      new RegExp(`Showing ${end + 1}–\\d+ of ${total}`),
+    );
+
+    const secondPageFirstTarget = await tableRows
+      .first()
+      .locator("td button")
+      .first()
+      .textContent();
+
+    expect(
+      secondPageFirstTarget,
+      "First row on page 2 must differ from page 1",
+    ).not.toBe(firstPageFirstTarget);
   });
 });

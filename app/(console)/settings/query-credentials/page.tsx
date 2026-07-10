@@ -6,7 +6,7 @@ import { getQueryTargets } from "@/services/query-targets";
 
 export default async function QueryCredentialsPage() {
   const t = await getTranslations();
-  const targetResponse = await getQueryTargets();
+  const targetResponse = await getQueryTargets({ page: 1, pageSize: 25 });
 
   return (
     <div className="space-y-6">
@@ -15,7 +15,10 @@ export default async function QueryCredentialsPage() {
         title={t("queryCredentialSettings.title")}
         description={t("queryCredentialSettings.description")}
       />
-      <QueryCredentialSettings targets={targetResponse.items} />
+      <QueryCredentialSettings
+        targets={targetResponse.items}
+        pageInfo={targetResponse.pageInfo}
+      />
     </div>
   );
 }

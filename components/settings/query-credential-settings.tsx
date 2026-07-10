@@ -1,13 +1,11 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -26,6 +24,7 @@ import {
 } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
+import type { PageInfo } from "@/types/resource";
 import type {
   QueryCredentialEnvironmentPolicy,
   QueryCredentialRuntimeStatus,
@@ -37,8 +36,15 @@ import {
   getQueryCredential,
   saveQueryCredential,
 } from "@/services/query-credentials";
+import { getQueryTargets } from "@/services/query-targets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -79,36 +85,33 @@ import {
 // Concurrency limit for credential status fan-out
 // ---------------------------------------------------------------------------
 const FAN_OUT_CONCURRENCY = 4;
+const PAGE_SIZE = 25;
+const MOBILE_BREAKPOINT = 640;
 
-function useIsMobile(breakpoint = "1280px") {
-  const query = useMemo(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
-      return null;
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
+
+function useIsMobile(breakpoint = MOBILE_BREAKPOINT): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return !window.matchMedia(`(min-width: ${breakpoint}px)`).matches;
     }
-    return window.matchMedia(`(min-width: ${breakpoint})`);
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mql = window.matchMedia?.(`(min-width: ${breakpoint}px)`);
+    if (!mql) return;
+
+    const handler = (e: MediaQueryListEvent) => setIsMobile(!e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
   }, [breakpoint]);
 
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      if (!query) return () => {};
-      const handler = () => callback();
-      query.addEventListener("change", handler);
-      return () => query.removeEventListener("change", handler);
-    },
-    [query],
-  );
-
-  const getSnapshot = useCallback(() => {
-    if (!query) return false;
-    return !query.matches;
-  }, [query]);
-
-  const getServerSnapshot = useCallback(() => false, []);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return isMobile;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +120,7 @@ function useIsMobile(breakpoint = "1280px") {
 
 type QueryCredentialSettingsProps = {
   targets: QueryTarget[];
+  pageInfo: PageInfo;
 };
 
 // ---------------------------------------------------------------------------
@@ -134,10 +138,10 @@ type QueryCredentialSettingsProps = {
  */
 export function QueryCredentialSettings({
   targets,
+  pageInfo,
 }: QueryCredentialSettingsProps) {
   const t = useTranslations("queryCredentialSettings");
   const isAdmin = useAdminRole();
-  const isMobile = useIsMobile();
 
   // Credential status map: resourceId -> status or null
   const [credentialMap, setCredentialMap] = useState<
@@ -145,6 +149,10 @@ export function QueryCredentialSettings({
   >(new Map());
   const [errorMap, setErrorMap] = useState<Map<number, string>>(new Map());
   const [statusesLoading, setStatusesLoading] = useState(false);
+  const [targetList, setTargetList] = useState<QueryTarget[]>(targets);
+  const [targetPageInfo, setTargetPageInfo] = useState<PageInfo>(pageInfo);
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -160,12 +168,25 @@ export function QueryCredentialSettings({
     TargetOperationResult[]
   >([]);
 
-  // Active detail target (for single-target edit panel)
   const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
+  const [dialogTargetId, setDialogTargetId] = useState<number | null>(null);
+  const [page, setPage] = useState(pageInfo.page);
+  const targetFetchGenerationRef = useRef(0);
+  const targetFetchInitializedRef = useRef(false);
+  const statusFetchGenerationRef = useRef(0);
 
   // --- Fetch all credential statuses with bounded fan-out ---
   const fetchAllCredentialStatuses = useCallback(
     async (targetList: QueryTarget[]) => {
+      const generation = statusFetchGenerationRef.current + 1;
+      statusFetchGenerationRef.current = generation;
+      if (targetList.length === 0) {
+        setCredentialMap(new Map());
+        setErrorMap(new Map());
+        setStatusesLoading(false);
+        return;
+      }
+
       setStatusesLoading(true);
       const newMap = new Map<number, QueryCredentialStatusResponse | null>();
       const newErrors = new Map<number, string>();
@@ -176,6 +197,10 @@ export function QueryCredentialSettings({
         const results = await Promise.allSettled(
           batch.map((target) => getQueryCredential(target.resourceId)),
         );
+
+        if (statusFetchGenerationRef.current !== generation) {
+          return;
+        }
 
         for (let j = 0; j < batch.length; j++) {
           const result = results[j];
@@ -198,24 +223,17 @@ export function QueryCredentialSettings({
         setErrorMap(new Map(newErrors));
       }
 
-      setStatusesLoading(false);
+      if (statusFetchGenerationRef.current === generation) {
+        setStatusesLoading(false);
+      }
     },
     [],
   );
 
-  useEffect(() => {
-    if (isAdmin && targets.length > 0) {
-      // Intentional: fetch credential statuses after hydration when admin.
-      // This fires once on mount (or when targets change), not a cascading loop.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void fetchAllCredentialStatuses(targets);
-    }
-  }, [isAdmin, targets, fetchAllCredentialStatuses]);
-
   // --- Build operation rows ---
   const operationRows = useMemo(
-    () => buildOperationRows(targets, credentialMap, errorMap),
-    [targets, credentialMap, errorMap],
+    () => buildOperationRows(targetList, credentialMap, errorMap),
+    [targetList, credentialMap, errorMap],
   );
 
   // --- Coverage counts ---
@@ -235,6 +253,84 @@ export function QueryCredentialSettings({
     () => groupOperationRows(filteredRows, groupingMode),
     [filteredRows, groupingMode],
   );
+
+  const currentPage = targetPageInfo.page;
+  const pagedGroups = groups;
+
+  const visibleRows = useMemo(
+    () => pagedGroups.flatMap((group) => group.rows),
+    [pagedGroups],
+  );
+
+  const visibleTargetIdsKey = useMemo(
+    () => visibleRows.map((row) => row.resourceId).join(","),
+    [visibleRows],
+  );
+
+  const targetsById = useMemo(
+    () => new Map(targetList.map((target) => [target.resourceId, target])),
+    [targetList],
+  );
+
+  const visibleTargets = useMemo(() => {
+    if (visibleTargetIdsKey === "") return [];
+    return visibleTargetIdsKey
+      .split(",")
+      .map((id) => targetsById.get(Number(id)))
+      .filter((target): target is QueryTarget => target !== undefined);
+  }, [targetsById, visibleTargetIdsKey]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void fetchAllCredentialStatuses(visibleTargets);
+    }
+  }, [isAdmin, visibleTargets, fetchAllCredentialStatuses]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (!targetFetchInitializedRef.current) {
+      targetFetchInitializedRef.current = true;
+      return;
+    }
+
+    const generation = targetFetchGenerationRef.current + 1;
+    targetFetchGenerationRef.current = generation;
+    const trimmedQuery = filters.search.trim();
+
+    const loadTargets = async () => {
+      setTargetsLoading(true);
+      setTargetLoadError(null);
+
+      const response = await getQueryTargets({
+      page,
+      pageSize: PAGE_SIZE,
+      ...(trimmedQuery && { q: trimmedQuery }),
+      ...(filters.engine !== "" &&
+        filters.engine !== ALL_FILTER_VALUE && { engine: filters.engine }),
+      });
+
+      if (targetFetchGenerationRef.current !== generation) return;
+      setTargetList(response.items);
+      setTargetPageInfo(response.pageInfo);
+      setSelectedIds(new Set());
+      setActiveTargetId(null);
+      setDialogTargetId(null);
+    };
+
+    void loadTargets()
+      .catch((error: unknown) => {
+        if (targetFetchGenerationRef.current !== generation) return;
+        setTargetLoadError(
+          error instanceof Error ? error.message : "Failed to load targets",
+        );
+      })
+      .finally(() => {
+        if (targetFetchGenerationRef.current === generation) {
+          setTargetsLoading(false);
+        }
+      });
+  }, [filters.engine, filters.search, isAdmin, page]);
 
   // --- Unique values for filter dropdowns ---
   const environments = useMemo(
@@ -256,8 +352,8 @@ export function QueryCredentialSettings({
 
   // --- Selection helpers ---
   const selectableRows = useMemo(
-    () => filteredRows.filter((r) => r.selectable),
-    [filteredRows],
+    () => visibleRows.filter((r) => r.selectable),
+    [visibleRows],
   );
 
   const selectedCount = useMemo(
@@ -292,6 +388,16 @@ export function QueryCredentialSettings({
     [selectableRows, selectedIds],
   );
 
+  function handleFiltersChange(nextFilters: CredentialFilterState) {
+    setFilters(nextFilters);
+    setPage(1);
+  }
+
+  function handleGroupingModeChange(nextMode: GroupingMode) {
+    setGroupingMode(nextMode);
+    setPage(1);
+  }
+
   function toggleSelectAll() {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
@@ -317,7 +423,7 @@ export function QueryCredentialSettings({
   }
 
   function retryFetchForTarget(resourceId: number) {
-    const target = targets.find((t) => t.resourceId === resourceId);
+    const target = targetList.find((t) => t.resourceId === resourceId);
     if (!target) return;
     void (async () => {
       try {
@@ -370,9 +476,9 @@ export function QueryCredentialSettings({
       {/* Filter and grouping controls */}
       <FilterControls
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
         groupingMode={groupingMode}
-        onGroupingModeChange={setGroupingMode}
+        onGroupingModeChange={handleGroupingModeChange}
         environments={environments}
         clusters={clusters}
         engines={engines}
@@ -388,56 +494,69 @@ export function QueryCredentialSettings({
         onResultsAppended={(results) =>
           setOperationResults((prev) => [...prev, ...results])
         }
-        onRefreshStatuses={() => void fetchAllCredentialStatuses(targets)}
+        onRefreshStatuses={() => void fetchAllCredentialStatuses(visibleTargets)}
       />
 
-      {/* Master-detail: operations table + credential inspector */}
-      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:gap-6">
+      {/* Operations table + pagination */}
+      <div className="space-y-4">
+        {targetLoadError && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {targetLoadError}
+          </p>
+        )}
         <OperationsTable
-          groups={groups}
+          groups={pagedGroups}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={toggleSelectAll}
           allFilteredSelected={allFilteredSelected}
           selectableCount={selectableRows.length}
           activeTargetId={activeTargetId}
-          onSelectTarget={setActiveTargetId}
+          onSelectTarget={(id) => {
+            setActiveTargetId(id);
+            setDialogTargetId(id);
+          }}
+          onOpenDialog={(id) => {
+            setActiveTargetId(id);
+            setDialogTargetId(id);
+          }}
           onRetryFetch={retryFetchForTarget}
-          isMobile={isMobile}
-          targets={targets}
-          onRefreshStatuses={() => void fetchAllCredentialStatuses(targets)}
         />
 
-        {!isMobile && (
-          <aside
-            aria-label={t("detail.inspectorLabel")}
-            className="mt-6 xl:mt-0 xl:sticky xl:top-4 xl:self-start"
-          >
-            {activeTargetId !== null ? (
-              <CredentialDetailPanel
-                key={activeTargetId}
-                target={
-                  targets.find((t) => t.resourceId === activeTargetId) ??
-                  targets[0]
-                }
-                onCredentialChanged={() =>
-                  void fetchAllCredentialStatuses(targets)
-                }
-              />
-            ) : (
-              <div className="space-y-2 rounded-xl border border-border bg-card p-6 text-center">
-                <Layers className="mx-auto size-6 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-semibold text-foreground">
-                  {t("detail.emptyTitle")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("detail.emptyDescription")}
-                </p>
-              </div>
-            )}
-          </aside>
-        )}
+        <PaginationControls
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={targetPageInfo.totalItems}
+          onPageChange={setPage}
+        />
       </div>
+
+      <Dialog
+        open={dialogTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogTargetId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden p-3 sm:max-w-lg sm:p-4">
+          <DialogHeader>
+            <DialogTitle>{t("detail.title")}</DialogTitle>
+          </DialogHeader>
+          {dialogTargetId !== null && (
+            <CredentialDetailPanel
+              key={dialogTargetId}
+              target={
+                targetList.find((t) => t.resourceId === dialogTargetId) ?? targetList[0]
+              }
+              onCredentialChanged={() =>
+                void fetchAllCredentialStatuses(visibleTargets)
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      {targetsLoading && <span className="sr-only">Loading query targets</span>}
     </div>
   );
 }
@@ -836,6 +955,53 @@ function BulkActionBar({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function PaginationControls({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+}) {
+  const t = useTranslations("queryCredentialSettings");
+  const tPagination = useTranslations("pagination");
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  const hasPrevious = page > 1;
+  const hasNext = end < total;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-muted-foreground">
+        {t("operations.pagination.showing", { start, end, total })}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!hasPrevious}
+          onClick={() => onPageChange(page - 1)}
+        >
+          {tPagination("previous")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!hasNext}
+          onClick={() => onPageChange(page + 1)}
+        >
+          {tPagination("next")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1302,10 +1468,8 @@ function OperationsTable({
   selectableCount,
   activeTargetId,
   onSelectTarget,
+  onOpenDialog,
   onRetryFetch,
-  isMobile,
-  targets,
-  onRefreshStatuses,
 }: {
   groups: { key: string; label: string; rows: CredentialOperationRow[] }[];
   selectedIds: Set<number>;
@@ -1315,12 +1479,11 @@ function OperationsTable({
   selectableCount: number;
   activeTargetId: number | null;
   onSelectTarget: (id: number) => void;
+  onOpenDialog: (id: number) => void;
   onRetryFetch: (id: number) => void;
-  isMobile: boolean;
-  targets: QueryTarget[];
-  onRefreshStatuses: () => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
+  const isMobile = useIsMobile();
 
   const allRows = groups.flatMap((g) => g.rows);
   if (allRows.length === 0) {
@@ -1341,82 +1504,272 @@ function OperationsTable({
               {group.label}
             </h3>
           )}
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={allFilteredSelected && selectableCount > 0}
-                      onChange={onToggleSelectAll}
-                      disabled={selectableCount === 0}
-                      className="size-4 rounded border-border"
-                      aria-label={t("operations.selectTarget")}
-                    />
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.target")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.engine")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.environment")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.cluster")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.hostPort")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.runtimeStatus")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.credentialRef")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.policy")}
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    {t("operations.columns.enabled")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {group.rows.map((row) => (
-                  <Fragment key={row.resourceId}>
+          {isMobile ? (
+            <div className="space-y-2">
+              {group.rows.map((row) => (
+                <MobileOperationCard
+                  key={row.resourceId}
+                  row={row}
+                  selected={selectedIds.has(row.resourceId)}
+                  onToggleSelect={onToggleSelect}
+                  isActive={activeTargetId === row.resourceId}
+                  onSelectTarget={onSelectTarget}
+                  onOpenDialog={onOpenDialog}
+                  onRetryFetch={onRetryFetch}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="w-10 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected && selectableCount > 0}
+                        onChange={onToggleSelectAll}
+                        disabled={selectableCount === 0}
+                        className="size-4 rounded border-border"
+                        aria-label={t("operations.selectTarget")}
+                      />
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.target")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.engine")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.environment")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.cluster")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.hostPort")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.runtimeStatus")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.credentialRef")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.policy")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.enabled")}
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {t("operations.columns.actions")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {group.rows.map((row) => (
                     <OperationRow
+                      key={row.resourceId}
                       row={row}
                       selected={selectedIds.has(row.resourceId)}
                       onToggleSelect={onToggleSelect}
                       isActive={activeTargetId === row.resourceId}
                       onSelectTarget={onSelectTarget}
+                      onOpenDialog={onOpenDialog}
                       onRetryFetch={onRetryFetch}
                     />
-                    {isMobile && activeTargetId === row.resourceId && (
-                      <tr data-credential-detail-row>
-                        <td colSpan={10} className="p-0">
-                          <CredentialDetailPanel
-                            key={row.resourceId}
-                            target={
-                              targets.find(
-                                (t) => t.resourceId === row.resourceId,
-                              ) ?? targets[0]
-                            }
-                            onCredentialChanged={onRefreshStatuses}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile Operation Card (responsive: visible below sm breakpoint)
+// ---------------------------------------------------------------------------
+
+function MobileOperationCard({
+  row,
+  selected,
+  onToggleSelect,
+  isActive,
+  onSelectTarget,
+  onOpenDialog,
+  onRetryFetch,
+}: {
+  row: CredentialOperationRow;
+  selected: boolean;
+  onToggleSelect: (id: number) => void;
+  isActive: boolean;
+  onSelectTarget: (id: number) => void;
+  onOpenDialog: (id: number) => void;
+  onRetryFetch: (id: number) => void;
+}) {
+  const t = useTranslations("queryCredentialSettings");
+
+  const statusLabel =
+    row.runtimeStatus === "fetch_pending"
+      ? t("coverage.fetchPending")
+      : row.runtimeStatus === "fetch_error"
+        ? t("coverage.fetchError")
+        : credentialRuntimeStatusLabel(t, row.runtimeStatus);
+
+  const tone =
+    row.runtimeStatus === "fetch_pending"
+      ? "amber"
+      : credentialRuntimeStatusTone(row.runtimeStatus);
+
+  const toneClass =
+    tone === "green"
+      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+      : tone === "red"
+        ? "border-rose-500/30 text-rose-600 dark:text-rose-400"
+        : "border-amber-500/30 text-amber-600 dark:text-amber-400";
+
+  const environmentPolicyLabel = row.credential
+    ? t(`environmentPolicies.${row.credential.environmentPolicy}`, {
+        defaultMessage: row.credential.environmentPolicy.replaceAll("_", " "),
+      })
+    : "—";
+
+  return (
+    <div
+      aria-selected={isActive}
+      className={cn(
+        "rounded-xl border border-border bg-card p-3 space-y-2.5 transition-colors",
+        isActive && "bg-muted/50",
+      )}
+    >
+      {/* Header: checkbox + target name + action button */}
+      <div className="flex items-center gap-2">
+        {row.selectable ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(row.resourceId)}
+            className="size-4 rounded border-border"
+          />
+        ) : (
+          <span
+            title={
+              row.notSelectableReason
+                ? t(`operations.notSelectable.${row.notSelectableReason}`)
+                : undefined
+            }
+          >
+            <input
+              type="checkbox"
+              disabled
+              className="size-4 rounded border-border opacity-50"
+            />
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => onSelectTarget(row.resourceId)}
+          className="flex-1 text-left text-sm font-medium text-foreground hover:underline truncate"
+        >
+          {row.displayName}
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs shrink-0"
+          onClick={() => onOpenDialog(row.resourceId)}
+        >
+          {row.credential?.configured
+            ? t("detail.editButton")
+            : t("detail.configureButton")}
+        </Button>
+      </div>
+
+      {/* Metadata fields */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.engine")}
+          </dt>
+          <dd className="text-foreground">{row.engine}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.environment")}
+          </dt>
+          <dd className="text-foreground">{row.environment}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.cluster")}
+          </dt>
+          <dd className="text-foreground">{row.clusterName || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.hostPort")}
+          </dt>
+          <dd className="text-foreground">
+            {formatHostPortLabel(row.host, row.port, "—")}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.credentialRef")}
+          </dt>
+          <dd className="text-foreground">
+            {row.credential?.configured
+              ? row.credential.credentialRef || "—"
+              : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.policy")}
+          </dt>
+          <dd className="text-foreground">{environmentPolicyLabel}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">
+            {t("operations.columns.enabled")}
+          </dt>
+          <dd className="text-foreground">
+            {row.credential?.configured
+              ? row.credential.enabled
+                ? "✓"
+                : "✗"
+              : "—"}
+          </dd>
+        </div>
+      </dl>
+
+      {/* Runtime status badge */}
+      <div className="flex items-center gap-1.5">
+        {row.runtimeStatus === "fetch_error" ? (
+          <>
+            <Badge variant="outline" className={cn("text-xs", toneClass)}>
+              {statusLabel}
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs"
+              onClick={() => onRetryFetch(row.resourceId)}
+            >
+              {t("operations.retryFetch")}
+            </Button>
+          </>
+        ) : (
+          <Badge variant="outline" className={cn("text-xs", toneClass)}>
+            {statusLabel}
+          </Badge>
+        )}
+      </div>
     </div>
   );
 }
@@ -1431,6 +1784,7 @@ function OperationRow({
   onToggleSelect,
   isActive,
   onSelectTarget,
+  onOpenDialog,
   onRetryFetch,
 }: {
   row: CredentialOperationRow;
@@ -1438,6 +1792,7 @@ function OperationRow({
   onToggleSelect: (id: number) => void;
   isActive: boolean;
   onSelectTarget: (id: number) => void;
+  onOpenDialog: (id: number) => void;
   onRetryFetch: (id: number) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
@@ -1554,6 +1909,19 @@ function OperationRow({
             ? "✓"
             : "✗"
           : "—"}
+      </td>
+      <td className="px-3 py-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          onClick={() => onOpenDialog(row.resourceId)}
+        >
+          {row.credential?.configured
+            ? t("detail.editButton")
+            : t("detail.configureButton")}
+        </Button>
       </td>
     </tr>
   );

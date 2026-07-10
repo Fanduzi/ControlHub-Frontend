@@ -1286,7 +1286,10 @@
         "incomplete_connection": "连接不完整"
       },
       "fetchErrorLabel": "加载凭据状态失败",
-      "retryFetch": "重试"
+      "retryFetch": "重试",
+      "pagination": {
+        "showing": "显示第 {start}–{end} 项，共 {total} 项"
+      }
     },
     "filters": {
       "title": "筛选",
