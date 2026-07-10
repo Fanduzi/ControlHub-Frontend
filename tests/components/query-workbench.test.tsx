@@ -71,6 +71,7 @@ import {
 } from "@/services/query-executions";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
+import type { PageInfo } from "@/types/resource";
 import type {
   QueryExecuteResponse,
   QueryExecutionListResponse,
@@ -127,6 +128,15 @@ function buildTargets(): QueryTarget[] {
   ];
 }
 
+function pageInfoFor(targets: QueryTarget[]): PageInfo {
+  return {
+    page: 1,
+    pageSize: 50,
+    totalItems: targets.length,
+    totalPages: Math.max(1, Math.ceil(targets.length / 50)),
+  };
+}
+
 function renderWorkbench(
   targets: QueryTarget[] = buildTargets(),
   messages: Record<string, unknown> = enMessages,
@@ -134,7 +144,11 @@ function renderWorkbench(
 ) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <QueryWorkbench targets={targets} initialFilters={initialFilters} />
+      <QueryWorkbench
+        targets={targets}
+        pageInfo={pageInfoFor(targets)}
+        initialFilters={initialFilters}
+      />
     </NextIntlClientProvider>,
   );
 }
@@ -254,8 +268,10 @@ describe("QueryWorkbench", () => {
     expect(
       screen.getAllByText("prod-ch-host-01.internal:8123").length,
     ).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Execution disabled")).toBeInTheDocument();
-    expect(screen.getByText("Read-only credential")).toBeInTheDocument();
+    expect(
+      screen.getByRole("complementary", { name: "Governance & access" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Missing read-only credential")).toBeInTheDocument();
     expect(screen.queryAllByText(/^readonlyCredential$/)).toHaveLength(0);
   });
 
@@ -473,7 +489,11 @@ describe("QueryWorkbench execution (ready target)", () => {
   ) {
     return render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <QueryWorkbench targets={[target]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
   }
@@ -512,7 +532,11 @@ describe("QueryWorkbench execution (ready target)", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[lockedTarget]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[lockedTarget]}
+          pageInfo={pageInfoFor([lockedTarget])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -807,7 +831,11 @@ describe("QueryWorkbench target switching (ready targets)", () => {
   function renderWithTargets(targets: QueryTarget[] = buildSwitchTargets()) {
     return render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={targets} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={targets}
+          pageInfo={pageInfoFor(targets)}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
   }
@@ -1123,7 +1151,11 @@ function renderWithCredentialState(
   const target = buildTargetWithCredentialState(credentialState);
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <QueryWorkbench targets={[target]} initialFilters={EMPTY_FILTERS} />
+      <QueryWorkbench
+        targets={[target]}
+        pageInfo={pageInfoFor([target])}
+        initialFilters={EMPTY_FILTERS}
+      />
     </NextIntlClientProvider>,
   );
 }
@@ -1449,12 +1481,17 @@ describe("QueryGovernancePanel action badge semantics", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[target]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("Governance & access")).toBeInTheDocument();
-    expect(screen.getByText("Execution ready")).toBeInTheDocument();
+    expect(
+      screen.getByRole("complementary", { name: "Governance & access" }),
+    ).toBeInTheDocument();
     expect(
       screen.getAllByText("Read-only credential configured").length,
     ).toBeGreaterThanOrEqual(1);
@@ -1614,7 +1651,11 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[buildReadyTarget()]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -1634,7 +1675,11 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[buildReadyTarget()]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -1659,7 +1704,11 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[lockedTarget]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[lockedTarget]}
+          pageInfo={pageInfoFor([lockedTarget])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -1685,7 +1734,11 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={[readyTarget, lockedTarget]} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={[readyTarget, lockedTarget]}
+          pageInfo={pageInfoFor([readyTarget, lockedTarget])}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -1730,6 +1783,7 @@ describe("QueryWorkbench worksheet rename", () => {
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <QueryWorkbench
           targets={[buildQueryTarget({ resourceId: 30, readiness: "ready", availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false } })]}
+          pageInfo={pageInfoFor([buildQueryTarget({ resourceId: 30 })])}
           initialFilters={EMPTY_FILTERS}
         />
       </NextIntlClientProvider>,
@@ -1759,6 +1813,7 @@ describe("QueryWorkbench worksheet rename", () => {
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <QueryWorkbench
           targets={[buildQueryTarget({ resourceId: 30, readiness: "ready", availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false } })]}
+          pageInfo={pageInfoFor([buildQueryTarget({ resourceId: 30 })])}
           initialFilters={EMPTY_FILTERS}
         />
       </NextIntlClientProvider>,
@@ -1803,7 +1858,11 @@ describe("QueryWorkbench filter-hidden target", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={targets} initialFilters={{ ...EMPTY_FILTERS, engine: "redis" }} />
+        <QueryWorkbench
+          targets={targets}
+          pageInfo={pageInfoFor(targets)}
+          initialFilters={{ ...EMPTY_FILTERS, engine: "redis" }}
+        />
       </NextIntlClientProvider>,
     );
 
@@ -1846,7 +1905,11 @@ describe("QueryWorkbench history target-race guard", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryWorkbench targets={targets} initialFilters={EMPTY_FILTERS} />
+        <QueryWorkbench
+          targets={targets}
+          pageInfo={pageInfoFor(targets)}
+          initialFilters={EMPTY_FILTERS}
+        />
       </NextIntlClientProvider>,
     );
 

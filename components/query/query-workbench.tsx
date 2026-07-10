@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
+import type { PageInfo } from "@/types/resource";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
   EMPTY_FILTERS,
@@ -18,7 +19,9 @@ import { QueryGovernancePanel } from "@/components/query/query-governance-panel"
 
 type QueryWorkbenchProps = {
   targets: QueryTarget[];
+  pageInfo: PageInfo;
   initialFilters?: WorkbenchFilters;
+  initialActiveTargetId?: number;
 };
 
 function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
@@ -31,12 +34,15 @@ function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
 
 export function QueryWorkbench({
   targets,
+  pageInfo,
   initialFilters = EMPTY_FILTERS,
+  initialActiveTargetId,
 }: QueryWorkbenchProps) {
   const t = useTranslations("queryWorkbench");
   const [filters, setFilters] = useState<WorkbenchFilters>(initialFilters);
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
-    getInitialActiveTargetId(targets),
+    initialActiveTargetId ??
+      getInitialActiveTargetId(targets),
   );
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
 
@@ -69,17 +75,22 @@ export function QueryWorkbench({
       <SafetyBanner />
 
       {activeTarget ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
+        <div
+          data-testid="query-workbench-grid"
+          className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]"
+        >
           <div className="flex flex-col gap-4">
             <QueryConnectionNavigator
               targets={targets}
               activeTargetId={activeTargetId}
               filters={filters}
               engines={engines}
+              pageInfo={pageInfo}
               onSelect={setActiveTargetFromNavigator}
               onFilterChange={updateFilter}
             />
             <QuerySchemaBrowser target={activeTarget} />
+            <QueryGovernancePanel target={activeTarget} />
           </div>
           <QueryEditorShell
             targets={targets}
@@ -87,7 +98,6 @@ export function QueryWorkbench({
             targetSelectionVersion={targetSelectionVersion}
             onActiveTargetChange={setActiveTargetFromWorksheet}
           />
-          <QueryGovernancePanel target={activeTarget} />
         </div>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />
