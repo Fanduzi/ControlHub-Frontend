@@ -257,6 +257,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const worksheetId = activeWorksheet.id;
     const targetId = activeWorksheet.targetResourceId;
     if (activeWorksheet.activeDatabase !== null) return;
+    if (!worksheetTarget.availableActions.run) return;
     const controller = new AbortController();
     void getSchemaDatabases(targetId, { page: 1, pageSize: 50, signal: controller.signal }).then((response) => {
       if (controller.signal.aborted) return;
@@ -267,7 +268,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       ));
     }, () => undefined);
     return () => controller.abort();
-  }, [activeWorksheet.activeDatabase, activeWorksheet.id, activeWorksheet.targetResourceId]);
+  }, [activeWorksheet.activeDatabase, activeWorksheet.id, activeWorksheet.targetResourceId, worksheetTarget.availableActions.run]);
 
   useEffect(() => {
     onActiveDatabaseChange?.(activeWorksheet.activeDatabase);

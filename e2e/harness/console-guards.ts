@@ -53,10 +53,14 @@ export function collectNetworkErrors(page: Page): string[] {
 
 export function assertClean(
   consoleMessages: ConsoleMessage[],
-  networkErrors: string[]
+  networkErrors: string[],
+  allowedNetworkErrors: RegExp[] = []
 ): void {
   const errors = consoleMessages.filter((m) => m.type === "error");
   const warnings = consoleMessages.filter((m) => m.type === "warning");
+  const filteredNetworkErrors = networkErrors.filter(
+    (e) => !allowedNetworkErrors.some((p) => p.test(e))
+  );
 
   if (errors.length > 0) {
     console.error("Console errors:\n" + errors.map((e) => e.text).join("\n"));
@@ -67,11 +71,11 @@ export function assertClean(
         warnings.map((w) => w.text).join("\n")
     );
   }
-  if (networkErrors.length > 0) {
-    console.error("Network errors:\n" + networkErrors.join("\n"));
+  if (filteredNetworkErrors.length > 0) {
+    console.error("Network errors:\n" + filteredNetworkErrors.join("\n"));
   }
 
   expect(errors, "No console errors").toHaveLength(0);
   expect(warnings, "No unexpected console warnings").toHaveLength(0);
-  expect(networkErrors, "No 4xx/5xx network responses").toHaveLength(0);
+  expect(filteredNetworkErrors, "No 4xx/5xx network responses").toHaveLength(0);
 }

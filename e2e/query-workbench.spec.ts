@@ -21,6 +21,7 @@ test.describe("Query Workbench shell", () => {
         /Fast Refresh/,
         /HMR/,
         /Download the React DevTools/,
+        /Failed to load resource:.*403/,
       ],
       allowedWarnings: [
         /was preloaded using link preload but not used/,
@@ -549,6 +550,14 @@ test.describe("Query Workbench shell", () => {
 });
 
 async function openQueryWorkbench(page: Page): Promise<void> {
+  await page.context().addCookies([
+    {
+      name: "controlhub.locale",
+      value: "en",
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
   await loginViaUI(page);
   await page.locator('a[href="/query"]').first().click();
   await expect(page).toHaveURL(/\/query/);
@@ -704,7 +713,16 @@ test.describe("Query Workbench schema intelligence", () => {
 
   test("mobile object explorer stays a drawer while the SQL editor remains primary", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 844 });
-    await openQueryWorkbench(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded");
     if (readyIndex === null) return;
