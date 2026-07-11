@@ -34,12 +34,16 @@ import {
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
+import { getSchemaDatabases } from "@/services/query-schema";
+import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
+import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
   activeTarget: QueryTarget;
   targetSelectionVersion: number;
   onActiveTargetChange: (resourceId: number) => void;
+  onActiveDatabaseChange?: (database: string | null) => void;
 };
 
 type WorksheetTab = "worksheet" | "savedSheets" | "history" | "access";
@@ -71,6 +75,7 @@ type LocalWorksheet = {
   history: QueryExecutionRecord[];
   historyLoading: boolean;
   requestId: string;
+  activeDatabase: string | null;
 };
 
 function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
@@ -88,10 +93,11 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     history: [],
     historyLoading: false,
     requestId: crypto.randomUUID(),
+    activeDatabase: null,
   };
 }
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
@@ -229,7 +235,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
       // Update the ref immediately so refreshHistory sees the latest state
       const newWorksheets = worksheetsRef.current.map((ws) =>
-        ws.id === activeWorksheetId ? { ...ws, targetResourceId: activeTarget.resourceId, result: null, error: null, history: [], historyLoading: false, isExecuting: false, activeResultTab: "grid" as const, requestId: crypto.randomUUID() } : ws,
+        ws.id === activeWorksheetId ? { ...ws, targetResourceId: activeTarget.resourceId, activeDatabase: null, result: null, error: null, history: [], historyLoading: false, isExecuting: false, activeResultTab: "grid" as const, requestId: crypto.randomUUID() } : ws,
       );
       worksheetsRef.current = newWorksheets;
       setWorksheets(newWorksheets);
@@ -246,6 +252,26 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       onActiveTargetChange(worksheet.targetResourceId);
     }
   }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
+
+  useEffect(() => {
+    const worksheetId = activeWorksheet.id;
+    const targetId = activeWorksheet.targetResourceId;
+    if (activeWorksheet.activeDatabase !== null) return;
+    const controller = new AbortController();
+    void getSchemaDatabases(targetId, { page: 1, pageSize: 50, signal: controller.signal }).then((response) => {
+      if (controller.signal.aborted) return;
+      setWorksheets((previous) => previous.map((worksheet) =>
+        worksheet.id === worksheetId && worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
+          ? { ...worksheet, activeDatabase: response.defaultDatabase }
+          : worksheet,
+      ));
+    }, () => undefined);
+    return () => controller.abort();
+  }, [activeWorksheet.activeDatabase, activeWorksheet.id, activeWorksheet.targetResourceId]);
+
+  useEffect(() => {
+    onActiveDatabaseChange?.(activeWorksheet.activeDatabase);
+  }, [activeWorksheet.activeDatabase, onActiveDatabaseChange]);
 
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
   const editorThemePreference = normalizeEditorTheme(
@@ -461,6 +487,17 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       </div>
 
       <QueryGovernancePanel target={worksheetTarget} />
+      <QueryObjectQuickNavigator
+        targetId={activeWorksheet.targetResourceId}
+        activeDatabase={activeWorksheet.activeDatabase}
+        onDatabaseSelect={(activeDatabase) => updateActiveWorksheet({ activeDatabase })}
+        onInsertObject={({ database, name }) => {
+          const view = editorViewRef.current;
+          if (!view) return;
+          const text = objectIdentifier({ database, name, activeDatabase: activeWorksheet.activeDatabase });
+          insertIdentifierAtSelection(view, text);
+        }}
+      />
 
       {activeTab === "worksheet" ? (
         canExecute ? (

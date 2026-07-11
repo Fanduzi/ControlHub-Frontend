@@ -18,6 +18,7 @@ import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
 import { ActiveConnectionSummary } from "@/components/query/query-connection-navigator-body";
 import { getQueryTargets } from "@/services/query-targets";
+import { QuerySchemaStore } from "@/lib/query-schema-store";
 
 type QueryWorkbenchProps = {
   targets: QueryTarget[];
@@ -60,7 +61,9 @@ export function QueryWorkbench({
       : initialActiveTargetId,
   );
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
+  const [activeDatabase, setActiveDatabase] = useState<string | null>(null);
   const searchGeneration = useRef(0);
+  const schemaStore = useRef(new QuerySchemaStore());
 
   useEffect(() => {
     const generation = searchGeneration.current + 1;
@@ -179,8 +182,9 @@ export function QueryWorkbench({
             activeTarget={activeTarget}
             targetSelectionVersion={targetSelectionVersion}
             onActiveTargetChange={setActiveTargetFromWorksheet}
+            onActiveDatabaseChange={setActiveDatabase}
           />
-          <QuerySchemaBrowser target={activeTarget} />
+          <QuerySchemaBrowser target={activeTarget} store={schemaStore.current} activeDatabase={activeDatabase} />
         </div>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />

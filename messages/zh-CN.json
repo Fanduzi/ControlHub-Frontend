@@ -977,7 +977,28 @@
       "placeholderMongo": "连接 Schema 元数据后，将出现数据库 / 集合 / 字段占位。",
       "placeholderDefault": "连接元数据后，将出现 Schema 占位。",
       "locked": "Schema 已锁定 — 本阶段不做实时探测。",
-      "empty": "该目标暂无可用 Schema 元数据。"
+      "empty": "该目标暂无可用 Schema 元数据。",
+      "objects": "对象",
+      "openObjects": "打开对象",
+      "tables": "表",
+      "views": "视图",
+      "columns": "列",
+      "keys": "键",
+      "indexes": "索引",
+      "foreignKeys": "外键",
+      "loading": "加载中…",
+      "loadError": "无法加载对象。",
+      "noDatabases": "未找到数据库。",
+      "retry": "重试"
+    },
+    "navigator": {
+      "title": "快速导航",
+      "search": "搜索数据库和对象",
+      "insert": "插入",
+      "reveal": "定位",
+      "empty": "未找到数据库或对象。",
+      "error": "无法加载 Schema 元数据。",
+      "retry": "重试"
     },
     "editor": {
       "worksheetTab": "Worksheet",

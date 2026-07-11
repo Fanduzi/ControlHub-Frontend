@@ -1,109 +1,39 @@
 "use client";
 
+import { useState } from "react";
+import { ListTree } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Database, Folder, Lock } from "lucide-react";
 
-import type {
-  QueryKind,
-  QueryTarget,
-  QueryTargetSchemaPreviewNode,
-} from "@/types/query-target";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
+import { QuerySchemaStore } from "@/lib/query-schema-store";
+import type { QueryKind, QueryTarget } from "@/types/query-target";
 
-type QuerySchemaBrowserProps = {
-  target: QueryTarget;
-};
+type QuerySchemaBrowserProps = { readonly target: QueryTarget; readonly store: QuerySchemaStore; readonly activeDatabase?: string | null };
 
-export function QuerySchemaBrowser({ target }: QuerySchemaBrowserProps) {
+export function QuerySchemaBrowser({ target, store, activeDatabase }: QuerySchemaBrowserProps) {
   const t = useTranslations("queryWorkbench");
-  const nodes = target.schemaPreview;
-  const hasSchema = nodes.length > 0;
+  const [desktopOpen, setDesktopOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const explorer = <QueryObjectExplorer targetId={target.resourceId} store={store} />;
+  const placeholder = placeholderText(target.capability.queryKind);
 
-  return (
-    <aside
-      aria-label={t("schema.title")}
-      className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
-    >
-      <header className="border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-foreground">{t("schema.title")}</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("schema.subtitle")}</p>
-      </header>
-
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        {hasSchema ? (
-          <ul role="tree" className="space-y-0.5">
-            {nodes.map((node, index) => (
-              <SchemaNode
-                key={`${node.kind}-${node.name}-${index}`}
-                node={node}
-                depth={0}
-              />
-            ))}
-          </ul>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {placeholderText(target.capability.queryKind)}
-            </p>
-            <p className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
-              <Lock className="size-3" aria-hidden />
-              {t("schema.locked")}
-            </p>
-          </div>
-        )}
-      </div>
-    </aside>
-  );
+  return <>
+    <span className="sr-only">{placeholder} {t("schema.locked")}</span>
+    <Button type="button" variant="outline" className="hidden md:inline-flex" aria-label="Open objects" onClick={() => setDesktopOpen(true)}><ListTree className="size-4" aria-hidden />{activeDatabase ? `Objects: ${activeDatabase}` : "Objects"}</Button>
+    <Button type="button" variant="outline" className="md:hidden" aria-label="Open objects on mobile" onClick={() => setMobileOpen(true)}><ListTree className="size-4" aria-hidden />Objects</Button>
+    <Dialog open={desktopOpen} onOpenChange={setDesktopOpen}><DialogContent className="max-w-2xl p-0"><DialogHeader className="border-b border-border p-4 pr-12"><DialogTitle>{t("schema.title")}</DialogTitle></DialogHeader><div className="max-h-[70vh] overflow-y-auto p-4">{explorer}</div></DialogContent></Dialog>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto"><SheetHeader><SheetTitle>{t("schema.title")}</SheetTitle></SheetHeader><div className="min-w-0 px-4 pb-4">{explorer}</div></SheetContent></Sheet>
+  </>;
 
   function placeholderText(kind: QueryKind): string {
     switch (kind) {
-      case "sql":
-        return t("schema.placeholderSql");
-      case "redis":
-        return t("schema.placeholderRedis");
-      case "mongo":
-        return t("schema.placeholderMongo");
-      default:
-        return t("schema.placeholderDefault");
+      case "sql": return t("schema.placeholderSql");
+      case "redis": return t("schema.placeholderRedis");
+      case "mongo": return t("schema.placeholderMongo");
+      default: return t("schema.placeholderDefault");
     }
   }
-}
-
-function SchemaNode({
-  node,
-  depth,
-}: {
-  node: QueryTargetSchemaPreviewNode;
-  depth: number;
-}) {
-  const hasChildren = (node.children?.length ?? 0) > 0;
-  const Icon = hasChildren ? Folder : Database;
-
-  return (
-    <li role="treeitem" aria-label={node.name} aria-selected={false}>
-      <span
-        className={cn(
-          "flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground",
-        )}
-        style={{ paddingLeft: `${depth * 14 + 8}px` }}
-      >
-        <Icon className="size-3.5 shrink-0 text-primary" aria-hidden />
-        <span className="truncate font-medium text-foreground">{node.name}</span>
-        <span className="rounded bg-muted px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {node.kind}
-        </span>
-      </span>
-      {hasChildren ? (
-        <ul role="group" className="space-y-0.5">
-          {node.children!.map((child, index) => (
-            <SchemaNode
-              key={`${child.kind}-${child.name}-${index}`}
-              node={child}
-              depth={depth + 1}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  );
 }

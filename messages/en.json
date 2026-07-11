@@ -977,7 +977,28 @@
       "placeholderMongo": "Database / collection / field placeholders appear once schema metadata is connected.",
       "placeholderDefault": "Schema placeholders appear once metadata is connected.",
       "locked": "Schema is locked — no live introspection in this phase.",
-      "empty": "No schema metadata available for this target yet."
+      "empty": "No schema metadata available for this target yet.",
+      "objects": "Objects",
+      "openObjects": "Open objects",
+      "tables": "Tables",
+      "views": "Views",
+      "columns": "Columns",
+      "keys": "Keys",
+      "indexes": "Indexes",
+      "foreignKeys": "Foreign Keys",
+      "loading": "Loading…",
+      "loadError": "Unable to load objects.",
+      "noDatabases": "No databases found.",
+      "retry": "Retry"
+    },
+    "navigator": {
+      "title": "Quick navigator",
+      "search": "Search databases and objects",
+      "insert": "Insert",
+      "reveal": "Reveal",
+      "empty": "No databases or objects found.",
+      "error": "Unable to load schema metadata.",
+      "retry": "Retry"
     },
     "editor": {
       "worksheetTab": "Worksheet",

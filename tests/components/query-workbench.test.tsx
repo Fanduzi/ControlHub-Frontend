@@ -2176,3 +2176,98 @@ describe("QueryWorkbench history target-race guard", () => {
     expect(screen.queryByText("select * from target_a_table")).toBeNull();
   });
 });
+
+describe("QueryWorkbench SQL completion integration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  function buildReadySqlTarget(): QueryTarget {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+    });
+  }
+
+  it("Run and Format shortcuts remain intact with completion enabled", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-11T10:00:00Z",
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadySqlTarget()]}
+          pageInfo={pageInfoFor([buildReadySqlTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.click(statement);
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("editor height preference is preserved with completion enabled", async () => {
+    window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, "400");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadySqlTarget()]}
+          pageInfo={pageInfoFor([buildReadySqlTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Statement")).toHaveAttribute(
+        "data-editor-height",
+        "400",
+      );
+    });
+  });
+});

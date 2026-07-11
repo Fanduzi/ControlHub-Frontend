@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql, MySQL, StandardSQL } from "@codemirror/lang-sql";
+import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorView, keymap } from "@codemirror/view";
 import { Prec, type Extension } from "@codemirror/state";
@@ -10,6 +11,16 @@ import { tags } from "@lezer/highlight";
 
 import { cn } from "@/lib/utils";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
+import {
+  buildKeywordCompletions,
+  buildTableCompletions,
+  buildDatabaseQualifiedCompletions,
+  buildColumnCompletionsForDot,
+  parseActiveStatement,
+  extractTableAliases,
+  type SchemaNamespace,
+  type TableColumnFetcher,
+} from "@/lib/query-sql-completion";
 
 export type SqlCodeEditorProps = {
   value: string;
@@ -23,6 +34,8 @@ export type SqlCodeEditorProps = {
   className?: string;
   themePreference?: QueryEditorThemePreference;
   height?: number;
+  schemaNamespace?: SchemaNamespace;
+  columnFetcher?: TableColumnFetcher;
 };
 
 type ResolvedEditorTheme = Exclude<QueryEditorThemePreference, "system">;
@@ -170,6 +183,8 @@ export function SqlCodeEditorClient({
   className,
   themePreference = "system",
   height,
+  schemaNamespace,
+  columnFetcher,
 }: SqlCodeEditorProps) {
   const viewRef = useRef<EditorView | null>(null);
   const resolvedTheme = resolveEditorTheme(themePreference);
@@ -178,6 +193,58 @@ export function SqlCodeEditorClient({
     viewRef.current = view;
     onEditorView?.(view);
   }, [onEditorView]);
+
+  const sqlCompletionSource = useCallback(
+    (ctx: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
+      const ns = schemaNamespace;
+      const fetcher = columnFetcher;
+
+      const dotMatch = ctx.matchBefore(/[\w`]+\./);
+      if (dotMatch) {
+        const prefix = dotMatch.text.slice(0, -1).replace(/`/g, "");
+        const stmt = parseActiveStatement(ctx.state.doc.toString(), ctx.pos);
+        const aliases = extractTableAliases(stmt);
+
+        const tableName = aliases[prefix] ?? prefix;
+        const loaded = ns?.loadedColumns?.[tableName];
+        if (loaded) {
+          return {
+            from: dotMatch.to,
+            options: loaded.map((col) => ({ label: col, type: "field" })),
+            validFor: /[\w`]*/,
+          };
+        }
+
+        if (!fetcher || !ns) {
+          return { from: dotMatch.to, options: [], validFor: /[\w`]*/ };
+        }
+
+        return buildColumnCompletionsForDot(prefix, ns, fetcher, aliases).then(
+          (cols) => ({
+            from: dotMatch.to,
+            options: cols as import("@codemirror/autocomplete").Completion[],
+            validFor: /[\w`]*/,
+          }),
+        );
+      }
+
+      const options: import("@codemirror/autocomplete").Completion[] = [];
+
+      if (ns) {
+        options.push(...buildTableCompletions(ns));
+        options.push(...buildDatabaseQualifiedCompletions(ns));
+      }
+
+      options.push(...buildKeywordCompletions());
+
+      return {
+        from: ctx.pos,
+        options,
+        validFor: /[\w`]*/,
+      };
+    },
+    [schemaNamespace, columnFetcher],
+  );
 
   const extensions = useMemo(() => {
     const normalizedEngine = engine?.trim().toLowerCase();
@@ -207,13 +274,20 @@ export function SqlCodeEditorClient({
       ]),
     );
 
+    const completionExtension = autocompletion({
+      override: [sqlCompletionSource],
+      activateOnTyping: true,
+      defaultKeymap: true,
+    });
+
     return [
       sql({ dialect }),
       shortcuts,
       layoutTheme,
       syntaxThemes[resolvedTheme],
+      completionExtension,
     ];
-  }, [engine, onRun, onFormat, resolvedTheme]);
+  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource]);
 
   return (
     <CodeMirror
