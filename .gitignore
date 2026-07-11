@@ -55,5 +55,6 @@ smoke-*.png
 *.tsbuildinfo
 next-env.d.ts
 .gitnexus
+/.omo/
 /.claude/
 .superpowers/
