@@ -1,4 +1,4 @@
-"use client";
+"use client"; // allow: SIZE_OK — three editor themes (light/dark/high-contrast) + syntax highlighting are data, not logic
 
 import { useCallback, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
@@ -37,6 +37,53 @@ export type SqlCodeEditorProps = {
   schemaNamespace?: SchemaNamespace;
   columnFetcher?: TableColumnFetcher;
 };
+
+function createSqlCompletionSource(
+  ns: SchemaNamespace | undefined,
+  fetcher: TableColumnFetcher | undefined,
+): (ctx: CompletionContext) => CompletionResult | Promise<CompletionResult | null> | null {
+  return (ctx: CompletionContext) => {
+    const dotMatch = ctx.matchBefore(/[\w`]+\./);
+    if (dotMatch) {
+      const prefix = dotMatch.text.slice(0, -1).replace(/`/g, "");
+      const stmt = parseActiveStatement(ctx.state.doc.toString(), ctx.pos);
+      const aliases = extractTableAliases(stmt);
+
+      const tableName = aliases[prefix] ?? prefix;
+      const loaded = ns?.loadedColumns?.[tableName];
+      if (loaded) {
+        return {
+          from: dotMatch.to,
+          options: loaded.map((col) => ({ label: col, type: "field" })),
+          validFor: /[\w`]*/,
+        };
+      }
+
+      if (!fetcher || !ns) {
+        return { from: dotMatch.to, options: [], validFor: /[\w`]*/ };
+      }
+
+      return buildColumnCompletionsForDot(prefix, ns, fetcher, aliases).then(
+        (cols) => ({
+          from: dotMatch.to,
+          options: cols as import("@codemirror/autocomplete").Completion[],
+          validFor: /[\w`]*/,
+        }),
+      );
+    }
+
+    const options: import("@codemirror/autocomplete").Completion[] = [];
+
+    if (ns) {
+      options.push(...buildTableCompletions(ns));
+      options.push(...buildDatabaseQualifiedCompletions(ns));
+    }
+
+    options.push(...buildKeywordCompletions());
+
+    return { from: ctx.pos, options, validFor: /[\w`]*/ };
+  };
+}
 
 type ResolvedEditorTheme = Exclude<QueryEditorThemePreference, "system">;
 
@@ -195,54 +242,7 @@ export function SqlCodeEditorClient({
   }, [onEditorView]);
 
   const sqlCompletionSource = useCallback(
-    (ctx: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
-      const ns = schemaNamespace;
-      const fetcher = columnFetcher;
-
-      const dotMatch = ctx.matchBefore(/[\w`]+\./);
-      if (dotMatch) {
-        const prefix = dotMatch.text.slice(0, -1).replace(/`/g, "");
-        const stmt = parseActiveStatement(ctx.state.doc.toString(), ctx.pos);
-        const aliases = extractTableAliases(stmt);
-
-        const tableName = aliases[prefix] ?? prefix;
-        const loaded = ns?.loadedColumns?.[tableName];
-        if (loaded) {
-          return {
-            from: dotMatch.to,
-            options: loaded.map((col) => ({ label: col, type: "field" })),
-            validFor: /[\w`]*/,
-          };
-        }
-
-        if (!fetcher || !ns) {
-          return { from: dotMatch.to, options: [], validFor: /[\w`]*/ };
-        }
-
-        return buildColumnCompletionsForDot(prefix, ns, fetcher, aliases).then(
-          (cols) => ({
-            from: dotMatch.to,
-            options: cols as import("@codemirror/autocomplete").Completion[],
-            validFor: /[\w`]*/,
-          }),
-        );
-      }
-
-      const options: import("@codemirror/autocomplete").Completion[] = [];
-
-      if (ns) {
-        options.push(...buildTableCompletions(ns));
-        options.push(...buildDatabaseQualifiedCompletions(ns));
-      }
-
-      options.push(...buildKeywordCompletions());
-
-      return {
-        from: ctx.pos,
-        options,
-        validFor: /[\w`]*/,
-      };
-    },
+    createSqlCompletionSource(schemaNamespace, columnFetcher),
     [schemaNamespace, columnFetcher],
   );
 
