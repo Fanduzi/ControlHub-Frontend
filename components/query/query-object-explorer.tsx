@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { QueryObjectTree } from "@/components/query/query-object-tree";
@@ -29,7 +29,13 @@ export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProp
     const controller = new AbortController();
     const requestGeneration = generation.current + 1;
     generation.current = requestGeneration;
-    setLoadingDatabases(true); setError(false); setDatabases([]); setObjects(new Map()); setDetails(new Map());
+    startTransition(() => {
+      setLoadingDatabases(true);
+      setError(false);
+      setDatabases([]);
+      setObjects(new Map());
+      setDetails(new Map());
+    });
     void getSchemaDatabases(targetId, { page: 1, pageSize: PAGE_SIZE, signal: controller.signal }).then(
       (response) => { if (!controller.signal.aborted && requestGeneration === generation.current) setDatabases(response.items.map((database) => database.name)); },
       () => { if (!controller.signal.aborted && requestGeneration === generation.current) setError(true); },

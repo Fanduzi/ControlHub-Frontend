@@ -63,7 +63,7 @@ export function QueryWorkbench({
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
   const [activeDatabase, setActiveDatabase] = useState<string | null>(null);
   const searchGeneration = useRef(0);
-  const schemaStore = useRef(new QuerySchemaStore());
+  const schemaStore = useMemo(() => new QuerySchemaStore(), []);
 
   useEffect(() => {
     const generation = searchGeneration.current + 1;
@@ -184,7 +184,7 @@ export function QueryWorkbench({
             onActiveTargetChange={setActiveTargetFromWorksheet}
             onActiveDatabaseChange={setActiveDatabase}
           />
-          <QuerySchemaBrowser target={activeTarget} store={schemaStore.current} activeDatabase={activeDatabase} />
+          <QuerySchemaBrowser target={activeTarget} store={schemaStore} activeDatabase={activeDatabase} />
         </div>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />

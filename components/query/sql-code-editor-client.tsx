@@ -242,7 +242,7 @@ export function SqlCodeEditorClient({
   }, [onEditorView]);
 
   const sqlCompletionSource = useCallback(
-    createSqlCompletionSource(schemaNamespace, columnFetcher),
+    (ctx: CompletionContext) => createSqlCompletionSource(schemaNamespace, columnFetcher)(ctx),
     [schemaNamespace, columnFetcher],
   );
 
