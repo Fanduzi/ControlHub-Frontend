@@ -41,6 +41,8 @@ function renderTable() {
           pageSize: 25,
           totalItems: 100,
           totalPages: 4,
+          hasNextPage: false,
+          hasPreviousPage: true,
         }}
       />
     </NextIntlClientProvider>,

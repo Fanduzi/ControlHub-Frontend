@@ -41,6 +41,8 @@ describe("listAuditEvents", () => {
         pageSize: 5,
         totalItems: 21,
         totalPages: 5,
+        hasNextPage: true,
+        hasPreviousPage: true,
       },
     };
 
@@ -86,6 +88,8 @@ describe("listAuditEvents", () => {
         pageSize: 20,
         totalItems: 2,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies AuditEventListResponse);
 
@@ -121,6 +125,8 @@ describe("listAuditEvents", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
         },
       } satisfies AuditEventListResponse)
       .mockResolvedValueOnce({
@@ -139,6 +145,8 @@ describe("listAuditEvents", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
         },
       } satisfies AuditEventListResponse);
 
@@ -168,7 +176,14 @@ describe("listAuditEvents", () => {
           createdAt: "2026-04-16T00:00:00Z",
         },
       ],
-      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     } satisfies AuditEventListResponse);
 
     const result = await listResourceAuditEvents(7);
