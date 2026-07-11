@@ -48,7 +48,14 @@ function renderNavigator(
     activeTargetId: number | null;
     filters: WorkbenchFilters;
     engines: string[];
-    pageInfo: { page: number; pageSize: number; totalItems: number; totalPages: number };
+    pageInfo?: {
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   }> = {},
@@ -62,7 +69,14 @@ function renderNavigatorElement(
     activeTargetId: number | null;
     filters: WorkbenchFilters;
     engines: string[];
-    pageInfo: { page: number; pageSize: number; totalItems: number; totalPages: number };
+    pageInfo: {
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   }> = {},
@@ -75,7 +89,14 @@ function renderNavigatorElement(
         activeTargetId={props.activeTargetId ?? targets[0]!.resourceId}
         filters={props.filters ?? EMPTY_FILTERS}
         engines={props.engines ?? ["clickhouse", "mysql"]}
-        pageInfo={props.pageInfo ?? { page: 1, pageSize: 50, totalItems: targets.length, totalPages: 1 }}
+        pageInfo={props.pageInfo ?? {
+          page: 1,
+          pageSize: 50,
+          totalItems: targets.length,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }}
         onSelect={props.onSelect ?? vi.fn()}
         onFilterChange={props.onFilterChange ?? vi.fn()}
       />
@@ -138,7 +159,7 @@ describe("QueryConnectionNavigator", () => {
     expect(activeButton).toHaveTextContent("Development MySQL");
   });
 
-  it("keeps active connection summary visible when filtered out", () => {
+  it("does not duplicate the active connection summary inside the navigator", () => {
     const targets = buildTwoTargets();
     renderNavigator({
       targets,
@@ -146,9 +167,7 @@ describe("QueryConnectionNavigator", () => {
       filters: { ...EMPTY_FILTERS, engine: "clickhouse" },
     });
 
-    expect(
-      screen.getByRole("region", { name: "Active connection" }),
-    ).toHaveTextContent("Development MySQL");
+    expect(screen.queryByRole("region", { name: "Active connection" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Development MySQL" }),
     ).not.toBeInTheDocument();
@@ -175,7 +194,14 @@ describe("QueryConnectionNavigator", () => {
   it("renders page info showing bounded target count", () => {
     renderNavigator({
       targets: buildTwoTargets(),
-      pageInfo: { page: 1, pageSize: 2, totalItems: 64, totalPages: 32 },
+      pageInfo: {
+        page: 1,
+        pageSize: 2,
+        totalItems: 64,
+        totalPages: 32,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
     });
 
     expect(

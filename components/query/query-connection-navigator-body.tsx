@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
+import type { RefObject } from "react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ type NavigatorBodyProps = {
   pageInfo?: string;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   onSelect: (resourceId: number) => void;
+  searchInputRef?: RefObject<HTMLInputElement | null>;
 };
 
 export function NavigatorBody({
@@ -44,13 +46,12 @@ export function NavigatorBody({
   pageInfo,
   onFilterChange,
   onSelect,
+  searchInputRef,
 }: NavigatorBodyProps) {
   const t = useTranslations("queryWorkbench");
 
   return (
     <div className="flex flex-col gap-3">
-      {activeTarget && <ActiveConnectionSummary target={activeTarget} />}
-
       <div className="space-y-2">
         <div className="relative">
           <Search
@@ -58,6 +59,7 @@ export function NavigatorBody({
             aria-hidden
           />
           <Input
+            ref={searchInputRef}
             type="text"
             value={filters.q}
             onChange={(event) => onFilterChange({ q: event.target.value })}
@@ -117,7 +119,7 @@ export function NavigatorBody({
   );
 }
 
-function ActiveConnectionSummary({ target }: { target: QueryTarget }) {
+export function ActiveConnectionSummary({ target }: { readonly target: QueryTarget }) {
   const t = useTranslations("queryWorkbench");
 
   return (
