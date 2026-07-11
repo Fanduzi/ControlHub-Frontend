@@ -21,7 +21,6 @@ test.describe("Query Workbench shell", () => {
         /Fast Refresh/,
         /HMR/,
         /Download the React DevTools/,
-        /Failed to load resource:.*403/,
       ],
       allowedWarnings: [
         /was preloaded using link preload but not used/,

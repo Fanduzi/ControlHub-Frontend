@@ -60,4 +60,18 @@ describe("isAllowedConsoleMessage", () => {
     expect(isAllowedConsoleMessage("warning", "hydration mismatch", ciOpts)).toBe(true);
     expect(isAllowedConsoleMessage("warning", "Hydration mismatch", ciOpts)).toBe(true);
   });
+
+  it("REGRESSION: unexpected 403 console error must NOT be suppressed by default", () => {
+    // The query-workbench.spec.ts had /Failed to load resource:.*403/ in allowedErrors,
+    // which would suppress ANY 403 console error - hiding real API regressions.
+    // This test proves that a 403 error is NOT allowed when using the standard allowlist.
+    const standardOpts: ConsoleGuardOptions = {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    };
+    // A 403 resource failure should be caught, not suppressed
+    expect(isAllowedConsoleMessage("error", "Failed to load resource: the server responded with a status of 403 (Forbidden)", standardOpts)).toBe(false);
+    // A schema API 403 should also be caught
+    expect(isAllowedConsoleMessage("error", "Failed to load resource: http://localhost:8080/query-targets/616/schema/databases?page=1&pageSize=50 → 403", standardOpts)).toBe(false);
+  });
 });
