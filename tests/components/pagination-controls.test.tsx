@@ -29,6 +29,8 @@ describe("PaginationControls", () => {
             pageSize: 20,
             totalItems: 200,
             totalPages: 10,
+            hasNextPage: true,
+            hasPreviousPage: true,
           }}
         />
       </NextIntlClientProvider>,
@@ -50,6 +52,8 @@ describe("PaginationControls", () => {
             pageSize: 20,
             totalItems: 200,
             totalPages: 10,
+            hasNextPage: true,
+            hasPreviousPage: true,
           }}
         />
       </NextIntlClientProvider>,
@@ -74,6 +78,8 @@ describe("PaginationControls", () => {
             pageSize: 25,
             totalItems: 250,
             totalPages: 10,
+            hasNextPage: true,
+            hasPreviousPage: true,
           }}
         />
       </NextIntlClientProvider>,
@@ -93,6 +99,8 @@ describe("PaginationControls", () => {
             pageSize: 20,
             totalItems: 200,
             totalPages: 10,
+            hasNextPage: true,
+            hasPreviousPage: false,
           }}
         />
       </NextIntlClientProvider>,
@@ -109,11 +117,33 @@ describe("PaginationControls", () => {
             pageSize: 20,
             totalItems: 200,
             totalPages: 10,
+            hasNextPage: false,
+            hasPreviousPage: true,
           }}
         />
       </NextIntlClientProvider>,
     );
 
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+  });
+
+  it("prefers the explicit server navigation booleans over locally-derived totals", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PaginationControls
+          pageInfo={{
+            page: 2,
+            pageSize: 20,
+            totalItems: 200,
+            totalPages: 10,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   });
 });

@@ -48,6 +48,8 @@ export function PaginationControls({ pageInfo }: PaginationControlsProps) {
       ).sort((left, right) => left - right),
     [pageInfo.pageSize],
   );
+  const hasPreviousPage = pageInfo.hasPreviousPage;
+  const hasNextPage = pageInfo.hasNextPage;
 
   function navigate(nextPage: number) {
     const params = new URLSearchParams(searchParams.toString());
@@ -70,7 +72,7 @@ export function PaginationControls({ pageInfo }: PaginationControlsProps) {
     <div className="flex items-center gap-2">
       <Button
         aria-label={t("pagination.previous")}
-        disabled={pageInfo.page <= 1}
+        disabled={!hasPreviousPage}
         onClick={() => navigate(pageInfo.page - 1)}
         size="sm"
         type="button"
@@ -97,7 +99,7 @@ export function PaginationControls({ pageInfo }: PaginationControlsProps) {
       })}
       <Button
         aria-label={t("pagination.next")}
-        disabled={pageInfo.page >= pageInfo.totalPages}
+        disabled={!hasNextPage}
         onClick={() => navigate(pageInfo.page + 1)}
         size="sm"
         type="button"
