@@ -75,6 +75,10 @@ vi.mock("next-themes", () => ({
 
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { QUERY_EDITOR_HEIGHT_STORAGE_KEY } from "@/lib/query-editor-preferences";
+import {
+  buildColumnCompletionsForDot,
+  buildTableCompletions,
+} from "@/lib/query-sql-completion";
 import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import {
   executeQueryTarget,
@@ -2269,5 +2273,33 @@ describe("QueryWorkbench SQL completion integration", () => {
         "400",
       );
     });
+  });
+});
+
+describe("QueryWorkbench SQL completion vocabulary", () => {
+  it("offers visible table names from bounded schema metadata", () => {
+    const completions = buildTableCompletions({
+      tables: [{ name: "order_items", kind: "table" }, { name: "active_orders", kind: "view" }],
+    });
+
+    expect(completions).toEqual([
+      expect.objectContaining({ label: "order_items", type: "table" }),
+      expect.objectContaining({ label: "active_orders", type: "view" }),
+    ]);
+  });
+
+  it("resolves alias-dot completion to a visible column without exposing connection secrets", async () => {
+    const completions = await buildColumnCompletionsForDot(
+      "o",
+      { tables: [{ name: "orders", kind: "table" }], loadedColumns: { orders: ["id", "created_at"] } },
+      vi.fn(),
+      { o: "orders" },
+    );
+
+    expect(completions).toEqual([
+      expect.objectContaining({ label: "id", type: "field" }),
+      expect.objectContaining({ label: "created_at", type: "field" }),
+    ]);
+    expect(JSON.stringify(completions)).not.toMatch(/credential|password|username|dsn/i);
   });
 });

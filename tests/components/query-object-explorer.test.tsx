@@ -11,11 +11,12 @@ vi.mock("@/services/query-schema", () => ({
 
 import { QuerySchemaBrowser } from "@/components/query/query-schema-browser";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
-import { getSchemaDatabases } from "@/services/query-schema";
+import { getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import enMessages from "@/messages/en.json";
 
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
+const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 
 function renderBrowser() {
   return render(
@@ -34,6 +35,7 @@ function renderBrowser() {
 describe("QuerySchemaBrowser", () => {
   beforeEach(() => {
     mockGetSchemaDatabases.mockReset();
+    mockGetSchemaObjects.mockReset();
   });
 
   it("fetches only the first bounded database page when the explorer opens", async () => {
@@ -63,5 +65,35 @@ describe("QuerySchemaBrowser", () => {
       );
     });
     expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a 1000-object namespace lazy until its database is expanded", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 12,
+      defaultDatabase: "app",
+      items: Array.from({ length: 25 }, (_, index) => ({ name: `database_${index}`, isDefault: index === 0 })),
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1000, totalPages: 40, hasNextPage: true, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 12,
+      database: "database_0",
+      items: Array.from({ length: 500 }, (_, index) => ({ database: "database_0", name: `object_${index}`, kind: "table" as const })),
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1000, totalPages: 40, hasNextPage: true, hasPreviousPage: false },
+    });
+
+    renderBrowser();
+    await user.click(screen.getByRole("button", { name: "Open objects" }));
+    await screen.findByRole("button", { name: "database_0" });
+
+    expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
+    expect(mockGetSchemaObjects).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "database_0" }));
+    await waitFor(() => expect(mockGetSchemaObjects).toHaveBeenCalledTimes(1));
+    expect(mockGetSchemaObjects).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ database: "database_0", page: 1, pageSize: 25 }),
+    );
   });
 });

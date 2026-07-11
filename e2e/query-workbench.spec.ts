@@ -663,3 +663,60 @@ async function getEditorHeight(page: Page): Promise<number> {
     return Math.round(editor.getBoundingClientRect().height);
   });
 }
+
+test.describe("Query Workbench schema intelligence", () => {
+  test("object explorer loads bounded database metadata and reveals fixture objects", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("button", { name: "Open objects" }).click();
+    const explorer = page.getByRole("dialog").last();
+    await expect(explorer).toBeVisible();
+    const databases = explorer.getByRole("treeitem");
+    await expect(databases.first()).toBeVisible({ timeout: 15_000 });
+    await databases.first().getByRole("button").click();
+    await expect(explorer.getByRole("tree")).toBeVisible();
+  });
+
+  test("Quick Navigator finds and reveals a schema object with bounded server search", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/schema/")) requests.push(request.url());
+    });
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+P" : "Control+P");
+    const navigator = page.getByRole("dialog", { name: /quick navigator/i });
+    await expect(navigator).toBeVisible();
+    const search = navigator.getByRole("textbox", { name: /search databases and objects/i });
+    await search.fill("order");
+    await expect.poll(() => requests.some((url) => /pageSize=50/.test(url))).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(navigator).toBeHidden();
+  });
+
+  test("mobile object explorer stays a drawer while the SQL editor remains primary", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    await expect(getEditor(page)).toBeVisible();
+    await page.getByRole("button", { name: "Open objects on mobile" }).click();
+    const explorerDrawer = page.getByRole("dialog").last();
+    await expect(explorerDrawer).toBeVisible();
+    const box = await explorerDrawer.boundingBox();
+    expect(box).not.toBeNull();
+    if (box === null) return;
+    expect(box.y + box.height).toBeGreaterThanOrEqual(840);
+  });
+});
