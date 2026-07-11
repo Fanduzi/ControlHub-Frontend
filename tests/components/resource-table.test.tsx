@@ -93,6 +93,8 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
           pageSize: 20,
           totalItems: 40,
           totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
         }}
         resourceTypes={resourceTypes}
         availableSubtypes={availableSubtypes}
@@ -303,7 +305,14 @@ describe("ResourceTable", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResourceTable
           resources={[archivedResource]}
-          pageInfo={{ page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }}
+          pageInfo={{
+            page: 1,
+            pageSize: 20,
+            totalItems: 1,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          }}
           resourceTypes={[]}
         />
       </NextIntlClientProvider>,

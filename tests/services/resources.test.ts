@@ -63,6 +63,8 @@ describe("listResources", () => {
         pageSize: 10,
         totalItems: 64,
         totalPages: 7,
+        hasNextPage: true,
+        hasPreviousPage: true,
       },
     };
 
@@ -113,6 +115,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -169,6 +173,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 2,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -219,6 +225,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -266,6 +274,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -302,6 +312,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -348,6 +360,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -404,6 +418,8 @@ describe("listResources", () => {
         pageSize: 20,
         totalItems: 2,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     } satisfies ResourceListResponse);
 
@@ -446,6 +462,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
         },
       } satisfies ResourceListResponse)
       .mockResolvedValueOnce({
@@ -475,6 +493,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
         },
       } satisfies ResourceListResponse)
       .mockResolvedValueOnce({
@@ -504,6 +524,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
         },
       } satisfies ResourceListResponse)
       .mockResolvedValueOnce({
@@ -533,6 +555,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
         },
       } satisfies ResourceListResponse)
       .mockResolvedValueOnce({
@@ -562,6 +586,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
         },
       } satisfies ResourceListResponse)
       .mockResolvedValueOnce({
@@ -591,6 +617,8 @@ describe("listResources", () => {
           pageSize: 1,
           totalItems: 2,
           totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
         },
       } satisfies ResourceListResponse);
 
