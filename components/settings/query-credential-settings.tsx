@@ -41,6 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -85,8 +86,31 @@ import {
 // Concurrency limit for credential status fan-out
 // ---------------------------------------------------------------------------
 const FAN_OUT_CONCURRENCY = 4;
-const PAGE_SIZE = 25;
+const CREDENTIAL_PAGE_SIZES = [25, 50, 100] as const;
+type CredentialPageSize = (typeof CREDENTIAL_PAGE_SIZES)[number];
 const MOBILE_BREAKPOINT = 640;
+
+function toCredentialPageSize(pageSize: number): CredentialPageSize {
+  if (pageSize === 50 || pageSize === 100) {
+    return pageSize;
+  }
+  return 25;
+}
+
+function toCredentialPageSizeFromValue(
+  pageSize: string | null,
+): CredentialPageSize | null {
+  switch (pageSize) {
+    case "25":
+      return 25;
+    case "50":
+      return 50;
+    case "100":
+      return 100;
+    default:
+      return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hooks
@@ -171,16 +195,26 @@ export function QueryCredentialSettings({
   const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
   const [dialogTargetId, setDialogTargetId] = useState<number | null>(null);
   const [page, setPage] = useState(pageInfo.page);
+  const [pageSize, setPageSize] = useState<CredentialPageSize>(() =>
+    toCredentialPageSize(pageInfo.pageSize),
+  );
   const targetFetchGenerationRef = useRef(0);
   const targetFetchInitializedRef = useRef(false);
+  const targetFetchControllerRef = useRef<AbortController | null>(null);
   const statusFetchGenerationRef = useRef(0);
+  const targetListIdsKeyRef = useRef("");
+  const visibleTargetIdsKeyRef = useRef("");
 
   // --- Fetch all credential statuses with bounded fan-out ---
   const fetchAllCredentialStatuses = useCallback(
-    async (targetList: QueryTarget[]) => {
+    async (targetsForPage: QueryTarget[]) => {
       const generation = statusFetchGenerationRef.current + 1;
       statusFetchGenerationRef.current = generation;
-      if (targetList.length === 0) {
+      const targetPageGeneration = targetFetchGenerationRef.current;
+      const targetIdsKey = targetsForPage
+        .map((target) => target.resourceId)
+        .join(",");
+      if (targetsForPage.length === 0) {
         setCredentialMap(new Map());
         setErrorMap(new Map());
         setStatusesLoading(false);
@@ -192,13 +226,17 @@ export function QueryCredentialSettings({
       const newErrors = new Map<number, string>();
 
       // Process in batches of FAN_OUT_CONCURRENCY
-      for (let i = 0; i < targetList.length; i += FAN_OUT_CONCURRENCY) {
-        const batch = targetList.slice(i, i + FAN_OUT_CONCURRENCY);
+      for (let i = 0; i < targetsForPage.length; i += FAN_OUT_CONCURRENCY) {
+        const batch = targetsForPage.slice(i, i + FAN_OUT_CONCURRENCY);
         const results = await Promise.allSettled(
           batch.map((target) => getQueryCredential(target.resourceId)),
         );
 
-        if (statusFetchGenerationRef.current !== generation) {
+        if (
+          statusFetchGenerationRef.current !== generation ||
+          targetFetchGenerationRef.current !== targetPageGeneration ||
+          targetListIdsKeyRef.current !== targetIdsKey
+        ) {
           return;
         }
 
@@ -223,7 +261,11 @@ export function QueryCredentialSettings({
         setErrorMap(new Map(newErrors));
       }
 
-      if (statusFetchGenerationRef.current === generation) {
+      if (
+        statusFetchGenerationRef.current === generation &&
+        targetFetchGenerationRef.current === targetPageGeneration &&
+        targetListIdsKeyRef.current === targetIdsKey
+      ) {
         setStatusesLoading(false);
       }
     },
@@ -254,7 +296,6 @@ export function QueryCredentialSettings({
     [filteredRows, groupingMode],
   );
 
-  const currentPage = targetPageInfo.page;
   const pagedGroups = groups;
 
   const visibleRows = useMemo(
@@ -266,26 +307,19 @@ export function QueryCredentialSettings({
     () => visibleRows.map((row) => row.resourceId).join(","),
     [visibleRows],
   );
+  visibleTargetIdsKeyRef.current = visibleTargetIdsKey;
 
-  const targetsById = useMemo(
-    () => new Map(targetList.map((target) => [target.resourceId, target])),
+  const targetListIdsKey = useMemo(
+    () => targetList.map((target) => target.resourceId).join(","),
     [targetList],
   );
-
-  const visibleTargets = useMemo(() => {
-    if (visibleTargetIdsKey === "") return [];
-    return visibleTargetIdsKey
-      .split(",")
-      .map((id) => targetsById.get(Number(id)))
-      .filter((target): target is QueryTarget => target !== undefined);
-  }, [targetsById, visibleTargetIdsKey]);
+  targetListIdsKeyRef.current = targetListIdsKey;
 
   useEffect(() => {
     if (isAdmin) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void fetchAllCredentialStatuses(visibleTargets);
+      void fetchAllCredentialStatuses(targetList);
     }
-  }, [isAdmin, visibleTargets, fetchAllCredentialStatuses]);
+  }, [isAdmin, targetList, fetchAllCredentialStatuses]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -296,21 +330,32 @@ export function QueryCredentialSettings({
 
     const generation = targetFetchGenerationRef.current + 1;
     targetFetchGenerationRef.current = generation;
+    targetFetchControllerRef.current?.abort();
+    const controller = new AbortController();
+    targetFetchControllerRef.current = controller;
     const trimmedQuery = filters.search.trim();
 
     const loadTargets = async () => {
       setTargetsLoading(true);
       setTargetLoadError(null);
 
-      const response = await getQueryTargets({
-      page,
-      pageSize: PAGE_SIZE,
-      ...(trimmedQuery && { q: trimmedQuery }),
-      ...(filters.engine !== "" &&
-        filters.engine !== ALL_FILTER_VALUE && { engine: filters.engine }),
-      });
+      const response = await getQueryTargets(
+        {
+          page,
+          pageSize,
+          ...(trimmedQuery && { q: trimmedQuery }),
+          ...(filters.engine !== "" &&
+            filters.engine !== ALL_FILTER_VALUE && { engine: filters.engine }),
+        },
+        { signal: controller.signal },
+      );
 
-      if (targetFetchGenerationRef.current !== generation) return;
+      if (
+        targetFetchGenerationRef.current !== generation ||
+        controller.signal.aborted
+      ) {
+        return;
+      }
       setTargetList(response.items);
       setTargetPageInfo(response.pageInfo);
       setSelectedIds(new Set());
@@ -320,17 +365,27 @@ export function QueryCredentialSettings({
 
     void loadTargets()
       .catch((error: unknown) => {
-        if (targetFetchGenerationRef.current !== generation) return;
+        if (
+          targetFetchGenerationRef.current !== generation ||
+          controller.signal.aborted
+        ) {
+          return;
+        }
         setTargetLoadError(
           error instanceof Error ? error.message : "Failed to load targets",
         );
       })
       .finally(() => {
-        if (targetFetchGenerationRef.current === generation) {
+        if (
+          targetFetchGenerationRef.current === generation &&
+          !controller.signal.aborted
+        ) {
           setTargetsLoading(false);
         }
       });
-  }, [filters.engine, filters.search, isAdmin, page]);
+
+    return () => controller.abort();
+  }, [filters.engine, filters.search, isAdmin, page, pageSize]);
 
   // --- Unique values for filter dropdowns ---
   const environments = useMemo(
@@ -398,6 +453,14 @@ export function QueryCredentialSettings({
     setPage(1);
   }
 
+  function handlePageSizeChange(nextPageSize: string | null) {
+    const nextSize = toCredentialPageSizeFromValue(nextPageSize);
+    if (nextSize !== null) {
+      setPageSize(nextSize);
+      setPage(1);
+    }
+  }
+
   function toggleSelectAll() {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
@@ -425,17 +488,38 @@ export function QueryCredentialSettings({
   function retryFetchForTarget(resourceId: number) {
     const target = targetList.find((t) => t.resourceId === resourceId);
     if (!target) return;
+    const targetPageGeneration = targetFetchGenerationRef.current;
+    const targetIdsKey = visibleTargetIdsKeyRef.current;
     void (async () => {
       try {
         const data = await getQueryCredential(resourceId);
+        if (
+          targetFetchGenerationRef.current !== targetPageGeneration ||
+          visibleTargetIdsKeyRef.current !== targetIdsKey ||
+          !targetIdsKey.split(",").includes(String(resourceId))
+        ) {
+          return;
+        }
         setCredentialMap((prev) => new Map(prev).set(resourceId, data));
         setErrorMap((prev) => {
           const next = new Map(prev);
           next.delete(resourceId);
           return next;
         });
-      } catch {
-        // error stays
+      } catch (error: unknown) {
+        if (
+          targetFetchGenerationRef.current !== targetPageGeneration ||
+          visibleTargetIdsKeyRef.current !== targetIdsKey ||
+          !targetIdsKey.split(",").includes(String(resourceId))
+        ) {
+          return;
+        }
+        setErrorMap((previous) =>
+          new Map(previous).set(
+            resourceId,
+            error instanceof Error ? error.message : "Failed to load",
+          ),
+        );
       }
     })();
   }
@@ -494,7 +578,7 @@ export function QueryCredentialSettings({
         onResultsAppended={(results) =>
           setOperationResults((prev) => [...prev, ...results])
         }
-        onRefreshStatuses={() => void fetchAllCredentialStatuses(visibleTargets)}
+        onRefreshStatuses={() => void fetchAllCredentialStatuses(targetList)}
       />
 
       {/* Operations table + pagination */}
@@ -524,10 +608,10 @@ export function QueryCredentialSettings({
         />
 
         <PaginationControls
-          page={currentPage}
-          pageSize={PAGE_SIZE}
-          total={targetPageInfo.totalItems}
+          pageInfo={targetPageInfo}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
         />
       </div>
 
@@ -539,10 +623,13 @@ export function QueryCredentialSettings({
           }
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden p-3 sm:max-w-lg sm:p-4">
-          <DialogHeader>
+        <DialogContent className="inset-0 max-h-none max-w-none translate-x-0 translate-y-0 overflow-y-auto overflow-x-hidden rounded-none p-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:max-h-[85vh] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-4">
+          <DialogHeader className="pr-8">
             <DialogTitle>{t("detail.title")}</DialogTitle>
           </DialogHeader>
+          <DialogClose render={<Button type="button" size="sm" variant="outline" />}>
+            {t("detail.closeButton")}
+          </DialogClose>
           {dialogTargetId !== null && (
             <CredentialDetailPanel
               key={dialogTargetId}
@@ -550,7 +637,7 @@ export function QueryCredentialSettings({
                 targetList.find((t) => t.resourceId === dialogTargetId) ?? targetList[0]
               }
               onCredentialChanged={() =>
-                void fetchAllCredentialStatuses(visibleTargets)
+                void fetchAllCredentialStatuses(targetList)
               }
             />
           )}
@@ -623,6 +710,9 @@ function CoverageSummaryCards({
       <h2 className="mb-3 text-sm font-semibold text-foreground">
         {t("coverage.title")}
       </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        {t("coverage.scope")}
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {cards.map((card) => (
           <div
@@ -960,47 +1050,69 @@ function BulkActionBar({
 }
 
 function PaginationControls({
-  page,
+  pageInfo,
   pageSize,
-  total,
   onPageChange,
+  onPageSizeChange,
 }: {
-  page: number;
-  pageSize: number;
-  total: number;
+  pageInfo: PageInfo;
+  pageSize: CredentialPageSize;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: string | null) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
   const tPagination = useTranslations("pagination");
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, total);
-  const hasPrevious = page > 1;
-  const hasNext = end < total;
+  const start =
+    pageInfo.totalItems === 0 ? 0 : (pageInfo.page - 1) * pageInfo.pageSize + 1;
+  const end = Math.min(pageInfo.page * pageInfo.pageSize, pageInfo.totalItems);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-muted-foreground">
-        {t("operations.pagination.showing", { start, end, total })}
-      </p>
+      <div>
+        <p className="text-sm text-muted-foreground">
+          {t("operations.pagination.showing", {
+            start,
+            end,
+            total: pageInfo.totalItems,
+          })}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t("operations.pagination.scope")}
+        </p>
+      </div>
       <div className="flex items-center gap-2">
         <Button
+          aria-label={tPagination("previous")}
           type="button"
           variant="outline"
           size="sm"
-          disabled={!hasPrevious}
-          onClick={() => onPageChange(page - 1)}
+          disabled={!pageInfo.hasPreviousPage}
+          onClick={() => onPageChange(pageInfo.page - 1)}
         >
           {tPagination("previous")}
         </Button>
         <Button
+          aria-label={tPagination("next")}
           type="button"
           variant="outline"
           size="sm"
-          disabled={!hasNext}
-          onClick={() => onPageChange(page + 1)}
+          disabled={!pageInfo.hasNextPage}
+          onClick={() => onPageChange(pageInfo.page + 1)}
         >
           {tPagination("next")}
         </Button>
+        <Select value={String(pageSize)} onValueChange={onPageSizeChange}>
+          <SelectTrigger aria-label={t("operations.pagination.pageSize")} size="sm">
+            <span>{t("operations.pagination.pageSizeValue", { pageSize })}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {CREDENTIAL_PAGE_SIZES.map((option) => (
+              <SelectItem key={option} value={String(option)}>
+                {t("operations.pagination.pageSizeValue", { pageSize: option })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

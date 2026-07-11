@@ -98,7 +98,9 @@ test.describe("Query credential settings", () => {
     await page.goto("/settings/query-credentials");
 
     // Filter section should be visible.
-    await expect(page.getByText("Filters")).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("heading", { name: "Filters" }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // Search input should be visible.
     const searchInput = page.locator('input[type="search"]');
@@ -451,5 +453,63 @@ test.describe("Query credential settings", () => {
       secondPageFirstTarget,
       "First row on page 2 must differ from page 1",
     ).not.toBe(firstPageFirstTarget);
+  });
+
+  test("operations pagination supports 25, 50, and 100 rows per page", async ({
+    page,
+  }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    const showingText = page.getByText(/Showing \d+–\d+ of \d+/);
+    await expect(showingText).toBeVisible({ timeout: 15_000 });
+    const match = (await showingText.textContent())?.match(
+      /Showing (\d+)–(\d+) of (\d+)/,
+    );
+    if (match === null || match === undefined) {
+      throw new Error("Pagination showing text must match expected format");
+    }
+    const total = Number(match[3]);
+    const pageSizeSelect = page.getByRole("combobox", {
+      name: "Rows per page",
+    });
+
+    for (const pageSize of [50, 100, 25]) {
+      await pageSizeSelect.click();
+      await page
+        .getByRole("option", { name: `${pageSize} / page`, exact: true })
+        .click();
+      await expect(pageSizeSelect).toContainText(`${pageSize} / page`);
+      await expect(showingText).toContainText(
+        `Showing 1–${Math.min(pageSize, total)} of ${total}`,
+      );
+      await expect(page.locator("table tbody tr").first()).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+  });
+
+  test("saving a configured credential shows success feedback", async ({ page }) => {
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    const editCredentialButton = page
+      .getByRole("button", { name: "Edit credential metadata" })
+      .first();
+    await expect(editCredentialButton).toBeVisible({ timeout: 15_000 });
+    await editCredentialButton.click();
+
+    const dialog = page.getByRole("dialog");
+    const credentialRef = dialog.locator("#credential-ref");
+    await expect(credentialRef).toBeVisible({ timeout: 15_000 });
+    await expect(credentialRef).not.toHaveValue("", { timeout: 15_000 });
+
+    await dialog
+      .getByRole("button", { name: "Save credential metadata" })
+      .click();
+    await expect(dialog.getByRole("status")).toHaveText(
+      "Credential metadata saved.",
+      { timeout: 15_000 },
+    );
   });
 });

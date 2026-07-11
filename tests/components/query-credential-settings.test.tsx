@@ -44,6 +44,8 @@ function pageInfoFor(targets: QueryTarget[], totalItems = targets.length): PageI
     pageSize: 25,
     totalItems,
     totalPages: Math.max(1, Math.ceil(totalItems / 25)),
+    hasNextPage: false,
+    hasPreviousPage: false,
   };
 }
 
@@ -2307,12 +2309,26 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
     mockGetQueryCredential.mockResolvedValue(credentialResponse());
     mockGetQueryTargets.mockResolvedValue({
       items: buildPagedTargets(75).slice(25, 50),
-      pageInfo: { page: 2, pageSize: 25, totalItems: 75, totalPages: 3 },
+      pageInfo: {
+        page: 2,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: true,
+      },
     });
 
     renderSettings(
       buildPagedTargets(75).slice(0, 25),
-      { page: 1, pageSize: 25, totalItems: 75, totalPages: 3 },
+      {
+        page: 1,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
     );
 
     await waitFor(() => {
@@ -2332,10 +2348,10 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
     await waitFor(() => {
       expect(screen.getByText("Target 26")).toBeInTheDocument();
     });
-    expect(mockGetQueryTargets).toHaveBeenCalledWith({
-      page: 2,
-      pageSize: 25,
-    });
+    expect(mockGetQueryTargets).toHaveBeenCalledWith(
+      { page: 2, pageSize: 25 },
+      expect.any(Object),
+    );
   });
 
   it("fetches credential status only for the current page of targets", async () => {
@@ -2345,7 +2361,14 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
 
     renderSettings(
       buildPagedTargets(75).slice(0, 25),
-      { page: 1, pageSize: 25, totalItems: 75, totalPages: 3 },
+      {
+        page: 1,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
     );
 
     await waitFor(() => {
@@ -2360,6 +2383,61 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
       expect(mockGetQueryCredential).toHaveBeenCalledWith(id);
     }
     expect(mockGetQueryCredential).not.toHaveBeenCalledWith(26);
+  });
+
+  it("continues loading every server-page credential after a readiness filter hides a pending row", async () => {
+    const user = userEvent.setup();
+    const targets = buildPagedTargets(5);
+    const pendingRequests = new Map<
+      number,
+      ReturnType<typeof createDeferred<QueryCredentialStatusResponse>>
+    >();
+    mockGetQueryCredential.mockImplementation((targetId: number) => {
+      const request = createDeferred<QueryCredentialStatusResponse>();
+      pendingRequests.set(targetId, request);
+      return request.promise;
+    });
+
+    renderSettings(targets, pageInfoFor(targets));
+
+    await waitFor(() => {
+      expect(mockGetQueryCredential).toHaveBeenCalledTimes(4);
+    });
+
+    const readinessFilter = requireElement(
+      screen.getAllByRole("combobox")[5],
+      "Expected readiness filter",
+    );
+    await user.click(readinessFilter);
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Ready" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("option", { name: "Ready" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Target 5")).toBeNull();
+    });
+
+    for (const [targetId, request] of pendingRequests) {
+      request.resolve(
+        credentialResponse({
+          resourceId: targetId,
+          configured: true,
+          runtimeStatus: "secret_resolved",
+          executionEligible: true,
+        }),
+      );
+    }
+
+    await waitFor(() => {
+      expect(screen.queryByText("Target 5")).toBeNull();
+    });
+
+    await waitFor(() => {
+      for (const target of targets) {
+        expect(mockGetQueryCredential).toHaveBeenCalledWith(target.resourceId);
+      }
+    });
   });
 
   it("ignores stale credential status responses after changing pages", async () => {
@@ -2386,12 +2464,26 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
     });
     mockGetQueryTargets.mockResolvedValue({
       items: buildPagedTargets(75).slice(25, 50),
-      pageInfo: { page: 2, pageSize: 25, totalItems: 75, totalPages: 3 },
+      pageInfo: {
+        page: 2,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: true,
+      },
     });
 
     renderSettings(
       buildPagedTargets(75).slice(0, 25),
-      { page: 1, pageSize: 25, totalItems: 75, totalPages: 3 },
+      {
+        page: 1,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
     );
 
     await waitFor(() => {
@@ -2442,7 +2534,14 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
 
     renderSettings(
       buildPagedTargets(75).slice(0, 25),
-      { page: 1, pageSize: 25, totalItems: 75, totalPages: 3 },
+      {
+        page: 1,
+        pageSize: 25,
+        totalItems: 75,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
     );
 
     await waitFor(() => {
@@ -2592,5 +2691,145 @@ describe("QueryCredentialSettings — mobile responsive card layout", () => {
     // Retry buttons should be present in the mobile card layout.
     const retryButtons = screen.getAllByRole("button", { name: /retry/i });
     expect(retryButtons.length).toBeGreaterThan(0);
+  });
+});
+
+describe("QueryCredentialSettings — Phase 38H credential paging", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    mockMatchMedia(true);
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  it("resets to page one, requests the chosen 50-row backend page, and fans status out only to that page", async () => {
+    const user = userEvent.setup();
+    const allTargets = Array.from({ length: 75 }, (_, index) =>
+      buildQueryTarget({
+        resourceId: index + 1,
+        resourceName: `target-${index + 1}`,
+        displayName: `Target ${index + 1}`,
+      }),
+    );
+    const targets = allTargets.slice(0, 50);
+    mockGetQueryCredential.mockImplementation((targetId: number) =>
+      Promise.resolve(credentialResponse({ resourceId: targetId })),
+    );
+    mockGetQueryTargets.mockResolvedValue({
+      items: targets,
+      pageInfo: {
+        page: 1,
+        pageSize: 50,
+        totalItems: 75,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    renderSettings(allTargets.slice(25, 50), {
+      page: 2,
+      pageSize: 25,
+      totalItems: 75,
+      totalPages: 3,
+      hasNextPage: true,
+      hasPreviousPage: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Target 26")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("combobox", { name: /rows per page/i }));
+    await user.click(await screen.findByRole("option", { name: "50 / page" }));
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenCalledWith(
+        { page: 1, pageSize: 50 },
+        expect.any(Object),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Target 1")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(mockGetQueryCredential).toHaveBeenCalledWith(50);
+    });
+    expect(mockGetQueryCredential).not.toHaveBeenCalledWith(51);
+    expect(
+      screen.getAllByText(/status totals reflect this page and current filters/i),
+    ).toHaveLength(2);
+  });
+
+  it("uses the server page booleans to disable pager navigation", async () => {
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings(buildTargets(), {
+      page: 2,
+      pageSize: 25,
+      totalItems: 75,
+      totalPages: 3,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Order MySQL Instance")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
+  });
+});
+
+describe("QueryCredentialSettings — Phase 38H responsive detail dialog", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    mockMobileMedia();
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  it("opens a full-screen scrollable editor on small screens and restores focus after Escape", async () => {
+    const user = userEvent.setup();
+    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+
+    renderSettings();
+
+    const editButtons = await screen.findAllByRole("button", {
+      name: /configure|edit/i,
+    });
+    const editButton = editButtons[0];
+    if (!editButton) {
+      throw new Error("Expected a credential editor trigger");
+    }
+    await user.click(editButton);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveClass("inset-0");
+    expect(dialog).toHaveClass("overflow-y-auto");
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(editButton).toHaveFocus();
   });
 });
