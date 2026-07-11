@@ -108,6 +108,8 @@ function buildResource(page = 1): ResourceListViewModelResponse {
       pageSize: 10,
       totalItems: 40,
       totalPages: 2,
+      hasNextPage: page < 2,
+      hasPreviousPage: page > 1,
     },
   };
 }
@@ -135,6 +137,8 @@ function buildAuditResponse(page = 1): AuditEventViewModelListResponse {
       pageSize: 10,
       totalItems: 30,
       totalPages: 2,
+      hasNextPage: page < 2,
+      hasPreviousPage: page > 1,
     },
   };
 }

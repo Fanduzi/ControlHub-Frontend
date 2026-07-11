@@ -267,6 +267,8 @@ export function DatabaseTable({
     pageSize: clustersPerPage,
     totalItems: totalTopLevels,
     totalPages,
+    hasNextPage: safePage < totalPages,
+    hasPreviousPage: safePage > 1,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- clustersPerPage is stable
   }), [safePage, totalTopLevels, totalPages]);
 
