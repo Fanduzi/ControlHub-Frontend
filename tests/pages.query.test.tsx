@@ -16,7 +16,7 @@ const {
     targets?: QueryTarget[];
     pageInfo?: { page: number; pageSize: number; totalItems: number; totalPages: number };
     initialFilters?: WorkbenchFilters;
-    initialActiveTargetId?: number;
+    initialActiveTargetId?: number | null;
   },
 }));
 
@@ -42,7 +42,7 @@ vi.mock("@/components/query/query-workbench", () => ({
     targets: QueryTarget[];
     pageInfo: { page: number; pageSize: number; totalItems: number; totalPages: number };
     initialFilters: WorkbenchFilters;
-    initialActiveTargetId?: number;
+    initialActiveTargetId?: number | null;
   }) => {
     captured.targets = targets;
     captured.pageInfo = pageInfo;
@@ -57,7 +57,7 @@ import QueryWorkbenchPage from "@/app/(console)/query/page";
 describe("/query page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getTranslationsMock.mockResolvedValue((key: string) => key);
+    getTranslationsMock.mockResolvedValue(Object.assign((key: string) => key, { rich: (key: string) => key }));
     captured.targets = undefined;
     captured.pageInfo = undefined;
     captured.initialFilters = undefined;
@@ -222,5 +222,25 @@ describe("/query page", () => {
     expect(getQueryTargetsMock).toHaveBeenNthCalledWith(2, {
       targetId: 42,
     });
+  });
+
+  it("fails closed when the target lookup does not return the requested target", async () => {
+    getQueryTargetsMock
+      .mockResolvedValueOnce({
+        items: [buildQueryTarget({ resourceId: 1 })],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      })
+      .mockResolvedValueOnce({
+        items: [buildQueryTarget({ resourceId: 99 })],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      });
+
+    const element = await QueryWorkbenchPage({
+      searchParams: Promise.resolve({ targetId: "42" }),
+    });
+    render(element);
+
+    expect(captured.targets?.map((target) => target.resourceId)).toEqual([1]);
+    expect(captured.initialActiveTargetId).toBeNull();
   });
 });

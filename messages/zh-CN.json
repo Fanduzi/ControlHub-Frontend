@@ -344,7 +344,7 @@
     "query": {
       "eyebrow": "查询工作台",
       "title": "查询工作台",
-      "description": "查看可查询的数据库目标、连接上下文与治理策略。仅已就绪且配置只读凭据的目标允许执行查询。"
+      "description": "查看可查询的数据库目标、连接上下文与治理策略。仅已就绪且配置<nowrap>只读凭据</nowrap>的目标允许执行查询。"
     },
     "audits": {
       "eyebrow": "审计",
@@ -1082,7 +1082,8 @@
       "availableActions": "可用动作",
       "noMissingFields": "未报告配置缺口",
       "credentialStateLabel": "凭据状态",
-      "blocker": "阻塞项"
+      "blocker": "阻塞项",
+      "details": "详情"
     },
     "policy": {
       "multiStatement": "多语句",
@@ -1205,6 +1206,7 @@
       "removeConfirmDescription": "这将移除此目标的凭据绑定。目标仍将可见且处于锁定状态。实际凭据不会被删除。",
       "saveButton": "保存凭据元数据",
       "saved": "凭据元数据已保存。",
+      "closeButton": "关闭编辑器",
       "saveDisabled": "确认前无法保存",
       "saving": "保存中...",
       "removing": "移除中...",
@@ -1249,6 +1251,7 @@
     },
     "coverage": {
       "title": "覆盖率概览",
+      "scope": "状态汇总仅反映当前页和当前筛选条件。",
       "total": "目标总数",
       "ready": "就绪",
       "missingMetadata": "缺少元数据",
@@ -1288,7 +1291,10 @@
       "fetchErrorLabel": "加载凭据状态失败",
       "retryFetch": "重试",
       "pagination": {
-        "showing": "显示第 {start}–{end} 项，共 {total} 项"
+        "showing": "显示第 {start}–{end} 项，共 {total} 项",
+        "scope": "状态汇总仅反映当前页和当前筛选条件。",
+        "pageSize": "每页行数",
+        "pageSizeValue": "每页 {pageSize} 行"
       }
     },
     "filters": {

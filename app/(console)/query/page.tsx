@@ -40,7 +40,7 @@ export default async function QueryWorkbenchPage({
   let selectedTarget: QueryTarget | undefined;
   if (targetId !== undefined) {
     const response = await getQueryTargets({ targetId });
-    selectedTarget = response.items[0];
+    selectedTarget = response.items.find((target) => target.resourceId === targetId);
   }
 
   const targets = mergeTargets(navigatorItems, selectedTarget);
@@ -50,13 +50,15 @@ export default async function QueryWorkbenchPage({
       <PageHeader
         eyebrow={t("pages.query.eyebrow")}
         title={t("pages.query.title")}
-        description={t("pages.query.description")}
+        description={t.rich("pages.query.description", {
+          nowrap: (chunks) => <span className="whitespace-nowrap">{chunks}</span>,
+        })}
       />
       <QueryWorkbench
         targets={targets}
         pageInfo={pageInfo}
         initialFilters={initialFilters}
-        initialActiveTargetId={targetId}
+        initialActiveTargetId={targetId === undefined ? undefined : selectedTarget?.resourceId ?? null}
       />
     </div>
   );

@@ -1082,7 +1082,8 @@
       "availableActions": "Available actions",
       "noMissingFields": "No configuration gaps reported",
       "credentialStateLabel": "Credential state",
-      "blocker": "Blocker"
+      "blocker": "Blocker",
+      "details": "Details"
     },
     "policy": {
       "multiStatement": "Multi-statement",
@@ -1212,6 +1213,7 @@
       "removeConfirmDescription": "This removes the credential binding for this target. The target will remain visible and locked. The actual credential is not deleted.",
       "saveButton": "Save credential metadata",
       "saved": "Credential metadata saved.",
+      "closeButton": "Close editor",
       "saveDisabled": "Save disabled until confirmation",
       "saving": "Saving...",
       "removing": "Removing...",
@@ -1256,6 +1258,7 @@
     },
     "coverage": {
       "title": "Coverage overview",
+      "scope": "Status totals reflect this page and current filters only.",
       "total": "Total targets",
       "ready": "Ready",
       "missingMetadata": "Missing metadata",
@@ -1295,7 +1298,10 @@
       "fetchErrorLabel": "Failed to load credential status",
       "retryFetch": "Retry",
       "pagination": {
-        "showing": "Showing {start}–{end} of {total}"
+        "showing": "Showing {start}–{end} of {total}",
+        "scope": "Status totals reflect this page and current filters only.",
+        "pageSize": "Rows per page",
+        "pageSizeValue": "{pageSize} / page"
       }
     },
     "filters": {
