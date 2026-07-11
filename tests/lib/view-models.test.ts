@@ -223,6 +223,8 @@ describe("getResourceViewModel", () => {
         pageSize: 10,
         totalItems: 64,
         totalPages: 7,
+        hasNextPage: true,
+        hasPreviousPage: true,
       },
     });
 
@@ -233,6 +235,8 @@ describe("getResourceViewModel", () => {
       pageSize: 10,
       totalItems: 64,
       totalPages: 7,
+      hasNextPage: true,
+      hasPreviousPage: true,
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].displayName).toBe("Orders DB Primary");
@@ -246,6 +250,8 @@ describe("getResourceViewModel", () => {
         pageSize: 15,
         totalItems: 1,
         totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       },
     });
 
@@ -294,6 +300,8 @@ describe("getResourceViewModel", () => {
           pageSize: 4,
           totalItems: 2,
           totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
         },
       })
       .mockResolvedValueOnce({
@@ -303,6 +311,8 @@ describe("getResourceViewModel", () => {
           pageSize: 4,
           totalItems: 2,
           totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
         },
       });
 
@@ -323,6 +333,8 @@ describe("getResourceViewModel", () => {
       pageSize: 2,
       totalItems: 4,
       totalPages: 2,
+      hasNextPage: false,
+      hasPreviousPage: true,
     });
     expect(result.items.map((item) => item.displayName)).toEqual([
       "C Cluster",
@@ -349,6 +361,8 @@ describe("getResourceViewModel", () => {
           pageSize: 10,
           totalItems: 11,
           totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
         },
       })
       .mockResolvedValueOnce({
@@ -358,6 +372,8 @@ describe("getResourceViewModel", () => {
           pageSize: 10,
           totalItems: 0,
           totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
         },
       });
 
@@ -385,11 +401,25 @@ describe("getResourceViewModel", () => {
     mockedListResources
       .mockResolvedValueOnce({
         items: [instance],
-        pageInfo: { page: 1, pageSize: 20, totalItems: 7, totalPages: 1 },
+        pageInfo: {
+          page: 1,
+          pageSize: 20,
+          totalItems: 7,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       })
       .mockResolvedValueOnce({
         items: [cluster],
-        pageInfo: { page: 1, pageSize: 20, totalItems: 3, totalPages: 1 },
+        pageInfo: {
+          page: 1,
+          pageSize: 20,
+          totalItems: 3,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
     const result = await listDatabaseResourceViewModels({
@@ -434,6 +464,8 @@ describe("getResourceViewModel", () => {
         pageSize: 5,
         totalItems: 21,
         totalPages: 5,
+        hasNextPage: true,
+        hasPreviousPage: true,
       },
     });
 
@@ -444,6 +476,8 @@ describe("getResourceViewModel", () => {
       pageSize: 5,
       totalItems: 21,
       totalPages: 5,
+      hasNextPage: true,
+      hasPreviousPage: true,
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].targetResourceName).toBe("Orders DB Primary");

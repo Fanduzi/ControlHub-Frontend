@@ -150,6 +150,8 @@ function fallbackPageInfo(totalItems: number) {
     pageSize: totalItems,
     totalItems,
     totalPages: totalItems > 0 ? 1 : 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
   };
 }
 
@@ -257,6 +259,8 @@ async function listPaginatedResourcesByTypes(
       pageSize,
       totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
+      hasNextPage: page < Math.ceil(totalItems / pageSize),
+      hasPreviousPage: page > 1,
     },
   };
 }
