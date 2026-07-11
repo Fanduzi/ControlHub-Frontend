@@ -1,7 +1,15 @@
 import { NextIntlClientProvider } from "next-intl";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const replace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/query",
+  useRouter: () => ({ replace }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 vi.mock("@/services/query-executions", async () => {
   const actual = await vi.importActual("@/services/query-executions");
@@ -11,6 +19,10 @@ vi.mock("@/services/query-executions", async () => {
     listQueryExecutions: vi.fn(),
   };
 });
+
+vi.mock("@/services/query-targets", () => ({
+  getQueryTargets: vi.fn(),
+}));
 
 vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
@@ -69,6 +81,7 @@ import {
   listQueryExecutions,
   QueryExecuteError,
 } from "@/services/query-executions";
+import { getQueryTargets } from "@/services/query-targets";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -81,11 +94,19 @@ import zhMessages from "@/messages/zh-CN.json";
 
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
+const mockGetQueryTargets = vi.mocked(getQueryTargets);
 
 function emptyHistory(): QueryExecutionListResponse {
   return {
     items: [],
-    pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    pageInfo: {
+      page: 1,
+      pageSize: 20,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
   };
 }
 
@@ -134,6 +155,8 @@ function pageInfoFor(targets: QueryTarget[]): PageInfo {
     pageSize: 50,
     totalItems: targets.length,
     totalPages: Math.max(1, Math.ceil(targets.length / 50)),
+    hasNextPage: false,
+    hasPreviousPage: false,
   };
 }
 
@@ -151,6 +174,10 @@ function renderWorkbench(
       />
     </NextIntlClientProvider>,
   );
+}
+
+function openConnections() {
+  fireEvent.click(screen.getByRole("button", { name: "Open connections" }));
 }
 
 function buildReadyWorkbenchTarget(): QueryTarget {
@@ -190,6 +217,7 @@ function buildReadyWorkbenchTarget(): QueryTarget {
 describe("QueryWorkbench", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    replace.mockClear();
   });
 
   it("renders the SQL editor with dark theme preference", () => {
@@ -254,12 +282,11 @@ describe("QueryWorkbench", () => {
     expect(window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY)).toBe("640");
   });
 
-  it("renders the safety banner explaining governed execution", () => {
-    renderWorkbench();
+  it("uses inline governance instead of a safety education banner for a ready target", () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
 
-    expect(
-      screen.getByText("Governed query execution"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Governance & access" })).toBeInTheDocument();
+    expect(screen.queryByText("Governed query execution")).toBeNull();
   });
 
   it("renders the active target's facts in the navigator and governance panel", () => {
@@ -269,7 +296,7 @@ describe("QueryWorkbench", () => {
       screen.getAllByText("prod-ch-host-01.internal:8123").length,
     ).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByRole("complementary", { name: "Governance & access" }),
+      screen.getByRole("region", { name: "Governance & access" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Missing read-only credential")).toBeInTheDocument();
     expect(screen.queryAllByText(/^readonlyCredential$/)).toHaveLength(0);
@@ -321,6 +348,7 @@ describe("QueryWorkbench", () => {
   it("narrows the target list with search in the connection navigator", async () => {
     const user = userEvent.setup();
     renderWorkbench();
+    openConnections();
 
     expect(
       screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }),
@@ -342,14 +370,15 @@ describe("QueryWorkbench", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders localized copy under the zh-CN locale", () => {
+  it("does not render the removed safety education banner under the zh-CN locale", () => {
     renderWorkbench(buildTargets(), zhMessages);
 
-    expect(screen.getByText("受治理的查询执行")).toBeInTheDocument();
+    expect(screen.queryByText("受治理的查询执行")).toBeNull();
   });
 
   it("shows the active target name in the navigator and header, never a bare resourceId", () => {
     renderWorkbench();
+    openConnections();
 
     expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryAllByText(/^22$/)).toHaveLength(0);
@@ -361,6 +390,7 @@ describe("QueryWorkbench", () => {
       enMessages,
       { ...EMPTY_FILTERS, queryKind: "sql", readiness: "credential_required" },
     );
+    openConnections();
 
     const queryKindTrigger = screen.getByRole("combobox", { name: "Editor mode" });
     expect(queryKindTrigger).toHaveTextContent("SQL");
@@ -394,6 +424,7 @@ describe("QueryWorkbench", () => {
       enMessages,
       { ...EMPTY_FILTERS, readiness: "missing_connection" },
     );
+    openConnections();
 
     const readinessTrigger = screen.getByRole("combobox", { name: "Readiness" });
     expect(readinessTrigger).toHaveTextContent("Missing connection");
@@ -428,6 +459,7 @@ describe("QueryWorkbench", () => {
     expect(screen.getAllByText(/Missing read-only credential/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryAllByText(/^missing_readonly_credential$/)).toHaveLength(0);
 
+    fireEvent.click(screen.getByRole("button", { name: "Governance & access Details" }));
     expect(screen.getAllByText("Host").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Port").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryAllByText(/^host$/)).toHaveLength(0);
@@ -824,7 +856,14 @@ describe("QueryWorkbench target switching (ready targets)", () => {
           createdAt: "2026-06-22T08:00:00Z",
         },
       ],
-      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     };
   }
 
@@ -844,6 +883,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     user: ReturnType<typeof userEvent.setup>,
     name: RegExp,
   ): Promise<void> {
+    openConnections();
     await user.click(await screen.findByRole("button", { name }));
   }
 
@@ -950,6 +990,182 @@ describe("QueryWorkbench target picker search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    replace.mockClear();
+  });
+
+  it("searches the server after a debounce so targets outside the loaded page are selectable", async () => {
+    vi.useFakeTimers();
+    try {
+      const outsidePageTarget = buildQueryTarget({
+        resourceId: 88,
+        displayName: "Outside page PostgreSQL",
+        resourceName: "outside-page-postgres",
+      });
+      mockGetQueryTargets.mockResolvedValue({
+        items: [outsidePageTarget],
+        pageInfo: {
+          page: 1,
+          pageSize: 50,
+          totalItems: 1,
+          totalPages: 1,
+          hasPreviousPage: false,
+          hasNextPage: false,
+        },
+      });
+
+      renderWorkbench(buildThreeTargets());
+      openConnections();
+
+      fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
+        target: { value: "outside" },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(mockGetQueryTargets).toHaveBeenCalledWith(
+        { page: 1, pageSize: 50, q: "outside" },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(screen.getByRole("button", { name: "Outside page PostgreSQL" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves the active target's canonical metadata when a server search returns its ID with conflicting details", async () => {
+    vi.useFakeTimers();
+    try {
+      const canonicalTarget = buildQueryTarget({
+        resourceId: 88,
+        displayName: "Canonical ClickHouse",
+        resourceName: "canonical-clickhouse",
+        connectionContext: {
+          environment: "Production",
+          owner: "DBA Team",
+          engine: "clickhouse",
+          host: "canonical-clickhouse.internal",
+          port: 8123,
+          clusterName: "Canonical ClickHouse Cluster",
+        },
+      });
+      const conflictingSearchTarget = buildQueryTarget({
+        resourceId: canonicalTarget.resourceId,
+        displayName: "Conflicting Search Result",
+        resourceName: "conflicting-search-result",
+        connectionContext: {
+          environment: "Staging",
+          owner: "Search Service",
+          engine: "mysql",
+          host: "conflicting-mysql.internal",
+          port: 3306,
+          clusterName: "Conflicting Search Cluster",
+        },
+      });
+      mockGetQueryTargets.mockResolvedValue({
+        items: [conflictingSearchTarget],
+        pageInfo: pageInfoFor([conflictingSearchTarget]),
+      });
+
+      renderWorkbench([canonicalTarget]);
+      openConnections();
+
+      fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
+        target: { value: "conflicting" },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      const activeSummary = screen.getByRole("region", { name: "Active connection" });
+      expect(within(activeSummary).getByText("Canonical ClickHouse")).toBeInTheDocument();
+      expect(within(activeSummary).getByText("canonical-clickhouse.internal:8123")).toBeInTheDocument();
+      expect(within(activeSummary).getByText("clickhouse")).toBeInTheDocument();
+      expect(within(activeSummary).queryByText("Conflicting Search Result")).toBeNull();
+      expect(within(activeSummary).queryByText("conflicting-mysql.internal:3306")).toBeNull();
+      expect(within(activeSummary).queryByText("mysql")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("discards a stale server search response after a newer query resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFirstSearch: ((response: { items: QueryTarget[]; pageInfo: PageInfo }) => void) | undefined;
+      let resolveSecondSearch: ((response: { items: QueryTarget[]; pageInfo: PageInfo }) => void) | undefined;
+      const firstTarget = buildQueryTarget({ resourceId: 81, displayName: "First result" });
+      const secondTarget = buildQueryTarget({ resourceId: 82, displayName: "Second result" });
+      const searchPageInfo: PageInfo = {
+        page: 1,
+        pageSize: 50,
+        totalItems: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      };
+      mockGetQueryTargets
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstSearch = resolve; }))
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondSearch = resolve; }));
+
+      renderWorkbench(buildThreeTargets());
+      openConnections();
+      const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
+
+      fireEvent.change(searchInput, { target: { value: "first" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+      fireEvent.change(searchInput, { target: { value: "second" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      resolveSecondSearch?.({ items: [secondTarget], pageInfo: searchPageInfo });
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Second result" })).toBeInTheDocument();
+
+      resolveFirstSearch?.({ items: [firstTarget], pageInfo: searchPageInfo });
+      await act(async () => {});
+      expect(screen.queryByRole("button", { name: "First result" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Second result" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps connection navigation and governance details closed until requested", () => {
+    renderWorkbench(buildThreeTargets());
+
+    expect(screen.queryByRole("complementary", { name: "Connections" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Governance & access" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Connections" })).toBeNull();
+
+    openConnections();
+
+    expect(screen.getByRole("dialog", { name: "Connections" })).toBeInTheDocument();
+  });
+
+  it("opens the connection navigator in a bottom sheet from the mobile trigger", () => {
+    renderWorkbench(buildThreeTargets());
+
+    fireEvent.click(screen.getByRole("button", { name: "Open connections on mobile" }));
+
+    expect(screen.getByRole("dialog", { name: "Connections" })).toHaveAttribute(
+      "data-side",
+      "bottom",
+    );
+  });
+
+  it("updates targetId in the URL after an explicit navigator selection", () => {
+    const targets = buildThreeTargets();
+    renderWorkbench(targets);
+
+    openConnections();
+    fireEvent.click(screen.getByRole("button", { name: "Staging MySQL" }));
+
+    expect(replace).toHaveBeenCalledWith("/query?targetId=24");
   });
 
   function buildThreeTargets(): QueryTarget[] {
@@ -1010,6 +1226,7 @@ describe("QueryWorkbench target picker search", () => {
 
   it("shows all targets in the connection navigator grouped by environment", () => {
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     expect(screen.getByRole("heading", { name: "Production" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Staging" })).toBeInTheDocument();
@@ -1028,6 +1245,7 @@ describe("QueryWorkbench target picker search", () => {
   it("filters targets by displayName when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "Payment");
@@ -1048,6 +1266,7 @@ describe("QueryWorkbench target picker search", () => {
   it("filters targets by engine when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "redis");
@@ -1068,6 +1287,7 @@ describe("QueryWorkbench target picker search", () => {
   it("filters targets by host when typing in the navigator search", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "staging-db");
@@ -1088,19 +1308,25 @@ describe("QueryWorkbench target picker search", () => {
   it("selecting a target from the navigator updates the active target", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     expect(screen.getAllByText(/Staging MySQL/).length).toBeGreaterThanOrEqual(2);
 
     await user.click(screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }));
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Analytics ClickHouse Node 01/).length).toBeGreaterThanOrEqual(2);
+      expect(
+        within(screen.getByRole("region", { name: "Active connection" })).getByText(
+          "Analytics ClickHouse Node 01",
+        ),
+      ).toBeInTheDocument();
     });
   });
 
   it("shows no match message when search does not match any target", async () => {
     const user = userEvent.setup();
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
     await user.type(searchInput, "nonexistent-xyz");
@@ -1112,6 +1338,7 @@ describe("QueryWorkbench target picker search", () => {
 
   it("shows ready targets in the navigator", () => {
     renderWorkbench(buildThreeTargets());
+    openConnections();
 
     const stagingButton = screen.getByRole("button", { name: "Staging MySQL" });
     expect(stagingButton).toBeInTheDocument();
@@ -1490,7 +1717,7 @@ describe("QueryGovernancePanel action badge semantics", () => {
     );
 
     expect(
-      screen.getByRole("complementary", { name: "Governance & access" }),
+      screen.getByRole("region", { name: "Governance & access" }),
     ).toBeInTheDocument();
     expect(
       screen.getAllByText("Read-only credential configured").length,
@@ -1561,6 +1788,7 @@ describe("QueryWorkbench target picker grouped navigation", () => {
     ];
 
     renderWorkbench(targets);
+    openConnections();
 
     expect(screen.getByRole("heading", { name: "Production" })).toBeInTheDocument();
 
@@ -1747,6 +1975,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
 
     await user.click(screen.getByRole("button", { name: /add worksheet/i }));
 
+    openConnections();
     await user.click(screen.getByRole("button", { name: "Locked Target" }));
 
     expect(screen.getByText("Blocker")).toBeInTheDocument();
@@ -1915,6 +2144,7 @@ describe("QueryWorkbench history target-race guard", () => {
 
     await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30));
 
+    openConnections();
     await user.click(screen.getByRole("button", { name: "Target B" }));
 
     resolveHistoryA({
@@ -1932,7 +2162,14 @@ describe("QueryWorkbench history target-race guard", () => {
         errorMessage: "",
         createdAt: "2026-07-08T10:00:00Z",
       }],
-      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     });
 
     await user.click(screen.getByRole("tab", { name: /query history/i }));

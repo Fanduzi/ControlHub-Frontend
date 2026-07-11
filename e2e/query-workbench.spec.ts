@@ -47,7 +47,7 @@ test.describe("Query Workbench shell", () => {
     assertClean(consoleMessages, networkErrors);
   });
 
-  test("loads with real backend data and a governed-execution banner", async ({ page }) => {
+  test("loads with real backend data and inline governance controls", async ({ page }) => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
@@ -55,27 +55,102 @@ test.describe("Query Workbench shell", () => {
     await expect(
       page.getByRole("heading", { name: /Query Workbench/i }).first(),
     ).toBeVisible();
-    // Scope to the safety banner (role="status") with an exact match — the
-    // page-header description also contains this phrase, which would otherwise
-    // trip Playwright strict mode.
+    await expect(
+      page.getByRole("region", { name: "Governance & access" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Governance & access Details" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Open connections" }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole("complementary", { name: "Connections" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("complementary", { name: "Governance & access" }),
+    ).toHaveCount(0);
     await expect(
       page
         .getByRole("status")
         .getByText("Governed query execution", { exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+
+    await page
+      .getByRole("button", { name: "Governance & access Details" })
+      .click();
+    const governanceDialog = page.getByRole("dialog", {
+      name: "Governance & access",
+    });
+    await expect(governanceDialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(governanceDialog).toBeHidden();
   });
 
   test("connection navigator surfaces at least one database target", async ({ page }) => {
     await loginViaUI(page);
     await page.locator('a[href="/query"]').first().click();
 
-    await expect(getConnectionNavigator(page)).toBeVisible();
+    const connectionDialog = await openConnectionNavigator(page);
     await expect(getConnectionTargetButtons(page).first()).toBeVisible();
     expect(await connectionTargetCount(page)).toBeGreaterThan(0);
 
     // No degenerate ":0" from a missing_connection target — the switcher must
     // carry real backend connection context, not a raw empty host:port.
     await expect(page.getByText(":0")).toHaveCount(0);
+    await expect(connectionDialog).toBeVisible();
+  });
+
+  test("connection navigator opens as a mobile bottom sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+
+    await expect(
+      page.getByRole("button", { name: "Open connections", exact: true }),
+    ).toBeHidden();
+    const mobileTrigger = page.getByRole("button", {
+      name: "Open connections on mobile",
+    });
+    await expect(mobileTrigger).toBeVisible();
+    await mobileTrigger.click();
+
+    const connectionSheet = page.getByRole("dialog", { name: "Connections" });
+    await expect(connectionSheet).toBeVisible();
+    await expect(
+      connectionSheet.getByRole("textbox", { name: /search by name/i }),
+    ).toBeFocused();
+    await expect(getConnectionTargetButtons(page).first()).toBeVisible();
+    const sheetBox = await connectionSheet.boundingBox();
+    expect(sheetBox).not.toBeNull();
+    if (sheetBox === null) return;
+    expect(sheetBox.y + sheetBox.height).toBeGreaterThanOrEqual(840);
+
+    await page.keyboard.press("Escape");
+    await expect(connectionSheet).toBeHidden();
+  });
+
+  test("Chinese query intro keeps the read-only credential phrase on one line", async ({ page }) => {
+    await page.setViewportSize({ width: 500, height: 844 });
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+
+    const phrase = page.getByRole("main").getByText("只读凭据", { exact: true });
+    await expect(phrase).toBeVisible();
+    await expect(phrase).toHaveCSS("white-space", "nowrap");
+    await expect
+      .poll(() => phrase.evaluate((element) => element.getClientRects().length))
+      .toBe(1);
   });
 
   test("a locked query target hides Run and shows the blocker state", async ({ page }) => {
@@ -89,7 +164,18 @@ test.describe("Query Workbench shell", () => {
         await expect(page.getByRole("button", { name: /^run$/i })).toHaveCount(0);
         await expect(page.getByText("Editor locked by policy")).toBeVisible();
         await expect(page.getByText("Result area is locked")).toBeVisible();
-        await expect(page.getByRole("heading", { name: "Blocker" })).toBeVisible();
+        await page
+          .getByRole("button", { name: "Governance & access Details" })
+          .click();
+        const governanceDialog = page.getByRole("dialog", {
+          name: "Governance & access",
+        });
+        await expect(governanceDialog).toBeVisible();
+        await expect(
+          governanceDialog.getByText("Policy checklist"),
+        ).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(governanceDialog).toBeHidden();
         verifiedLocked = true;
         break;
       }
@@ -100,11 +186,11 @@ test.describe("Query Workbench shell", () => {
   });
 
   test("switching the target updates the governance panel facts", async ({ page }) => {
-    await loginViaUI(page);
-    await page.locator('a[href="/query"]').first().click();
+    await openQueryWorkbench(page);
 
     const activeSummary = page.getByRole("region", { name: "Active connection" });
     const before = await activeSummary.textContent();
+    await openConnectionNavigator(page);
     const options = getInactiveConnectionTargetButtons(page);
     const optionCount = await options.count();
 
@@ -112,6 +198,7 @@ test.describe("Query Workbench shell", () => {
     test.skip(optionCount < 1, "query workbench E2E needs >= 2 seeded targets");
 
     await options.first().click();
+    await expect(getConnectionDialog(page)).toBeHidden();
 
     const after = await activeSummary.textContent();
     expect(after).toBeTruthy();
@@ -498,29 +585,45 @@ async function isRunEnabled(page: Page): Promise<boolean> {
   return run.first().isEnabled().catch(() => false);
 }
 
-function getConnectionNavigator(page: Page) {
-  return page.getByRole("complementary", { name: "Connections" });
+function getConnectionDialog(page: Page) {
+  return page.getByRole("dialog", { name: "Connections" });
 }
 
 function getConnectionTargetButtons(page: Page) {
-  return getConnectionNavigator(page).locator('ul button[aria-label]');
+  return getConnectionDialog(page).locator('ul button[aria-label]');
 }
 
 function getInactiveConnectionTargetButtons(page: Page) {
-  return getConnectionNavigator(page).locator(
+  return getConnectionDialog(page).locator(
     'ul button[aria-label]:not([aria-current="true"])',
   );
 }
 
+async function openConnectionNavigator(page: Page) {
+  const dialog = getConnectionDialog(page);
+  if (await dialog.isVisible()) {
+    return dialog;
+  }
+
+  const trigger = page.getByRole("button", { name: "Open connections" });
+  await expect(trigger).toBeVisible({ timeout: 5_000 });
+  await trigger.click();
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  return dialog;
+}
+
 async function connectionTargetCount(page: Page): Promise<number> {
+  await openConnectionNavigator(page);
   await expect(getConnectionTargetButtons(page).first()).toBeVisible({ timeout: 5_000 });
   return getConnectionTargetButtons(page).count();
 }
 
 async function selectConnectionTarget(page: Page, index: number): Promise<void> {
+  const dialog = await openConnectionNavigator(page);
   const target = getConnectionTargetButtons(page).nth(index);
   await expect(target).toBeVisible({ timeout: 5_000 });
   await target.click();
+  await expect(dialog).toBeHidden({ timeout: 5_000 });
 }
 
 async function findReadyOptionIndex(page: Page): Promise<number | null> {

@@ -4,6 +4,10 @@ import type {
   QueryTargetListResponse,
 } from "@/types/query-target";
 
+type QueryTargetsRequestOptions = {
+  readonly signal?: AbortSignal;
+};
+
 function buildQueryTargetsPath(params: QueryTargetListParams = {}) {
   const searchParams = new URLSearchParams();
 
@@ -37,6 +41,11 @@ function buildQueryTargetsPath(params: QueryTargetListParams = {}) {
  */
 export async function getQueryTargets(
   params: QueryTargetListParams = {},
+  options: QueryTargetsRequestOptions = {},
 ): Promise<QueryTargetListResponse> {
-  return apiClient<QueryTargetListResponse>(buildQueryTargetsPath(params));
+  const path = buildQueryTargetsPath(params);
+  if (options.signal === undefined) {
+    return apiClient<QueryTargetListResponse>(path);
+  }
+  return apiClient<QueryTargetListResponse>(path, options);
 }

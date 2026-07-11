@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { TriangleAlert } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -10,18 +10,27 @@ import { EmptyState } from "@/components/blocks/empty-state";
 import {
   EMPTY_FILTERS,
   collectEngines,
+  isAllFilter,
   type WorkbenchFilters,
 } from "@/lib/query-target-display";
-import { QueryConnectionNavigator } from "@/components/query/query-connection-navigator";
 import { QuerySchemaBrowser } from "@/components/query/query-schema-browser";
 import { QueryEditorShell } from "@/components/query/query-editor-shell";
-import { QueryGovernancePanel } from "@/components/query/query-governance-panel";
+import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
+import { ActiveConnectionSummary } from "@/components/query/query-connection-navigator-body";
+import { getQueryTargets } from "@/services/query-targets";
 
 type QueryWorkbenchProps = {
   targets: QueryTarget[];
   pageInfo: PageInfo;
   initialFilters?: WorkbenchFilters;
-  initialActiveTargetId?: number;
+  initialActiveTargetId?: number | null;
+};
+
+const SEARCH_DEBOUNCE_MS = 275;
+
+type SearchResult = {
+  readonly query: string;
+  readonly items: QueryTarget[];
 };
 
 function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
@@ -39,21 +48,85 @@ export function QueryWorkbench({
   initialActiveTargetId,
 }: QueryWorkbenchProps) {
   const t = useTranslations("queryWorkbench");
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [filters, setFilters] = useState<WorkbenchFilters>(initialFilters);
+  const [targetCache, setTargetCache] = useState<Map<number, QueryTarget>>(() => new Map());
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
-    initialActiveTargetId ??
-      getInitialActiveTargetId(targets),
+    initialActiveTargetId === undefined
+      ? getInitialActiveTargetId(targets)
+      : initialActiveTargetId,
   );
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
+  const searchGeneration = useRef(0);
 
-  const engines = useMemo(() => collectEngines(targets), [targets]);
+  useEffect(() => {
+    const generation = searchGeneration.current + 1;
+    searchGeneration.current = generation;
+    const query = filters.q.trim();
+
+    if (query.length === 0) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void getQueryTargets(
+        {
+          page: 1,
+          pageSize: 50,
+          q: query,
+          ...(!isAllFilter(filters.engine) && { engine: filters.engine }),
+        },
+        { signal: controller.signal },
+      ).then(
+        (response) => {
+          if (controller.signal.aborted || generation !== searchGeneration.current) {
+            return;
+          }
+          setSearchResult({ query, items: response.items });
+        },
+        () => {
+          if (controller.signal.aborted || generation !== searchGeneration.current) {
+            return;
+          }
+          setSearchResult({ query, items: [] });
+        },
+      );
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [filters.engine, filters.q]);
+
+  const cachedTargets = useMemo(() => {
+    const combined = new Map(targetCache);
+    for (const target of targets) {
+      combined.set(target.resourceId, target);
+    }
+    return Array.from(combined.values());
+  }, [targetCache, targets]);
+  const targetsById = useMemo(
+    () => new Map(cachedTargets.map((target) => [target.resourceId, target])),
+    [cachedTargets],
+  );
+  const query = filters.q.trim();
+  const navigatorTargets = useMemo(() => {
+    if (query.length === 0 || searchResult === null) {
+      return targets;
+    }
+    return searchResult.query === query ? searchResult.items : [];
+  }, [query, searchResult, targets]);
+  const engines = useMemo(() => collectEngines(navigatorTargets), [navigatorTargets]);
 
   // Resolve activeTarget from full targets array, not filteredTargets.
   // Filter only affects the navigator list, not the current worksheet target.
   const activeTarget =
-    targets.find((target) => target.resourceId === activeTargetId) ??
-    targets[0] ??
-    null;
+    activeTargetId === null ? null : targetsById.get(activeTargetId) ?? null;
 
   function updateFilter(patch: Partial<WorkbenchFilters>) {
     setFilters((previous) => ({ ...previous, ...patch }));
@@ -61,27 +134,38 @@ export function QueryWorkbench({
 
   /** Navigator-originated target change: increment version so the editor can detect it. */
   function setActiveTargetFromNavigator(resourceId: number) {
+    const selectedTarget =
+      targetsById.get(resourceId) ??
+      searchResult?.items.find((target) => target.resourceId === resourceId);
+    if (selectedTarget === undefined) {
+      return;
+    }
+    if (!targetsById.has(resourceId)) {
+      setTargetCache((previous) => new Map(previous).set(resourceId, selectedTarget));
+    }
     setActiveTargetId(resourceId);
     setTargetSelectionVersion((version) => version + 1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("targetId", String(resourceId));
+    router.replace(`${pathname}?${params.toString()}`);
   }
 
   /** Worksheet-originated target change: no version increment. */
   function setActiveTargetFromWorksheet(resourceId: number) {
+    if (!targetsById.has(resourceId)) {
+      return;
+    }
     setActiveTargetId(resourceId);
   }
 
   return (
     <div className="space-y-4">
-      <SafetyBanner />
-
       {activeTarget ? (
-        <div
-          data-testid="query-workbench-grid"
-          className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]"
-        >
-          <div className="flex flex-col gap-4">
-            <QueryConnectionNavigator
-              targets={targets}
+        <div data-testid="query-workbench-grid" className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <ActiveConnectionSummary target={activeTarget} />
+            <QueryWorkbenchNavigator
+              targets={navigatorTargets}
               activeTargetId={activeTargetId}
               filters={filters}
               engines={engines}
@@ -89,40 +173,18 @@ export function QueryWorkbench({
               onSelect={setActiveTargetFromNavigator}
               onFilterChange={updateFilter}
             />
-            <QuerySchemaBrowser target={activeTarget} />
-            <QueryGovernancePanel target={activeTarget} />
           </div>
           <QueryEditorShell
-            targets={targets}
+            targets={cachedTargets}
             activeTarget={activeTarget}
             targetSelectionVersion={targetSelectionVersion}
             onActiveTargetChange={setActiveTargetFromWorksheet}
           />
+          <QuerySchemaBrowser target={activeTarget} />
         </div>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />
       )}
-    </div>
-  );
-}
-
-function SafetyBanner() {
-  const t = useTranslations("queryWorkbench");
-  return (
-    <div
-      role="status"
-      className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
-    >
-      <TriangleAlert
-        className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
-        aria-hidden
-      />
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-          {t("banner.title")}
-        </p>
-        <p className="text-sm text-muted-foreground">{t("banner.description")}</p>
-      </div>
     </div>
   );
 }

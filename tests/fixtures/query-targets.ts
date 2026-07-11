@@ -101,6 +101,8 @@ export function buildQueryTargetList(
       pageSize: 50,
       totalItems: items.length,
       totalPages: items.length === 0 ? 0 : 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
     },
   };
 }
