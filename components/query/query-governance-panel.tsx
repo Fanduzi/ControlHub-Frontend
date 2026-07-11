@@ -12,6 +12,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
   credentialStateLabel,
   missingFieldLabel,
   readinessLabelKey,
@@ -43,65 +51,70 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
 
   return (
     <TooltipProvider>
-      <aside
+      <section
         aria-label={t("governance.title")}
-        className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4"
+        className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-3 py-2"
       >
         {blocker && (
-          <section>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t("governance.blocker")}
-            </h3>
-            <Badge
-              variant="outline"
-              className="gap-1.5 border-rose-500/30 text-rose-700 dark:text-rose-300"
-            >
-              <TriangleAlert className="size-3" aria-hidden />
-              {blocker}
-            </Badge>
-          </section>
+          <Badge
+            variant="outline"
+            className="gap-1.5 border-rose-500/30 text-rose-700 dark:text-rose-300"
+          >
+            <TriangleAlert className="size-3" aria-hidden />
+            <span className="sr-only">{t("governance.blocker")}</span>
+            {blocker}
+          </Badge>
         )}
 
-        {/* Credential status and admin link */}
-        <section>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("governance.credentialStateLabel")}
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              {credentialStateLabel(t, governance.credentialState)}
-            </Badge>
-            <CredentialStatusSection />
-          </div>
-        </section>
+        <Badge variant="outline" className="text-xs">
+          <span className="sr-only">{t("governance.credentialStateLabel")}</span>
+          {credentialStateLabel(t, governance.credentialState)}
+        </Badge>
+        <CredentialStatusSection />
 
-        {/* Missing connection metadata */}
-        {target.readiness === "missing_connection" && target.missingFields.length > 0 && (
-          <section>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t("governance.missingFields")}
-            </h3>
-            <ul className="flex flex-wrap gap-1.5">
-              {target.missingFields.map((field) => (
-                <li
-                  key={field}
-                  className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300"
-                >
-                  {missingFieldLabel(t, field)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Policy checklist - compact badges */}
-        <section>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("governance.policyChecklist")}
-          </h3>
-          <PolicyBadges />
-        </section>
-      </aside>
+        <Dialog>
+          <DialogTrigger
+            render={
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`${t("governance.title")} ${t("governance.details")}`}
+              />
+            }
+          >
+            {t("governance.details")}
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t("governance.title")}</DialogTitle>
+            </DialogHeader>
+            {target.readiness === "missing_connection" && target.missingFields.length > 0 && (
+              <section>
+                <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("governance.missingFields")}
+                </h3>
+                <ul className="flex flex-wrap gap-1.5">
+                  {target.missingFields.map((field) => (
+                    <li
+                      key={field}
+                      className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300"
+                    >
+                      {missingFieldLabel(t, field)}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <section>
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t("governance.policyChecklist")}
+              </h3>
+              <PolicyBadges />
+            </section>
+          </DialogContent>
+        </Dialog>
+      </section>
     </TooltipProvider>
   );
 }

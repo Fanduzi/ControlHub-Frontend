@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
+import { QueryGovernancePanel } from "@/components/query/query-governance-panel";
 import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
   clampEditorHeight,
@@ -458,6 +459,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           <span>{t("editor.maxRows")}</span>
         </div>
       </div>
+
+      <QueryGovernancePanel target={worksheetTarget} />
 
       {activeTab === "worksheet" ? (
         canExecute ? (
