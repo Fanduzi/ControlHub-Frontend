@@ -12,13 +12,18 @@ import type { ObjectDetailResponse, ObjectSummary } from "@/types/query-schema";
 const PAGE_SIZE = 25;
 const MAX_OBJECTS = 500;
 
+type DetailViewState =
+  | { readonly status: "loading" }
+  | { readonly status: "ready"; readonly detail: ObjectDetailResponse }
+  | { readonly status: "error" };
+
 type QueryObjectExplorerProps = { readonly targetId: number; readonly store: QuerySchemaStore };
 
 export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProps) {
   const t = useTranslations("queryWorkbench");
   const [databases, setDatabases] = useState<readonly string[]>([]);
   const [objects, setObjects] = useState<ReadonlyMap<string, readonly ObjectSummary[]>>(new Map());
-  const [details, setDetails] = useState<ReadonlyMap<string, ObjectDetailResponse>>(new Map());
+  const [details, setDetails] = useState<ReadonlyMap<string, DetailViewState>>(new Map());
   const [expandedDatabases, setExpandedDatabases] = useState<ReadonlySet<string>>(new Set());
   const [expandedObjects, setExpandedObjects] = useState<ReadonlySet<string>>(new Set());
   const [loadingDatabases, setLoadingDatabases] = useState(true);
@@ -55,12 +60,37 @@ export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProp
     }
   }
 
+  function loadObjectDetail(object: ObjectSummary) {
+    if (!object.database) return;
+    const key = `${object.database}:${object.kind}:${object.name}`;
+    const storeKey = { targetId, database: object.database, kind: object.kind, name: object.name };
+    store.setDetailLoading(storeKey);
+    setLoadingDetails((previous) => new Set(previous).add(key));
+    setDetails((previous) => new Map(previous).set(key, { status: "loading" }));
+    void getObjectDetails(targetId, { database: object.database, name: object.name, kind: object.kind }).then(
+      (detail) => {
+        store.setDetail(storeKey, detail);
+        setDetails((previous) => new Map(previous).set(key, { status: "ready", detail }));
+      },
+      () => {
+        store.setEmptyDetail(storeKey);
+        setDetails((previous) => new Map(previous).set(key, { status: "error" }));
+      },
+    ).finally(() => setLoadingDetails((previous) => {
+      const copy = new Set(previous);
+      copy.delete(key);
+      return copy;
+    }));
+  }
+
   function toggleObject(object: ObjectSummary) {
     if (!object.database) return;
-    const key = `${object.database}:${object.kind}:${object.name}`; const next = new Set(expandedObjects); next.has(key) ? next.delete(key) : next.add(key); setExpandedObjects(next);
+    const key = `${object.database}:${object.kind}:${object.name}`;
+    const next = new Set(expandedObjects);
+    next.has(key) ? next.delete(key) : next.add(key);
+    setExpandedObjects(next);
     if (next.has(key) && !details.has(key)) {
-      const storeKey = { targetId, database: object.database, kind: object.kind, name: object.name }; store.setDetailLoading(storeKey); setLoadingDetails((previous) => new Set(previous).add(key));
-      void getObjectDetails(targetId, { database: object.database, name: object.name, kind: object.kind }).then((detail) => { store.setDetail(storeKey, detail); setDetails((previous) => new Map(previous).set(key, detail)); }, () => { store.setEmptyDetail(storeKey); }).finally(() => setLoadingDetails((previous) => { const copy = new Set(previous); copy.delete(key); return copy; }));
+      loadObjectDetail(object);
     }
   }
 
@@ -68,7 +98,28 @@ export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProp
   if (error) return <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={() => { generation.current++; setLoadingDatabases(true); }}>{t("schema.retry")}</Button></div>;
   if (databases.length === 0) return <p className="p-4 text-sm text-muted-foreground">{t("schema.noDatabases")}</p>;
   return <QueryObjectTree databases={databases} expandedDatabases={expandedDatabases} expandedObjects={expandedObjects} objectsByDatabase={objects} loadingDatabases={loadingObjects} loadingObjects={loadingDetails} onDatabaseToggle={toggleDatabase} onObjectToggle={toggleObject} renderDetail={(object) => {
-    const detail = details.get(`${object.database}:${object.kind}:${object.name}`); if (!detail) return null;
-    return <div className="space-y-2 text-xs text-muted-foreground"><p>{t("schema.detailColumns", { count: detail.columns.length })}</p><p>{t("schema.detailKeys", { count: detail.columns.filter((column) => column.primaryKey).length })}</p><p>{t("schema.detailIndexes", { count: detail.indexes.length })}</p><p>{t("schema.detailForeignKeys", { count: detail.foreignKeys.length })}</p></div>;
+    const state = details.get(`${object.database}:${object.kind}:${object.name}`);
+    if (!state || state.status === "loading") return null;
+    if (state.status === "error") {
+      return (
+        <div className="space-y-2 text-xs">
+          <p className="text-destructive">{t("schema.detailLoadError")}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => loadObjectDetail(object)}>
+            {t("schema.retry")}
+          </Button>
+        </div>
+      );
+    }
+    const columns = state.detail.columns ?? [];
+    const indexes = state.detail.indexes ?? [];
+    const foreignKeys = state.detail.foreignKeys ?? [];
+    return (
+      <div className="space-y-2 text-xs text-muted-foreground">
+        <p>{t("schema.detailColumns", { count: columns.length })}</p>
+        <p>{t("schema.detailKeys", { count: columns.filter((column) => column.primaryKey).length })}</p>
+        <p>{t("schema.detailIndexes", { count: indexes.length })}</p>
+        <p>{t("schema.detailForeignKeys", { count: foreignKeys.length })}</p>
+      </div>
+    );
   }} />;
 }

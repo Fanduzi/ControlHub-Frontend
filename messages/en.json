@@ -1000,7 +1000,8 @@
       "loading": "Loading…",
       "loadError": "Unable to load objects.",
       "noDatabases": "No databases found.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "detailLoadError": "Could not load object details"
     },
     "navigator": {
       "title": "Quick navigator",
@@ -1082,13 +1083,13 @@
       "loading": "Loading history…",
       "empty": "No executions yet",
       "column": {
-        "id": "Execution",
         "status": "Status",
         "statement": "Statement",
         "rowCount": "Rows",
         "durationMs": "Duration",
         "error": "Error",
-        "createdAt": "Executed at"
+        "createdAt": "Executed at",
+        "actor": "Actor"
       },
       "status": {
         "success": "Success",
@@ -1096,7 +1097,10 @@
         "failed": "Failed",
         "timeout": "Timed out"
       },
-      "emptyStatus": "—"
+      "emptyStatus": "—",
+      "loadError": "Could not load execution history",
+      "retry": "Retry",
+      "unknownActor": "Unknown user"
     },
     "governance": {
       "title": "Governance & access",

@@ -73,6 +73,24 @@ const DEFAULT_MAX_ROWS = 100;
 /** Fixed id for the SSR/client initial worksheet — must not use Date.now()/random. */
 const INITIAL_WORKSHEET_ID = "worksheet-1";
 
+/**
+ * History state machine for a single worksheet. Independent of the execution
+ * requestId — history has its own generation counter for stale rejection.
+ */
+type HistoryState = {
+  status: "idle" | "loading" | "ready" | "error";
+  items: QueryExecutionRecord[];
+  error?: string;
+  /** The targetId this history was fetched for. */
+  boundTargetId: number;
+  /** Monotonic generation counter for stale rejection. */
+  generation: number;
+};
+
+function createHistoryState(targetId: number): HistoryState {
+  return { status: "idle", items: [], boundTargetId: targetId, generation: 0 };
+}
+
 type LocalWorksheet = {
   id: string;
   name: string;
@@ -83,8 +101,7 @@ type LocalWorksheet = {
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
   formatError: string | null;
-  history: QueryExecutionRecord[];
-  historyLoading: boolean;
+  history: HistoryState;
   requestId: string;
   activeDatabase: string | null;
   isDirty: boolean;
@@ -101,8 +118,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     result: null,
     error: null,
     formatError: null,
-    history: [],
-    historyLoading: false,
+    history: createHistoryState(targetResourceId),
     requestId: "req-initial",
     activeDatabase: null,
     isDirty: false,
@@ -125,8 +141,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     result: null,
     error: null,
     formatError: null,
-    history: [],
-    historyLoading: false,
+    history: createHistoryState(targetResourceId),
     requestId: `req-${unique}`,
     activeDatabase: null,
     isDirty: false,
@@ -218,8 +233,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               result: null,
               error: null,
               formatError: null,
-              history: [],
-              historyLoading: false,
+              history: createHistoryState(newTargetId),
               isExecuting: false,
               requestId: crypto.randomUUID(),
               isDirty: false,
@@ -289,26 +303,51 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (!target?.availableActions.run) return;
 
     const targetId = worksheet.targetResourceId;
-    const requestId = worksheet.requestId;
-    updateWorksheetById(targetWorksheetId, { historyLoading: true });
+    const nextGeneration = worksheet.history.generation + 1;
+
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === targetWorksheetId
+          ? { ...ws, history: { ...ws.history, status: "loading" as const, generation: nextGeneration, boundTargetId: targetId } }
+          : ws,
+      ),
+    );
 
     try {
       const response = await listQueryExecutions(targetId);
-      // Guard: only write history if the worksheet still targets the same resource
-      // and the request hasn't been superseded.
-      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
-      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
-      updateWorksheetById(targetWorksheetId, { history: response.items });
+      setWorksheets((previous) => {
+        const current = previous.find((ws) => ws.id === targetWorksheetId);
+        if (!current || current.targetResourceId !== targetId || current.history.generation !== nextGeneration) return previous;
+        return previous.map((ws) =>
+          ws.id === targetWorksheetId
+            ? { ...ws, history: { status: "ready" as const, items: response.items, boundTargetId: targetId, generation: nextGeneration } }
+            : ws,
+        );
+      });
     } catch {
-      // Guard: only update loading state if still valid.
-      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
-      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
-    } finally {
-      const currentWs = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
-      if (!currentWs || currentWs.targetResourceId !== targetId || currentWs.requestId !== requestId) return;
-      updateWorksheetById(targetWorksheetId, { historyLoading: false });
+      setWorksheets((previous) => {
+        const current = previous.find((ws) => ws.id === targetWorksheetId);
+        if (!current || current.targetResourceId !== targetId || current.history.generation !== nextGeneration) return previous;
+        return previous.map((ws) =>
+          ws.id === targetWorksheetId
+            ? { ...ws, history: { ...ws.history, status: "error" as const, error: "historyLoadFailed", generation: nextGeneration } }
+            : ws,
+        );
+      });
     }
   }, [activeWorksheetId]);
+
+  function selectWorksheetTab(tab: WorksheetTab) {
+    setActiveTab(tab);
+    if (tab !== "history") return;
+    const worksheet = worksheetsRef.current.find((ws) => ws.id === activeWorksheetId);
+    if (!worksheet) return;
+    const target = targetsByIdRef.current.get(worksheet.targetResourceId);
+    if (!target?.availableActions.run) return;
+    if (worksheet.history.status === "idle" || worksheet.history.status === "error") {
+      void refreshHistory(worksheet.id);
+    }
+  }
 
   // Seed with the prop so initial mount (version 0) is not treated as a user
   // target switch. Only navigator-driven version bumps create a new worksheet.
@@ -328,10 +367,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     setWorksheets(newWorksheets);
     setActiveWorksheetId(newWs.id);
 
-    if (activeTarget.availableActions.run) {
-      void refreshHistory(newWs.id);
-    }
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory]);
+    // Do not fetch history on target-switch worksheet creation. History loads
+    // on first History-tab open (or after a successful run for that worksheet).
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run]);
 
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
@@ -623,19 +661,19 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                     const tabs = WORKSHEET_TABS;
                     if (e.key === "ArrowRight") {
                       e.preventDefault();
-                      setActiveTab(tabs[(index + 1) % tabs.length]!.id);
+                      selectWorksheetTab(tabs[(index + 1) % tabs.length]!.id);
                     } else if (e.key === "ArrowLeft") {
                       e.preventDefault();
-                      setActiveTab(tabs[(index - 1 + tabs.length) % tabs.length]!.id);
+                      selectWorksheetTab(tabs[(index - 1 + tabs.length) % tabs.length]!.id);
                     } else if (e.key === "Home") {
                       e.preventDefault();
-                      setActiveTab(tabs[0]!.id);
+                      selectWorksheetTab(tabs[0]!.id);
                     } else if (e.key === "End") {
                       e.preventDefault();
-                      setActiveTab(tabs[tabs.length - 1]!.id);
+                      selectWorksheetTab(tabs[tabs.length - 1]!.id);
                     }
                   }}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => selectWorksheetTab(tab.id)}
                   className={cn(
                     "border-b-2 px-3 py-2 text-sm transition-colors",
                     active
@@ -726,7 +764,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         )
       ) : activeTab === "history" && canExecute ? (
         <div id="section-panel-history" role="tabpanel" aria-labelledby="section-tab-history">
-          <QueryHistoryPanel history={activeWorksheet.history} loading={activeWorksheet.historyLoading} />
+          <QueryHistoryPanel
+            status={activeWorksheet.history.status}
+            items={activeWorksheet.history.items}
+            error={activeWorksheet.history.error}
+            onRetry={() => {
+              void refreshHistory(activeWorksheet.id);
+            }}
+          />
         </div>
       ) : null}
 

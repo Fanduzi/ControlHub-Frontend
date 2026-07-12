@@ -1000,7 +1000,8 @@
       "loading": "加载中…",
       "loadError": "无法加载对象。",
       "noDatabases": "未找到数据库。",
-      "retry": "重试"
+      "retry": "重试",
+      "detailLoadError": "无法加载对象详情"
     },
     "navigator": {
       "title": "快速导航",
@@ -1082,13 +1083,13 @@
       "loading": "正在加载历史…",
       "empty": "暂无执行记录",
       "column": {
-        "id": "执行",
         "status": "状态",
         "statement": "语句",
         "rowCount": "行数",
         "durationMs": "耗时",
         "error": "错误",
-        "createdAt": "执行时间"
+        "createdAt": "执行时间",
+        "actor": "执行人"
       },
       "status": {
         "success": "成功",
@@ -1096,7 +1097,10 @@
         "failed": "失败",
         "timeout": "超时"
       },
-      "emptyStatus": "—"
+      "emptyStatus": "—",
+      "loadError": "无法加载执行历史",
+      "retry": "重试",
+      "unknownActor": "未知用户"
     },
     "governance": {
       "title": "治理与访问",

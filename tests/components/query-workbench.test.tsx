@@ -883,7 +883,10 @@ describe("QueryWorkbench initial worksheet mount", () => {
     expect(screen.getByRole("tab", { name: /worksheet 1/i })).toBeInTheDocument();
     const worksheet2 = screen.getByRole("tab", { name: /worksheet 2/i });
     expect(worksheet2).toHaveAttribute("aria-selected", "true");
-    // New worksheet for the new target gets a history load; prior tab preserved.
+    // History must not fetch on target-switch worksheet creation — only on first
+    // History tab open (or after a run). Prior worksheet remains intact.
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
     await waitFor(() => {
       expect(mockListQueryExecutions).toHaveBeenCalledWith(31);
     });
@@ -990,7 +993,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
         {
           id: 9001,
           targetResourceId: TARGET_A_ID,
-          actorUserId: 1,
+          actor: { displayName: "Chen Hao" },
           engine: "mysql",
           statementDigest: "digest-analytics",
           statementPreview: "select * from analytics_log",
@@ -1105,10 +1108,11 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     await pickTarget(user, /Staging MySQL/);
     await user.click(screen.getByRole("tab", { name: /query history/i }));
 
-    // B's load failed → empty state, never A's statement preview.
+    // B's load failed → localized error + retry, never A's statement preview.
     await waitFor(() => {
-      expect(screen.getByText("No executions yet")).toBeInTheDocument();
+      expect(screen.getByText("Could not load execution history")).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     expect(screen.queryByText("select * from analytics_log")).toBeNull();
   });
 
@@ -2507,7 +2511,7 @@ describe("QueryWorkbench history target-race guard", () => {
       items: [{
         id: 9001,
         targetResourceId: 30,
-        actorUserId: 1,
+        actor: { displayName: "Chen Hao" },
         engine: "mysql",
         statementDigest: "digest-a",
         statementPreview: "select * from target_a_table",
