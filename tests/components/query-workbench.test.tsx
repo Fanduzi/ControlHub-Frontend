@@ -782,14 +782,112 @@ describe("QueryWorkbench execution (ready target)", () => {
     mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
     renderReady();
 
-    // History loads once on mount for a ready target.
-    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledTimes(1));
+    // Initial mount must not fire target-switch history work.
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /^run$/i }));
 
-    // After the execution settles, history is refreshed (a second fetch).
-    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledTimes(2));
+    // After the execution settles, history is refreshed once.
+    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledTimes(1));
     expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30);
+  });
+});
+
+/**
+ * Phase 38I: initial mount must keep a single worksheet. targetSelectionVersion
+ * starts at 0 and must not be treated as a user-initiated target switch.
+ */
+describe("QueryWorkbench initial worksheet mount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  function worksheetTabs() {
+    // Worksheet name tabs live in the tablist that also has the "+ Add worksheet" control.
+    return screen.getAllByRole("tab").filter((tab) =>
+      /worksheet\s+\d+/i.test(tab.textContent ?? ""),
+    );
+  }
+
+  it("REGRESSION: initial load has exactly one worksheet (Worksheet 1)", () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    const tabs = worksheetTabs();
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toHaveAccessibleName(/worksheet 1/i);
+    expect(screen.queryByRole("tab", { name: /worksheet 2/i })).toBeNull();
+  });
+
+  it("REGRESSION: initial mount does not trigger target-switch history fetch", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    // Allow effects to flush; mount must not append a worksheet or fetch history.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(worksheetTabs()).toHaveLength(1);
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
+  });
+
+  it("REGRESSION: navigator target switch creates exactly one new worksheet and activates it", async () => {
+    const user = userEvent.setup();
+    const targets = [
+      buildReadyWorkbenchTarget(),
+      buildQueryTarget({
+        resourceId: 31,
+        displayName: "Staging MySQL",
+        resourceName: "staging-mysql",
+        readiness: "ready",
+        availableActions: {
+          run: true,
+          explain: false,
+          export: false,
+          saveSheet: false,
+          requestAccess: false,
+        },
+        governance: {
+          executionEnabled: true,
+          credentialState: "configured_readonly_credential",
+          auditRequired: true,
+          safetyState: "readonly_sandbox_enabled",
+          safetyNote: "Read-only sandbox is enabled.",
+          policyNotes: [],
+        },
+      }),
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={targets}
+          pageInfo={pageInfoFor(targets)}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(worksheetTabs()).toHaveLength(1);
+    expect(screen.getByRole("tab", { name: /worksheet 1/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    openConnections();
+    await user.click(screen.getByRole("button", { name: "Staging MySQL" }));
+
+    await waitFor(() => {
+      expect(worksheetTabs()).toHaveLength(2);
+    });
+    expect(screen.getByRole("tab", { name: /worksheet 1/i })).toBeInTheDocument();
+    const worksheet2 = screen.getByRole("tab", { name: /worksheet 2/i });
+    expect(worksheet2).toHaveAttribute("aria-selected", "true");
+    // New worksheet for the new target gets a history load; prior tab preserved.
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledWith(31);
+    });
+    expect(mockListQueryExecutions).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -976,8 +1074,8 @@ describe("QueryWorkbench target switching (ready targets)", () => {
 
     renderWithTargets();
 
-    // A's history loads into state on mount (not yet viewed). Switch to B, whose
-    // history hangs pending, and open B's history tab.
+    // Switch to B (creates a worksheet + starts B's history load). Open history
+    // while B is still pending — A's history must never appear.
     await pickTarget(user, /Staging MySQL/);
     await user.click(screen.getByRole("tab", { name: /query history/i }));
 
@@ -2348,11 +2446,27 @@ describe("QueryWorkbench history target-race guard", () => {
     const user = userEvent.setup();
     let resolveHistoryA!: (value: QueryExecutionListResponse) => void;
 
+    // History for A hangs after execute; B settles empty immediately.
     mockListQueryExecutions.mockImplementation((resourceId: number) => {
       if (resourceId === 30) {
-        return new Promise((resolve) => { resolveHistoryA = resolve; });
+        return new Promise((resolve) => {
+          resolveHistoryA = resolve;
+        });
       }
       return Promise.resolve(emptyHistory());
+    });
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "id", databaseType: "BIGINT", nullable: false }],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 5,
+      limitApplied: 100,
+      executedAt: "2026-06-22T08:30:00Z",
     });
 
     const targets = [
@@ -2380,8 +2494,12 @@ describe("QueryWorkbench history target-race guard", () => {
       </NextIntlClientProvider>,
     );
 
+    // Initial mount must not load history; start a pending A history via Run.
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
     await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30));
 
+    // Switch targets while A's post-run history is still in flight.
     openConnections();
     await user.click(screen.getByRole("button", { name: "Target B" }));
 
@@ -2410,6 +2528,7 @@ describe("QueryWorkbench history target-race guard", () => {
       },
     });
 
+    // Active worksheet is B — A's late history must never surface in B's panel.
     await user.click(screen.getByRole("tab", { name: /query history/i }));
     expect(screen.queryByText("select * from target_a_table")).toBeNull();
   });

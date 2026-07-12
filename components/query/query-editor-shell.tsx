@@ -310,23 +310,26 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }, [activeWorksheetId]);
 
-  const lastSeenVersionRef = useRef<number | undefined>(undefined);
+  // Seed with the prop so initial mount (version 0) is not treated as a user
+  // target switch. Only navigator-driven version bumps create a new worksheet.
+  const lastSeenVersionRef = useRef(targetSelectionVersion);
 
   useEffect(() => {
-    if (targetSelectionVersion !== lastSeenVersionRef.current) {
-      lastSeenVersionRef.current = targetSelectionVersion;
+    if (targetSelectionVersion === lastSeenVersionRef.current) {
+      return;
+    }
+    lastSeenVersionRef.current = targetSelectionVersion;
 
-      // Create a new worksheet for the new target instead of retargeting the active one
-      // This preserves the original worksheet's SQL, result, and history
-      const newWs = createWorksheet(worksheetsRef.current.length + 1, activeTarget.resourceId);
-      const newWorksheets = [...worksheetsRef.current, newWs];
-      worksheetsRef.current = newWorksheets;
-      setWorksheets(newWorksheets);
-      setActiveWorksheetId(newWs.id);
+    // Create a new worksheet for the new target instead of retargeting the active one
+    // This preserves the original worksheet's SQL, result, and history
+    const newWs = createWorksheet(worksheetsRef.current.length + 1, activeTarget.resourceId);
+    const newWorksheets = [...worksheetsRef.current, newWs];
+    worksheetsRef.current = newWorksheets;
+    setWorksheets(newWorksheets);
+    setActiveWorksheetId(newWs.id);
 
-      if (activeTarget.availableActions.run) {
-        void refreshHistory(newWs.id);
-      }
+    if (activeTarget.availableActions.run) {
+      void refreshHistory(newWs.id);
     }
   }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory]);
 

@@ -67,7 +67,7 @@ test.describe("Query Workbench shell", () => {
     for (const expected of consumableHttpErrors) {
       remainingNetwork = takeExpectedNetworkError(remainingNetwork, {
         method: expected.method,
-        urlIncludes: expected.urlIncludes,
+        url: expected.url,
         status: expected.status,
       });
       if (expected.consumeConsoleStatusEcho) {
@@ -343,12 +343,16 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
-    // One exact POST …/execute 400 only — consumed one-shot in afterEach.
-    // Any additional 400 or other endpoint's 400 still fails the guards.
+    // Exact target-specific execute URL after the ready target is selected.
+    const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
+
+    // One exact POST to this target's /execute → 400 only — consumed one-shot.
+    // Another target's execute 400, a second 400, 403, 500, or connection failure
+    // still fail the guards.
     const executePromise = page.waitForResponse(
       (res) =>
         res.request().method() === "POST" &&
-        res.url().includes("/execute") &&
+        res.url() === expectedExecuteUrl &&
         res.status() === 400,
     );
 
@@ -358,14 +362,14 @@ test.describe("Query Workbench shell", () => {
     const response = await executePromise;
     expect(response.status()).toBe(400);
     expect(response.request().method()).toBe("POST");
-    expect(response.url()).toContain("/execute");
+    expect(response.url()).toBe(expectedExecuteUrl);
     const body = await response.json();
     expect(body.error).toBeTruthy();
 
     consumableHttpErrors = [
       {
         method: "POST",
-        urlIncludes: "/execute",
+        url: expectedExecuteUrl,
         status: 400,
         consumeConsoleStatusEcho: true,
       },
@@ -490,10 +494,12 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
+    const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
+
     const executePromise = page.waitForResponse(
       (res) =>
         res.request().method() === "POST" &&
-        res.url().includes("/execute") &&
+        res.url() === expectedExecuteUrl &&
         res.status() === 400,
     );
 
@@ -503,14 +509,14 @@ test.describe("Query Workbench shell", () => {
     const response = await executePromise;
     expect(response.status()).toBe(400);
     expect(response.request().method()).toBe("POST");
-    expect(response.url()).toContain("/execute");
+    expect(response.url()).toBe(expectedExecuteUrl);
     const body = await response.json();
     expect(body.error).toBeTruthy();
 
     consumableHttpErrors = [
       {
         method: "POST",
-        urlIncludes: "/execute",
+        url: expectedExecuteUrl,
         status: 400,
         consumeConsoleStatusEcho: true,
       },
@@ -644,6 +650,59 @@ async function openQueryWorkbench(page: Page): Promise<void> {
   await loginViaUI(page);
   await page.locator('a[href="/query"]').first().click();
   await expect(page).toHaveURL(/\/query/);
+}
+
+/**
+ * Build the full absolute execute URL for the currently selected ready target.
+ * Derives the numeric target id after navigator selection from (in order):
+ * 1) `?targetId=` on the workbench URL
+ * 2) recent same-origin `/query-targets/{id}/…` resource timing (schema/history)
+ * Browser API base is same-origin `/__api` (see e2e dev-server wrapper).
+ */
+async function exactExecuteUrlForActiveTarget(page: Page): Promise<string> {
+  // Ready selection must expose Run before we can trust the active target.
+  await expect(page.getByRole("button", { name: /^(run|执行)$/i })).toBeEnabled({
+    timeout: 15_000,
+  });
+
+  let resolvedId: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const fromUrl = new URL(page.url()).searchParams.get("targetId");
+        if (fromUrl && /^\d+$/.test(fromUrl)) {
+          resolvedId = fromUrl;
+          return fromUrl;
+        }
+        const fromTraffic = await page.evaluate(() => {
+          const entries = performance.getEntriesByType("resource");
+          for (let i = entries.length - 1; i >= 0; i -= 1) {
+            const match = entries[i]!.name.match(
+              /\/(?:__api\/)?query-targets\/(\d+)(?:\/|\?|$)/,
+            );
+            if (match) return match[1]!;
+          }
+          return null;
+        });
+        if (fromTraffic && /^\d+$/.test(fromTraffic)) {
+          resolvedId = fromTraffic;
+          return fromTraffic;
+        }
+        return null;
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBeNull();
+
+  if (resolvedId === null || !/^\d+$/.test(resolvedId)) {
+    throw new Error(
+      `expected numeric target id after ready selection, page=${page.url()}`,
+    );
+  }
+  return new URL(
+    `/__api/query-targets/${resolvedId}/execute`,
+    new URL(page.url()).origin,
+  ).href;
 }
 
 /** Get the CodeMirror editor content element. */

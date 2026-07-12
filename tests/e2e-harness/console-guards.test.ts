@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isAllowedConsoleMessage,
+  normalizeRequestUrl,
   parseNetworkErrorMessage,
   takeExpectedConsoleStatusError,
   takeExpectedNetworkError,
@@ -96,94 +97,130 @@ describe("isAllowedConsoleMessage", () => {
       ),
     ).toBe(false);
   });
+
+  it("REGRESSION: ConsoleGuardOptions has no allowedNetworkErrors field", () => {
+    const optsWithOnlyConsole: ConsoleGuardOptions = {
+      allowedErrors: [/Fast Refresh/],
+    };
+    // Type-level: allowedNetworkErrors must not exist on the public API.
+    expect("allowedNetworkErrors" in optsWithOnlyConsole).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(optsWithOnlyConsole, "allowedNetworkErrors"),
+    ).toBe(false);
+  });
 });
 
-describe("takeExpectedNetworkError (one-shot exact match)", () => {
-  const execute400 =
-    "POST http://localhost:8081/query-targets/42/execute → 400";
-  const execute400Other =
-    "POST http://localhost:8081/query-targets/42/execute → 400";
+describe("normalizeRequestUrl", () => {
+  it("strips hash and trailing slash on pathname", () => {
+    expect(normalizeRequestUrl("http://localhost:3100/__api/query-targets/42/execute/")).toBe(
+      "http://localhost:3100/__api/query-targets/42/execute",
+    );
+    expect(
+      normalizeRequestUrl("http://localhost:3100/__api/query-targets/42/execute#frag"),
+    ).toBe("http://localhost:3100/__api/query-targets/42/execute");
+  });
+});
+
+describe("takeExpectedNetworkError (one-shot exact full-URL match)", () => {
+  const execute400Target42 =
+    "POST http://localhost:3100/__api/query-targets/42/execute → 400";
+  const execute400Target42Dup =
+    "POST http://localhost:3100/__api/query-targets/42/execute → 400";
+  const execute400Target99 =
+    "POST http://localhost:3100/__api/query-targets/99/execute → 400";
   const schema403 =
-    "GET http://localhost:8081/query-targets/42/schema/databases → 403";
+    "GET http://localhost:3100/__api/query-targets/42/schema/databases → 403";
   const server500 =
-    "GET http://localhost:8081/query-targets → 500";
+    "GET http://localhost:3100/__api/query-targets → 500";
   const connectionRefused =
-    "GET http://localhost:8081/query-targets → ERR_CONNECTION_REFUSED";
+    "GET http://localhost:3100/__api/query-targets → ERR_CONNECTION_REFUSED";
+
+  const exact42 = {
+    method: "POST",
+    url: "http://localhost:3100/__api/query-targets/42/execute",
+    status: 400,
+  } as const;
 
   it("consumes exactly one matching intentional execute 400", () => {
-    const remaining = takeExpectedNetworkError([execute400], {
+    const remaining = takeExpectedNetworkError([execute400Target42], exact42);
+    expect(remaining).toEqual([]);
+  });
+
+  it("matches after URL normalization (trailing slash)", () => {
+    const remaining = takeExpectedNetworkError([execute400Target42], {
       method: "POST",
-      urlIncludes: "/execute",
+      url: "http://localhost:3100/__api/query-targets/42/execute/",
       status: 400,
     });
     expect(remaining).toEqual([]);
   });
 
   it("REGRESSION: intentional execute 400 cannot conceal a second 400", () => {
-    const remaining = takeExpectedNetworkError([execute400, execute400Other], {
-      method: "POST",
-      urlIncludes: "/execute",
-      status: 400,
-    });
+    const remaining = takeExpectedNetworkError(
+      [execute400Target42, execute400Target42Dup],
+      exact42,
+    );
     // One remains — assertClean must still fail
     expect(remaining).toHaveLength(1);
     expect(remaining[0]).toContain("→ 400");
   });
 
+  it("REGRESSION: exact URL matching rejects another target's execute 400", () => {
+    const remaining = takeExpectedNetworkError(
+      [execute400Target42, execute400Target99],
+      exact42,
+    );
+    expect(remaining).toEqual([execute400Target99]);
+  });
+
+  it("REGRESSION: substring /execute must not match a different target", () => {
+    // Prove we no longer accept urlIncludes-style broad matching.
+    expect(() =>
+      takeExpectedNetworkError([execute400Target99], exact42),
+    ).toThrow(/Expected exactly one network error/);
+  });
+
   it("REGRESSION: intentional execute 400 cannot conceal an unrelated 403", () => {
-    const remaining = takeExpectedNetworkError([execute400, schema403], {
-      method: "POST",
-      urlIncludes: "/execute",
-      status: 400,
-    });
+    const remaining = takeExpectedNetworkError(
+      [execute400Target42, schema403],
+      exact42,
+    );
     expect(remaining).toEqual([schema403]);
   });
 
   it("REGRESSION: intentional execute 400 cannot conceal a 500", () => {
-    const remaining = takeExpectedNetworkError([execute400, server500], {
-      method: "POST",
-      urlIncludes: "/execute",
-      status: 400,
-    });
+    const remaining = takeExpectedNetworkError(
+      [execute400Target42, server500],
+      exact42,
+    );
     expect(remaining).toEqual([server500]);
   });
 
   it("REGRESSION: intentional execute 400 cannot conceal ERR_CONNECTION_REFUSED", () => {
-    const remaining = takeExpectedNetworkError([execute400, connectionRefused], {
-      method: "POST",
-      urlIncludes: "/execute",
-      status: 400,
-    });
+    const remaining = takeExpectedNetworkError(
+      [execute400Target42, connectionRefused],
+      exact42,
+    );
     expect(remaining).toEqual([connectionRefused]);
   });
 
   it("does not match a different method or path", () => {
     expect(() =>
-      takeExpectedNetworkError([schema403], {
-        method: "POST",
-        urlIncludes: "/execute",
-        status: 400,
-      }),
+      takeExpectedNetworkError([schema403], exact42),
     ).toThrow(/Expected exactly one network error/);
   });
 
   it("does not match a different status on the same path", () => {
     expect(() =>
       takeExpectedNetworkError(
-        ["POST http://localhost:8081/query-targets/42/execute → 500"],
-        { method: "POST", urlIncludes: "/execute", status: 400 },
+        ["POST http://localhost:3100/__api/query-targets/42/execute → 500"],
+        exact42,
       ),
     ).toThrow(/Expected exactly one network error/);
   });
 
   it("throws when the expected error is absent", () => {
-    expect(() =>
-      takeExpectedNetworkError([], {
-        method: "POST",
-        urlIncludes: "/execute",
-        status: 400,
-      }),
-    ).toThrow(/none matched/);
+    expect(() => takeExpectedNetworkError([], exact42)).toThrow(/none matched/);
   });
 });
 

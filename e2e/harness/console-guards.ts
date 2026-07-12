@@ -11,23 +11,31 @@ export interface ConsoleGuardOptions {
   allowedErrors?: RegExp[];
   /** Patterns that match allowed console.warning messages (dev noise only). */
   allowedWarnings?: RegExp[];
-  /**
-   * @deprecated Prefer takeExpectedNetworkError for one-shot exact matches.
-   * Broad allowlists hide unrelated failures and must not be used for intentional 4xx/5xx.
-   */
-  allowedNetworkErrors?: RegExp[];
 }
 
 /** Exact expected HTTP error for one-shot consumption (never a broad allowlist). */
 export type ExpectedHttpError = {
   method: string;
-  /** Substring that must appear in the request URL. */
-  urlIncludes: string;
+  /** Full request URL; matching normalizes before equality. */
+  url: string;
   status: number;
 };
 
 const NETWORK_ERROR_RE = /^(\S+)\s+(.+)\s+→\s+(\d+)$/;
 const NETWORK_FAILURE_RE = /^(\S+)\s+(.+)\s+→\s+(ERR_\S+|net::ERR_\S+|Failed)$/i;
+
+/**
+ * Normalize a request URL for exact comparison: absolute URL, no hash,
+ * no trailing slash on the pathname (except root).
+ */
+export function normalizeRequestUrl(url: string): string {
+  const parsed = new URL(url);
+  parsed.hash = "";
+  if (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) {
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  }
+  return parsed.href;
+}
 
 export function isAllowedConsoleMessage(
   type: "error" | "warning",
@@ -59,21 +67,16 @@ export function collectConsoleMessages(
 /**
  * Collect HTTP 4xx/5xx responses and request-level connection failures
  * (e.g. ERR_CONNECTION_REFUSED). Nothing is suppressed by default.
+ * Intentional failures must be removed one-shot via takeExpectedNetworkError
+ * after the test asserts the response and UI — never via a broad allowlist.
  */
-export function collectNetworkErrors(
-  page: Page,
-  opts: Pick<ConsoleGuardOptions, "allowedNetworkErrors"> = {},
-): string[] {
+export function collectNetworkErrors(page: Page): string[] {
   const errors: string[] = [];
 
   page.on("response", (res) => {
     const status = res.status();
     if (status >= 400) {
-      const message = `${res.request().method()} ${res.url()} → ${status}`;
-      const allowed = opts.allowedNetworkErrors?.some((p) => p.test(message)) ?? false;
-      if (!allowed) {
-        errors.push(message);
-      }
+      errors.push(`${res.request().method()} ${res.url()} → ${status}`);
     }
   });
 
@@ -85,39 +88,36 @@ export function collectNetworkErrors(
       return;
     }
     // Connection-level failures (e.g. ERR_CONNECTION_REFUSED) have no HTTP status.
-    const message = `${request.method()} ${request.url()} → ${errorText}`;
-    const allowed = opts.allowedNetworkErrors?.some((p) => p.test(message)) ?? false;
-    if (!allowed) {
-      errors.push(message);
-    }
+    errors.push(`${request.method()} ${request.url()} → ${errorText}`);
   });
 
   return errors;
 }
 
 /**
- * Remove exactly one network error matching method + url substring + status.
+ * Remove exactly one network error matching method + full normalized URL + status.
  * Throws if zero matches — the intentional error must be present.
- * Leaves every other error so a second 400 / unrelated 403 / 500 still fails.
+ * Leaves every other error so a second 400 / other target / 403 / 500 still fails.
  */
 export function takeExpectedNetworkError(
   errors: string[],
   expected: ExpectedHttpError,
 ): string[] {
+  const expectedUrl = normalizeRequestUrl(expected.url);
   const idx = errors.findIndex((message) => {
     const match = message.match(NETWORK_ERROR_RE);
     if (!match) return false;
     const [, method, url, statusText] = match;
     return (
       method === expected.method &&
-      url!.includes(expected.urlIncludes) &&
+      normalizeRequestUrl(url!) === expectedUrl &&
       Number(statusText) === expected.status
     );
   });
 
   if (idx === -1) {
     throw new Error(
-      `Expected exactly one network error ${expected.method} *${expected.urlIncludes}* → ${expected.status}, ` +
+      `Expected exactly one network error ${expected.method} ${expectedUrl} → ${expected.status}, ` +
         `but none matched. Observed:\n${errors.length === 0 ? "(none)" : errors.join("\n")}`,
     );
   }
