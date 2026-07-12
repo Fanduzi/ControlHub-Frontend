@@ -1593,6 +1593,21 @@ function OperationsTable({
   const isMobile = useIsMobile();
 
   const allRows = groups.flatMap((g) => g.rows);
+  const selectableRows = allRows.filter((r) => r.selectable);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedIds.has(r.resourceId));
+
+  function handleToggleAll() {
+    if (allSelected) {
+      for (const r of selectableRows) {
+        if (selectedIds.has(r.resourceId)) onToggleSelect(r.resourceId);
+      }
+    } else {
+      for (const r of selectableRows) {
+        if (!selectedIds.has(r.resourceId)) onToggleSelect(r.resourceId);
+      }
+    }
+  }
+
   if (allRows.length === 0) {
     return (
       <EmptyState
@@ -1632,7 +1647,13 @@ function OperationsTable({
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-10">
-                      <span className="sr-only">{t("operations.columns.select")}</span>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={handleToggleAll}
+                        aria-label={t("operations.selectAll")}
+                        className="size-4 rounded border-border"
+                      />
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                       {t("operations.columns.target")}

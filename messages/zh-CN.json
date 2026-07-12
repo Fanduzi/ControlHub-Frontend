@@ -1332,6 +1332,7 @@
     "operations": {
       "title": "凭据操作",
       "selectTarget": "选择目标",
+      "selectAll": "全选",
       "selectedCount": "已选择 {count} 个",
       "noTargets": "当前筛选条件下没有匹配的目标。",
       "columns": {

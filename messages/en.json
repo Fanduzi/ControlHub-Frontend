@@ -1332,6 +1332,7 @@
     "operations": {
       "title": "Credential operations",
       "selectTarget": "Select target",
+      "selectAll": "Select all",
       "selectedCount": "{count} selected",
       "noTargets": "No targets match the current filters.",
       "columns": {
