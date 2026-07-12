@@ -22,8 +22,8 @@ export function QuerySchemaBrowser({ target, store, activeDatabase }: QuerySchem
 
   return <>
     <span className="sr-only">{placeholder} {t("schema.locked")}</span>
-    <Button type="button" variant="outline" className="hidden md:inline-flex" aria-label="Open objects" onClick={() => setDesktopOpen(true)}><ListTree className="size-4" aria-hidden />{activeDatabase ? `Objects: ${activeDatabase}` : "Objects"}</Button>
-    <Button type="button" variant="outline" className="md:hidden" aria-label="Open objects on mobile" onClick={() => setMobileOpen(true)}><ListTree className="size-4" aria-hidden />Objects</Button>
+    <Button type="button" variant="outline" className="hidden md:inline-flex" aria-label={t("schema.openObjects")} onClick={() => setDesktopOpen(true)}><ListTree className="size-4" aria-hidden />{activeDatabase ? t("schema.objectsLabelWithDb", { database: activeDatabase }) : t("schema.objectsLabel")}</Button>
+    <Button type="button" variant="outline" className="md:hidden" aria-label={t("schema.openObjects")} onClick={() => setMobileOpen(true)}><ListTree className="size-4" aria-hidden />{t("schema.objectsLabel")}</Button>
     <Dialog open={desktopOpen} onOpenChange={setDesktopOpen}><DialogContent className="max-w-2xl p-0"><DialogHeader className="border-b border-border p-4 pr-12"><DialogTitle>{t("schema.title")}</DialogTitle></DialogHeader><div className="max-h-[70vh] overflow-y-auto p-4">{explorer}</div></DialogContent></Dialog>
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto"><SheetHeader><SheetTitle>{t("schema.title")}</SheetTitle></SheetHeader><div className="min-w-0 px-4 pb-4">{explorer}</div></SheetContent></Sheet>
   </>;

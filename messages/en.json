@@ -986,6 +986,12 @@
       "keys": "Keys",
       "indexes": "Indexes",
       "foreignKeys": "Foreign Keys",
+      "objectsLabel": "Objects",
+      "objectsLabelWithDb": "Objects: {database}",
+      "detailColumns": "{count} Columns",
+      "detailKeys": "{count} Keys",
+      "detailIndexes": "{count} Indexes",
+      "detailForeignKeys": "{count} Foreign Keys",
       "loading": "Loading…",
       "loadError": "Unable to load objects.",
       "noDatabases": "No databases found.",
@@ -1005,7 +1011,7 @@
       "savedSheetsTab": "Saved sheets",
       "historyTab": "Query history",
       "accessTab": "Access grants",
-      "readonlyBadge": "READ_ONLY planned",
+      "readonlyBadge": "Read-only enforced",
       "timeout": "Timeout 30s",
       "maxRows": "Max rows 100",
       "lockTitle": "Editor locked by policy",
@@ -1188,6 +1194,22 @@
       "allEngines": "All engines",
       "allModes": "All kinds",
       "allReadiness": "All readiness"
+    },
+    "retarget": {
+      "title": "Change worksheet target",
+      "description": "This will change the target database for this worksheet. The result grid and query history will be cleared.",
+      "currentTarget": "Current target",
+      "newTarget": "New target",
+      "productionWarning": "You are switching to a production environment. Proceed with caution.",
+      "clearWarning": "Any existing results and history will be cleared.",
+      "cancel": "Cancel",
+      "confirm": "Change target"
+    },
+    "close": {
+      "title": "Close worksheet",
+      "description": "This worksheet has unsaved changes. Are you sure you want to close it?",
+      "cancel": "Cancel",
+      "confirm": "Close worksheet"
     }
   },
   "queryCredentialSettings": {
@@ -1207,7 +1229,7 @@
       "emptyFilterDescription": "No targets match your current search. Try different keywords."
     },
     "detail": {
-      "title": "Credential binding",
+      "title": "Edit credential: {name}",
       "emptyTitle": "Select a target",
       "emptyDescription": "Choose a credential target from the operations table to edit its metadata.",
       "inspectorLabel": "Credential detail inspector",
@@ -1227,18 +1249,22 @@
       "enabledLabel": "Enabled",
       "environmentPolicyLabel": "Environment policy",
       "boundaryNote": "ControlHub stores only the reference. The DSN/password stays server-side as: CONTROLHUB_QUERY_CREDENTIAL_your-ref",
-      "configureButton": "Configure credential metadata",
-      "editButton": "Edit credential metadata",
-      "removeButton": "Remove credential metadata",
+      "configureButton": "Configure",
+      "editButton": "Edit",
+      "removeButton": "Remove",
       "removeConfirmTitle": "Remove credential metadata?",
       "removeConfirmDescription": "This removes the credential binding for this target. The target will remain visible and locked. The actual credential is not deleted.",
-      "saveButton": "Save credential metadata",
+      "saveButton": "Save",
       "saved": "Credential metadata saved.",
       "closeButton": "Close editor",
       "saveDisabled": "Save disabled until confirmation",
       "saving": "Saving...",
       "removing": "Removing...",
-      "removed": "Credential metadata removed."
+      "removed": "Credential metadata removed.",
+      "unsavedChangesTitle": "Discard changes?",
+      "unsavedChangesDescription": "You have unsaved changes that will be lost.",
+      "unsavedChangesDiscard": "Discard",
+      "unsavedChangesCancel": "Keep editing"
     },
     "environmentPolicies": {
       "disabled": "Disabled",
@@ -1278,10 +1304,12 @@
       "statusLabel": "Credential status"
     },
     "coverage": {
-      "title": "Coverage overview",
-      "scope": "Status totals reflect this page and current filters only.",
-      "total": "Total targets",
+      "title": "Summary",
+      "scope": "Current page",
+      "total": "Total",
       "ready": "Ready",
+      "needsAttention": "Needs attention",
+      "unsupported": "Unsupported",
       "missingMetadata": "Missing metadata",
       "secretMissing": "Secret missing",
       "bindingMismatch": "Binding mismatch",
@@ -1299,13 +1327,17 @@
       "noTargets": "No targets match the current filters.",
       "columns": {
         "target": "Target",
+        "context": "Context",
+        "runtime": "Runtime",
+        "binding": "Binding",
+        "policy": "Policy",
+        "action": "Action",
         "engine": "Engine",
         "environment": "Environment",
         "cluster": "Cluster",
         "hostPort": "Host:Port",
         "runtimeStatus": "Runtime status",
         "credentialRef": "Credential ref",
-        "policy": "Policy",
         "enabled": "Enabled",
         "configured": "Configured",
         "actions": "Actions"
@@ -1343,7 +1375,9 @@
       "unconfigured": "Unconfigured",
       "ready": "Ready",
       "notReady": "Not ready",
-      "none": "None"
+      "none": "None",
+      "moreFilters": "More filters",
+      "hideFilters": "Fewer filters"
     },
     "grouping": {
       "mode": "Group by",

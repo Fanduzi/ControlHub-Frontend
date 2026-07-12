@@ -330,7 +330,12 @@ export function filterCredentialRows(
 
     // Runtime status
     if (filters.runtimeStatus && filters.runtimeStatus !== ALL_FILTER_VALUE) {
-      if (row.runtimeStatus !== filters.runtimeStatus) return false;
+      if (filters.runtimeStatus === "needs_attention") {
+        const attentionStatuses = ["missing_metadata", "secret_missing", "binding_mismatch", "invalid_ref", "policy_blocked", "disabled"];
+        if (!attentionStatuses.includes(row.runtimeStatus)) return false;
+      } else {
+        if (row.runtimeStatus !== filters.runtimeStatus) return false;
+      }
     }
 
     // Configured state

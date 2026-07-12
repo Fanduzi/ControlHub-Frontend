@@ -11,8 +11,6 @@ import { useTranslations } from "next-intl";
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
-  ExternalLink,
   Filter,
   Layers,
   Loader2,
@@ -41,7 +39,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -419,10 +416,6 @@ export function QueryCredentialSettings({
     [selectedIds, selectableRows],
   );
 
-  const allFilteredSelected =
-    selectableRows.length > 0 && selectedCount === selectableRows.length;
-
-  // --- P1 fix: actual operation targets = visible + selectable + selected ---
   const selectedOperationTargets = useMemo(
     () =>
       selectableRows
@@ -443,6 +436,17 @@ export function QueryCredentialSettings({
     [selectableRows, selectedIds],
   );
 
+  function handleFilterByStatus(status: string) {
+    if (status === "") {
+      setFilters({ ...EMPTY_CREDENTIAL_FILTERS });
+    } else if (status === "needs_attention") {
+      setFilters({ ...EMPTY_CREDENTIAL_FILTERS, runtimeStatus: "needs_attention" });
+    } else {
+      setFilters({ ...EMPTY_CREDENTIAL_FILTERS, runtimeStatus: status });
+    }
+    setPage(1);
+  }
+
   function handleFiltersChange(nextFilters: CredentialFilterState) {
     setFilters(nextFilters);
     setPage(1);
@@ -458,14 +462,6 @@ export function QueryCredentialSettings({
     if (nextSize !== null) {
       setPageSize(nextSize);
       setPage(1);
-    }
-  }
-
-  function toggleSelectAll() {
-    if (allFilteredSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(selectableRows.map((r) => r.resourceId)));
     }
   }
 
@@ -555,7 +551,7 @@ export function QueryCredentialSettings({
   return (
     <div className="space-y-6">
       {/* Coverage summary cards */}
-      <CoverageSummaryCards coverage={coverage} loading={statusesLoading} />
+      <CoverageSummaryCards coverage={coverage} loading={statusesLoading} onFilterByStatus={handleFilterByStatus} />
 
       {/* Filter and grouping controls */}
       <FilterControls
@@ -592,9 +588,6 @@ export function QueryCredentialSettings({
           groups={pagedGroups}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
-          onToggleSelectAll={toggleSelectAll}
-          allFilteredSelected={allFilteredSelected}
-          selectableCount={selectableRows.length}
           activeTargetId={activeTargetId}
           onSelectTarget={(id) => {
             setActiveTargetId(id);
@@ -625,11 +618,14 @@ export function QueryCredentialSettings({
       >
         <DialogContent className="inset-0 max-h-none max-w-none translate-x-0 translate-y-0 overflow-y-auto overflow-x-hidden rounded-none p-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:max-h-[85vh] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-4">
           <DialogHeader className="pr-8">
-            <DialogTitle>{t("detail.title")}</DialogTitle>
+            <DialogTitle>
+              {dialogTargetId !== null
+                ? t("detail.title", {
+                    name: targetList.find((t) => t.resourceId === dialogTargetId)?.displayName ?? "",
+                  })
+                : t("detail.title", { name: "" })}
+            </DialogTitle>
           </DialogHeader>
-          <DialogClose render={<Button type="button" size="sm" variant="outline" />}>
-            {t("detail.closeButton")}
-          </DialogClose>
           {dialogTargetId !== null && (
             <CredentialDetailPanel
               key={dialogTargetId}
@@ -639,6 +635,7 @@ export function QueryCredentialSettings({
               onCredentialChanged={() =>
                 void fetchAllCredentialStatuses(targetList)
               }
+              onClose={() => setDialogTargetId(null)}
             />
           )}
         </DialogContent>
@@ -655,69 +652,49 @@ export function QueryCredentialSettings({
 function CoverageSummaryCards({
   coverage,
   loading,
+  onFilterByStatus,
 }: {
   coverage: CoverageCounts;
   loading: boolean;
+  onFilterByStatus: (status: string) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
 
-  const cards: { key: keyof CoverageCounts; label: string; tone: string }[] = [
-    { key: "total", label: t("coverage.total"), tone: "text-foreground" },
-    {
-      key: "ready",
-      label: t("coverage.ready"),
-      tone: "text-emerald-600 dark:text-emerald-400",
-    },
-    {
-      key: "missingMetadata",
-      label: t("coverage.missingMetadata"),
-      tone: "text-amber-600 dark:text-amber-400",
-    },
-    {
-      key: "secretMissing",
-      label: t("coverage.secretMissing"),
-      tone: "text-amber-600 dark:text-amber-400",
-    },
-    {
-      key: "bindingMismatch",
-      label: t("coverage.bindingMismatch"),
-      tone: "text-rose-600 dark:text-rose-400",
-    },
-    {
-      key: "invalidRef",
-      label: t("coverage.invalidRef"),
-      tone: "text-rose-600 dark:text-rose-400",
-    },
-    {
-      key: "policyBlocked",
-      label: t("coverage.policyBlocked"),
-      tone: "text-amber-600 dark:text-amber-400",
-    },
-    {
-      key: "disabled",
-      label: t("coverage.disabled"),
-      tone: "text-muted-foreground",
-    },
-    {
-      key: "unsupportedOrIncomplete",
-      label: t("coverage.unsupportedOrIncomplete"),
-      tone: "text-rose-600 dark:text-rose-400",
-    },
+  const needsAttentionCount =
+    coverage.missingMetadata +
+    coverage.secretMissing +
+    coverage.bindingMismatch +
+    coverage.invalidRef +
+    coverage.policyBlocked +
+    coverage.disabled;
+
+  const cards: { key: string; label: string; tone: string; count: number; filterValue: string }[] = [
+    { key: "total", label: t("coverage.total"), tone: "text-foreground", count: coverage.total, filterValue: "" },
+    { key: "ready", label: t("coverage.ready"), tone: "text-emerald-600 dark:text-emerald-400", count: coverage.ready, filterValue: "secret_resolved" },
+    { key: "needsAttention", label: t("coverage.needsAttention"), tone: "text-amber-600 dark:text-amber-400", count: needsAttentionCount, filterValue: "needs_attention" },
+    { key: "unsupported", label: t("coverage.unsupported"), tone: "text-rose-600 dark:text-rose-400", count: coverage.unsupportedOrIncomplete, filterValue: "unsupported_target" },
   ];
 
   return (
     <div>
-      <h2 className="mb-3 text-sm font-semibold text-foreground">
-        {t("coverage.title")}
-      </h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        {t("coverage.scope")}
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-foreground">
+          {t("coverage.title")}
+        </h2>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {t("coverage.scope")}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map((card) => (
-          <div
+          <button
             key={card.key}
-            className="rounded-lg border border-border bg-card p-3 text-center"
+            type="button"
+            onClick={() => onFilterByStatus(card.filterValue)}
+            className={cn(
+              "rounded-lg border border-border bg-card p-3 text-center transition-colors hover:bg-muted/50",
+              card.key === "total" && "cursor-default hover:bg-card",
+            )}
           >
             <p className="text-xs text-muted-foreground">{card.label}</p>
             <p className={cn("mt-1 text-xl font-bold", card.tone)}>
@@ -727,10 +704,10 @@ function CoverageSummaryCards({
                   aria-hidden
                 />
               ) : (
-                coverage[card.key]
+                card.count
               )}
             </p>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -761,6 +738,7 @@ function FilterControls({
   runtimeStatuses: string[];
 }) {
   const t = useTranslations("queryCredentialSettings");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   function updateFilter<K extends keyof CredentialFilterState>(
     key: K,
@@ -769,15 +747,21 @@ function FilterControls({
     onFiltersChange({ ...filters, [key]: value });
   }
 
+  const needsAttentionStatuses = ["missing_metadata", "secret_missing", "binding_mismatch", "invalid_ref", "policy_blocked", "disabled"];
+  const displayStatuses = [
+    ...runtimeStatuses.filter((s) => !needsAttentionStatuses.includes(s)),
+    "needs_attention",
+  ];
+
+  function getRuntimeStatusLabel(status: string): string {
+    if (status === "needs_attention") {
+      return t("coverage.needsAttention");
+    }
+    return credentialRuntimeStatusLabel(t, status);
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Filter className="size-4 text-muted-foreground" aria-hidden />
-        <h2 className="text-sm font-semibold text-foreground">
-          {t("filters.title")}
-        </h2>
-      </div>
-
       <div className="flex flex-wrap items-center gap-2">
         {/* Search */}
         <div className="relative min-w-[200px] flex-1">
@@ -794,6 +778,30 @@ function FilterControls({
             className="h-9 pl-8"
           />
         </div>
+
+        {/* Runtime status filter */}
+        <Select
+          value={filters.runtimeStatus || ALL_FILTER_VALUE}
+          onValueChange={(v) => v !== null && updateFilter("runtimeStatus", v)}
+        >
+          <SelectTrigger className="h-9 w-[160px]">
+            <span>
+              {filters.runtimeStatus
+                ? getRuntimeStatusLabel(filters.runtimeStatus)
+                : t("filters.allStatuses")}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_FILTER_VALUE}>
+              {t("filters.allStatuses")}
+            </SelectItem>
+            {displayStatuses.map((s) => (
+              <SelectItem key={s} value={s}>
+                {getRuntimeStatusLabel(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Environment filter */}
         <Select
@@ -817,146 +825,139 @@ function FilterControls({
           </SelectContent>
         </Select>
 
-        {/* Cluster filter */}
-        <Select
-          value={filters.cluster || ALL_FILTER_VALUE}
-          onValueChange={(v) => v !== null && updateFilter("cluster", v)}
+        {/* More filters button */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowMoreFilters(!showMoreFilters)}
+          className="h-9 gap-1.5"
         >
-          <SelectTrigger className="h-9 w-[150px]">
-            <span>{filters.cluster || t("filters.allClusters")}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER_VALUE}>
-              {t("filters.allClusters")}
-            </SelectItem>
-            {clusters.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Filter className="size-3.5" aria-hidden />
+          {showMoreFilters ? t("filters.hideFilters") : t("filters.moreFilters")}
+        </Button>
+      </div>
 
-        {/* Engine filter */}
-        <Select
-          value={filters.engine || ALL_FILTER_VALUE}
-          onValueChange={(v) => v !== null && updateFilter("engine", v)}
-        >
-          <SelectTrigger className="h-9 w-[130px]">
-            <span>{filters.engine || t("filters.allEngines")}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER_VALUE}>
-              {t("filters.allEngines")}
-            </SelectItem>
-            {engines.map((e) => (
-              <SelectItem key={e} value={e}>
-                {e}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Runtime status filter */}
-        <Select
-          value={filters.runtimeStatus || ALL_FILTER_VALUE}
-          onValueChange={(v) => v !== null && updateFilter("runtimeStatus", v)}
-        >
-          <SelectTrigger className="h-9 w-[160px]">
-            <span>
-              {filters.runtimeStatus
-                ? credentialRuntimeStatusLabel(t, filters.runtimeStatus)
-                : t("filters.allStatuses")}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_FILTER_VALUE}>
-              {t("filters.allStatuses")}
-            </SelectItem>
-            {runtimeStatuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {credentialRuntimeStatusLabel(t, s)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Configured state filter */}
-        <Select
-          value={filters.configuredState}
-          onValueChange={(v) => v !== null && updateFilter("configuredState", v)}
-        >
-          <SelectTrigger className="h-9 w-[130px]">
-            <span>
-              {filters.configuredState === "all"
-                ? t("filters.all")
-                : filters.configuredState === "configured"
-                  ? t("filters.configured")
-                  : t("filters.unconfigured")}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("filters.all")}</SelectItem>
-            <SelectItem value="configured">
-              {t("filters.configured")}
-            </SelectItem>
-            <SelectItem value="unconfigured">
-              {t("filters.unconfigured")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Readiness filter */}
-        <Select
-          value={filters.readinessFilter}
-          onValueChange={(v) => v !== null && updateFilter("readinessFilter", v)}
-        >
-          <SelectTrigger className="h-9 w-[120px]">
-            <span>
-              {filters.readinessFilter === "all"
-                ? t("filters.all")
-                : filters.readinessFilter === "ready"
-                  ? t("filters.ready")
-                  : t("filters.notReady")}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("filters.all")}</SelectItem>
-            <SelectItem value="ready">{t("filters.ready")}</SelectItem>
-            <SelectItem value="not_ready">
-              {t("filters.notReady")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Grouping mode */}
-        <div className="flex items-center gap-1.5">
-          <Layers className="size-4 text-muted-foreground" aria-hidden />
+      {/* Additional filters (collapsed by default) */}
+      {showMoreFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Engine filter */}
           <Select
-            value={groupingMode}
-            onValueChange={(v) => onGroupingModeChange(v as GroupingMode)}
+            value={filters.engine || ALL_FILTER_VALUE}
+            onValueChange={(v) => v !== null && updateFilter("engine", v)}
+          >
+            <SelectTrigger className="h-9 w-[130px]">
+              <span>{filters.engine || t("filters.allEngines")}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {t("filters.allEngines")}
+              </SelectItem>
+              {engines.map((e) => (
+                <SelectItem key={e} value={e}>
+                  {e}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Cluster filter */}
+          <Select
+            value={filters.cluster || ALL_FILTER_VALUE}
+            onValueChange={(v) => v !== null && updateFilter("cluster", v)}
+          >
+            <SelectTrigger className="h-9 w-[150px]">
+              <span>{filters.cluster || t("filters.allClusters")}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {t("filters.allClusters")}
+              </SelectItem>
+              {clusters.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Configured state filter */}
+          <Select
+            value={filters.configuredState}
+            onValueChange={(v) => v !== null && updateFilter("configuredState", v)}
           >
             <SelectTrigger className="h-9 w-[130px]">
               <span>
-                {groupingMode === "flat"
-                  ? t("grouping.flat")
-                  : groupingMode === "environment"
-                    ? t("grouping.environment")
-                    : t("grouping.cluster")}
+                {filters.configuredState === "all"
+                  ? t("filters.all")
+                  : filters.configuredState === "configured"
+                    ? t("filters.configured")
+                    : t("filters.unconfigured")}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="flat">{t("grouping.flat")}</SelectItem>
-              <SelectItem value="environment">
-                {t("grouping.environment")}
+              <SelectItem value="all">{t("filters.all")}</SelectItem>
+              <SelectItem value="configured">
+                {t("filters.configured")}
               </SelectItem>
-              <SelectItem value="cluster">
-                {t("grouping.cluster")}
+              <SelectItem value="unconfigured">
+                {t("filters.unconfigured")}
               </SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Readiness filter */}
+          <Select
+            value={filters.readinessFilter}
+            onValueChange={(v) => v !== null && updateFilter("readinessFilter", v)}
+          >
+            <SelectTrigger className="h-9 w-[120px]">
+              <span>
+                {filters.readinessFilter === "all"
+                  ? t("filters.all")
+                  : filters.readinessFilter === "ready"
+                    ? t("filters.ready")
+                    : t("filters.notReady")}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("filters.all")}</SelectItem>
+              <SelectItem value="ready">{t("filters.ready")}</SelectItem>
+              <SelectItem value="not_ready">
+                {t("filters.notReady")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Grouping mode */}
+          <div className="flex items-center gap-1.5">
+            <Layers className="size-4 text-muted-foreground" aria-hidden />
+            <Select
+              value={groupingMode}
+              onValueChange={(v) => onGroupingModeChange(v as GroupingMode)}
+            >
+              <SelectTrigger className="h-9 w-[130px]">
+                <span>
+                  {groupingMode === "flat"
+                    ? t("grouping.flat")
+                    : groupingMode === "environment"
+                      ? t("grouping.environment")
+                      : t("grouping.cluster")}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="flat">{t("grouping.flat")}</SelectItem>
+                <SelectItem value="environment">
+                  {t("grouping.environment")}
+                </SelectItem>
+                <SelectItem value="cluster">
+                  {t("grouping.cluster")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1542,7 +1543,7 @@ function OperationResultsPanel({
                 >
                   {t("operationResults.success")}
                   {result.runtimeStatusAfter
-                    ? ` · ${result.runtimeStatusAfter.replaceAll("_", " ")}`
+                    ? ` · ${credentialRuntimeStatusLabel(t, result.runtimeStatusAfter)}`
                     : ""}
                 </Badge>
               ) : result.status === "failure" ? (
@@ -1575,9 +1576,6 @@ function OperationsTable({
   groups,
   selectedIds,
   onToggleSelect,
-  onToggleSelectAll,
-  allFilteredSelected,
-  selectableCount,
   activeTargetId,
   onSelectTarget,
   onOpenDialog,
@@ -1586,9 +1584,6 @@ function OperationsTable({
   groups: { key: string; label: string; rows: CredentialOperationRow[] }[];
   selectedIds: Set<number>;
   onToggleSelect: (id: number) => void;
-  onToggleSelectAll: () => void;
-  allFilteredSelected: boolean;
-  selectableCount: number;
   activeTargetId: number | null;
   onSelectTarget: (id: number) => void;
   onOpenDialog: (id: number) => void;
@@ -1636,45 +1631,23 @@ function OperationsTable({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
-                    <th className="w-10 px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={allFilteredSelected && selectableCount > 0}
-                        onChange={onToggleSelectAll}
-                        disabled={selectableCount === 0}
-                        className="size-4 rounded border-border"
-                        aria-label={t("operations.selectTarget")}
-                      />
-                    </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                       {t("operations.columns.target")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.engine")}
+                      {t("operations.columns.context")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.environment")}
+                      {t("operations.columns.runtime")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.cluster")}
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.hostPort")}
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.runtimeStatus")}
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.credentialRef")}
+                      {t("operations.columns.binding")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                       {t("operations.columns.policy")}
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.enabled")}
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                      {t("operations.columns.actions")}
+                      {t("operations.columns.action")}
                     </th>
                   </tr>
                 </thead>
@@ -1781,13 +1754,18 @@ function MobileOperationCard({
             />
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => onSelectTarget(row.resourceId)}
-          className="flex-1 text-left text-sm font-medium text-foreground hover:underline truncate"
-        >
-          {row.displayName}
-        </button>
+        <div className="flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => onSelectTarget(row.resourceId)}
+            className="text-left text-sm font-medium text-foreground hover:underline truncate block"
+          >
+            {row.displayName}
+          </button>
+          <p className="text-xs text-muted-foreground truncate">
+            {formatHostPortLabel(row.host, row.port, "—")}
+          </p>
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -1801,37 +1779,24 @@ function MobileOperationCard({
         </Button>
       </div>
 
-      {/* Metadata fields */}
+      {/* Context: engine, environment, cluster */}
+      <div className="text-xs text-muted-foreground">
+        <span>{row.engine}</span>
+        <span className="mx-1">·</span>
+        <span>{row.environment}</span>
+        {row.clusterName && (
+          <>
+            <span className="mx-1">·</span>
+            <span>{row.clusterName}</span>
+          </>
+        )}
+      </div>
+
+      {/* Binding and policy */}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div>
           <dt className="text-muted-foreground">
-            {t("operations.columns.engine")}
-          </dt>
-          <dd className="text-foreground">{row.engine}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t("operations.columns.environment")}
-          </dt>
-          <dd className="text-foreground">{row.environment}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t("operations.columns.cluster")}
-          </dt>
-          <dd className="text-foreground">{row.clusterName || "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t("operations.columns.hostPort")}
-          </dt>
-          <dd className="text-foreground">
-            {formatHostPortLabel(row.host, row.port, "—")}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t("operations.columns.credentialRef")}
+            {t("operations.columns.binding")}
           </dt>
           <dd className="text-foreground">
             {row.credential?.configured
@@ -1844,18 +1809,6 @@ function MobileOperationCard({
             {t("operations.columns.policy")}
           </dt>
           <dd className="text-foreground">{environmentPolicyLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t("operations.columns.enabled")}
-          </dt>
-          <dd className="text-foreground">
-            {row.credential?.configured
-              ? row.credential.enabled
-                ? "✓"
-                : "✗"
-              : "—"}
-          </dd>
         </div>
       </dl>
 
@@ -1942,51 +1895,62 @@ function OperationRow({
         isActive && "bg-muted/50",
       )}
     >
+      {/* Target: name + host:port */}
       <td className="px-3 py-2">
-        {row.selectable ? (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(row.resourceId)}
-            className="size-4 rounded border-border"
-          />
-        ) : (
-          <span
-            title={
-              row.notSelectableReason
-                ? t(`operations.notSelectable.${row.notSelectableReason}`)
-                : undefined
-            }
-          >
+        <div className="flex items-center gap-2">
+          {row.selectable ? (
             <input
               type="checkbox"
-              disabled
-              className="size-4 rounded border-border opacity-50"
+              checked={selected}
+              onChange={() => onToggleSelect(row.resourceId)}
+              className="size-4 rounded border-border"
             />
-          </span>
-        )}
+          ) : (
+            <span
+              title={
+                row.notSelectableReason
+                  ? t(`operations.notSelectable.${row.notSelectableReason}`)
+                  : undefined
+              }
+            >
+              <input
+                type="checkbox"
+                disabled
+                className="size-4 rounded border-border opacity-50"
+              />
+            </span>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => onSelectTarget(row.resourceId)}
+              className="text-left text-sm font-medium text-foreground hover:underline"
+            >
+              {row.displayName}
+            </button>
+            <p className="text-xs text-muted-foreground">
+              {formatHostPortLabel(row.host, row.port, "—")}
+            </p>
+          </div>
+        </div>
       </td>
+
+      {/* Context: engine, environment, cluster */}
       <td className="px-3 py-2">
-        <button
-          type="button"
-          onClick={() => onSelectTarget(row.resourceId)}
-          className="text-left text-sm font-medium text-foreground hover:underline"
-        >
-          {row.displayName}
-        </button>
+        <div className="text-xs text-muted-foreground">
+          <span>{row.engine}</span>
+          <span className="mx-1">·</span>
+          <span>{row.environment}</span>
+          {row.clusterName && (
+            <>
+              <span className="mx-1">·</span>
+              <span>{row.clusterName}</span>
+            </>
+          )}
+        </div>
       </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {row.engine}
-      </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {row.environment}
-      </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {row.clusterName || "—"}
-      </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {formatHostPortLabel(row.host, row.port, "—")}
-      </td>
+
+      {/* Runtime: status badge */}
       <td className="px-3 py-2">
         {row.runtimeStatus === "fetch_error" ? (
           <div className="flex items-center gap-1.5">
@@ -2009,19 +1973,18 @@ function OperationRow({
           </Badge>
         )}
       </td>
+
+      {/* Binding: credential ref */}
       <td className="px-3 py-2 text-xs text-muted-foreground">
         {row.credential?.configured ? row.credential.credentialRef || "—" : "—"}
       </td>
+
+      {/* Policy: environment policy */}
       <td className="px-3 py-2 text-xs text-muted-foreground">
         {environmentPolicyLabel}
       </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {row.credential?.configured
-          ? row.credential.enabled
-            ? "✓"
-            : "✗"
-          : "—"}
-      </td>
+
+      {/* Action: edit button */}
       <td className="px-3 py-2">
         <Button
           type="button"
@@ -2053,9 +2016,11 @@ function toWritablePolicy(
 function CredentialDetailPanel({
   target,
   onCredentialChanged,
+  onClose,
 }: {
   target: QueryTarget;
   onCredentialChanged: () => void;
+  onClose: () => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
   const tWorkbench = useTranslations("queryWorkbench");
@@ -2073,7 +2038,8 @@ function CredentialDetailPanel({
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [showBindingHelp, setShowBindingHelp] = useState(false);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const activeTargetIdRef = useRef(target.resourceId);
 
@@ -2095,6 +2061,7 @@ function CredentialDetailPanel({
       setEnabled(data.enabled);
       setEnvironmentPolicy(toWritablePolicy(data.environmentPolicy));
       setConfirmAllEnvironments(false);
+      setIsDirty(false);
     } catch {
       if (activeTargetIdRef.current !== targetId) return;
       setError("Failed to load credential status");
@@ -2109,6 +2076,18 @@ function CredentialDetailPanel({
     activeTargetIdRef.current = target.resourceId;
     void loadCredential(target.resourceId);
   }, [target.resourceId, loadCredential]);
+
+  function markDirty() {
+    setIsDirty(true);
+  }
+
+  function handleClose() {
+    if (isDirty) {
+      setShowUnsavedConfirm(true);
+    } else {
+      onClose();
+    }
+  }
 
   async function handleSave() {
     if (!canSave) return;
@@ -2127,6 +2106,7 @@ function CredentialDetailPanel({
       if (activeTargetIdRef.current !== targetId) return;
       setCredential(result);
       setSuccess(t("detail.saved"));
+      setIsDirty(false);
       onCredentialChanged();
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) return;
@@ -2171,123 +2151,92 @@ function CredentialDetailPanel({
   const runtimeTone = getRuntimeTone(runtimeStatus);
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
-      <h2 className="text-sm font-semibold text-foreground">
-        {t("detail.title")}
-      </h2>
-
-      {/* Target info */}
-      <div className="rounded-lg border border-border bg-muted/20 p-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {t("detail.targetLabel")}
-        </p>
-        <p className="mt-1 text-sm font-medium text-foreground">
-          {target.displayName} · {target.connectionContext.engine} ·{" "}
-          {target.connectionContext.environment} ·{" "}
-          {formatHostPortLabel(
-            target.connectionContext.host,
-            target.connectionContext.port,
-            tWorkbench("connection.incomplete"),
-          )}
-        </p>
-      </div>
-
-      {/* Server secret reference explanation - collapsible */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowBindingHelp(!showBindingHelp)}
-          className="flex w-full items-center gap-2 text-sm font-semibold text-foreground hover:underline"
-        >
-          <ChevronDown
+    <div className="flex flex-col h-full">
+      {/* Header: target identity and runtime status */}
+      <div className="space-y-3 pb-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {t("detail.targetLabel")}
+          </span>
+          <span className="text-sm font-medium text-foreground">
+            {target.displayName}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{target.connectionContext.engine}</span>
+          <span>·</span>
+          <span>{target.connectionContext.environment}</span>
+          <span>·</span>
+          <span>
+            {formatHostPortLabel(
+              target.connectionContext.host,
+              target.connectionContext.port,
+              tWorkbench("connection.incomplete"),
+            )}
+          </span>
+        </div>
+        {/* Runtime status badge */}
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            {t("detail.runtimeLabel")}…
+          </div>
+        ) : (
+          <div
             className={cn(
-              "size-4 text-muted-foreground transition-transform",
-              showBindingHelp && "rotate-180",
+              "flex items-start gap-3 rounded-lg border p-3",
+              runtimeTone === "green" &&
+                "border-emerald-500/40 bg-emerald-500/10",
+              runtimeTone === "amber" &&
+                "border-amber-500/40 bg-amber-500/10",
+              runtimeTone === "red" && "border-rose-500/40 bg-rose-500/10",
             )}
-            aria-hidden
-          />
-          {t("detail.howThisBindingWorks")}
-        </button>
-        {showBindingHelp && (
-          <div className="mt-3 space-y-3 rounded-lg border border-border bg-muted/10 p-3">
-            {credentialRef.trim() !== "" && (
-              <>
-                <p className="text-sm text-foreground">
-                  {t("detail.secretReferenceExplanation", { ref: credentialRef.trim() })}
-                </p>
-                <p className="text-sm text-foreground">
-                  {t("detail.secretReferenceEnvVar", { envVar: `CONTROLHUB_QUERY_CREDENTIAL_${credentialRef.trim()}` })}
-                </p>
-              </>
+          >
+            {runtimeTone === "green" ? (
+              <CheckCircle2
+                className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                aria-hidden
+              />
+            ) : runtimeTone === "red" ? (
+              <XCircle
+                className="mt-0.5 size-4 shrink-0 text-rose-600 dark:text-rose-400"
+                aria-hidden
+              />
+            ) : (
+              <AlertTriangle
+                className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden
+              />
             )}
-            <p className="text-sm text-muted-foreground">
-              {t("detail.secretLocation")}
-            </p>
+            <div>
+              <p
+                className={cn(
+                  "text-sm font-semibold",
+                  runtimeTone === "green" &&
+                    "text-emerald-700 dark:text-emerald-300",
+                  runtimeTone === "amber" &&
+                    "text-amber-700 dark:text-amber-300",
+                  runtimeTone === "red" &&
+                    "text-rose-700 dark:text-rose-300",
+                )}
+              >
+                {t(`runtimeStatus.${runtimeStatus}`)}
+              </p>
+              {credential?.message && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {credential.message}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Runtime status */}
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" aria-hidden />
-          {t("detail.runtimeLabel")}…
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "flex items-start gap-3 rounded-lg border p-3",
-            runtimeTone === "green" &&
-              "border-emerald-500/40 bg-emerald-500/10",
-            runtimeTone === "amber" &&
-              "border-amber-500/40 bg-amber-500/10",
-            runtimeTone === "red" && "border-rose-500/40 bg-rose-500/10",
-          )}
-        >
-          {runtimeTone === "green" ? (
-            <CheckCircle2
-              className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-              aria-hidden
-            />
-          ) : runtimeTone === "red" ? (
-            <XCircle
-              className="mt-0.5 size-4 shrink-0 text-rose-600 dark:text-rose-400"
-              aria-hidden
-            />
-          ) : (
-            <AlertTriangle
-              className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
-              aria-hidden
-            />
-          )}
-          <div>
-            <p
-              className={cn(
-                "text-sm font-semibold",
-                runtimeTone === "green" &&
-                  "text-emerald-700 dark:text-emerald-300",
-                runtimeTone === "amber" &&
-                  "text-amber-700 dark:text-amber-300",
-                runtimeTone === "red" &&
-                  "text-rose-700 dark:text-rose-300",
-              )}
-            >
-              {t(`runtimeStatus.${runtimeStatus}`)}
-            </p>
-            {credential?.message && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {credential.message}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Error display */}
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-rose-500/40 bg-rose-500/5 p-3 text-sm text-rose-700 dark:text-rose-300"
+          className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/5 p-3 text-sm text-rose-700 dark:text-rose-300"
         >
           {error}
         </div>
@@ -2297,14 +2246,15 @@ function CredentialDetailPanel({
       {success && (
         <div
           role="status"
-          className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300"
+          className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300"
         >
           {success}
         </div>
       )}
 
       {/* Form fields */}
-      <div className="space-y-3">
+      <div className="flex-1 overflow-y-auto py-4 space-y-4">
+        {/* Credential ref */}
         <div>
           <label
             htmlFor="credential-ref"
@@ -2315,8 +2265,12 @@ function CredentialDetailPanel({
           <Input
             id="credential-ref"
             value={credentialRef}
-            onChange={(e) => setCredentialRef(e.target.value)}
+            onChange={(e) => {
+              setCredentialRef(e.target.value);
+              markDirty();
+            }}
             placeholder={t("detail.credentialRefPlaceholder")}
+            disabled={loading}
             className="mt-1"
           />
           <p className="mt-1 text-xs text-muted-foreground">
@@ -2334,12 +2288,17 @@ function CredentialDetailPanel({
           )}
         </div>
 
+        {/* Enabled */}
         <div className="flex items-center gap-2">
           <input
             id="credential-enabled"
             type="checkbox"
             checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
+            onChange={(e) => {
+              setEnabled(e.target.checked);
+              markDirty();
+            }}
+            disabled={loading}
             className="size-4 rounded border-border"
           />
           <label
@@ -2350,6 +2309,7 @@ function CredentialDetailPanel({
           </label>
         </div>
 
+        {/* Environment policy */}
         <div>
           <label
             htmlFor="environment-policy"
@@ -2366,7 +2326,9 @@ function CredentialDetailPanel({
               if (v !== "all_environments") {
                 setConfirmAllEnvironments(false);
               }
+              markDirty();
             }}
+            disabled={loading}
           >
             <SelectTrigger id="environment-policy" className="mt-1">
               <span>{t(`environmentPolicies.${environmentPolicy}`)}</span>
@@ -2389,9 +2351,10 @@ function CredentialDetailPanel({
                 id="confirm-all-environments"
                 type="checkbox"
                 checked={confirmAllEnvironments}
-                onChange={(e) =>
-                  setConfirmAllEnvironments(e.target.checked)
-                }
+                onChange={(e) => {
+                  setConfirmAllEnvironments(e.target.checked);
+                  markDirty();
+                }}
                 className="mt-0.5 size-4 rounded border-border"
               />
               <label
@@ -2408,79 +2371,124 @@ function CredentialDetailPanel({
             )}
           </div>
         )}
+
+        {/* Boundary note */}
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
+          <p className="text-xs text-muted-foreground">
+            {t("detail.boundaryNote")}
+          </p>
+        </div>
       </div>
 
-      {/* Boundary note */}
-      <div className="rounded-lg border border-border bg-muted/20 p-3">
-        <p className="text-xs text-muted-foreground">
-          {t("detail.boundaryNote")}
-        </p>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          disabled={!canSave || saving}
-          onClick={() => void handleSave()}
-        >
-          {saving ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-              {t("detail.saving")}
-            </>
-          ) : (
-            <>
-              <ExternalLink className="size-3.5" aria-hidden />
-              {t("detail.saveButton")}
-            </>
-          )}
-        </Button>
-
-        {isConfigured && !showRemoveConfirm && (
+      {/* Sticky footer: Cancel/Save + Remove */}
+      <div className="sticky bottom-0 bg-popover border-t border-border pt-4 pb-2 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            disabled={!canSave || saving || loading}
+            onClick={() => void handleSave()}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                {t("detail.saving")}
+              </>
+            ) : (
+              t("detail.saveButton")
+            )}
+          </Button>
           <Button
             type="button"
             variant="outline"
+            onClick={handleClose}
+          >
+            {t("common.actions.cancel")}
+          </Button>
+        </div>
+
+        {/* Remove button */}
+        {isConfigured && !showRemoveConfirm && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
             disabled={removing}
             onClick={() => setShowRemoveConfirm(true)}
           >
-            <Unlink className="size-3.5" aria-hidden />
+            <Unlink className="size-3.5 mr-1.5" aria-hidden />
             {t("detail.removeButton")}
           </Button>
         )}
 
         {isConfigured && showRemoveConfirm && (
-          <>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={removing}
-              onClick={() => void handleDelete()}
-            >
-              {removing ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                  {t("detail.removing")}
-                </>
-              ) : (
-                t("detail.removeConfirmTitle")
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowRemoveConfirm(false)}
-            >
-              {t("detail.removeConfirmDescription").split(".")[0]}
-            </Button>
-          </>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+            <p className="text-xs text-destructive">
+              {t("detail.removeConfirmDescription")}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={removing}
+                onClick={() => void handleDelete()}
+              >
+                {removing ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    {t("detail.removing")}
+                  </>
+                ) : (
+                  t("detail.removeConfirmTitle")
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRemoveConfirm(false)}
+              >
+                {t("common.actions.cancel")}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
-      {showRemoveConfirm && (
-        <p className="text-xs text-muted-foreground">
-          {t("detail.removeConfirmDescription")}
-        </p>
+      {/* Unsaved changes confirmation dialog */}
+      {showUnsavedConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="rounded-xl bg-popover p-4 max-w-sm mx-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("detail.unsavedChangesTitle")}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t("detail.unsavedChangesDescription")}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setShowUnsavedConfirm(false);
+                  onClose();
+                }}
+              >
+                {t("detail.unsavedChangesDiscard")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUnsavedConfirm(false)}
+              >
+                {t("detail.unsavedChangesCancel")}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

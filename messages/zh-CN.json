@@ -986,6 +986,12 @@
       "keys": "键",
       "indexes": "索引",
       "foreignKeys": "外键",
+      "objectsLabel": "对象",
+      "objectsLabelWithDb": "对象：{database}",
+      "detailColumns": "{count} 列",
+      "detailKeys": "{count} 键",
+      "detailIndexes": "{count} 索引",
+      "detailForeignKeys": "{count} 外键",
       "loading": "加载中…",
       "loadError": "无法加载对象。",
       "noDatabases": "未找到数据库。",
@@ -1005,7 +1011,7 @@
       "savedSheetsTab": "已保存脚本",
       "historyTab": "查询历史",
       "accessTab": "访问授权",
-      "readonlyBadge": "READ_ONLY 规划中",
+      "readonlyBadge": "只读已强制",
       "timeout": "超时 30s",
       "maxRows": "最大行数 100",
       "lockTitle": "编辑器被策略锁定",
@@ -1152,10 +1158,17 @@
     "credentialStateValues": {
       "missing_readonly_credential": "未配置只读凭据",
       "configured_readonly_credential": "已配置只读凭据",
-      "not_required": "不需要",
-      "unknown": "未知",
+      "secret_resolved": "凭据已就绪",
       "secret_missing": "服务端密钥缺失",
-      "binding_mismatch": "凭据与目标不匹配"
+      "binding_mismatch": "凭据与目标不匹配",
+      "invalid_ref": "无效的凭据引用",
+      "missing_metadata": "未配置凭据元数据",
+      "unsupported_target": "目标引擎不受支持",
+      "incomplete_connection": "目标连接不完整",
+      "disabled": "凭据已禁用",
+      "policy_blocked": "被环境策略阻止",
+      "not_required": "不需要",
+      "unknown": "未知"
     },
     "safetyStateValues": {
       "credential_missing": "缺少只读凭据",
@@ -1181,6 +1194,22 @@
       "allEngines": "全部引擎",
       "allModes": "全部类型",
       "allReadiness": "全部就绪状态"
+    },
+    "retarget": {
+      "title": "更改工作表目标",
+      "description": "这将更改此工作表的目标数据库。结果网格和查询历史将被清除。",
+      "currentTarget": "当前目标",
+      "newTarget": "新目标",
+      "productionWarning": "您正在切换到生产环境。请谨慎操作。",
+      "clearWarning": "任何现有结果和历史将被清除。",
+      "cancel": "取消",
+      "confirm": "更改目标"
+    },
+    "close": {
+      "title": "关闭工作表",
+      "description": "此工作表有未保存的更改。确定要关闭吗？",
+      "cancel": "取消",
+      "confirm": "关闭工作表"
     }
   },
   "queryCredentialSettings": {
@@ -1200,7 +1229,7 @@
       "emptyFilterDescription": "当前搜索条件下没有匹配的目标。请尝试不同的关键词。"
     },
     "detail": {
-      "title": "凭据绑定",
+      "title": "编辑凭据：{name}",
       "emptyTitle": "选择目标",
       "emptyDescription": "从操作表中选择一个凭据目标以编辑其元数据。",
       "inspectorLabel": "凭据详情检查器",
@@ -1220,18 +1249,22 @@
       "enabledLabel": "已启用",
       "environmentPolicyLabel": "环境策略",
       "boundaryNote": "ControlHub 仅存储引用。DSN/密码保留在服务端：CONTROLHUB_QUERY_CREDENTIAL_your-ref",
-      "configureButton": "配置凭据元数据",
-      "editButton": "编辑凭据元数据",
-      "removeButton": "移除凭据元数据",
+      "configureButton": "配置",
+      "editButton": "编辑",
+      "removeButton": "移除",
       "removeConfirmTitle": "移除凭据元数据？",
       "removeConfirmDescription": "这将移除此目标的凭据绑定。目标仍将可见且处于锁定状态。实际凭据不会被删除。",
-      "saveButton": "保存凭据元数据",
+      "saveButton": "保存",
       "saved": "凭据元数据已保存。",
       "closeButton": "关闭编辑器",
       "saveDisabled": "确认前无法保存",
       "saving": "保存中...",
       "removing": "移除中...",
-      "removed": "凭据元数据已移除。"
+      "removed": "凭据元数据已移除。",
+      "unsavedChangesTitle": "放弃更改？",
+      "unsavedChangesDescription": "你有未保存的更改，离开后将会丢失。",
+      "unsavedChangesDiscard": "放弃",
+      "unsavedChangesCancel": "继续编辑"
     },
     "environmentPolicies": {
       "disabled": "已禁用",
@@ -1271,10 +1304,12 @@
       "statusLabel": "凭据状态"
     },
     "coverage": {
-      "title": "覆盖率概览",
-      "scope": "状态汇总仅反映当前页和当前筛选条件。",
-      "total": "目标总数",
+      "title": "概览",
+      "scope": "当前页",
+      "total": "总数",
       "ready": "就绪",
+      "needsAttention": "需关注",
+      "unsupported": "不支持",
       "missingMetadata": "缺少元数据",
       "secretMissing": "密钥缺失",
       "bindingMismatch": "绑定不匹配",
@@ -1292,13 +1327,17 @@
       "noTargets": "当前筛选条件下没有匹配的目标。",
       "columns": {
         "target": "目标",
+        "context": "上下文",
+        "runtime": "运行时",
+        "binding": "绑定",
+        "policy": "策略",
+        "action": "操作",
         "engine": "引擎",
         "environment": "环境",
         "cluster": "集群",
         "hostPort": "主机:端口",
         "runtimeStatus": "运行时状态",
         "credentialRef": "凭据引用",
-        "policy": "策略",
         "enabled": "启用",
         "configured": "已配置",
         "actions": "操作"
@@ -1336,7 +1375,9 @@
       "unconfigured": "未配置",
       "ready": "就绪",
       "notReady": "未就绪",
-      "none": "无"
+      "none": "无",
+      "moreFilters": "更多筛选",
+      "hideFilters": "收起筛选"
     },
     "grouping": {
       "mode": "分组方式",
