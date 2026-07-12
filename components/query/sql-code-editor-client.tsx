@@ -280,14 +280,20 @@ export function SqlCodeEditorClient({
       defaultKeymap: true,
     });
 
+    // Apply aria-label to the contenteditable .cm-content element
+    const ariaExtension = ariaLabel
+      ? EditorView.contentAttributes.of({ "aria-label": ariaLabel })
+      : [];
+
     return [
       sql({ dialect }),
       shortcuts,
       layoutTheme,
       syntaxThemes[resolvedTheme],
       completionExtension,
+      ariaExtension,
     ];
-  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource]);
+  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel]);
 
   return (
     <CodeMirror

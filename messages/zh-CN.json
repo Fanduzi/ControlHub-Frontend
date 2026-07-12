@@ -149,7 +149,10 @@
     "role": "管理员",
     "userName": "陈皓",
     "collapseSidebar": "收起侧边栏",
-    "expandSidebar": "展开侧边栏"
+    "expandSidebar": "展开侧边栏",
+    "openMobileMenu": "打开导航菜单",
+    "closeMobileMenu": "关闭导航菜单",
+    "mobileSettings": "设置"
   },
   "environments": {
     "all": "全部",
@@ -1026,7 +1029,8 @@
       "runReady": "执行",
       "ready": "就绪",
       "format": "格式化",
-      "formatError": "SQL 格式化失败。请检查语句语法后重试。"
+      "formatError": "SQL 格式化失败。请检查语句语法后重试。",
+      "resizeEditor": "调整 SQL 编辑器大小"
     },
     "actions": {
       "run": "执行已锁定",

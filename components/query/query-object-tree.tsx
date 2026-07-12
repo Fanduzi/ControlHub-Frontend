@@ -31,13 +31,19 @@ export function QueryObjectTree({
 }: QueryObjectTreeProps) {
   const t = useTranslations("queryWorkbench");
   return (
-    <ul role="tree" className="space-y-1">
+    <ul role="tree" aria-label={t("schema.objects")} className="space-y-1">
       {databases.map((database) => {
         const expanded = expandedDatabases.has(database);
         const objects = objectsByDatabase.get(database) ?? [];
         return (
-          <li key={database} role="treeitem" aria-expanded={expanded}>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => onDatabaseToggle(database)}>
+          <li key={database} role="treeitem" aria-expanded={expanded} aria-selected={false}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              aria-expanded={expanded}
+              onClick={() => onDatabaseToggle(database)}
+            >
               <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
               <Database className="size-3.5 text-primary" aria-hidden />
               <span className="truncate">{database}</span>
@@ -49,16 +55,23 @@ export function QueryObjectTree({
                   const group = objects.filter((object) => object.kind === kind);
                   if (group.length === 0) return null;
                   const Icon = kind === "table" ? Table2 : View;
+                  const kindLabel = kind === "table" ? t("schema.tables") : t("schema.views");
                   return (
-                    <li key={kind} role="treeitem" aria-label={kind === "table" ? t("schema.tables") : t("schema.views")}>
-                      <p className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground"><Icon className="size-3" aria-hidden />{kind === "table" ? t("schema.tables") : t("schema.views")}</p>
+                    <li key={kind} role="treeitem" aria-label={kindLabel} aria-selected={false}>
+                      <p className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground"><Icon className="size-3" aria-hidden />{kindLabel}</p>
                       <ul role="group">
                         {group.map((object) => {
                           const key = `${object.database}:${object.kind}:${object.name}`;
                           const objectExpanded = expandedObjects.has(key);
                           return (
-                            <li key={key} role="treeitem" aria-expanded={objectExpanded}>
-                              <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => onObjectToggle(object)}>
+                            <li key={key} role="treeitem" aria-expanded={objectExpanded} aria-selected={false}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start"
+                                aria-expanded={objectExpanded}
+                                onClick={() => onObjectToggle(object)}
+                              >
                                 <ChevronRight className={`size-3 transition-transform ${objectExpanded ? "rotate-90" : ""}`} aria-hidden />
                                 <span className="truncate">{object.name}</span>
                               </Button>

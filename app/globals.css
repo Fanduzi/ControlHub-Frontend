@@ -188,15 +188,26 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply bg-background;
+    @apply bg-background overflow-x-hidden;
   }
   body {
-    @apply bg-background font-sans text-foreground;
+    @apply bg-background font-sans text-foreground overflow-x-hidden;
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 28%, white);
   }
   a {
     @apply transition-colors;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 }

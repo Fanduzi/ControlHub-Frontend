@@ -19,9 +19,10 @@ type SidebarProps = {
   pathname: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onNavigate?: () => void;
 };
 
-export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ pathname, collapsed = false, onToggleCollapse, onNavigate }: SidebarProps) {
   const t = useTranslations();
   const searchParams = useSearchParams();
   const { environments, currentEnvironmentId } = useEnvironment();
@@ -84,6 +85,7 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
                 href={href}
                 aria-label={title}
                 aria-current={active ? "page" : undefined}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-center justify-center rounded-md border p-2 transition-colors",
                   active
@@ -98,6 +100,7 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse }: Sideb
                 href={href}
                 aria-label={title}
                 aria-current={active ? "page" : undefined}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-start gap-3 rounded-md border px-3 py-2.5 transition-colors",
                   active

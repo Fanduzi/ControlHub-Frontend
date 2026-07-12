@@ -149,7 +149,10 @@
     "role": "admin",
     "userName": "Chen Hao",
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "openMobileMenu": "Open navigation menu",
+    "closeMobileMenu": "Close navigation menu",
+    "mobileSettings": "Settings"
   },
   "environments": {
     "all": "All",
@@ -1026,7 +1029,8 @@
       "runReady": "Run",
       "ready": "Ready",
       "format": "Format",
-      "formatError": "SQL formatting failed. Check the statement syntax and try again."
+      "formatError": "SQL formatting failed. Check the statement syntax and try again.",
+      "resizeEditor": "Resize SQL editor"
     },
     "actions": {
       "run": "Run locked",

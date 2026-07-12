@@ -1,6 +1,3 @@
-import { getTranslations } from "next-intl/server";
-
-import { PageHeader } from "@/components/blocks/page-header";
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { isAllFilter } from "@/lib/query-target-display";
 import { parseQueryWorkbenchSearchParams } from "@/lib/query-workbench-search-params";
@@ -25,7 +22,6 @@ export default async function QueryWorkbenchPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const t = await getTranslations();
   const resolved = await searchParams;
   const targetId = parseTargetId(resolved.targetId);
   const initialFilters = await parseQueryWorkbenchSearchParams(Promise.resolve(resolved));
@@ -46,14 +42,7 @@ export default async function QueryWorkbenchPage({
   const targets = mergeTargets(navigatorItems, selectedTarget);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow={t("pages.query.eyebrow")}
-        title={t("pages.query.title")}
-        description={t.rich("pages.query.description", {
-          nowrap: (chunks) => <span className="whitespace-nowrap">{chunks}</span>,
-        })}
-      />
+    <div className="min-h-0">
       <QueryWorkbench
         targets={targets}
         pageInfo={pageInfo}

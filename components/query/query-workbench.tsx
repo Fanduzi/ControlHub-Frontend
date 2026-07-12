@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Check, Database, ListTree, TriangleAlert, XCircle } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -11,12 +12,15 @@ import {
   EMPTY_FILTERS,
   collectEngines,
   isAllFilter,
+  readinessLabelKey,
   type WorkbenchFilters,
 } from "@/lib/query-target-display";
-import { QuerySchemaBrowser } from "@/components/query/query-schema-browser";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
-import { ActiveConnectionSummary } from "@/components/query/query-connection-navigator-body";
+import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { getQueryTargets } from "@/services/query-targets";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
 
@@ -65,7 +69,64 @@ export function QueryWorkbench({
   const searchGeneration = useRef(0);
   const schemaStore = useMemo(() => new QuerySchemaStore(), []);
 
-  // Update URL when active database changes
+  const OBJECTS_PANE_STORAGE_KEY = "query-objects-pane-open";
+  const OBJECTS_WIDTH_STORAGE_KEY = "query-objects-pane-width";
+  const MIN_OBJECTS_WIDTH = 240;
+  const MAX_OBJECTS_WIDTH = 280;
+  const DEFAULT_OBJECTS_WIDTH = 260;
+
+  const [objectsOpen, setObjectsOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(OBJECTS_PANE_STORAGE_KEY) === "true";
+  });
+  const [objectsPaneWidth, setObjectsPaneWidth] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_OBJECTS_WIDTH;
+    const stored = Number(window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY));
+    return Number.isFinite(stored) && stored >= MIN_OBJECTS_WIDTH && stored <= MAX_OBJECTS_WIDTH
+      ? stored
+      : DEFAULT_OBJECTS_WIDTH;
+  });
+  const objectsPaneWidthRef = useRef(objectsPaneWidth);
+
+  useEffect(() => {
+    objectsPaneWidthRef.current = objectsPaneWidth;
+  }, [objectsPaneWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(OBJECTS_PANE_STORAGE_KEY, String(objectsOpen));
+  }, [objectsOpen]);
+
+  function handleObjectsResizePointerDown(
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const startX = event.clientX;
+    const startWidth = objectsPaneWidthRef.current;
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      const nextWidth = Math.min(
+        MAX_OBJECTS_WIDTH,
+        Math.max(MIN_OBJECTS_WIDTH, startWidth + moveEvent.clientX - startX),
+      );
+      objectsPaneWidthRef.current = nextWidth;
+      setObjectsPaneWidth(nextWidth);
+    }
+
+    function handlePointerUp() {
+      window.localStorage.setItem(
+        OBJECTS_WIDTH_STORAGE_KEY,
+        String(objectsPaneWidthRef.current),
+      );
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
     if (activeDatabase) {
@@ -137,8 +198,6 @@ export function QueryWorkbench({
   }, [query, searchResult, targets]);
   const engines = useMemo(() => collectEngines(navigatorTargets), [navigatorTargets]);
 
-  // Resolve activeTarget from full targets array, not filteredTargets.
-  // Filter only affects the navigator list, not the current worksheet target.
   const activeTarget =
     activeTargetId === null ? null : targetsById.get(activeTargetId) ?? null;
 
@@ -146,7 +205,6 @@ export function QueryWorkbench({
     setFilters((previous) => ({ ...previous, ...patch }));
   }
 
-  /** Navigator-originated target change: increment version so the editor can detect it. */
   function setActiveTargetFromNavigator(resourceId: number) {
     const selectedTarget =
       targetsById.get(resourceId) ??
@@ -159,14 +217,12 @@ export function QueryWorkbench({
     }
     setActiveTargetId(resourceId);
     setTargetSelectionVersion((version) => version + 1);
-    // Update URL with targetId only (no SQL, no secrets)
     const params = new URLSearchParams(searchParams.toString());
     params.set("targetId", String(resourceId));
-    params.delete("database"); // Reset database when changing target
+    params.delete("database");
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  /** Worksheet-originated target change: no version increment. */
   function setActiveTargetFromWorksheet(resourceId: number) {
     if (!targetsById.has(resourceId)) {
       return;
@@ -175,34 +231,181 @@ export function QueryWorkbench({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-col gap-0">
       {activeTarget ? (
-        <div data-testid="query-workbench-grid" className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <ActiveConnectionSummary target={activeTarget} />
-            <QueryWorkbenchNavigator
-              targets={navigatorTargets}
-              activeTargetId={activeTargetId}
-              filters={filters}
-              engines={engines}
-              pageInfo={pageInfo}
-              onSelect={setActiveTargetFromNavigator}
-              onFilterChange={updateFilter}
-            />
-          </div>
-          <QueryEditorShell
-            targets={cachedTargets}
-            activeTarget={activeTarget}
-            targetSelectionVersion={targetSelectionVersion}
-            onActiveTargetChange={setActiveTargetFromWorksheet}
-            onActiveDatabaseChange={setActiveDatabase}
-            schemaStore={schemaStore}
+        <>
+          <QueryContextBar
+            target={activeTarget}
+            activeDatabase={activeDatabase}
+            navigatorTargets={navigatorTargets}
+            activeTargetId={activeTargetId}
+            filters={filters}
+            engines={engines}
+            pageInfo={pageInfo}
+            onSelect={setActiveTargetFromNavigator}
+            onFilterChange={updateFilter}
+            objectsOpen={objectsOpen}
+            onObjectsToggle={() => setObjectsOpen((prev) => !prev)}
           />
-          <QuerySchemaBrowser target={activeTarget} store={schemaStore} activeDatabase={activeDatabase} />
-        </div>
+          <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
+            <aside
+              className={cn(
+                "hidden shrink-0 border-r border-border bg-card overflow-y-auto lg:block",
+                objectsOpen ? "block" : "hidden",
+              )}
+              style={{ width: objectsPaneWidth }}
+              aria-label="Schema objects"
+            >
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("schema.objectsLabel")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setObjectsOpen(false)}
+                  className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  aria-label="Close objects pane"
+                >
+                  <XCircle className="size-3.5" aria-hidden />
+                </button>
+              </div>
+              <div className="p-2">
+                <QueryObjectExplorer targetId={activeTarget.resourceId} store={schemaStore} />
+              </div>
+            </aside>
+
+            {objectsOpen && (
+              <button
+                type="button"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize objects pane"
+                onPointerDown={handleObjectsResizePointerDown}
+                className="hidden w-1.5 cursor-col-resize items-center justify-center bg-muted/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lg:flex"
+              >
+                <span className="h-8 w-0.5 rounded-full bg-border" aria-hidden />
+              </button>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <QueryEditorShell
+                targets={cachedTargets}
+                activeTarget={activeTarget}
+                targetSelectionVersion={targetSelectionVersion}
+                onActiveTargetChange={setActiveTargetFromWorksheet}
+                onActiveDatabaseChange={setActiveDatabase}
+                schemaStore={schemaStore}
+              />
+            </div>
+          </div>
+        </>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />
       )}
+    </div>
+  );
+}
+
+type QueryContextBarProps = {
+  target: QueryTarget;
+  activeDatabase: string | null;
+  navigatorTargets: QueryTarget[];
+  activeTargetId: number | null;
+  filters: WorkbenchFilters;
+  engines: string[];
+  pageInfo: PageInfo;
+  onSelect: (resourceId: number) => void;
+  onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+  objectsOpen: boolean;
+  onObjectsToggle: () => void;
+};
+
+function QueryContextBar({
+  target,
+  activeDatabase,
+  navigatorTargets,
+  activeTargetId,
+  filters,
+  engines,
+  pageInfo,
+  onSelect,
+  onFilterChange,
+  objectsOpen,
+  onObjectsToggle,
+}: QueryContextBarProps) {
+  const t = useTranslations("queryWorkbench");
+  const isProduction = target.connectionContext.environment === "production";
+  const isReady = target.readiness === "ready";
+  const truncatedName = target.displayName.length > 32
+    ? `${target.displayName.slice(0, 30)}…`
+    : target.displayName;
+
+  return (
+    <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
+      <span
+        className="max-w-[200px] truncate text-sm font-medium text-foreground"
+        title={target.displayName}
+      >
+        {truncatedName}
+      </span>
+
+      {activeDatabase && (
+        <Badge variant="secondary" className="gap-1 text-xs">
+          <Database className="size-3" aria-hidden />
+          <span className="max-w-[120px] truncate">{activeDatabase}</span>
+        </Badge>
+      )}
+
+      <Badge
+        variant="secondary"
+        className={cn(
+          "text-xs",
+          isProduction && "border-amber-500/30 text-amber-700 dark:text-amber-300",
+        )}
+      >
+        {target.connectionContext.environment}
+      </Badge>
+
+      <Badge
+        variant="secondary"
+        className={cn(
+          "text-xs",
+          isReady
+            ? "border-green-500/30 text-green-700 dark:text-green-300"
+            : "border-amber-500/30 text-amber-700 dark:text-amber-300",
+        )}
+      >
+        {isReady ? (
+          <Check className="size-3" aria-hidden />
+        ) : (
+          <TriangleAlert className="size-3" aria-hidden />
+        )}
+        {t(readinessLabelKey(target.readiness))}
+      </Badge>
+
+      <span className="flex-1" />
+
+      <Button
+        type="button"
+        variant={objectsOpen ? "secondary" : "ghost"}
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={onObjectsToggle}
+        aria-pressed={objectsOpen}
+      >
+        <ListTree className="size-3.5" aria-hidden />
+        {t("schema.objectsLabel")}
+      </Button>
+
+      <QueryWorkbenchNavigator
+        targets={navigatorTargets}
+        activeTargetId={activeTargetId}
+        filters={filters}
+        engines={engines}
+        pageInfo={pageInfo}
+        onSelect={onSelect}
+        onFilterChange={onFilterChange}
+      />
     </div>
   );
 }

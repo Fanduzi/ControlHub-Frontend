@@ -425,6 +425,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     window.addEventListener("pointerup", handlePointerUp);
   }
 
+  function handleEditorResizeCommit(nextHeight: number) {
+    const clamped = clampEditorHeight(nextHeight);
+    setEditorHeight(clamped);
+    window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
+  }
+
   async function handleRun() {
     if (!runEnabled) {
       return;
@@ -480,7 +486,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       aria-label={t("editor.worksheetTab")}
       className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
     >
-      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label="Worksheet tabs">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label={t("editor.worksheetTab")}>
         {worksheets.map((ws) => (
           <div
             key={ws.id}
@@ -510,12 +516,34 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             ) : (
               <button
                 type="button"
+                id={`ws-tab-${ws.id}`}
                 role="tab"
                 aria-selected={ws.id === activeWorksheetId}
+                aria-controls={`ws-panel-${ws.id}`}
+                tabIndex={ws.id === activeWorksheetId ? 0 : -1}
                 className="px-3 py-1.5 text-sm cursor-pointer"
                 onClick={() => {
                   if (ws.id !== activeWorksheetId) {
                     setActiveWorksheetId(ws.id);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  const tabs = worksheets.map((w) => w.id);
+                  const currentIndex = tabs.indexOf(ws.id);
+                  if (e.key === "ArrowRight") {
+                    e.preventDefault();
+                    const next = tabs[(currentIndex + 1) % tabs.length]!;
+                    setActiveWorksheetId(next);
+                  } else if (e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]!;
+                    setActiveWorksheetId(prev);
+                  } else if (e.key === "Home") {
+                    e.preventDefault();
+                    setActiveWorksheetId(tabs[0]!);
+                  } else if (e.key === "End") {
+                    e.preventDefault();
+                    setActiveWorksheetId(tabs[tabs.length - 1]!);
                   }
                 }}
                 onDoubleClick={() => startRename(ws.id, ws.name)}
@@ -565,15 +593,34 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       </div>
 
       <div className="flex items-center justify-between border-b border-border bg-muted/30">
-        <ul role="tablist" className="flex flex-wrap">
-          {WORKSHEET_TABS.map((tab) => {
+        <ul role="tablist" aria-label={t("editor.worksheetTab")} className="flex flex-wrap">
+          {WORKSHEET_TABS.map((tab, index) => {
             const active = tab.id === activeTab;
             return (
               <li key={tab.id}>
                 <button
                   type="button"
+                  id={`section-tab-${tab.id}`}
                   role="tab"
                   aria-selected={active}
+                  aria-controls={`section-panel-${tab.id}`}
+                  tabIndex={active ? 0 : -1}
+                  onKeyDown={(e) => {
+                    const tabs = WORKSHEET_TABS;
+                    if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      setActiveTab(tabs[(index + 1) % tabs.length]!.id);
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      setActiveTab(tabs[(index - 1 + tabs.length) % tabs.length]!.id);
+                    } else if (e.key === "Home") {
+                      e.preventDefault();
+                      setActiveTab(tabs[0]!.id);
+                    } else if (e.key === "End") {
+                      e.preventDefault();
+                      setActiveTab(tabs[tabs.length - 1]!.id);
+                    }
+                  }}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     "border-b-2 px-3 py-2 text-sm transition-colors",
@@ -612,32 +659,35 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
       {activeTab === "worksheet" ? (
         canExecute ? (
-          <ReadyWorksheet
-            worksheetId={activeWorksheet.id}
-            statement={activeWorksheet.statement}
-            onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
-            maxRows={activeWorksheet.maxRows}
-            onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
-            runEnabled={runEnabled}
-            isExecuting={activeWorksheet.isExecuting}
-            onRun={handleRun}
-            onFormat={handleFormat}
-            onEditorView={(view) => { editorViewRef.current = view; }}
-            formatError={activeWorksheet.formatError}
-            engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
-            themePreference={editorThemePreference}
-            editorHeight={editorHeight}
-            onEditorResizePointerDown={handleEditorResizePointerDown}
-            result={activeWorksheet.result}
-            error={activeWorksheet.error}
-            schemaStore={schemaStore}
-            targetId={activeWorksheet.targetResourceId}
-            activeDatabase={activeWorksheet.activeDatabase}
-            loadedDatabases={loadedDatabases}
-            loadedObjects={loadedObjects}
-          />
+          <div id="section-panel-worksheet" role="tabpanel" aria-labelledby="section-tab-worksheet">
+            <ReadyWorksheet
+              worksheetId={activeWorksheet.id}
+              statement={activeWorksheet.statement}
+              onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
+              maxRows={activeWorksheet.maxRows}
+              onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
+              runEnabled={runEnabled}
+              isExecuting={activeWorksheet.isExecuting}
+              onRun={handleRun}
+              onFormat={handleFormat}
+              onEditorView={(view) => { editorViewRef.current = view; }}
+              formatError={activeWorksheet.formatError}
+              engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
+              themePreference={editorThemePreference}
+              editorHeight={editorHeight}
+              onEditorResizePointerDown={handleEditorResizePointerDown}
+              onEditorResizeCommit={handleEditorResizeCommit}
+              result={activeWorksheet.result}
+              error={activeWorksheet.error}
+              schemaStore={schemaStore}
+              targetId={activeWorksheet.targetResourceId}
+              activeDatabase={activeWorksheet.activeDatabase}
+              loadedDatabases={loadedDatabases}
+              loadedObjects={loadedObjects}
+            />
+          </div>
         ) : (
-          <div className="flex flex-col">
+          <div id="section-panel-worksheet" role="tabpanel" aria-labelledby="section-tab-worksheet" className="flex flex-col">
             <LockedActionBar
               blockerLabelKey={actions.run ? "actions.explain" : "actionState.locked"}
             />
@@ -664,7 +714,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           </div>
         )
       ) : activeTab === "history" && canExecute ? (
-        <QueryHistoryPanel history={activeWorksheet.history} loading={activeWorksheet.historyLoading} />
+        <div id="section-panel-history" role="tabpanel" aria-labelledby="section-tab-history">
+          <QueryHistoryPanel history={activeWorksheet.history} loading={activeWorksheet.historyLoading} />
+        </div>
       ) : null}
 
       {/* Retarget confirmation dialog */}
@@ -758,6 +810,7 @@ function ReadyWorksheet({
   themePreference,
   editorHeight,
   onEditorResizePointerDown,
+  onEditorResizeCommit,
   result,
   error,
   schemaStore,
@@ -781,6 +834,7 @@ function ReadyWorksheet({
   themePreference: QueryEditorThemePreference;
   editorHeight: number;
   onEditorResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onEditorResizeCommit: (height: number) => void;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
   schemaStore: QuerySchemaStore;
@@ -852,8 +906,34 @@ function ReadyWorksheet({
         <button
           type="button"
           role="separator"
-          aria-label="Resize SQL editor"
+          aria-label={t("editor.resizeEditor")}
           aria-orientation="horizontal"
+          aria-valuenow={editorHeight}
+          aria-valuemin={180}
+          aria-valuemax={640}
+          aria-valuetext={`${editorHeight}px`}
+          onKeyDown={(e) => {
+            const STEP = 20;
+            const MIN = 180;
+            const MAX = 640;
+            let nextHeight = editorHeight;
+            if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+              e.preventDefault();
+              nextHeight = Math.max(MIN, editorHeight - STEP);
+            } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+              e.preventDefault();
+              nextHeight = Math.min(MAX, editorHeight + STEP);
+            } else if (e.key === "Home") {
+              e.preventDefault();
+              nextHeight = MIN;
+            } else if (e.key === "End") {
+              e.preventDefault();
+              nextHeight = MAX;
+            }
+            if (nextHeight !== editorHeight) {
+              onEditorResizeCommit(nextHeight);
+            }
+          }}
           onPointerDown={onEditorResizePointerDown}
           className="mt-2 flex h-3 w-full cursor-row-resize items-center justify-center rounded-md border border-transparent text-muted-foreground hover:border-border hover:bg-muted/60 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
@@ -1008,15 +1088,33 @@ function LockedResult({
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <ul role="tablist" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          {RESULT_TABS.map((tab) => {
+        <ul role="tablist" aria-label={t("result.grid")} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {RESULT_TABS.map((tab, index) => {
             const active = tab === activeTab;
             return (
               <li key={tab}>
                 <button
                   type="button"
+                  id={`result-tab-${tab}`}
                   role="tab"
                   aria-selected={active}
+                  aria-controls={`result-panel-${tab}`}
+                  tabIndex={active ? 0 : -1}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      onSelect(RESULT_TABS[(index + 1) % RESULT_TABS.length]!);
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      onSelect(RESULT_TABS[(index - 1 + RESULT_TABS.length) % RESULT_TABS.length]!);
+                    } else if (e.key === "Home") {
+                      e.preventDefault();
+                      onSelect(RESULT_TABS[0]!);
+                    } else if (e.key === "End") {
+                      e.preventDefault();
+                      onSelect(RESULT_TABS[RESULT_TABS.length - 1]!);
+                    }
+                  }}
                   onClick={() => onSelect(tab)}
                   className={cn(
                     active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
@@ -1031,7 +1129,12 @@ function LockedResult({
         <span className="text-xs text-muted-foreground">{t("result.notExecuted")}</span>
       </div>
 
-      <div className="relative m-3 overflow-hidden rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+      <div
+        id={`result-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`result-tab-${activeTab}`}
+        className="relative m-3 overflow-hidden rounded-lg border border-amber-500/40 bg-amber-500/5 p-5"
+      >
         <div className="space-y-3">
           <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
             {t("result.lockTitle")}

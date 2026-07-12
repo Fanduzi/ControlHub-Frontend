@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, ChevronsUpDown, Command, Plus } from "lucide-react";
+import { Bell, ChevronsUpDown, Command, Menu, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -39,6 +39,7 @@ import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
 
 type TopbarProps = {
   pathname: string;
+  onMobileMenuOpen?: () => void;
 };
 
 function parsePositiveInt(value: string | null) {
@@ -50,7 +51,7 @@ function parsePositiveInt(value: string | null) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-export function Topbar({ pathname }: TopbarProps) {
+export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,17 +137,31 @@ export function Topbar({ pathname }: TopbarProps) {
   }
 
   return (
-    <header className="flex min-h-16 flex-col gap-3 border-b border-border bg-background px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:px-5 xl:py-0">
-      <div className="min-w-0 xl:flex-1">
+    <header className="flex h-14 items-center gap-2 border-b border-border bg-background px-3 sm:h-16 sm:px-4 xl:px-5">
+      {/* Mobile hamburger */}
+      {onMobileMenuOpen && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 lg:hidden"
+          aria-label={t("shell.openMobileMenu")}
+          onClick={onMobileMenuOpen}
+        >
+          <Menu className="size-5" />
+        </Button>
+      )}
+
+      <div className="min-w-0 flex-1">
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {sectionTitle}
         </p>
-        <p className="mt-1 hidden max-w-2xl truncate text-sm text-foreground lg:block">
+        <p className="mt-0.5 hidden max-w-2xl truncate text-sm text-foreground lg:block">
           {t("shell.subtitle")}
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+      {/* Desktop utilities */}
+      <div className="hidden items-center gap-2 lg:flex">
         <Select
           value={selectedEnvironmentId === null ? "all" : String(selectedEnvironmentId)}
           onValueChange={handleEnvironmentChange}
@@ -199,57 +214,80 @@ export function Topbar({ pathname }: TopbarProps) {
             </p>
           </PopoverContent>
         </Popover>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                className="h-9 gap-2 px-2.5"
-                size="sm"
-              />
-            }
-          >
-            <Avatar className="size-6 rounded-md border border-border">
-              <AvatarFallback className="rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
-                CH
-              </AvatarFallback>
-            </Avatar>
-            <div className="hidden text-left sm:block">
-              <p className="text-xs font-medium text-foreground">
-                {t("shell.userName")}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {t("shell.role")}
-              </p>
-            </div>
-            <ChevronsUpDown className="size-4 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>{t("shell.workspace")}</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => setPaletteOpen(true)}>
-                <Command className="size-4" />
-                {t("shell.openCommandPalette")}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>
-              {t("shell.profile")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                sessionStorage.removeItem("controlhub.token");
-                sessionStorage.removeItem("controlhub.role");
-                document.cookie = "controlhub.token=; path=/; max-age=0";
-                window.location.href = "/login";
-              }}
-            >
-              {t("shell.signOut")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
+
+      {/* Account menu (always visible) */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              className="h-9 gap-1.5 px-2 sm:gap-2 sm:px-2.5"
+              size="sm"
+            />
+          }
+        >
+          <Avatar className="size-6 rounded-md border border-border">
+            <AvatarFallback className="rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
+              CH
+            </AvatarFallback>
+          </Avatar>
+          <div className="hidden text-left sm:block">
+            <p className="text-xs font-medium text-foreground">
+              {t("shell.userName")}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {t("shell.role")}
+            </p>
+          </div>
+          <ChevronsUpDown className="size-4 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("shell.workspace")}</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setPaletteOpen(true)}>
+              <Command className="size-4" />
+              {t("shell.openCommandPalette")}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="lg:hidden" onClick={() => setShowCreate(true)}>
+              <Plus className="size-4" />
+              {t("shell.quickAction")}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          {/* Mobile-only settings */}
+          <div className="px-2 py-1.5 lg:hidden">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{t("shell.mobileSettings")}</p>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-sm">{t("controls.theme.label")}</span>
+              <ThemeToggle />
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-sm">{t("controls.language.label")}</span>
+              <LanguageSwitcher />
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-sm">{t("controls.accent.label")}</span>
+              <AccentSwitcher />
+            </div>
+          </div>
+          <DropdownMenuSeparator className="lg:hidden" />
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
+            {t("shell.profile")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              sessionStorage.removeItem("controlhub.token");
+              sessionStorage.removeItem("controlhub.role");
+              document.cookie = "controlhub.token=; path=/; max-age=0";
+              window.location.href = "/login";
+            }}
+          >
+            {t("shell.signOut")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       {showCreate && (
         <CreateResourceSheet open={showCreate} onOpenChange={setShowCreate} />
       )}
