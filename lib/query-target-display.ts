@@ -203,6 +203,7 @@ export const KNOWN_CREDENTIAL_STATES = new Set<string>([
   "not_required",
   "unknown",
   "secret_missing",
+  "secret_resolved",
   "binding_mismatch",
 ]);
 
