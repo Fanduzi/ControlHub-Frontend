@@ -1268,9 +1268,9 @@ describe("QueryCredentialSettings — bulk operation scope (P1)", () => {
     expect(screen.getByText(/2 selected/)).toBeInTheDocument();
 
     // Change environment filter to "Production" to hide "Payment MySQL Instance".
-    // The environment filter is the first combobox in the filter controls.
+    // The environment filter is the second combobox (after the runtime status filter).
     const comboboxes = screen.getAllByRole("combobox");
-    const envTrigger = comboboxes[0];
+    const envTrigger = comboboxes[1];
     await user.click(envTrigger);
 
     await waitFor(() => {
@@ -1329,8 +1329,9 @@ describe("QueryCredentialSettings — bulk operation scope (P1)", () => {
     await user.click(checkboxes[0]);
 
     // Filter to "Staging" environment to hide "Order MySQL Instance".
+    // The environment filter is the second combobox (after the runtime status filter).
     const comboboxes = screen.getAllByRole("combobox");
-    const envTrigger = comboboxes[0];
+    const envTrigger = comboboxes[1];
     await user.click(envTrigger);
 
     await waitFor(() => {
@@ -1748,7 +1749,7 @@ describe("QueryCredentialSettings — F0b credential terminology", () => {
     // The help section is now inline text, not a collapsible button.
     // Verify the binding explanation text is present.
     expect(
-      screen.getByText(/server-side secret reference/i),
+      screen.getByText(/server-side reference/i),
     ).toBeInTheDocument();
   });
 });
@@ -1908,12 +1909,10 @@ describe("QueryCredentialSettings — server secret reference help", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    // The help section is now inline text, not a collapsible button.
-    // Verify the binding explanation text is present.
-    expect(screen.getByText(/LOCAL_QUERY_RO is a server-side secret reference/)).toBeInTheDocument();
+    expect(screen.getByText(/Opaque server-side reference/i)).toBeInTheDocument();
     expect(screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/real DSN, database username, and password/)).toBeInTheDocument();
-    expect(screen.getByText(/backend runtime environment/)).toBeInTheDocument();
+    expect(screen.getByText(/Never enter a DSN or password/i)).toBeInTheDocument();
+    expect(screen.getByText(/DSN\/password stays server-side/i)).toBeInTheDocument();
   });
 
   it("does not render old abstract operating-model cards", async () => {
@@ -2394,13 +2393,13 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
       expect(mockGetQueryCredential).toHaveBeenCalledTimes(4);
     });
 
-    // The readiness filter is now part of the filter controls.
-    // Find the combobox labeled "Readiness" or similar.
-    const comboboxes = screen.getAllByRole("combobox");
-    const readinessFilter = comboboxes.find((cb) =>
-      cb.getAttribute("aria-label")?.toLowerCase().includes("readiness") ||
-      cb.textContent?.toLowerCase().includes("readiness")
-    ) ?? comboboxes[comboboxes.length - 1];
+    // The readiness filter is behind the "More filters" button.
+    await user.click(screen.getByRole("button", { name: /More filters/i }));
+
+    // Combobox order: runtime-status(0), environment(1), engine(2), cluster(3),
+    // configured-state(4), readiness(5), grouping(6).
+    const expandedComboboxes = screen.getAllByRole("combobox");
+    const readinessFilter = expandedComboboxes[5];
     requireElement(readinessFilter, "Expected readiness filter");
     await user.click(readinessFilter);
     await waitFor(() => {

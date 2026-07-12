@@ -24,6 +24,12 @@ vi.mock("@/services/query-targets", () => ({
   getQueryTargets: vi.fn(),
 }));
 
+vi.mock("@/services/query-schema", () => ({
+  getSchemaDatabases: vi.fn().mockResolvedValue({ items: [], defaultDatabase: null }),
+  getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),
+  getObjectDetails: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
     value,
@@ -316,17 +322,16 @@ describe("QueryWorkbench", () => {
     expect(screen.queryByRole("button", { name: "Export unavailable" })).toBeNull();
   });
 
-  it("renders an honest locked schema placeholder for a SQL target without schema metadata", () => {
+  it("renders an honest locked schema placeholder for a SQL target without schema metadata", async () => {
     renderWorkbench();
 
     // The schema placeholder is now inside the objects pane, which must be opened first.
     fireEvent.click(screen.getByRole("button", { name: "Objects" }));
 
-    expect(
-      screen.getByText(
-        /Database \/ schema \/ table \/ column placeholders appear once schema metadata/,
-      ),
-    ).toBeInTheDocument();
+    // QueryObjectExplorer shows "No databases found." when the target has no schema data.
+    await waitFor(() => {
+      expect(screen.getByText(/No databases found/i)).toBeInTheDocument();
+    });
   });
 
   it("renders the locked result area with a not-executed state", () => {
@@ -337,17 +342,15 @@ describe("QueryWorkbench", () => {
     expect(screen.getByText("Result area is locked")).toBeInTheDocument();
   });
 
-  it("renders query history and access grant placeholders when those tabs are opened", async () => {
+  it("renders query history when that tab is opened", async () => {
     const user = userEvent.setup();
-    renderWorkbench();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
 
-    await user.click(screen.getByRole("tab", { name: "Query history" }));
+    await user.click(screen.getByRole("tab", { name: /history/i }));
     await waitFor(() => {
-      expect(screen.getByText(/No executions yet/)).toBeInTheDocument();
+      expect(screen.getByText(/No executions yet/i)).toBeInTheDocument();
     });
-
-    await user.click(screen.getByRole("tab", { name: "Access grants" }));
-    expect(screen.getByText(/Access grants are unavailable/)).toBeInTheDocument();
   });
 
   it("narrows the target list with search in the connection navigator", async () => {
