@@ -5,36 +5,46 @@ import {
   assertClean,
   collectConsoleMessages,
   collectNetworkErrors,
+  takeExpectedConsoleStatusError,
+  takeExpectedNetworkError,
+  type ConsoleMessage,
+  type ExpectedHttpError,
 } from "./harness/console-guards";
 
+/**
+ * Intentional HTTP errors consumed one-shot after the test body asserts them.
+ * Never a broad allowlist — each entry removes exactly one matching network
+ * error; leftovers still fail assertClean.
+ */
+type ConsumableHttpExpectation = ExpectedHttpError & {
+  /** Also drop one Chromium console echo for this status if present. */
+  consumeConsoleStatusEcho?: boolean;
+};
+
 test.describe("Query Workbench shell", () => {
-  let consoleMessages: ReturnType<typeof collectConsoleMessages>;
+  let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
+  /** Exact one-shot expectations set by individual tests (empty by default). */
+  let consumableHttpErrors: ConsumableHttpExpectation[] = [];
 
   test.beforeAll(async () => {
     await checkBackendHealth();
   });
 
   test.beforeEach(async ({ page }) => {
+    consumableHttpErrors = [];
+    // Default guards: only harmless dev-tool noise. No 4xx/5xx/connection allowlist.
     consoleMessages = collectConsoleMessages(page, {
       allowedErrors: [
         /Fast Refresh/,
         /HMR/,
         /Download the React DevTools/,
-        /status of 403/,
-        /status of 400/,
-        /ERR_CONNECTION_REFUSED/,
       ],
       allowedWarnings: [
         /was preloaded using link preload but not used/,
       ],
     });
-    networkErrors = collectNetworkErrors(page, {
-      allowedNetworkErrors: [
-        /\/schema\/databases.*→ 403$/,
-        /\/execute.*→ 400$/,
-      ],
-    });
+    networkErrors = collectNetworkErrors(page);
 
     await page.context().addCookies([
       {
@@ -52,7 +62,22 @@ test.describe("Query Workbench shell", () => {
       await page.screenshot({ path: screenshotPath, fullPage: true });
     }
 
-    assertClean(consoleMessages, networkErrors);
+    let remainingNetwork = networkErrors;
+    let remainingConsole = consoleMessages;
+    for (const expected of consumableHttpErrors) {
+      remainingNetwork = takeExpectedNetworkError(remainingNetwork, {
+        method: expected.method,
+        urlIncludes: expected.urlIncludes,
+        status: expected.status,
+      });
+      if (expected.consumeConsoleStatusEcho) {
+        remainingConsole = takeExpectedConsoleStatusError(
+          remainingConsole,
+          expected.status,
+        );
+      }
+    }
+    assertClean(remainingConsole, remainingNetwork);
   });
 
   test("loads with real backend data and inline governance controls", async ({ page }) => {
@@ -164,6 +189,9 @@ test.describe("Query Workbench shell", () => {
   test("a locked query target hides Run and shows the blocker state", async ({ page }) => {
     await openQueryWorkbench(page);
 
+    // Product fix: locked targets must not issue schema requests, so no 403
+    // allowlist is required. Guards fail on any unexpected 4xx/5xx/connection.
+
     const count = await connectionTargetCount(page);
     let verifiedLocked = false;
     for (let index = 0; index < count; index += 1) {
@@ -172,6 +200,12 @@ test.describe("Query Workbench shell", () => {
         await expect(page.getByRole("button", { name: /^run$/i })).toHaveCount(0);
         await expect(page.getByText("Editor locked by policy")).toBeVisible();
         await expect(page.getByText("Result area is locked")).toBeVisible();
+        // Only Grid is discoverable — no placeholder result tabs.
+        await expect(page.getByText("Result grid", { exact: true })).toBeVisible();
+        await expect(page.getByRole("tab", { name: /^json$/i })).toHaveCount(0);
+        await expect(page.getByRole("tab", { name: /^explain$/i })).toHaveCount(0);
+        await expect(page.getByRole("tab", { name: /^logs$/i })).toHaveCount(0);
+        await expect(page.getByRole("tab", { name: /^masking$/i })).toHaveCount(0);
         await page
           .getByRole("button", { name: "Governance & access Details" })
           .click();
@@ -195,6 +229,9 @@ test.describe("Query Workbench shell", () => {
 
   test("switching the target updates the governance panel facts", async ({ page }) => {
     await openQueryWorkbench(page);
+
+    // Switching targets must not emit unsolicited schema 403s (UI gates schema
+    // fetches on availableActions.run). No network allowlist.
 
     const targetName = page.locator('span[title]').first();
     const before = await targetName.textContent();
@@ -306,12 +343,36 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
+    // One exact POST …/execute 400 only — consumed one-shot in afterEach.
+    // Any additional 400 or other endpoint's 400 still fails the guards.
+    const executePromise = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        res.url().includes("/execute") &&
+        res.status() === 400,
+    );
+
     await clearAndType(page, "update resources set name = 'x'");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Controlled rejection: the backend guard rejects the write and the UI
-    // surfaces a controlled error (role=alert) instead of result rows.
-    await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+    const response = await executePromise;
+    expect(response.status()).toBe(400);
+    expect(response.request().method()).toBe("POST");
+    expect(response.url()).toContain("/execute");
+    const body = await response.json();
+    expect(body.error).toBeTruthy();
+
+    consumableHttpErrors = [
+      {
+        method: "POST",
+        urlIncludes: "/execute",
+        status: 400,
+        consumeConsoleStatusEcho: true,
+      },
+    ];
+
+    // Controlled rejection: the UI surfaces a controlled error (role=alert)
+    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("query history shows the recent attempt after a run", async ({ page }) => {
@@ -429,14 +490,33 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
-    // Type unsafe SQL into the CodeMirror editor
-    await clearAndType(page, "update resources set name = 'x'");
+    const executePromise = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        res.url().includes("/execute") &&
+        res.status() === 400,
+    );
 
-    // Run it
+    await clearAndType(page, "update resources set name = 'x'");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Should show controlled rejection via alert
-    await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+    const response = await executePromise;
+    expect(response.status()).toBe(400);
+    expect(response.request().method()).toBe("POST");
+    expect(response.url()).toContain("/execute");
+    const body = await response.json();
+    expect(body.error).toBeTruthy();
+
+    consumableHttpErrors = [
+      {
+        method: "POST",
+        urlIncludes: "/execute",
+        status: 400,
+        consumeConsoleStatusEcho: true,
+      },
+    ];
+
+    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("dark-mode editor and result table maintain readable contrast", async ({ page }) => {
@@ -590,7 +670,8 @@ async function clearAndType(page: Page, text: string): Promise<void> {
 
 /** Whether the active target exposes an enabled Run control (i.e. is ready). */
 async function isRunEnabled(page: Page): Promise<boolean> {
-  const run = page.getByRole("button", { name: /^run$/i });
+  // EN: "Run" / ZH: "执行" (actionState.run). Do not match "Run locked" / "执行已锁定".
+  const run = page.getByRole("button", { name: /^(run|执行)$/i });
   if ((await run.count()) === 0) {
     return false;
   }
@@ -617,8 +698,11 @@ async function openConnectionNavigator(page: Page) {
     return dialog;
   }
 
-  const trigger = page.getByRole("button", { name: "Open connections" });
-  await expect(trigger).toBeVisible({ timeout: 5_000 });
+  const desktopTrigger = page.getByRole("button", { name: "Open connections", exact: true });
+  const mobileTrigger = page.getByRole("button", { name: "Open connections on mobile" });
+
+  await expect(desktopTrigger.or(mobileTrigger)).toBeVisible({ timeout: 5_000 });
+  const trigger = (await desktopTrigger.isVisible()) ? desktopTrigger : mobileTrigger;
   await trigger.click();
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   return dialog;
@@ -677,6 +761,38 @@ async function getEditorHeight(page: Page): Promise<number> {
 }
 
 test.describe("Query Workbench schema intelligence", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
   test("object explorer loads bounded database metadata and reveals fixture objects", async ({ page }) => {
     await openQueryWorkbench(page);
     const readyIndex = await findReadyOptionIndex(page);
@@ -685,7 +801,7 @@ test.describe("Query Workbench schema intelligence", () => {
     await selectConnectionTarget(page, readyIndex);
 
     await page.getByRole("button", { name: "Objects", exact: true }).click();
-    const explorer = page.getByRole("complementary", { name: "Schema objects" });
+    const explorer = page.getByRole("complementary", { name: "Objects" });
     await expect(explorer).toBeVisible();
     const databases = explorer.getByRole("treeitem");
     await expect(databases.first()).toBeVisible({ timeout: 15_000 });
@@ -714,16 +830,8 @@ test.describe("Query Workbench schema intelligence", () => {
     await expect(navigator).toBeHidden();
   });
 
-  test("mobile object explorer stays a drawer while the SQL editor remains primary", async ({ page }) => {
+  test("mobile object explorer opens as a drawer while the SQL editor remains primary", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 844 });
-    await page.context().addCookies([
-      {
-        name: "controlhub.locale",
-        value: "en",
-        domain: "localhost",
-        path: "/",
-      },
-    ]);
     await loginViaUI(page);
     await page.goto("/query");
     const readyIndex = await findReadyOptionIndex(page);
@@ -733,7 +841,64 @@ test.describe("Query Workbench schema intelligence", () => {
 
     await expect(getEditor(page)).toBeVisible();
 
-    const explorer = page.getByRole("complementary", { name: "Schema objects" });
-    await expect(explorer).toBeHidden();
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await expect(objectsButton).toBeVisible();
+    await objectsButton.click();
+
+    const explorerSheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(explorerSheet).toBeVisible();
+    await expect(explorerSheet).toHaveAttribute("data-side", "bottom");
+    // Bounded objects load for a ready target inside the sheet.
+    await expect(
+      explorerSheet.getByRole("treeitem").first(),
+    ).toBeVisible({ timeout: 15_000 });
+    // SQL editor remains the primary workspace behind the sheet.
+    await expect(getEditor(page)).toBeVisible();
+
+    // Close via Escape — focus returns to the Objects trigger.
+    await page.keyboard.press("Escape");
+    await expect(explorerSheet).toBeHidden();
+    await expect(objectsButton).toBeFocused();
+
+    // Re-open and close via the visible close control.
+    await objectsButton.click();
+    await expect(explorerSheet).toBeVisible();
+    await explorerSheet.getByRole("button", { name: "Close objects pane" }).click();
+    await expect(explorerSheet).toBeHidden();
+    await expect(objectsButton).toBeFocused();
+  });
+
+  test("Chinese mobile Objects sheet uses localized title and close label", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+
+    // Prefer the page's default ready target (first availableActions.run) so we
+    // do not depend on English connection-navigator aria labels under zh-CN.
+    test.skip(!(await isRunEnabled(page)), "no ready query target selected by default");
+
+    const objectsButton = page.getByRole("button", { name: "打开对象", exact: true });
+    await expect(objectsButton).toBeVisible();
+    await objectsButton.click();
+
+    const explorerSheet = page.getByRole("dialog", { name: "Schema 浏览器" });
+    await expect(explorerSheet).toBeVisible();
+    await expect(
+      explorerSheet.getByRole("button", { name: "关闭对象面板" }),
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(explorerSheet).toBeHidden();
+    await expect(objectsButton).toBeFocused();
   });
 });

@@ -30,6 +30,8 @@ vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
 
+// Imported after mock so tests can assert schema is not requested for locked targets.
+
 vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
     value,
@@ -92,6 +94,7 @@ import {
   QueryExecuteError,
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
+import { getSchemaDatabases } from "@/services/query-schema";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -105,6 +108,7 @@ import zhMessages from "@/messages/zh-CN.json";
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
+const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 
 function emptyHistory(): QueryExecutionListResponse {
   return {
@@ -323,15 +327,19 @@ describe("QueryWorkbench", () => {
   });
 
   it("renders an honest locked schema placeholder for a SQL target without schema metadata", async () => {
+    mockGetSchemaDatabases.mockClear();
     renderWorkbench();
 
     // The schema placeholder is now inside the objects pane, which must be opened first.
     fireEvent.click(screen.getByRole("button", { name: "Objects" }));
 
-    // QueryObjectExplorer shows "No databases found." when the target has no schema data.
+    // Locked targets must not issue schema requests — show the locked copy instead.
     await waitFor(() => {
-      expect(screen.getByText(/No databases found/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Schema is locked — no live introspection in this phase/i),
+      ).toBeInTheDocument();
     });
+    expect(mockGetSchemaDatabases).not.toHaveBeenCalled();
   });
 
   it("renders the locked result area with a not-executed state", () => {
@@ -340,6 +348,39 @@ describe("QueryWorkbench", () => {
     expect(screen.getByText("Result grid")).toBeInTheDocument();
     expect(screen.getByText("0 rows · not executed")).toBeInTheDocument();
     expect(screen.getByText("Result area is locked")).toBeInTheDocument();
+  });
+
+  it("result area exposes only Grid — no JSON/EXPLAIN/Logs/Masking tabs in locked state", () => {
+    renderWorkbench();
+
+    expect(screen.getByText("Result grid")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /json/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /explain/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /logs/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /masking/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^json$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^explain$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^logs$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^masking$/i })).toBeNull();
+  });
+
+  it("localizes Objects open/close/resize labels in Chinese", async () => {
+    const user = userEvent.setup();
+    renderWorkbench(buildTargets(), zhMessages);
+
+    // Desktop Objects toggle uses the Chinese objects label.
+    expect(screen.getByRole("button", { name: "对象" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "对象" }));
+    expect(
+      screen.getByRole("complementary", { name: "对象" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "关闭对象面板" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("separator", { name: "调整对象面板大小" }),
+    ).toBeInTheDocument();
   });
 
   it("renders query history when that tab is opened", async () => {
@@ -1917,6 +1958,208 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     const value = (statement as HTMLTextAreaElement).value;
     expect(value).toContain("SELECT");
     expect(value).toContain("FROM");
+  });
+
+  it("successful Format marks the worksheet dirty", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Default "select 1" is clean — no dirty marker.
+    expect(screen.queryByLabelText("Unsaved changes")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^format$/i }));
+
+    // Format rewrites SQL and must mark dirty even when the user did not type.
+    await waitFor(() => {
+      expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    });
+  });
+
+  it("close protection prompts for a format-dirtied worksheet", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Ensure a close control exists (cannot close the last worksheet).
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+
+    // Format the active worksheet so it becomes dirty with only a format edit.
+    await user.click(screen.getByRole("button", { name: /^format$/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    });
+
+    // Close the dirty worksheet (tab accessible name includes "Unsaved changes").
+    const dirtyTab = screen.getByRole("tab", { name: /unsaved changes/i });
+    const closeDirty = within(dirtyTab.parentElement as HTMLElement).getByRole(
+      "button",
+      { name: /^close /i },
+    );
+    await user.click(closeDirty);
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+  });
+
+  it("executing a query clears dirty intentionally while preserving statement/result context", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "n", databaseType: "INT", nullable: false }],
+      rows: [[2]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 12,
+      limitApplied: 100,
+      executedAt: "2026-07-11T10:00:00Z",
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    // user.clear + type can leave the mock textarea empty if React controlled
+    // updates lag; fire a controlled change that always marks dirty.
+    fireEvent.change(statement, { target: { value: "select 2" } });
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    expect((statement as HTMLTextAreaElement).value).toBe("select 2");
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledWith(
+        30,
+        expect.objectContaining({ statement: "select 2" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
+    });
+    // Dirty cleared after a successful run (intentional lifecycle).
+    expect(screen.queryByLabelText("Unsaved changes")).toBeNull();
+    // Statement and result are retained — not wiped.
+    expect((statement as HTMLTextAreaElement).value).toBe("select 2");
+    expect(screen.getByText(/1 row/i)).toBeInTheDocument();
+  });
+
+  it("result area exposes only Grid after a ready run — no placeholder result tabs", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1002,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 8,
+      limitApplied: 100,
+      executedAt: "2026-07-11T10:00:00Z",
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "1" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("tab", { name: /json/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /explain/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /logs/i })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /masking/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^json$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^explain$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^logs$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^masking$/i })).toBeNull();
+  });
+
+  it("opens Objects as a mobile bottom sheet and restores focus on Escape", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Both desktop and mobile Objects triggers render; mobile uses openObjects aria-label.
+    const openObjects = screen.getByRole("button", { name: "Open objects" });
+    // Editor is primary before opening the sheet.
+    expect(screen.getByRole("textbox", { name: /statement/i })).toBeInTheDocument();
+
+    await user.click(openObjects);
+
+    const sheet = screen.getByRole("dialog", { name: "Schema browser" });
+    expect(sheet).toBeInTheDocument();
+    expect(sheet).toHaveAttribute("data-side", "bottom");
+    // Localized close control is present on the sheet.
+    expect(
+      within(sheet).getByRole("button", { name: "Close objects pane" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Schema browser" })).toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open objects" })).toHaveFocus();
+    });
+
+    // Close via the visible control also restores focus.
+    await user.click(screen.getByRole("button", { name: "Open objects" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Schema browser" })).getByRole(
+        "button",
+        { name: "Close objects pane" },
+      ),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Schema browser" })).toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open objects" })).toHaveFocus();
+    });
   });
 
   it("does not run via shortcut when target is locked", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Check, Database, ListTree, TriangleAlert, XCircle } from "lucide-react";
@@ -17,12 +17,18 @@ import {
 } from "@/lib/query-target-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { getQueryTargets } from "@/services/query-targets";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
+
+/** Schema introspection requires a ready target with run permission. */
+function canBrowseSchema(target: QueryTarget): boolean {
+  return target.availableActions.run === true;
+}
 
 type QueryWorkbenchProps = {
   targets: QueryTarget[];
@@ -79,6 +85,8 @@ export function QueryWorkbench({
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(OBJECTS_PANE_STORAGE_KEY) === "true";
   });
+  const [mobileObjectsOpen, setMobileObjectsOpen] = useState(false);
+  const mobileObjectsTriggerRef = useRef<HTMLButtonElement>(null);
   const [objectsPaneWidth, setObjectsPaneWidth] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_OBJECTS_WIDTH;
     const stored = Number(window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY));
@@ -246,46 +254,88 @@ export function QueryWorkbench({
             onFilterChange={updateFilter}
             objectsOpen={objectsOpen}
             onObjectsToggle={() => setObjectsOpen((prev) => !prev)}
+            onMobileObjectsOpenChange={setMobileObjectsOpen}
+            mobileObjectsTriggerRef={mobileObjectsTriggerRef}
           />
           <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
-            <aside
-              className={cn(
-                "hidden shrink-0 border-r border-border bg-card overflow-y-auto lg:block",
-                objectsOpen ? "block" : "hidden",
-              )}
-              style={{ width: objectsPaneWidth }}
-              aria-label="Schema objects"
-            >
-              <div className="flex items-center justify-between border-b border-border px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {t("schema.objectsLabel")}
-                </span>
+            {/* Desktop objects pane — only mount explorer when open so locked
+                targets never issue unsolicited schema requests. */}
+            {objectsOpen && (
+              <>
+                <aside
+                  className="hidden shrink-0 border-r border-border bg-card overflow-y-auto lg:block"
+                  style={{ width: objectsPaneWidth }}
+                  aria-label={t("schema.objectsLabel")}
+                >
+                  <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      {t("schema.objectsLabel")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setObjectsOpen(false)}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                      aria-label={t("schema.closeObjects")}
+                    >
+                      <XCircle className="size-3.5" aria-hidden />
+                    </button>
+                  </div>
+                  <div className="p-2">
+                    {canBrowseSchema(activeTarget) ? (
+                      <QueryObjectExplorer
+                        targetId={activeTarget.resourceId}
+                        store={schemaStore}
+                      />
+                    ) : (
+                      <p className="p-2 text-sm text-muted-foreground">{t("schema.locked")}</p>
+                    )}
+                  </div>
+                </aside>
+
                 <button
                   type="button"
-                  onClick={() => setObjectsOpen(false)}
-                  className="rounded p-0.5 text-muted-foreground hover:text-foreground"
-                  aria-label="Close objects pane"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={t("schema.resizeObjects")}
+                  onPointerDown={handleObjectsResizePointerDown}
+                  className="hidden w-1.5 cursor-col-resize items-center justify-center bg-muted/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lg:flex"
                 >
-                  <XCircle className="size-3.5" aria-hidden />
+                  <span className="h-8 w-0.5 rounded-full bg-border" aria-hidden />
                 </button>
-              </div>
-              <div className="p-2">
-                <QueryObjectExplorer targetId={activeTarget.resourceId} store={schemaStore} />
-              </div>
-            </aside>
-
-            {objectsOpen && (
-              <button
-                type="button"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize objects pane"
-                onPointerDown={handleObjectsResizePointerDown}
-                className="hidden w-1.5 cursor-col-resize items-center justify-center bg-muted/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lg:flex"
-              >
-                <span className="h-8 w-0.5 rounded-full bg-border" aria-hidden />
-              </button>
+              </>
             )}
+
+            {/* Mobile Object Explorer Sheet — bottom drawer; editor stays primary. */}
+            <Sheet open={mobileObjectsOpen} onOpenChange={setMobileObjectsOpen}>
+              <SheetContent
+                side="bottom"
+                className="max-h-[85dvh] overflow-y-auto"
+                showCloseButton={false}
+                finalFocus={mobileObjectsTriggerRef}
+              >
+                <SheetHeader className="flex flex-row items-start justify-between gap-2 pr-2">
+                  <SheetTitle>{t("schema.title")}</SheetTitle>
+                  <button
+                    type="button"
+                    onClick={() => setMobileObjectsOpen(false)}
+                    className="rounded p-1 text-muted-foreground hover:text-foreground"
+                    aria-label={t("schema.closeObjects")}
+                  >
+                    <XCircle className="size-4" aria-hidden />
+                  </button>
+                </SheetHeader>
+                <div className="min-w-0 px-4 pb-4">
+                  {canBrowseSchema(activeTarget) ? (
+                    <QueryObjectExplorer
+                      targetId={activeTarget.resourceId}
+                      store={schemaStore}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t("schema.locked")}</p>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
 
             <div className="min-w-0 flex-1">
               <QueryEditorShell
@@ -318,6 +368,8 @@ type QueryContextBarProps = {
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   objectsOpen: boolean;
   onObjectsToggle: () => void;
+  onMobileObjectsOpenChange: (open: boolean) => void;
+  mobileObjectsTriggerRef: RefObject<HTMLButtonElement | null>;
 };
 
 function QueryContextBar({
@@ -332,6 +384,8 @@ function QueryContextBar({
   onFilterChange,
   objectsOpen,
   onObjectsToggle,
+  onMobileObjectsOpenChange,
+  mobileObjectsTriggerRef,
 }: QueryContextBarProps) {
   const t = useTranslations("queryWorkbench");
   const isProduction = target.connectionContext.environment === "production";
@@ -385,13 +439,28 @@ function QueryContextBar({
 
       <span className="flex-1" />
 
+      {/* Desktop objects toggle — accessible name from localized visible text. */}
       <Button
         type="button"
         variant={objectsOpen ? "secondary" : "ghost"}
         size="sm"
-        className="h-7 gap-1.5 text-xs"
+        className="hidden h-7 gap-1.5 text-xs lg:inline-flex"
         onClick={onObjectsToggle}
         aria-pressed={objectsOpen}
+      >
+        <ListTree className="size-3.5" aria-hidden />
+        {t("schema.objectsLabel")}
+      </Button>
+
+      {/* Mobile objects toggle — focus returns here when the sheet closes. */}
+      <Button
+        ref={mobileObjectsTriggerRef}
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1.5 text-xs lg:hidden"
+        onClick={() => onMobileObjectsOpenChange(true)}
+        aria-label={t("schema.openObjects")}
       >
         <ListTree className="size-3.5" aria-hidden />
         {t("schema.objectsLabel")}

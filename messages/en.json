@@ -991,6 +991,8 @@
       "foreignKeys": "Foreign Keys",
       "objectsLabel": "Objects",
       "objectsLabelWithDb": "Objects: {database}",
+      "closeObjects": "Close objects pane",
+      "resizeObjects": "Resize objects pane",
       "detailColumns": "{count} Columns",
       "detailKeys": "{count} Keys",
       "detailIndexes": "{count} Indexes",

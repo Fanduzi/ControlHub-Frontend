@@ -67,11 +67,11 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
   { id: "history", labelKey: "editor.historyTab" },
 ];
 
-const RESULT_TABS = ["grid", "json", "explain", "logs", "masking"] as const;
-type ResultTab = (typeof RESULT_TABS)[number];
-
 const DEFAULT_STATEMENT = "select 1";
 const DEFAULT_MAX_ROWS = 100;
+
+/** Fixed id for the SSR/client initial worksheet — must not use Date.now()/random. */
+const INITIAL_WORKSHEET_ID = "worksheet-1";
 
 type LocalWorksheet = {
   id: string;
@@ -79,7 +79,6 @@ type LocalWorksheet = {
   targetResourceId: number;
   statement: string;
   maxRows: number;
-  activeResultTab: ResultTab;
   isExecuting: boolean;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
@@ -91,21 +90,44 @@ type LocalWorksheet = {
   isDirty: boolean;
 };
 
-function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
+function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
   return {
-    id: `worksheet-${Date.now()}-${index}`,
-    name: `Worksheet ${index}`,
+    id: INITIAL_WORKSHEET_ID,
+    name: "Worksheet 1",
     targetResourceId,
     statement: DEFAULT_STATEMENT,
     maxRows: DEFAULT_MAX_ROWS,
-    activeResultTab: "grid",
     isExecuting: false,
     result: null,
     error: null,
     formatError: null,
     history: [],
     historyLoading: false,
-    requestId: crypto.randomUUID(),
+    requestId: "req-initial",
+    activeDatabase: null,
+    isDirty: false,
+  };
+}
+
+/** Client-only worksheet factory (after hydration). Unique ids are fine here. */
+function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
+  const unique =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${index}`;
+  return {
+    id: `worksheet-${index}-${unique}`,
+    name: `Worksheet ${index}`,
+    targetResourceId,
+    statement: DEFAULT_STATEMENT,
+    maxRows: DEFAULT_MAX_ROWS,
+    isExecuting: false,
+    result: null,
+    error: null,
+    formatError: null,
+    history: [],
+    historyLoading: false,
+    requestId: `req-${unique}`,
     activeDatabase: null,
     isDirty: false,
   };
@@ -131,9 +153,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   } | null>(null);
 
   const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
-    createWorksheet(1, activeTarget.resourceId),
+    createInitialWorksheet(activeTarget.resourceId),
   ]);
-  const [activeWorksheetId, setActiveWorksheetId] = useState(worksheets[0]!.id);
+  const [activeWorksheetId, setActiveWorksheetId] = useState(INITIAL_WORKSHEET_ID);
   const editorViewRef = useRef<EditorView | null>(null);
   const editorHeightRef = useRef(editorHeight);
   editorHeightRef.current = editorHeight;
@@ -185,22 +207,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     setActiveWorksheetId(newWs.id);
   }
 
-  function requestRetarget(worksheetId: string, newTargetId: number) {
-    const worksheet = worksheets.find((ws) => ws.id === worksheetId);
-    if (!worksheet) return;
-
-    // If target is the same, do nothing
-    if (worksheet.targetResourceId === newTargetId) return;
-
-    // If worksheet has SQL or is dirty, show confirmation
-    if (worksheet.statement.trim() !== DEFAULT_STATEMENT.trim() || worksheet.isDirty) {
-      setRetargetDialog({ open: true, worksheetId, newTargetId });
-    } else {
-      // Otherwise, retarget directly
-      executeRetarget(worksheetId, newTargetId);
-    }
-  }
-
   function executeRetarget(worksheetId: string, newTargetId: number) {
     setWorksheets((previous) =>
       previous.map((ws) =>
@@ -215,7 +221,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               history: [],
               historyLoading: false,
               isExecuting: false,
-              activeResultTab: "grid" as const,
               requestId: crypto.randomUUID(),
               isDirty: false,
             }
@@ -448,7 +453,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         maxRows: activeWorksheet.maxRows,
       });
 
-      guardedUpdateWorksheet(worksheetId, requestId, { result: response, activeResultTab: "grid" });
+      guardedUpdateWorksheet(worksheetId, requestId, { result: response });
     } catch (caught) {
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
@@ -469,7 +474,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     );
 
     if (result.ok) {
-      updateActiveWorksheet({ statement: result.formatted, formatError: null });
+      // Formatting rewrites SQL and must mark the worksheet dirty so close/
+      // retarget protection covers a format-only edit of the default statement.
+      updateActiveWorksheet({
+        statement: result.formatted,
+        formatError: null,
+        isDirty: true,
+      });
       const view = editorViewRef.current;
       if (view) {
         view.dispatch({
@@ -663,7 +674,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             <ReadyWorksheet
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
-              onStatementChange={(value) => updateActiveWorksheet({ statement: value })}
+              onStatementChange={(value) => updateActiveWorksheet({ statement: value, isDirty: true })}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
               runEnabled={runEnabled}
@@ -707,10 +718,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               </div>
             </div>
 
-            <LockedResult
-              activeTab={activeWorksheet.activeResultTab}
-              onSelect={(tab) => updateActiveWorksheet({ activeResultTab: tab })}
-            />
+            <LockedResult />
           </div>
         )
       ) : activeTab === "history" && canExecute ? (
@@ -1076,63 +1084,19 @@ function LockedActionBar({ blockerLabelKey }: { blockerLabelKey: string }) {
   );
 }
 
-function LockedResult({
-  activeTab,
-  onSelect,
-}: {
-  activeTab: ResultTab;
-  onSelect: (tab: ResultTab) => void;
-}) {
+function LockedResult() {
   const t = useTranslations("queryWorkbench");
 
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <ul role="tablist" aria-label={t("result.grid")} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          {RESULT_TABS.map((tab, index) => {
-            const active = tab === activeTab;
-            return (
-              <li key={tab}>
-                <button
-                  type="button"
-                  id={`result-tab-${tab}`}
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls={`result-panel-${tab}`}
-                  tabIndex={active ? 0 : -1}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowRight") {
-                      e.preventDefault();
-                      onSelect(RESULT_TABS[(index + 1) % RESULT_TABS.length]!);
-                    } else if (e.key === "ArrowLeft") {
-                      e.preventDefault();
-                      onSelect(RESULT_TABS[(index - 1 + RESULT_TABS.length) % RESULT_TABS.length]!);
-                    } else if (e.key === "Home") {
-                      e.preventDefault();
-                      onSelect(RESULT_TABS[0]!);
-                    } else if (e.key === "End") {
-                      e.preventDefault();
-                      onSelect(RESULT_TABS[RESULT_TABS.length - 1]!);
-                    }
-                  }}
-                  onClick={() => onSelect(tab)}
-                  className={cn(
-                    active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t(`result.${tab}`)}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <span className="text-sm font-medium text-foreground">{t("result.grid")}</span>
         <span className="text-xs text-muted-foreground">{t("result.notExecuted")}</span>
       </div>
 
       <div
-        id={`result-panel-${activeTab}`}
         role="tabpanel"
-        aria-labelledby={`result-tab-${activeTab}`}
+        aria-label={t("result.lockTitle")}
         className="relative m-3 overflow-hidden rounded-lg border border-amber-500/40 bg-amber-500/5 p-5"
       >
         <div className="space-y-3">
@@ -1140,22 +1104,8 @@ function LockedResult({
             {t("result.lockTitle")}
           </p>
           <p className="text-sm text-muted-foreground">{t("result.lockDescription")}</p>
-          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <ResultNote label={t("result.lastQuery")} value={t("result.lastQueryValue")} />
-            <ResultNote label={t("result.copyExport")} value={t("result.copyExportValue")} />
-            <ResultNote label={t("result.sensitive")} value={t("result.sensitiveValue")} />
-          </dl>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ResultNote({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-card p-2">
-      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-xs text-foreground">{value}</dd>
     </div>
   );
 }

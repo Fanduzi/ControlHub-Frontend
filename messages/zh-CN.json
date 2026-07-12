@@ -991,6 +991,8 @@
       "foreignKeys": "外键",
       "objectsLabel": "对象",
       "objectsLabelWithDb": "对象：{database}",
+      "closeObjects": "关闭对象面板",
+      "resizeObjects": "调整对象面板大小",
       "detailColumns": "{count} 列",
       "detailKeys": "{count} 键",
       "detailIndexes": "{count} 索引",
