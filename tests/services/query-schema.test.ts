@@ -13,6 +13,7 @@ import {
   getSchemaDatabases,
   getSchemaObjects,
   getObjectDetails,
+  normalizeObjectDetail,
 } from "@/services/query-schema";
 
 const mockApiClient = vi.mocked(apiClient);
@@ -206,5 +207,62 @@ describe("request field safety", () => {
       expect(options).not.toHaveProperty("credential");
       expect(options).not.toHaveProperty("actorUserId");
     }
+  });
+});
+
+describe("normalizeObjectDetail", () => {
+  it("coerces null top-level and nested collections to empty arrays", () => {
+    const raw = {
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table" as const,
+      columns: null,
+      indexes: [{ name: "idx", columns: null, unique: false, primary: false }],
+      foreignKeys: [
+        {
+          name: "fk",
+          columns: null,
+          referencedDatabase: "mydb",
+          referencedObject: "parent",
+          referencedColumns: null,
+          onUpdate: "CASCADE",
+          onDelete: "CASCADE",
+        },
+      ],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    } as unknown as Parameters<typeof normalizeObjectDetail>[0];
+
+    const result = normalizeObjectDetail(raw);
+    expect(result.columns).toEqual([]);
+    expect(result.indexes[0]?.columns).toEqual([]);
+    expect(result.foreignKeys[0]?.columns).toEqual([]);
+    expect(result.foreignKeys[0]?.referencedColumns).toEqual([]);
+  });
+
+  it("preserves valid column arrays", () => {
+    const columns = [
+      {
+        name: "id",
+        databaseType: "INT",
+        ordinalPosition: 1,
+        nullable: false,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+    ];
+    const raw = {
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table" as const,
+      columns,
+      indexes: [],
+      foreignKeys: [],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    };
+
+    const result = normalizeObjectDetail(raw);
+    expect(result.columns).toEqual(columns);
   });
 });

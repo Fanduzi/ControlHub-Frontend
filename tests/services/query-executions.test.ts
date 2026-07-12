@@ -41,7 +41,7 @@ function buildExecutionListResponse() {
       {
         id: 1001,
         targetResourceId: 22,
-        actorUserId: 1,
+        actor: { displayName: "Chen Hao" },
         engine: "mysql",
         statementDigest: "select 1 as value",
         statementPreview: "select 1 as value",

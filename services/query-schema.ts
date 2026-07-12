@@ -47,7 +47,34 @@ export async function getObjectDetails(
   params: SchemaObjectDetailParams,
 ): Promise<ObjectDetailResponse> {
   const path = buildObjectDetailsPath(targetId, params);
-  return apiClient<ObjectDetailResponse>(path, { signal: params.signal });
+  const raw = await apiClient<ObjectDetailResponse>(path, { signal: params.signal });
+  return normalizeObjectDetail(raw);
+}
+
+/** Coerce wire null/undefined collections to empty arrays for safe rendering. */
+export function normalizeObjectDetail(
+  raw: ObjectDetailResponse | (Omit<ObjectDetailResponse, "columns" | "indexes" | "foreignKeys"> & {
+    columns?: ObjectDetailResponse["columns"] | null;
+    indexes?: ObjectDetailResponse["indexes"] | null;
+    foreignKeys?: ObjectDetailResponse["foreignKeys"] | null;
+  }),
+): ObjectDetailResponse {
+  const columns = raw.columns ?? [];
+  const indexes = (raw.indexes ?? []).map((index) => ({
+    ...index,
+    columns: index.columns ?? [],
+  }));
+  const foreignKeys = (raw.foreignKeys ?? []).map((fk) => ({
+    ...fk,
+    columns: fk.columns ?? [],
+    referencedColumns: fk.referencedColumns ?? [],
+  }));
+  return {
+    ...raw,
+    columns,
+    indexes,
+    foreignKeys,
+  };
 }
 
 function buildSchemaDatabasesPath(

@@ -55,11 +55,14 @@ export type QueryExecuteResponse = {
  * One execution history row. Metadata only — digest/preview, status, row count,
  * duration, and controlled error fields. Never includes full result rows,
  * credentials, or DSNs.
+ *
+ * The actor is derived from the verified Bearer token on the server; the
+ * frontend never sends or receives `actorUserId`.
  */
 export type QueryExecutionRecord = {
   id: number;
   targetResourceId: number;
-  actorUserId: number;
+  actor: { displayName: string };
   engine: string;
   statementDigest: string;
   statementPreview: string;
