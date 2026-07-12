@@ -59,6 +59,6 @@ next-env.d.ts
 /.claude/
 .superpowers/
 
-# E2E failure screenshots
+# E2E failure screenshots (Playwright root-level artifacts)
 query-*.png
-test-results/
+query-*/
