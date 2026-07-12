@@ -1631,6 +1631,9 @@ function OperationsTable({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-10">
+                      <span className="sr-only">{t("operations.columns.select")}</span>
+                    </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                       {t("operations.columns.target")}
                     </th>
@@ -1895,31 +1898,35 @@ function OperationRow({
         isActive && "bg-muted/50",
       )}
     >
+      {/* Checkbox */}
+      <td className="px-3 py-2 w-10">
+        {row.selectable ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(row.resourceId)}
+            className="size-4 rounded border-border"
+          />
+        ) : (
+          <span
+            title={
+              row.notSelectableReason
+                ? t(`operations.notSelectable.${row.notSelectableReason}`)
+                : undefined
+            }
+          >
+            <input
+              type="checkbox"
+              disabled
+              className="size-4 rounded border-border opacity-50"
+            />
+          </span>
+        )}
+      </td>
+
       {/* Target: name + host:port */}
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
-          {row.selectable ? (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggleSelect(row.resourceId)}
-              className="size-4 rounded border-border"
-            />
-          ) : (
-            <span
-              title={
-                row.notSelectableReason
-                  ? t(`operations.notSelectable.${row.notSelectableReason}`)
-                  : undefined
-              }
-            >
-              <input
-                type="checkbox"
-                disabled
-                className="size-4 rounded border-border opacity-50"
-              />
-            </span>
-          )}
           <div>
             <button
               type="button"

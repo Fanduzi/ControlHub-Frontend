@@ -1217,6 +1217,11 @@
     }
   },
   "queryCredentialSettings": {
+    "common": {
+      "actions": {
+        "cancel": "取消"
+      }
+    },
     "eyebrow": "设置",
     "title": "查询凭据管理",
     "description": "管理数据库查询目标的只读凭据元数据。ControlHub 仅存储不透明引用 — DSN 和密码保留在服务端。",
@@ -1330,6 +1335,7 @@
       "selectedCount": "已选择 {count} 个",
       "noTargets": "当前筛选条件下没有匹配的目标。",
       "columns": {
+        "select": "选择",
         "target": "目标",
         "context": "上下文",
         "runtime": "运行时",

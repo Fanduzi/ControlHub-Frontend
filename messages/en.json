@@ -1217,6 +1217,11 @@
     }
   },
   "queryCredentialSettings": {
+    "common": {
+      "actions": {
+        "cancel": "Cancel"
+      }
+    },
     "eyebrow": "Settings",
     "title": "Query credential administration",
     "description": "Manage read-only credential metadata for database query targets. ControlHub stores only the opaque reference — the DSN and password remain server-side.",
@@ -1330,6 +1335,7 @@
       "selectedCount": "{count} selected",
       "noTargets": "No targets match the current filters.",
       "columns": {
+        "select": "Select",
         "target": "Target",
         "context": "Context",
         "runtime": "Runtime",
