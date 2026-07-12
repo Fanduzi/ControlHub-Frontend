@@ -58,3 +58,7 @@ next-env.d.ts
 /.omo/
 /.claude/
 .superpowers/
+
+# E2E failure screenshots
+query-*.png
+test-results/
