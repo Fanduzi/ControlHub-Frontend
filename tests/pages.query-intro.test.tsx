@@ -28,26 +28,11 @@ vi.mock("@/components/query/query-workbench", () => ({
 import QueryWorkbenchPage from "@/app/(console)/query/page";
 
 describe("/query page intro", () => {
-  it("keeps the Chinese read-only credential phrase together", async () => {
-    const description =
-      "查看可查询的数据库目标、连接上下文与治理策略。仅已就绪且配置只读凭据的目标允许执行查询。";
+  it("renders the workbench directly without a hero description", async () => {
     getTranslationsMock.mockResolvedValue(
       Object.assign(
-        (key: string) => (key === "pages.query.description" ? description : key),
-        {
-          rich: (
-            key: string,
-            tags: { readonly nowrap: (chunks: ReactNode) => ReactNode },
-          ) =>
-            key === "pages.query.description" ? (
-              <>
-                查看可查询的数据库目标、连接上下文与治理策略。仅已就绪且配置
-                {tags.nowrap("只读凭据")}的目标允许执行查询。
-              </>
-            ) : (
-              key
-            ),
-        },
+        (key: string) => key,
+        { rich: (key: string) => key },
       ),
     );
     getQueryTargetsMock.mockResolvedValue({
@@ -57,6 +42,7 @@ describe("/query page intro", () => {
 
     render(await QueryWorkbenchPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText("只读凭据")).toHaveClass("whitespace-nowrap");
+    // Phase 38I removed the hero — the page renders only the workbench shell.
+    expect(screen.queryByText("只读凭据")).toBeNull();
   });
 });

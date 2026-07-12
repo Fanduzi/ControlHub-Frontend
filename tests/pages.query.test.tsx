@@ -64,7 +64,7 @@ describe("/query page", () => {
     captured.initialActiveTargetId = undefined;
   });
 
-  it("renders the page header and the workbench shell", async () => {
+  it("renders the workbench shell directly without a page hero", async () => {
     getQueryTargetsMock.mockResolvedValue({
       items: [buildQueryTarget({ resourceId: 1 }), buildQueryTarget({ resourceId: 2 })],
       pageInfo: { page: 1, pageSize: 50, totalItems: 2, totalPages: 1 },
@@ -75,7 +75,8 @@ describe("/query page", () => {
     });
     render(element);
 
-    expect(screen.getByRole("heading", { name: "pages.query.title" })).toBeInTheDocument();
+    // Phase 38I removed the hero from /query — the page renders the workbench directly.
+    expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.getByTestId("query-workbench")).toHaveTextContent("workbench:2");
   });
 

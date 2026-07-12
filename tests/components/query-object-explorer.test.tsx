@@ -56,7 +56,8 @@ describe("QuerySchemaBrowser", () => {
 
     renderBrowser();
 
-    await user.click(screen.getByRole("button", { name: "Open objects" }));
+    const openButtons = screen.getAllByRole("button", { name: "Open objects" });
+    await user.click(openButtons[0]!);
 
     await waitFor(() => {
       expect(mockGetSchemaDatabases).toHaveBeenCalledWith(
@@ -83,7 +84,8 @@ describe("QuerySchemaBrowser", () => {
     });
 
     renderBrowser();
-    await user.click(screen.getByRole("button", { name: "Open objects" }));
+    const openButtons = screen.getAllByRole("button", { name: "Open objects" });
+    await user.click(openButtons[0]!);
     await screen.findByRole("button", { name: "database_0" });
 
     expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);

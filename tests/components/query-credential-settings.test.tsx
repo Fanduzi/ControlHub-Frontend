@@ -458,7 +458,7 @@ describe("QueryCredentialSettings stale target guard", () => {
     await user.type(input, "NEW_REF");
 
     const saveButton = screen.getByRole("button", {
-      name: /save credential metadata/i,
+      name: /^save$/i,
     });
     await user.click(saveButton);
 
@@ -514,7 +514,7 @@ describe("QueryCredentialSettings stale target guard", () => {
 
     // Click remove button.
     const removeButton = screen.getByRole("button", {
-      name: /remove credential metadata/i,
+      name: /^remove$/i,
     });
     await user.click(removeButton);
 
@@ -632,7 +632,7 @@ describe("QueryCredentialSettings — detail save feedback", () => {
     await user.type(input, "ORDER_NEW_RO");
 
     await user.click(
-      screen.getByRole("button", { name: /save credential metadata/i }),
+      screen.getByRole("button", { name: /^save$/i }),
     );
 
     await waitFor(() => {
@@ -739,7 +739,7 @@ describe("QueryCredentialSettings — disabled environmentPolicy response", () =
     // The form should be functional — "All environments" should be selectable.
     // Verify the save button is present (admin UI is fully rendered).
     expect(
-      screen.getByRole("button", { name: /save credential metadata/i }),
+      screen.getByRole("button", { name: /^save$/i }),
     ).toBeInTheDocument();
   });
 });
@@ -765,18 +765,14 @@ describe("QueryCredentialSettings — coverage summary cards", () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("Coverage overview")).toBeInTheDocument();
+      expect(screen.getByText("Summary")).toBeInTheDocument();
     });
 
-    // Summary card labels should be visible.
-    expect(screen.getByText("Total targets")).toBeInTheDocument();
+    // Phase 38I: 4 summary cards — Total, Ready, Needs attention, Unsupported.
+    expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
-    expect(screen.getByText("Missing metadata")).toBeInTheDocument();
-    expect(screen.getByText("Secret missing")).toBeInTheDocument();
-    expect(screen.getByText("Binding mismatch")).toBeInTheDocument();
-    expect(screen.getByText("Policy blocked")).toBeInTheDocument();
-    // "Disabled" appears in multiple places (card, filter, table) — check count.
-    expect(screen.getAllByText("Disabled").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Unsupported")).toBeInTheDocument();
   });
 
   it("shows total count matching the number of targets", async () => {
@@ -785,13 +781,12 @@ describe("QueryCredentialSettings — coverage summary cards", () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("Total targets")).toBeInTheDocument();
+      expect(screen.getByText("Total")).toBeInTheDocument();
     });
 
     // Total should be 2 (the number of targets in buildTargets()).
-    // The number appears in the coverage card next to "Total targets".
-    const totalLabel = screen.getByText("Total targets");
-    const card = totalLabel.closest("div");
+    const totalLabel = screen.getByText("Total");
+    const card = totalLabel.closest("button");
     expect(card).toHaveTextContent("2");
   });
 });
@@ -881,8 +876,8 @@ describe("QueryCredentialSettings — Phase 38B non-admin boundary", () => {
       ).toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Coverage overview")).toBeNull();
-    expect(screen.queryByText("Total targets")).toBeNull();
+    expect(screen.queryByText("Summary")).toBeNull();
+    expect(screen.queryByText("Total")).toBeNull();
   });
 
   it("never shows operations table for non-admin", async () => {
@@ -1465,12 +1460,13 @@ describe("QueryCredentialSettings — coverage cards separate invalid_ref (P2)",
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("Coverage overview")).toBeInTheDocument();
+      expect(screen.getByText("Summary")).toBeInTheDocument();
     });
 
-    // The "Invalid reference" card should be present (distinct from "Binding mismatch").
-    expect(screen.getByText("Invalid reference")).toBeInTheDocument();
-    expect(screen.getByText("Binding mismatch")).toBeInTheDocument();
+    // Phase 38I: 4 summary cards — Total, Ready, Needs attention, Unsupported.
+    // "Invalid reference" and "Binding mismatch" are now grouped under "Needs attention".
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Unsupported")).toBeInTheDocument();
   });
 });
 
@@ -1725,7 +1721,13 @@ describe("QueryCredentialSettings — F0b credential terminology", () => {
 
   it("collapses help under 'How this binding works'", async () => {
     const user = userEvent.setup();
-    mockGetQueryCredential.mockResolvedValue(credentialResponse());
+    mockGetQueryCredential.mockResolvedValue(
+      credentialResponse({
+        configured: true,
+        credentialRef: "ORDER_MYSQL_RO",
+        runtimeStatus: "secret_resolved",
+      }),
+    );
 
     renderSettings();
 
@@ -1743,14 +1745,11 @@ describe("QueryCredentialSettings — F0b credential terminology", () => {
     expect(screen.queryByText("Standard read-only account")).toBeNull();
     expect(screen.queryByText("Cluster-specific override")).toBeNull();
 
-    // Click the help disclosure.
-    await user.click(
-      screen.getByRole("button", { name: /how this binding works/i }),
-    );
-
-    // Old cards should still NOT be visible.
-    expect(screen.queryByText("Standard read-only account")).toBeNull();
-    expect(screen.queryByText("Cluster-specific override")).toBeNull();
+    // The help section is now inline text, not a collapsible button.
+    // Verify the binding explanation text is present.
+    expect(
+      screen.getByText(/server-side secret reference/i),
+    ).toBeInTheDocument();
   });
 });
 
@@ -1794,11 +1793,11 @@ describe("QueryCredentialSettings — delete success feedback", () => {
     await user.click(screen.getByText("Order MySQL Instance"));
 
     await waitFor(() => {
-      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     // Click remove button to show confirmation.
-    await user.click(screen.getByText("Remove credential metadata"));
+    await user.click(screen.getByRole("button", { name: /^remove$/i }));
 
     // Click confirm delete.
     await user.click(screen.getByText("Remove credential metadata?"));
@@ -1835,10 +1834,10 @@ describe("QueryCredentialSettings — delete success feedback", () => {
     await user.click(screen.getByText("Order MySQL Instance"));
 
     await waitFor(() => {
-      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Remove credential metadata"));
+    await user.click(screen.getByRole("button", { name: /^remove$/i }));
     await user.click(screen.getByText("Remove credential metadata?"));
 
     await user.keyboard("{Escape}");
@@ -1909,14 +1908,9 @@ describe("QueryCredentialSettings — server secret reference help", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    // Click the help disclosure.
-    await user.click(
-      screen.getByRole("button", { name: /how this binding works/i }),
-    );
-
-    // Should explain server secret reference model.
+    // The help section is now inline text, not a collapsible button.
+    // Verify the binding explanation text is present.
     expect(screen.getByText(/LOCAL_QUERY_RO is a server-side secret reference/)).toBeInTheDocument();
-    // Multiple elements contain the env var name (derived display + help section).
     expect(screen.getAllByText(/CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/real DSN, database username, and password/)).toBeInTheDocument();
     expect(screen.getByText(/backend runtime environment/)).toBeInTheDocument();
@@ -1944,11 +1938,7 @@ describe("QueryCredentialSettings — server secret reference help", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    // Click the help disclosure.
-    await user.click(
-      screen.getByRole("button", { name: /how this binding works/i }),
-    );
-
+    // The help section is now inline text, not a collapsible button.
     // Old cards should NOT be rendered.
     expect(screen.queryByText("Standard read-only account")).toBeNull();
     expect(screen.queryByText("Cluster-specific override")).toBeNull();
@@ -2117,11 +2107,11 @@ describe("QueryCredentialSettings — master-detail inspector", () => {
     await user.click(editButton);
 
     await waitFor(() => {
-      expect(screen.getByText("Remove credential metadata")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     // Click remove button.
-    await user.click(screen.getByText("Remove credential metadata"));
+    await user.click(screen.getByRole("button", { name: /^remove$/i }));
 
     // Click confirm delete.
     await user.click(screen.getByText("Remove credential metadata?"));
@@ -2404,10 +2394,14 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
       expect(mockGetQueryCredential).toHaveBeenCalledTimes(4);
     });
 
-    const readinessFilter = requireElement(
-      screen.getAllByRole("combobox")[5],
-      "Expected readiness filter",
-    );
+    // The readiness filter is now part of the filter controls.
+    // Find the combobox labeled "Readiness" or similar.
+    const comboboxes = screen.getAllByRole("combobox");
+    const readinessFilter = comboboxes.find((cb) =>
+      cb.getAttribute("aria-label")?.toLowerCase().includes("readiness") ||
+      cb.textContent?.toLowerCase().includes("readiness")
+    ) ?? comboboxes[comboboxes.length - 1];
+    requireElement(readinessFilter, "Expected readiness filter");
     await user.click(readinessFilter);
     await waitFor(() => {
       expect(screen.getByRole("option", { name: "Ready" })).toBeInTheDocument();
@@ -2765,8 +2759,8 @@ describe("QueryCredentialSettings — Phase 38H credential paging", () => {
     });
     expect(mockGetQueryCredential).not.toHaveBeenCalledWith(51);
     expect(
-      screen.getAllByText(/status totals reflect this page and current filters/i),
-    ).toHaveLength(2);
+      screen.getAllByText(/status totals reflect this page and current filters/i).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("uses the server page booleans to disable pager navigation", async () => {

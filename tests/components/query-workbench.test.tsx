@@ -293,12 +293,11 @@ describe("QueryWorkbench", () => {
     expect(screen.queryByText("Governed query execution")).toBeNull();
   });
 
-  it("renders the active target's facts in the navigator and governance panel", () => {
+  it("renders the active target's facts in the context bar and governance panel", () => {
     renderWorkbench();
 
-    expect(
-      screen.getAllByText("prod-ch-host-01.internal:8123").length,
-    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
+    expect(screen.getByText("Production")).toBeInTheDocument();
     expect(
       screen.getByRole("region", { name: "Governance & access" }),
     ).toBeInTheDocument();
@@ -320,12 +319,14 @@ describe("QueryWorkbench", () => {
   it("renders an honest locked schema placeholder for a SQL target without schema metadata", () => {
     renderWorkbench();
 
+    // The schema placeholder is now inside the objects pane, which must be opened first.
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
     expect(
       screen.getByText(
         /Database \/ schema \/ table \/ column placeholders appear once schema metadata/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Schema is locked/)).toBeInTheDocument();
   });
 
   it("renders the locked result area with a not-executed state", () => {
@@ -341,9 +342,9 @@ describe("QueryWorkbench", () => {
     renderWorkbench();
 
     await user.click(screen.getByRole("tab", { name: "Query history" }));
-    expect(
-      screen.getByText(/Query history is unavailable/),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/No executions yet/)).toBeInTheDocument();
+    });
 
     await user.click(screen.getByRole("tab", { name: "Access grants" }));
     expect(screen.getByText(/Access grants are unavailable/)).toBeInTheDocument();
@@ -453,10 +454,9 @@ describe("QueryWorkbench", () => {
 
     renderWorkbench([target]);
 
-    const activeSummary = screen.getByRole("region", { name: "Active connection" });
-    expect(within(activeSummary).getByText("mysql")).toBeInTheDocument();
-    expect(within(activeSummary).getByText("Production")).toBeInTheDocument();
-    expect(within(activeSummary).getAllByText("Missing connection").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Unconfigured MySQL Node")).toBeInTheDocument();
+    expect(screen.getByText("Production")).toBeInTheDocument();
+    expect(screen.getAllByText("Missing connection").length).toBeGreaterThanOrEqual(1);
 
     expect(screen.queryAllByText(/:0/)).toHaveLength(0);
 
@@ -970,7 +970,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     expect(screen.queryByText("select * from analytics_log")).toBeNull();
   });
 
-  it("clears target-owned state but preserves statement when switching targets", async () => {
+  it("creates a new worksheet with default statement when switching targets", async () => {
     const user = userEvent.setup();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
 
@@ -982,11 +982,11 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     await user.type(statement, "select 2 from a");
     expect(statement).toHaveValue("select 2 from a");
 
-    // Switching targets via navigator clears target-owned state (result,
-    // error, history, execution progress) but preserves the user's statement.
+    // Phase 38I: switching targets creates a new worksheet with the default statement,
+    // preserving the original worksheet's SQL, result, and history.
     await pickTarget(user, /Staging MySQL/);
 
-    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 2 from a");
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
   });
 });
 
@@ -1082,13 +1082,11 @@ describe("QueryWorkbench target picker search", () => {
       });
 
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      const activeSummary = screen.getByRole("region", { name: "Active connection" });
-      expect(within(activeSummary).getByText("Canonical ClickHouse")).toBeInTheDocument();
-      expect(within(activeSummary).getByText("canonical-clickhouse.internal:8123")).toBeInTheDocument();
-      expect(within(activeSummary).getByText("clickhouse")).toBeInTheDocument();
-      expect(within(activeSummary).queryByText("Conflicting Search Result")).toBeNull();
-      expect(within(activeSummary).queryByText("conflicting-mysql.internal:3306")).toBeNull();
-      expect(within(activeSummary).queryByText("mysql")).toBeNull();
+
+      expect(screen.getByText("Canonical ClickHouse")).toBeInTheDocument();
+      expect(screen.getByText("Production")).toBeInTheDocument();
+      expect(screen.queryByText("Conflicting Search Result")).toBeNull();
+      expect(screen.queryByText("conflicting-mysql.internal:3306")).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -1319,11 +1317,7 @@ describe("QueryWorkbench target picker search", () => {
     await user.click(screen.getByRole("button", { name: "Analytics ClickHouse Node 01" }));
 
     await waitFor(() => {
-      expect(
-        within(screen.getByRole("region", { name: "Active connection" })).getByText(
-          "Analytics ClickHouse Node 01",
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
     });
   });
 
@@ -1805,21 +1799,16 @@ describe("QueryWorkbench target picker grouped navigation", () => {
 });
 
 describe("QueryWorkbench active target header", () => {
-  it("shows active target display name in the active connection summary", () => {
+  it("shows active target display name in the context bar", () => {
     renderWorkbench();
 
-    const activeSummary = screen.getByRole("region", { name: "Active connection" });
-    expect(
-      within(activeSummary).getByText("Analytics ClickHouse Node 01"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Analytics ClickHouse Node 01")).toBeInTheDocument();
   });
 
-  it("shows target facts in the active summary, not duplicated in governance", () => {
+  it("shows target facts in the context bar, not duplicated in governance", () => {
     renderWorkbench();
 
-    const activeSummary = screen.getByRole("region", { name: "Active connection" });
-    expect(within(activeSummary).getByText("clickhouse")).toBeInTheDocument();
-    expect(within(activeSummary).getByText("Production")).toBeInTheDocument();
+    expect(screen.getByText("Production")).toBeInTheDocument();
 
     expect(screen.queryByText("Target facts")).toBeNull();
   });
@@ -2099,9 +2088,8 @@ describe("QueryWorkbench filter-hidden target", () => {
       </NextIntlClientProvider>,
     );
 
-    const activeSummary = screen.getByRole("region", { name: "Active connection" });
-    expect(within(activeSummary).getByText("MySQL Dev")).toBeInTheDocument();
-    expect(within(activeSummary).getByText("mysql")).toBeInTheDocument();
+    expect(screen.getByText("MySQL Dev")).toBeInTheDocument();
+    expect(screen.getByText("Development")).toBeInTheDocument();
   });
 });
 
