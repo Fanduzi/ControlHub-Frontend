@@ -11,6 +11,8 @@ export interface ConsoleGuardOptions {
   allowedErrors?: RegExp[];
   /** Patterns that match allowed console.warning messages */
   allowedWarnings?: RegExp[];
+  /** Patterns that match allowed network error messages (e.g. "GET .../schema/... → 403") */
+  allowedNetworkErrors?: RegExp[];
 }
 
 export function isAllowedConsoleMessage(
@@ -40,12 +42,16 @@ export function collectConsoleMessages(
   return messages;
 }
 
-export function collectNetworkErrors(page: Page): string[] {
+export function collectNetworkErrors(page: Page, opts: Pick<ConsoleGuardOptions, 'allowedNetworkErrors'> = {}): string[] {
   const errors: string[] = [];
   page.on("response", (res) => {
     const status = res.status();
     if (status >= 400) {
-      errors.push(`${res.request().method()} ${res.url()} → ${status}`);
+      const message = `${res.request().method()} ${res.url()} → ${status}`;
+      const allowed = opts.allowedNetworkErrors?.some((p) => p.test(message)) ?? false;
+      if (!allowed) {
+        errors.push(message);
+      }
     }
   });
   return errors;

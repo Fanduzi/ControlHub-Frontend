@@ -68,15 +68,14 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // Coverage overview section should be visible.
     await expect(
-      page.getByText("Coverage overview"),
+      page.getByRole("heading", { name: /Query credential administration/i }),
     ).toBeVisible({ timeout: 15_000 });
 
-    // Summary card labels should be visible.
-    await expect(page.getByText("Total targets").first()).toBeVisible();
+    await expect(page.getByText("Total").first()).toBeVisible();
     await expect(page.getByText("Ready").first()).toBeVisible();
-    await expect(page.getByText("Missing metadata").first()).toBeVisible();
+    await expect(page.getByText("Needs attention").first()).toBeVisible();
+    await expect(page.getByText("Unsupported").first()).toBeVisible();
   });
 
   test("shows the operations table with credential data", async ({
@@ -97,14 +96,12 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // Filter section should be visible.
-    await expect(
-      page.getByRole("heading", { name: "Filters" }),
-    ).toBeVisible({ timeout: 15_000 });
-
-    // Search input should be visible.
     const searchInput = page.locator('input[type="search"]');
-    await expect(searchInput).toBeVisible();
+    await expect(searchInput).toBeVisible({ timeout: 15_000 });
+
+    await expect(
+      page.getByRole("button", { name: /more filters/i }),
+    ).toBeVisible();
   });
 
   test("selecting a target in the table shows the credential detail panel", async ({
@@ -113,15 +110,14 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // Wait for the table to render.
     const firstTargetButton = page.locator("table tbody tr td button").first();
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
     await firstTargetButton.click();
 
-    // The detail panel should show the credential binding title.
-    await expect(
-      page.getByText("Credential binding").first(),
-    ).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+
+    await expect(dialog.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
   });
 
   test("credential detail panel shows runtime status and form fields", async ({
@@ -180,8 +176,9 @@ test.describe("Query credential settings", () => {
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
     await firstTargetButton.click();
 
-    // The help section is collapsed under "How this binding works".
-    // Old cards should NOT be visible.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+
     await expect(
       page.getByText("Standard read-only account"),
     ).toHaveCount(0);
@@ -189,15 +186,12 @@ test.describe("Query credential settings", () => {
       page.getByText("Cluster-specific override"),
     ).toHaveCount(0);
 
-    // Click the disclosure to expand.
-    await page.getByRole("button", { name: /how this binding works/i }).click();
+    await expect(
+      dialog.locator("#credential-ref"),
+    ).toBeVisible({ timeout: 15_000 });
 
-    // Server secret reference explanation should be visible.
     await expect(
-      page.getByText(/real DSN, database username, and password/).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/backend runtime environment/).first(),
+      page.getByText(/ControlHub stores only the reference/).first(),
     ).toBeVisible();
   });
 
@@ -234,12 +228,10 @@ test.describe("Query credential settings", () => {
 
     await expect(page).toHaveURL(/\/query/);
 
-    // The governance panel should show credential state label.
     await expect(
-      page.getByText(/Credential state/).first(),
+      page.getByRole("link", { name: /open credential settings/i }),
     ).toBeVisible();
 
-    // No credential edit controls in the workbench.
     await expect(page.locator("#credential-ref")).toHaveCount(0);
     await expect(page.locator("#credential-enabled")).toHaveCount(0);
     await expect(page.locator("#environment-policy")).toHaveCount(0);
@@ -356,10 +348,9 @@ test.describe("Query credential settings", () => {
     // Admin controls should appear after role recovery from the cookie
     // bearer token (the token contains the role, decoded client-side).
     await expect(
-      page.getByText("Coverage overview"),
+      page.getByRole("heading", { name: /Query credential administration/i }),
     ).toBeVisible({ timeout: 15_000 });
 
-    // The operations table should render.
     const tableRows = page.locator("table tbody tr");
     await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
 
@@ -376,7 +367,6 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    // Wait for the table to render.
     const firstTargetButton = page.locator("table tbody tr td button").first();
     await expect(firstTargetButton).toBeVisible({ timeout: 15_000 });
 
@@ -391,10 +381,6 @@ test.describe("Query credential settings", () => {
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: 15_000 });
-
-    await expect(
-      dialog.getByText("Credential binding").first(),
-    ).toBeVisible({ timeout: 15_000 });
 
     await expect(dialog.locator("#credential-ref")).toBeVisible({ timeout: 15_000 });
 
@@ -493,11 +479,11 @@ test.describe("Query credential settings", () => {
     await loginViaUI(page);
     await page.goto("/settings/query-credentials");
 
-    const editCredentialButton = page
-      .getByRole("button", { name: "Edit credential metadata" })
+    const editButton = page
+      .getByRole("button", { name: "Edit" })
       .first();
-    await expect(editCredentialButton).toBeVisible({ timeout: 15_000 });
-    await editCredentialButton.click();
+    await expect(editButton).toBeVisible({ timeout: 15_000 });
+    await editButton.click();
 
     const dialog = page.getByRole("dialog");
     const credentialRef = dialog.locator("#credential-ref");
@@ -505,7 +491,7 @@ test.describe("Query credential settings", () => {
     await expect(credentialRef).not.toHaveValue("", { timeout: 15_000 });
 
     await dialog
-      .getByRole("button", { name: "Save credential metadata" })
+      .getByRole("button", { name: "Save" })
       .click();
     await expect(dialog.getByRole("status")).toHaveText(
       "Credential metadata saved.",
