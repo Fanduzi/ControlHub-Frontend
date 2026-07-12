@@ -21,6 +21,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { QueryGovernancePanel } from "@/components/query/query-governance-panel";
@@ -34,9 +44,12 @@ import {
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
-import { getSchemaDatabases } from "@/services/query-schema";
+import { getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
 import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
+import type { QuerySchemaStore } from "@/lib/query-schema-store";
+import type { ObjectSummary } from "@/types/query-schema";
+import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
@@ -44,15 +57,14 @@ type QueryEditorShellProps = {
   targetSelectionVersion: number;
   onActiveTargetChange: (resourceId: number) => void;
   onActiveDatabaseChange?: (database: string | null) => void;
+  schemaStore: QuerySchemaStore;
 };
 
-type WorksheetTab = "worksheet" | "savedSheets" | "history" | "access";
+type WorksheetTab = "worksheet" | "history";
 
 const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
   { id: "worksheet", labelKey: "editor.worksheetTab" },
-  { id: "savedSheets", labelKey: "editor.savedSheetsTab" },
   { id: "history", labelKey: "editor.historyTab" },
-  { id: "access", labelKey: "editor.accessTab" },
 ];
 
 const RESULT_TABS = ["grid", "json", "explain", "logs", "masking"] as const;
@@ -76,6 +88,7 @@ type LocalWorksheet = {
   historyLoading: boolean;
   requestId: string;
   activeDatabase: string | null;
+  isDirty: boolean;
 };
 
 function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
@@ -94,16 +107,28 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     historyLoading: false,
     requestId: crypto.randomUUID(),
     activeDatabase: null,
+    isDirty: false,
   };
 }
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
+  const [loadedDatabases, setLoadedDatabases] = useState<readonly string[]>([]);
+  const [loadedObjects, setLoadedObjects] = useState<readonly ObjectSummary[]>([]);
+  const [retargetDialog, setRetargetDialog] = useState<{
+    open: boolean;
+    worksheetId: string;
+    newTargetId: number;
+  } | null>(null);
+  const [closeConfirmDialog, setCloseConfirmDialog] = useState<{
+    open: boolean;
+    worksheetId: string;
+  } | null>(null);
 
   const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
     createWorksheet(1, activeTarget.resourceId),
@@ -160,10 +185,62 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     setActiveWorksheetId(newWs.id);
   }
 
+  function requestRetarget(worksheetId: string, newTargetId: number) {
+    const worksheet = worksheets.find((ws) => ws.id === worksheetId);
+    if (!worksheet) return;
+
+    // If target is the same, do nothing
+    if (worksheet.targetResourceId === newTargetId) return;
+
+    // If worksheet has SQL or is dirty, show confirmation
+    if (worksheet.statement.trim() !== DEFAULT_STATEMENT.trim() || worksheet.isDirty) {
+      setRetargetDialog({ open: true, worksheetId, newTargetId });
+    } else {
+      // Otherwise, retarget directly
+      executeRetarget(worksheetId, newTargetId);
+    }
+  }
+
+  function executeRetarget(worksheetId: string, newTargetId: number) {
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === worksheetId
+          ? {
+              ...ws,
+              targetResourceId: newTargetId,
+              activeDatabase: null,
+              result: null,
+              error: null,
+              formatError: null,
+              history: [],
+              historyLoading: false,
+              isExecuting: false,
+              activeResultTab: "grid" as const,
+              requestId: crypto.randomUUID(),
+              isDirty: false,
+            }
+          : ws,
+      ),
+    );
+    setRetargetDialog(null);
+  }
+
   function closeWorksheet(id: string) {
     // Can't close last worksheet
     if (worksheets.length <= 1) return;
 
+    const worksheet = worksheets.find((ws) => ws.id === id);
+    if (!worksheet) return;
+
+    // If worksheet has SQL or is dirty, show confirmation
+    if (worksheet.statement.trim() !== DEFAULT_STATEMENT.trim() || worksheet.isDirty) {
+      setCloseConfirmDialog({ open: true, worksheetId: id });
+    } else {
+      executeCloseWorksheet(id);
+    }
+  }
+
+  function executeCloseWorksheet(id: string) {
     setWorksheets((previous) => {
       const filtered = previous.filter((ws) => ws.id !== id);
       if (activeWorksheetId === id) {
@@ -173,6 +250,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       }
       return filtered;
     });
+    setCloseConfirmDialog(null);
   }
 
   function renameWorksheet(id: string, newName: string) {
@@ -233,18 +311,19 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (targetSelectionVersion !== lastSeenVersionRef.current) {
       lastSeenVersionRef.current = targetSelectionVersion;
 
-      // Update the ref immediately so refreshHistory sees the latest state
-      const newWorksheets = worksheetsRef.current.map((ws) =>
-        ws.id === activeWorksheetId ? { ...ws, targetResourceId: activeTarget.resourceId, activeDatabase: null, result: null, error: null, history: [], historyLoading: false, isExecuting: false, activeResultTab: "grid" as const, requestId: crypto.randomUUID() } : ws,
-      );
+      // Create a new worksheet for the new target instead of retargeting the active one
+      // This preserves the original worksheet's SQL, result, and history
+      const newWs = createWorksheet(worksheetsRef.current.length + 1, activeTarget.resourceId);
+      const newWorksheets = [...worksheetsRef.current, newWs];
       worksheetsRef.current = newWorksheets;
       setWorksheets(newWorksheets);
+      setActiveWorksheetId(newWs.id);
 
       if (activeTarget.availableActions.run) {
-        void refreshHistory();
+        void refreshHistory(newWs.id);
       }
     }
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory, activeWorksheetId]);
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, refreshHistory]);
 
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
@@ -273,6 +352,34 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   useEffect(() => {
     onActiveDatabaseChange?.(activeWorksheet.activeDatabase);
   }, [activeWorksheet.activeDatabase, onActiveDatabaseChange]);
+
+  // Fetch databases and objects for schema-aware completion.
+  // This is the single source of truth for the worksheet's schema metadata.
+  useEffect(() => {
+    const targetId = activeWorksheet.targetResourceId;
+    const activeDb = activeWorksheet.activeDatabase;
+    if (!worksheetTarget.availableActions.run || !activeDb) return;
+
+    const controller = new AbortController();
+
+    void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
+      (response) => {
+        if (controller.signal.aborted) return;
+        setLoadedDatabases(response.items.map((db) => db.name));
+      },
+      () => undefined,
+    );
+
+    void getSchemaObjects(targetId, { database: activeDb, page: 1, pageSize: 500, signal: controller.signal }).then(
+      (response) => {
+        if (controller.signal.aborted) return;
+        setLoadedObjects(response.items);
+      },
+      () => undefined,
+    );
+
+    return () => controller.abort();
+  }, [activeWorksheet.targetResourceId, activeWorksheet.activeDatabase, worksheetTarget.availableActions.run]);
 
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
   const editorThemePreference = normalizeEditorTheme(
@@ -327,7 +434,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const targetId = activeWorksheet.targetResourceId;
     const requestId = crypto.randomUUID();
 
-    updateActiveWorksheet({ isExecuting: true, error: null, requestId });
+    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false });
 
     try {
       const response = await executeQueryTarget(targetId, {
@@ -414,6 +521,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 onDoubleClick={() => startRename(ws.id, ws.name)}
               >
                 {ws.name}
+                {ws.isDirty && (
+                  <span className="ml-1 text-muted-foreground" aria-label="Unsaved changes">•</span>
+                )}
               </button>
             )}
             {worksheets.length > 1 && (
@@ -520,6 +630,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             onEditorResizePointerDown={handleEditorResizePointerDown}
             result={activeWorksheet.result}
             error={activeWorksheet.error}
+            schemaStore={schemaStore}
+            targetId={activeWorksheet.targetResourceId}
+            activeDatabase={activeWorksheet.activeDatabase}
+            loadedDatabases={loadedDatabases}
+            loadedObjects={loadedObjects}
           />
         ) : (
           <div className="flex flex-col">
@@ -550,8 +665,78 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         )
       ) : activeTab === "history" && canExecute ? (
         <QueryHistoryPanel history={activeWorksheet.history} loading={activeWorksheet.historyLoading} />
-      ) : (
-        <PlaceholderTab tab={activeTab} />
+      ) : null}
+
+      {/* Retarget confirmation dialog */}
+      {retargetDialog?.open && (
+        <AlertDialog open={retargetDialog.open} onOpenChange={(open) => !open && setRetargetDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("retarget.title")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("retarget.description")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-border p-3">
+                <p className="font-medium">{t("retarget.currentTarget")}</p>
+                <p className="text-muted-foreground">
+                  {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.displayName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.environment} • {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.engine} • {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.host}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="font-medium">{t("retarget.newTarget")}</p>
+                <p className="text-muted-foreground">
+                  {targetsById.get(retargetDialog.newTargetId)?.displayName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {targetsById.get(retargetDialog.newTargetId)?.connectionContext.environment} • {targetsById.get(retargetDialog.newTargetId)?.connectionContext.engine} • {targetsById.get(retargetDialog.newTargetId)?.connectionContext.host}
+                </p>
+                {targetsById.get(retargetDialog.newTargetId)?.connectionContext.environment === "production" && (
+                  <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                    {t("retarget.productionWarning")}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("retarget.clearWarning")}
+              </p>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setRetargetDialog(null)}>
+                {t("retarget.cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={() => executeRetarget(retargetDialog.worksheetId, retargetDialog.newTargetId)}>
+                {t("retarget.confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Close confirmation dialog */}
+      {closeConfirmDialog?.open && (
+        <AlertDialog open={closeConfirmDialog.open} onOpenChange={(open) => !open && setCloseConfirmDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("close.title")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("close.description")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setCloseConfirmDialog(null)}>
+                {t("close.cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={() => executeCloseWorksheet(closeConfirmDialog.worksheetId)}>
+                {t("close.confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </section>
   );
@@ -575,6 +760,11 @@ function ReadyWorksheet({
   onEditorResizePointerDown,
   result,
   error,
+  schemaStore,
+  targetId,
+  activeDatabase,
+  loadedDatabases,
+  loadedObjects,
 }: {
   worksheetId: string;
   statement: string;
@@ -593,8 +783,20 @@ function ReadyWorksheet({
   onEditorResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
+  schemaStore: QuerySchemaStore;
+  targetId: number;
+  activeDatabase: string | null;
+  loadedDatabases: readonly string[];
+  loadedObjects: readonly ObjectSummary[];
 }) {
   const t = useTranslations("queryWorkbench");
+  const { namespace, columnFetcher } = useWorksheetSchemaAdapter(
+    schemaStore,
+    targetId,
+    activeDatabase ?? undefined,
+    loadedDatabases,
+    loadedObjects,
+  );
 
   return (
     <div className="flex flex-col">
@@ -644,6 +846,8 @@ function ReadyWorksheet({
           disabled={isExecuting}
           themePreference={themePreference}
           height={editorHeight}
+          schemaNamespace={namespace}
+          columnFetcher={columnFetcher}
         />
         <button
           type="button"
@@ -775,23 +979,6 @@ function ExecuteErrorPanel({ error }: { error: QueryExecuteError }) {
         <span className="font-medium">{t("error.detailLabel")}: </span>
         {error.message}
       </p>
-    </div>
-  );
-}
-
-function PlaceholderTab({ tab }: { tab: Exclude<WorksheetTab, "worksheet"> }) {
-  const t = useTranslations("queryWorkbench");
-  const text =
-    tab === "savedSheets"
-      ? t("editor.savedSheetsPlaceholder")
-      : tab === "history"
-        ? t("editor.historyPlaceholder")
-        : t("editor.accessPlaceholder");
-
-  return (
-    <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-      <Lock className="size-4 shrink-0" aria-hidden />
-      <span>{text}</span>
     </div>
   );
 }

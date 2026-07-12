@@ -65,6 +65,17 @@ export function QueryWorkbench({
   const searchGeneration = useRef(0);
   const schemaStore = useMemo(() => new QuerySchemaStore(), []);
 
+  // Update URL when active database changes
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeDatabase) {
+      params.set("database", activeDatabase);
+    } else {
+      params.delete("database");
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [activeDatabase, pathname, router, searchParams]);
+
   useEffect(() => {
     const generation = searchGeneration.current + 1;
     searchGeneration.current = generation;
@@ -148,8 +159,10 @@ export function QueryWorkbench({
     }
     setActiveTargetId(resourceId);
     setTargetSelectionVersion((version) => version + 1);
+    // Update URL with targetId only (no SQL, no secrets)
     const params = new URLSearchParams(searchParams.toString());
     params.set("targetId", String(resourceId));
+    params.delete("database"); // Reset database when changing target
     router.replace(`${pathname}?${params.toString()}`);
   }
 
@@ -183,6 +196,7 @@ export function QueryWorkbench({
             targetSelectionVersion={targetSelectionVersion}
             onActiveTargetChange={setActiveTargetFromWorksheet}
             onActiveDatabaseChange={setActiveDatabase}
+            schemaStore={schemaStore}
           />
           <QuerySchemaBrowser target={activeTarget} store={schemaStore} activeDatabase={activeDatabase} />
         </div>
