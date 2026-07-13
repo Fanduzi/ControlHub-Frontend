@@ -266,7 +266,7 @@ test.describe("Query Workbench shell", () => {
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // The backend executes `select 1` and returns a single INT cell.
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -388,7 +388,7 @@ test.describe("Query Workbench shell", () => {
     await selectConnectionTarget(page, readyIndex);
 
     await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -455,7 +455,7 @@ test.describe("Query Workbench shell", () => {
     await page.keyboard.press(isMac ? "Meta+Enter" : "Control+Enter");
 
     // Should execute the default select 1 and show the result
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -469,7 +469,7 @@ test.describe("Query Workbench shell", () => {
     await selectConnectionTarget(page, readyIndex);
 
     await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -483,7 +483,7 @@ test.describe("Query Workbench shell", () => {
 
     await page.getByRole("tab", { name: activeTabName!, exact: true }).click();
 
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible();
   });
 
   test("unsafe SQL remains rejected by backend", async ({ page }) => {
@@ -536,7 +536,7 @@ test.describe("Query Workbench shell", () => {
     await setThemeToDark(page);
 
     await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -650,7 +650,7 @@ test.describe("Query Workbench shell", () => {
 
     // Run the default select 1.
     await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
       timeout: 15_000,
     });
 

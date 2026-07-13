@@ -3042,4 +3042,42 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(screen.getByRole("status")).toHaveTextContent(/已复制/);
     });
   });
+
+  it("cleans up the feedback timer on unmount to prevent stale state updates", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+
+    const { unmount } = render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+
+    // Trigger a copy to start the feedback timer.
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    });
+
+    const clearTimeoutCallsBefore = clearTimeoutSpy.mock.calls.length;
+
+    // Unmount the component — this should clear the pending timer.
+    unmount();
+
+    expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(clearTimeoutCallsBefore);
+    clearTimeoutSpy.mockRestore();
+  });
 });

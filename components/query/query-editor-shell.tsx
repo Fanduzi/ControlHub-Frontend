@@ -1055,6 +1055,16 @@ function ResultTable({
   } | null>(null);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clear the feedback timer on unmount to prevent state updates after the
+  // component is gone (e.g. worksheet switch, worksheet close, result refresh).
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    };
+  }, []);
+
   function showFeedback(message: string, type: "success" | "error") {
     if (feedbackTimerRef.current) {
       clearTimeout(feedbackTimerRef.current);
@@ -1146,21 +1156,15 @@ function ResultTable({
                   className="group/td relative px-3 py-2"
                 >
                   <ResultCell value={cell} />
-                  <span
+                  <button
+                    type="button"
                     data-testid="copy-cell"
-                    tabIndex={0}
-                    aria-hidden="true"
+                    aria-label={t("result.copyCellAriaLabel", { value: getCellCopyText(cell) })}
                     onClick={() => void handleCopyCell(cell)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        void handleCopyCell(cell);
-                      }
-                    }}
                     className="absolute right-1 top-1 flex size-4 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted focus:opacity-100 group-hover/td:opacity-100"
                   >
-                    <Copy className="size-3 text-muted-foreground/50" />
-                  </span>
+                    <Copy className="size-3 text-muted-foreground/50" aria-hidden />
+                  </button>
                 </td>
               ))}
             </tr>
