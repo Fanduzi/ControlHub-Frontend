@@ -1061,7 +1061,24 @@ function ResultTable({
   const t = useTranslations("queryWorkbench");
 
   // Roving-tabindex active cell. row = -1 means the header row.
-  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  // Initialized to the first data cell so Tab can enter the grid.
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
+  // Ref map for programmatic focus during arrow-key navigation.
+  const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  function setCellRef(row: number, col: number, el: HTMLElement | null) {
+    const key = `${row},${col}`;
+    if (el) {
+      cellRefs.current.set(key, el);
+    } else {
+      cellRefs.current.delete(key);
+    }
+  }
+
+  function focusCell(row: number, col: number) {
+    cellRefs.current.get(`${row},${col}`)?.focus();
+  }
+
   // Selection for copy (distinct from keyboard focus).
   const [selectedCell, setSelectedCell] = useState<{
     rowIndex: number;
@@ -1129,7 +1146,6 @@ function ResultTable({
   }
 
   function handleGridKeyDown(event: React.KeyboardEvent) {
-    if (!activeCell) return;
     const { row, col } = activeCell;
 
     switch (event.key) {
@@ -1137,18 +1153,21 @@ function ResultTable({
         event.preventDefault();
         const nextCol = Math.min(col + 1, colCount - 1);
         setActiveCell({ row, col: nextCol });
+        focusCell(row, nextCol);
         break;
       }
       case "ArrowLeft": {
         event.preventDefault();
         const prevCol = Math.max(col - 1, 0);
         setActiveCell({ row, col: prevCol });
+        focusCell(row, prevCol);
         break;
       }
       case "ArrowDown": {
         event.preventDefault();
         if (row < rowCount - 1) {
           setActiveCell({ row: row + 1, col });
+          focusCell(row + 1, col);
         }
         break;
       }
@@ -1156,6 +1175,7 @@ function ResultTable({
         event.preventDefault();
         if (row >= 0) {
           setActiveCell({ row: row - 1, col });
+          focusCell(row - 1, col);
         }
         break;
       }
@@ -1252,6 +1272,7 @@ function ResultTable({
                 return (
                   <th
                     key={column.name}
+                    ref={(el) => setCellRef(-1, colIndex, el)}
                     scope="col"
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => handleHeaderClick(colIndex)}
@@ -1277,6 +1298,7 @@ function ResultTable({
                   return (
                     <td
                       key={cellIndex}
+                      ref={(el) => setCellRef(rowIndex, cellIndex, el)}
                       tabIndex={isActive ? 0 : -1}
                       onClick={() => handleCellClick(rowIndex, cellIndex)}
                       onFocus={() => setActiveCell({ row: rowIndex, col: cellIndex })}

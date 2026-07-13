@@ -3224,4 +3224,60 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const newCell = screen.getByRole("cell", { name: "42" });
     expect(newCell).not.toHaveAttribute("data-selected");
   });
+
+  it("first data cell has tabIndex=0 on initial render (Tab can enter grid)", async () => {
+    await renderWithResult();
+
+    // The first data cell should be reachable via Tab (tabIndex=0).
+    const firstCell = screen.getByRole("cell", { name: "1" });
+    expect(firstCell).toHaveAttribute("tabindex", "0");
+
+    // All other cells should have tabIndex=-1.
+    const secondCell = screen.getByRole("cell", { name: "orders-api" });
+    expect(secondCell).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("arrow key navigation moves document.activeElement to the target cell", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Click the first cell to focus it.
+    const cell1 = screen.getByRole("cell", { name: "1" });
+    await user.click(cell1);
+    expect(document.activeElement).toBe(cell1);
+
+    // ArrowRight should move real focus to the next cell.
+    await user.keyboard("{ArrowRight}");
+    const cell2 = screen.getByRole("cell", { name: "orders-api" });
+    expect(document.activeElement).toBe(cell2);
+
+    // ArrowDown should move real focus to the second row.
+    await user.keyboard("{ArrowDown}");
+    const cell3 = screen.getByRole("cell", { name: "NULL" });
+    expect(document.activeElement).toBe(cell3);
+
+    // ArrowUp should move real focus back to the first row.
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toBe(cell2);
+
+    // ArrowLeft should move real focus back to the first column.
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toBe(cell1);
+  });
+
+  it("arrow up from first data row moves focus to header and document.activeElement follows", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Click first data cell.
+    const cell = screen.getByRole("cell", { name: "1" });
+    await user.click(cell);
+
+    // ArrowUp should move focus to the header.
+    await user.keyboard("{ArrowUp}");
+    const header = screen.getByRole("columnheader", { name: "id" });
+    expect(document.activeElement).toBe(header);
+    expect(header).toHaveAttribute("tabindex", "0");
+  });
+
 });
