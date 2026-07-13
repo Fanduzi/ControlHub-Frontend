@@ -2774,26 +2774,25 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     return { user };
   }
 
-  it("copies a string cell value via the copy button", async () => {
+  it("copies a string cell value by selecting cell then clicking toolbar copy", async () => {
     const user = userEvent.setup();
     await renderWithResult();
 
-    // The copy button lives inside the cell and has aria-hidden.
-    // Find the cell, then find the copy button inside it.
+    // Select the cell by clicking it, then copy via the toolbar button.
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
   });
 
-  it("copies a number cell value via the copy button", async () => {
+  it("copies a number cell value by selecting cell then clicking toolbar copy", async () => {
     const user = userEvent.setup();
     await renderWithResult();
 
     const cell = screen.getByRole("cell", { name: "1" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("1");
   });
@@ -2803,8 +2802,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     const cell = screen.getByRole("cell", { name: "true" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("true");
   });
@@ -2817,10 +2816,10 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const nullCells = screen.getAllByText("NULL");
     expect(nullCells.length).toBeGreaterThanOrEqual(1);
 
-    // Find the parent <td> and click its copy button.
+    // Select the NULL cell by clicking its parent <td>.
     const nullCell = nullCells[0]!.closest("td")!;
-    const copyButton = nullCell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(nullCell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("NULL");
     // Must never copy empty string or the string "null" (lowercase).
@@ -2829,41 +2828,38 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(mockCopyToClipboard).not.toHaveBeenCalledWith("undefined");
   });
 
-  it("copies a column name via the header copy button", async () => {
+  it("copies a column name by selecting header then clicking toolbar copy", async () => {
     const user = userEvent.setup();
     await renderWithResult();
 
     const header = screen.getByRole("columnheader", { name: "id" });
-    const copyButton = header.querySelector('[data-testid="copy-header"]')!;
-    await user.click(copyButton);
+    await user.click(header);
+    await user.click(screen.getByTestId("copy-selection"));
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("id");
   });
 
-  it("copy button is keyboard accessible (Tab + Enter)", async () => {
+  it("toolbar copy button is keyboard accessible (Tab + Enter)", async () => {
     const user = userEvent.setup();
     await renderWithResult();
 
-    // The copy button is a <button> element, so it's focusable by default.
-    // Tab to the button and press Enter to copy.
+    // Select a cell first.
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]') as HTMLElement;
+    await user.click(cell);
+
+    // The toolbar copy button is a native <button>, focusable and activatable.
+    const copyButton = screen.getByTestId("copy-selection");
     copyButton.focus();
     await user.keyboard("{Enter}");
 
     expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
   });
 
-  it("copy button responds to Space key as well as Enter", async () => {
-    const user = userEvent.setup();
+  it("toolbar copy button is disabled when no cell or header is selected", async () => {
     await renderWithResult();
 
-    const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]') as HTMLElement;
-    copyButton.focus();
-    await user.keyboard(" ");
-
-    expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeDisabled();
   });
 
   it("shows success feedback after a successful copy", async () => {
@@ -2871,8 +2867,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(/copied/i);
@@ -2885,8 +2881,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(/copy failed/i);
@@ -2901,8 +2897,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(/copy failed/i);
@@ -2918,8 +2914,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     fetchSpy.mockClear();
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     // Wait briefly for any potential async fetch to fire.
     await act(async () => {
@@ -2995,9 +2991,10 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
         expect(screen.getByRole("table")).toBeInTheDocument();
       });
 
+      // Select a cell and copy.
       const cell = screen.getByRole("cell", { name: "orders-api" });
-      const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-      await user.click(copyButton);
+      await user.click(cell);
+      await user.click(screen.getByTestId("copy-selection"));
 
       await waitFor(() => {
         expect(screen.getByRole("status")).toHaveTextContent(/copied/i);
@@ -3035,8 +3032,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     });
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(/已复制/);
@@ -3063,10 +3060,10 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(screen.getByRole("table")).toBeInTheDocument();
     });
 
-    // Trigger a copy to start the feedback timer.
+    // Select a cell and trigger copy to start the feedback timer.
     const cell = screen.getByRole("cell", { name: "orders-api" });
-    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
-    await user.click(copyButton);
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toBeInTheDocument();
@@ -3079,5 +3076,40 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
 
     expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(clearTimeoutCallsBefore);
     clearTimeoutSpy.mockRestore();
+  });
+
+  it("selecting a cell highlights it visually", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    expect(cell).not.toHaveAttribute("data-selected");
+
+    await user.click(cell);
+    expect(cell).toHaveAttribute("data-selected");
+  });
+
+  it("selecting a different cell moves the highlight", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell1 = screen.getByRole("cell", { name: "orders-api" });
+    const cell2 = screen.getByRole("cell", { name: "1" });
+    await user.click(cell1);
+    expect(cell1).toHaveAttribute("data-selected");
+
+    await user.click(cell2);
+    expect(cell1).not.toHaveAttribute("data-selected");
+    expect(cell2).toHaveAttribute("data-selected");
+  });
+
+  it("only one toolbar copy button exists (no per-cell copy buttons)", async () => {
+    await renderWithResult();
+
+    // Exactly one copy-selection button in the toolbar.
+    expect(screen.getByTestId("copy-selection")).toBeInTheDocument();
+    // No per-cell copy buttons.
+    expect(screen.queryAllByTestId("copy-cell")).toHaveLength(0);
+    expect(screen.queryAllByTestId("copy-header")).toHaveLength(0);
   });
 });

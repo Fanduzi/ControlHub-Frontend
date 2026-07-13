@@ -1041,6 +1041,12 @@ function ExecuteResult({ result }: { result: QueryExecuteResponse }) {
   );
 }
 
+/**
+ * Result grid with a single toolbar copy action. Cells are selectable by click
+ * (or Enter when focused); a single Copy button in the toolbar copies the
+ * currently selected cell value or column name. This avoids polluting the Tab
+ * order and screen-reader sequence with per-cell interactive controls.
+ */
 function ResultTable({
   columns,
   rows,
@@ -1049,6 +1055,15 @@ function ResultTable({
   rows: QueryExecuteResponse["rows"];
 }) {
   const t = useTranslations("queryWorkbench");
+  const [selectedCell, setSelectedCell] = useState<{
+    rowIndex: number;
+    colIndex: number;
+    value: QueryResultCellValue;
+  } | null>(null);
+  const [selectedHeader, setSelectedHeader] = useState<{
+    colIndex: number;
+    name: string;
+  } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<{
     message: string;
     type: "success" | "error";
@@ -1082,8 +1097,25 @@ function ResultTable({
     return String(value);
   }
 
-  async function handleCopyCell(value: QueryResultCellValue) {
-    const text = getCellCopyText(value);
+  function handleSelectCell(rowIndex: number, colIndex: number, value: QueryResultCellValue) {
+    setSelectedCell({ rowIndex, colIndex, value });
+    setSelectedHeader(null);
+  }
+
+  function handleSelectHeader(colIndex: number, name: string) {
+    setSelectedHeader({ colIndex, name });
+    setSelectedCell(null);
+  }
+
+  async function handleCopy() {
+    let text: string;
+    if (selectedCell) {
+      text = getCellCopyText(selectedCell.value);
+    } else if (selectedHeader) {
+      text = selectedHeader.name;
+    } else {
+      return;
+    }
     const success = await copyToClipboard(text);
     showFeedback(
       success ? t("result.copySuccess") : t("result.copyFailed"),
@@ -1091,12 +1123,15 @@ function ResultTable({
     );
   }
 
-  async function handleCopyHeader(name: string) {
-    const success = await copyToClipboard(name);
-    showFeedback(
-      success ? t("result.copySuccess") : t("result.copyFailed"),
-      success ? "success" : "error",
-    );
+  /** Build the aria-label for the single copy button based on current selection. */
+  function copyButtonLabel(): string {
+    if (selectedCell) {
+      return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
+    }
+    if (selectedHeader) {
+      return t("result.copyColumnNameAriaLabel", { name: selectedHeader.name });
+    }
+    return t("result.copyCellValue");
   }
 
   if (rows.length === 0) {
@@ -1104,73 +1139,79 @@ function ResultTable({
   }
 
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-border">
-      {copyFeedback && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "absolute right-2 top-2 z-10 rounded-md border px-2.5 py-1 text-xs font-medium shadow-sm",
-            copyFeedback.type === "success"
-              ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-              : "border-rose-500/30 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
-          )}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!selectedCell && !selectedHeader}
+          onClick={() => void handleCopy()}
+          aria-label={copyButtonLabel()}
+          data-testid="copy-selection"
         >
-          {copyFeedback.type === "success" ? (
-            <Check className="mr-1 inline-block size-3" aria-hidden />
-          ) : null}
-          {copyFeedback.message}
-        </div>
-      )}
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            {columns.map((column) => (
-              <th
-                key={column.name}
-                scope="col"
-                className="group/th relative px-3 py-2 font-medium"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {column.name}
-                  <button
-                    type="button"
-                    data-testid="copy-header"
-                    aria-label={t("result.copyColumnNameAriaLabel", { name: column.name })}
-                    onClick={() => void handleCopyHeader(column.name)}
-                    className="inline-flex size-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted focus:opacity-100 group-hover/th:opacity-100"
-                  >
-                    <Copy className="size-3 text-muted-foreground/50" />
-                  </button>
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-b border-border/60">
-              {row.map((cell, cellIndex) => (
-                <td
-                  key={cellIndex}
-                  className="group/td relative px-3 py-2"
+          <Copy className="size-3.5" aria-hidden />
+          {t("result.copyCellValue")}
+        </Button>
+        {copyFeedback && (
+          <span
+            role="status"
+            aria-live="polite"
+            className={cn(
+              "text-xs font-medium",
+              copyFeedback.type === "success"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-600 dark:text-rose-400",
+            )}
+          >
+            {copyFeedback.type === "success" ? (
+              <Check className="mr-0.5 inline-block size-3" aria-hidden />
+            ) : null}
+            {copyFeedback.message}
+          </span>
+        )}
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              {columns.map((column, colIndex) => (
+                <th
+                  key={column.name}
+                  scope="col"
+                  onClick={() => handleSelectHeader(colIndex, column.name)}
+                  data-selected={selectedHeader?.colIndex === colIndex ? "" : undefined}
+                  className={cn(
+                    "cursor-default select-none px-3 py-2 font-medium",
+                    selectedHeader?.colIndex === colIndex && "ring-2 ring-inset ring-ring",
+                  )}
                 >
-                  <ResultCell value={cell} />
-                  <button
-                    type="button"
-                    data-testid="copy-cell"
-                    aria-label={t("result.copyCellAriaLabel", { value: getCellCopyText(cell) })}
-                    onClick={() => void handleCopyCell(cell)}
-                    className="absolute right-1 top-1 flex size-4 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted focus:opacity-100 group-hover/td:opacity-100"
-                  >
-                    <Copy className="size-3 text-muted-foreground/50" aria-hidden />
-                  </button>
-                </td>
+                  {column.name}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex} className="border-b border-border/60">
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={cellIndex}
+                    onClick={() => handleSelectCell(rowIndex, cellIndex, cell)}
+                    data-selected={selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex ? "" : undefined}
+                    className={cn(
+                      "cursor-default px-3 py-2",
+                      selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex && "ring-2 ring-inset ring-ring",
+                    )}
+                  >
+                    <ResultCell value={cell} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

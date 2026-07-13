@@ -660,18 +660,17 @@ test.describe("Query Workbench shell", () => {
       requestsAfterRun.push(request.url());
     });
 
-    // Find the result cell and click the copy affordance inside it.
-    // The copy affordance is hidden by default (opacity-0) and appears on hover.
+    // Select a cell by clicking it, then copy via the toolbar button.
     const table = page.getByRole("table");
     await expect(table).toBeVisible();
     const cell = table.locator("tbody td").first();
     await expect(cell).toBeVisible();
-    // Hover the cell to make the copy affordance appear.
-    await cell.hover();
-    // The copy affordance is a span with data-testid="copy-cell".
-    const copyAffordance = cell.locator('[data-testid="copy-cell"]');
-    await expect(copyAffordance).toBeVisible({ timeout: 5_000 });
-    await copyAffordance.click();
+    await cell.click();
+
+    // The single toolbar copy button copies the selected cell.
+    const copyButton = page.getByTestId("copy-selection");
+    await expect(copyButton).toBeEnabled();
+    await copyButton.click();
 
     // Verify the success feedback appears.
     await expect(page.getByRole("status")).toHaveText(/copied/i, {
