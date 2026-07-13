@@ -1203,7 +1203,9 @@
       "filters": "Filters",
       "allEngines": "All engines",
       "allModes": "All kinds",
-      "allReadiness": "All readiness"
+      "allReadiness": "All readiness",
+      "open": "Open connections",
+      "openMobile": "Open connections on mobile"
     },
     "retarget": {
       "title": "Change worksheet target",

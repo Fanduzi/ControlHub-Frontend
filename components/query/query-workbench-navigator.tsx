@@ -82,7 +82,7 @@ export function QueryWorkbenchNavigator({
         type="button"
         variant="outline"
         className="hidden md:inline-flex"
-        aria-label="Open connections"
+        aria-label={t("connectionNavigator.open")}
         onClick={() => setDesktopOpen(true)}
       >
         <ListTree className="size-4" aria-hidden />
@@ -92,7 +92,7 @@ export function QueryWorkbenchNavigator({
         type="button"
         variant="outline"
         className="md:hidden"
-        aria-label="Open connections on mobile"
+        aria-label={t("connectionNavigator.openMobile")}
         onClick={() => setMobileOpen(true)}
       >
         <ListTree className="size-4" aria-hidden />

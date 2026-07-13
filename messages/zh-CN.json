@@ -1203,7 +1203,9 @@
       "filters": "筛选",
       "allEngines": "全部引擎",
       "allModes": "全部类型",
-      "allReadiness": "全部就绪状态"
+      "allReadiness": "全部就绪状态",
+      "open": "打开连接",
+      "openMobile": "打开连接（移动端）"
     },
     "retarget": {
       "title": "更改工作表目标",

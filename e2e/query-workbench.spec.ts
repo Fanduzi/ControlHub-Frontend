@@ -737,8 +737,52 @@ async function isRunEnabled(page: Page): Promise<boolean> {
   return run.first().isEnabled().catch(() => false);
 }
 
+/** Fixture setup error when the dedicated ready query target is missing. */
+function noReadyTargetFixtureError(): Error {
+  return new Error(
+    "E2E fixture setup error: no ready query target (availableActions.run). " +
+      "Start the dedicated query MySQL fixture and seed a ready target before this suite.",
+  );
+}
+
+/**
+ * Connection navigator dialog/sheet title is localized (EN "Connections" /
+ * ZH "连接"). Match both so ready-target selection works under zh-CN.
+ */
 function getConnectionDialog(page: Page) {
-  return page.getByRole("dialog", { name: "Connections" });
+  return page.getByRole("dialog", { name: /^(Connections|连接)$/ });
+}
+
+/**
+ * Open-connection triggers use i18n aria-labels (EN + ZH). Match both locales.
+ */
+function getConnectionOpenTriggers(page: Page) {
+  const desktopTrigger = page.getByRole("button", {
+    name: /^(Open connections|打开连接)$/,
+  });
+  const mobileTrigger = page.getByRole("button", {
+    name: /^(Open connections on mobile|打开连接（移动端）)$/,
+  });
+  return { desktopTrigger, mobileTrigger };
+}
+
+/**
+ * Select a ready query target via the connection navigator when Run is not
+ * already enabled. Fails hard with a setup error when the fixture has no ready
+ * target — never silently skips.
+ */
+async function ensureReadyTargetSelected(page: Page): Promise<void> {
+  if (await isRunEnabled(page)) {
+    return;
+  }
+  const readyIndex = await findReadyOptionIndex(page);
+  if (readyIndex === null) {
+    throw noReadyTargetFixtureError();
+  }
+  // findReadyOptionIndex already selected the ready target and waited for Run.
+  await expect(page.getByRole("button", { name: /^(run|执行)$/i })).toBeEnabled({
+    timeout: 15_000,
+  });
 }
 
 function getConnectionTargetButtons(page: Page) {
@@ -757,8 +801,7 @@ async function openConnectionNavigator(page: Page) {
     return dialog;
   }
 
-  const desktopTrigger = page.getByRole("button", { name: "Open connections", exact: true });
-  const mobileTrigger = page.getByRole("button", { name: "Open connections on mobile" });
+  const { desktopTrigger, mobileTrigger } = getConnectionOpenTriggers(page);
 
   await expect(desktopTrigger.or(mobileTrigger)).toBeVisible({ timeout: 5_000 });
   const trigger = (await desktopTrigger.isVisible()) ? desktopTrigger : mobileTrigger;
@@ -769,10 +812,31 @@ async function openConnectionNavigator(page: Page) {
 
 async function connectionTargetCount(page: Page): Promise<number> {
   await openConnectionNavigator(page);
-  await expect(getConnectionTargetButtons(page).first()).toBeVisible({ timeout: 5_000 });
-  return getConnectionTargetButtons(page).count();
+  const buttons = getConnectionTargetButtons(page);
+  // Prefer an explicit zero-target setup error over a generic timeout on first().
+  const count = await buttons.count();
+  if (count === 0) {
+    // Wait briefly for async list population before declaring empty fixture.
+    try {
+      await expect(buttons.first()).toBeVisible({ timeout: 5_000 });
+    } catch {
+      throw new Error(
+        "E2E fixture setup error: connection navigator has zero targets. " +
+          "Seed at least one query target before this suite.",
+      );
+    }
+    return getConnectionTargetButtons(page).count();
+  }
+  await expect(buttons.first()).toBeVisible({ timeout: 5_000 });
+  return count;
 }
 
+/**
+ * Select a connection target by list index. After the dialog hides, waits for
+ * the editor worksheet tabs to update (new worksheet created for a different
+ * target) so we do not race the deferred worksheet-switch effect. Falls through
+ * for same-target re-selection.
+ */
 async function selectConnectionTarget(page: Page, index: number): Promise<void> {
   const dialog = await openConnectionNavigator(page);
   const target = getConnectionTargetButtons(page).nth(index);
@@ -781,11 +845,50 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
   await expect(dialog).toBeHidden({ timeout: 5_000 });
 }
 
+/**
+ * After navigator selection, wait until Run reflects the committed worksheet.
+ * Samples Run-enabled state repeatedly and requires consecutive stable samples
+ * before classifying — so a stale ready worksheet cannot misclassify a newly
+ * selected locked target as ready. Locked targets omit the exact Run control
+ * (or keep it disabled) → false. Schema-intelligence tests skip when false
+ * unless the fixture must provide a ready target.
+ */
+async function waitForCommittedRunState(page: Page): Promise<boolean> {
+  const run = page.getByRole("button", { name: /^(run|执行)$/i });
+  const deadline = Date.now() + 5_000;
+  let lastEnabled: boolean | null = null;
+  let stableSamples = 0;
+  while (Date.now() < deadline) {
+    const enabled =
+      (await run.count()) > 0 &&
+      (await run.first().isEnabled().catch(() => false));
+    if (lastEnabled === enabled) {
+      stableSamples += 1;
+      if (stableSamples >= 5) {
+        return enabled;
+      }
+    } else {
+      lastEnabled = enabled;
+      stableSamples = 1;
+    }
+    await page.waitForTimeout(100);
+  }
+  return (
+    (await run.count()) > 0 && (await run.first().isEnabled().catch(() => false))
+  );
+}
+
 async function findReadyOptionIndex(page: Page): Promise<number | null> {
   const count = await connectionTargetCount(page);
+  if (count === 0) {
+    throw new Error(
+      "E2E fixture setup error: connection navigator has zero targets. " +
+        "Seed at least one query target before this suite.",
+    );
+  }
   for (let index = 0; index < count; index += 1) {
     await selectConnectionTarget(page, index);
-    if (await isRunEnabled(page)) {
+    if (await waitForCommittedRunState(page)) {
       return index;
     }
   }
@@ -942,9 +1045,11 @@ test.describe("Query Workbench schema intelligence", () => {
     await page.goto("/query");
     await expect(page).toHaveURL(/\/query/);
 
-    // Prefer the page's default ready target (first availableActions.run) so we
-    // do not depend on English connection-navigator aria labels under zh-CN.
-    test.skip(!(await isRunEnabled(page)), "no ready query target selected by default");
+    // Actively select a ready target under zh-CN. Connection open triggers use
+    // locale-stable English aria-labels; the dialog title matches EN|ZH.
+    // Do not skip when the default target is locked — fail only if no ready
+    // fixture target exists at all.
+    await ensureReadyTargetSelected(page);
 
     const objectsButton = page.getByRole("button", { name: "打开对象", exact: true });
     await expect(objectsButton).toBeVisible();
@@ -952,11 +1057,26 @@ test.describe("Query Workbench schema intelligence", () => {
 
     const explorerSheet = page.getByRole("dialog", { name: "Schema 浏览器" });
     await expect(explorerSheet).toBeVisible();
+    await expect(explorerSheet).toHaveAttribute("data-side", "bottom");
+    // Bounded schema load for the ready target inside the sheet.
+    await expect(
+      explorerSheet.getByRole("treeitem").first(),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       explorerSheet.getByRole("button", { name: "关闭对象面板" }),
     ).toBeVisible();
+    // SQL editor remains primary behind the sheet.
+    await expect(getEditor(page)).toBeVisible();
 
+    // Escape close + focus restore.
     await page.keyboard.press("Escape");
+    await expect(explorerSheet).toBeHidden();
+    await expect(objectsButton).toBeFocused();
+
+    // Re-open and close via the localized close control (parity with EN mobile).
+    await objectsButton.click();
+    await expect(explorerSheet).toBeVisible();
+    await explorerSheet.getByRole("button", { name: "关闭对象面板" }).click();
     await expect(explorerSheet).toBeHidden();
     await expect(objectsButton).toBeFocused();
   });
