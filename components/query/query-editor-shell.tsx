@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Lock, Play, TriangleAlert } from "lucide-react";
+import { Check, Copy, Lock, Play, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -50,6 +50,7 @@ import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-ident
 import type { QuerySchemaStore } from "@/lib/query-schema-store";
 import type { ObjectSummary } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
@@ -1048,19 +1049,90 @@ function ResultTable({
   rows: QueryExecuteResponse["rows"];
 }) {
   const t = useTranslations("queryWorkbench");
+  const [copyFeedback, setCopyFeedback] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showFeedback(message: string, type: "success" | "error") {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    setCopyFeedback({ message, type });
+    feedbackTimerRef.current = setTimeout(() => {
+      setCopyFeedback(null);
+    }, 2000);
+  }
+
+  /** Get the text representation of a cell value for clipboard copy. */
+  function getCellCopyText(value: QueryResultCellValue): string {
+    if (value === null) return t("result.nullMarker");
+    if (typeof value === "boolean") return value ? "true" : "false";
+    return String(value);
+  }
+
+  async function handleCopyCell(value: QueryResultCellValue) {
+    const text = getCellCopyText(value);
+    const success = await copyToClipboard(text);
+    showFeedback(
+      success ? t("result.copySuccess") : t("result.copyFailed"),
+      success ? "success" : "error",
+    );
+  }
+
+  async function handleCopyHeader(name: string) {
+    const success = await copyToClipboard(name);
+    showFeedback(
+      success ? t("result.copySuccess") : t("result.copyFailed"),
+      success ? "success" : "error",
+    );
+  }
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("result.noRows")}</p>;
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="relative overflow-x-auto rounded-lg border border-border">
+      {copyFeedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "absolute right-2 top-2 z-10 rounded-md border px-2.5 py-1 text-xs font-medium shadow-sm",
+            copyFeedback.type === "success"
+              ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "border-rose-500/30 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+          )}
+        >
+          {copyFeedback.type === "success" ? (
+            <Check className="mr-1 inline-block size-3" aria-hidden />
+          ) : null}
+          {copyFeedback.message}
+        </div>
+      )}
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
             {columns.map((column) => (
-              <th key={column.name} scope="col" className="px-3 py-2 font-medium">
-                {column.name}
+              <th
+                key={column.name}
+                scope="col"
+                className="group/th relative px-3 py-2 font-medium"
+              >
+                <span className="inline-flex items-center gap-1">
+                  {column.name}
+                  <button
+                    type="button"
+                    data-testid="copy-header"
+                    aria-label={t("result.copyColumnNameAriaLabel", { name: column.name })}
+                    onClick={() => void handleCopyHeader(column.name)}
+                    className="inline-flex size-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted focus:opacity-100 group-hover/th:opacity-100"
+                  >
+                    <Copy className="size-3 text-muted-foreground/50" />
+                  </button>
+                </span>
               </th>
             ))}
           </tr>
@@ -1069,8 +1141,26 @@ function ResultTable({
           {rows.map((row, rowIndex) => (
             <tr key={rowIndex} className="border-b border-border/60">
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-3 py-2">
+                <td
+                  key={cellIndex}
+                  className="group/td relative px-3 py-2"
+                >
                   <ResultCell value={cell} />
+                  <span
+                    data-testid="copy-cell"
+                    tabIndex={0}
+                    aria-hidden="true"
+                    onClick={() => void handleCopyCell(cell)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        void handleCopyCell(cell);
+                      }
+                    }}
+                    className="absolute right-1 top-1 flex size-4 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted focus:opacity-100 group-hover/td:opacity-100"
+                  >
+                    <Copy className="size-3 text-muted-foreground/50" />
+                  </span>
                 </td>
               ))}
             </tr>

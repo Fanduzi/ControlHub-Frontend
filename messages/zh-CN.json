@@ -1066,7 +1066,13 @@
       "executedAtLabel": "执行时间",
       "engineLabel": "引擎",
       "nullMarker": "NULL",
-      "noRows": "0 行"
+      "noRows": "0 行",
+      "copyCellValue": "复制单元格值",
+      "copyColumnName": "复制列名",
+      "copySuccess": "已复制",
+      "copyFailed": "复制失败",
+      "copyCellAriaLabel": "复制单元格值：{value}",
+      "copyColumnNameAriaLabel": "复制列名：{name}"
     },
     "error": {
       "title": "查询未能执行",

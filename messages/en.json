@@ -1066,7 +1066,13 @@
       "executedAtLabel": "Executed at",
       "engineLabel": "Engine",
       "nullMarker": "NULL",
-      "noRows": "0 rows"
+      "noRows": "0 rows",
+      "copyCellValue": "Copy cell value",
+      "copyColumnName": "Copy column name",
+      "copySuccess": "Copied",
+      "copyFailed": "Copy failed",
+      "copyCellAriaLabel": "Copy cell value: {value}",
+      "copyColumnNameAriaLabel": "Copy column name: {name}"
     },
     "error": {
       "title": "Query could not run",

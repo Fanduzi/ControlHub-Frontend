@@ -30,6 +30,10 @@ vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/clipboard", () => ({
+  copyToClipboard: vi.fn().mockResolvedValue(true),
+}));
+
 // Imported after mock so tests can assert schema is not requested for locked targets.
 
 vi.mock("@/components/query/sql-code-editor", () => ({
@@ -2658,5 +2662,384 @@ describe("QueryWorkbench SQL completion vocabulary", () => {
       expect.objectContaining({ label: "created_at", type: "field" }),
     ]);
     expect(JSON.stringify(completions)).not.toMatch(/credential|password|username|dsn/i);
+  });
+});
+
+/**
+ * Phase 38J Delivery A: bounded result-grid copy affordances. Users can copy
+ * exactly one visible cell value or one visible column name. Copy is local
+ * (no API request), keyboard accessible, and shows success/failure feedback.
+ * SQL NULL copies as the explicit NULL marker. No copy-all, export, or bulk
+ * operations exist.
+ */
+import { copyToClipboard } from "@/lib/clipboard";
+
+describe("QueryWorkbench result grid copy (Phase 38J)", () => {
+  const mockCopyToClipboard = vi.mocked(copyToClipboard);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    // Default: successful copy.
+    mockCopyToClipboard.mockResolvedValue(true);
+  });
+
+  function buildReadyTarget() {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+    });
+  }
+
+  function buildExecuteResponse(
+    overrides: Partial<QueryExecuteResponse> = {},
+  ): QueryExecuteResponse {
+    return {
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "name", databaseType: "VARCHAR", nullable: true },
+        { name: "active", databaseType: "TINYINT", nullable: false },
+      ],
+      rows: [
+        [1, "orders-api", true],
+        [2, null, false],
+      ],
+      rowCount: 2,
+      truncated: false,
+      durationMs: 18,
+      limitApplied: 100,
+      executedAt: "2026-06-22T08:30:00Z",
+      ...overrides,
+    };
+  }
+
+  /**
+   * Render the workbench, execute a query, and wait for the result table to
+   * appear. Returns the userEvent instance for further interaction.
+   */
+  async function renderWithResult(
+    resultOverride?: Partial<QueryExecuteResponse>,
+  ) {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse(resultOverride),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+
+    return { user };
+  }
+
+  it("copies a string cell value via the copy button", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // The copy button lives inside the cell and has aria-hidden.
+    // Find the cell, then find the copy button inside it.
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
+  });
+
+  it("copies a number cell value via the copy button", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "1" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("1");
+  });
+
+  it("copies a boolean cell value as true/false string", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "true" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("true");
+  });
+
+  it("copies SQL NULL as the explicit NULL marker, not empty or undefined", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // The NULL cell renders as the localized "NULL" marker.
+    const nullCells = screen.getAllByText("NULL");
+    expect(nullCells.length).toBeGreaterThanOrEqual(1);
+
+    // Find the parent <td> and click its copy button.
+    const nullCell = nullCells[0]!.closest("td")!;
+    const copyButton = nullCell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("NULL");
+    // Must never copy empty string or the string "null" (lowercase).
+    expect(mockCopyToClipboard).not.toHaveBeenCalledWith("");
+    expect(mockCopyToClipboard).not.toHaveBeenCalledWith("null");
+    expect(mockCopyToClipboard).not.toHaveBeenCalledWith("undefined");
+  });
+
+  it("copies a column name via the header copy button", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const header = screen.getByRole("columnheader", { name: "id" });
+    const copyButton = header.querySelector('[data-testid="copy-header"]')!;
+    await user.click(copyButton);
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("id");
+  });
+
+  it("copy button is keyboard accessible (Tab + Enter)", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // The copy button is a <button> element, so it's focusable by default.
+    // Tab to the button and press Enter to copy.
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]') as HTMLElement;
+    copyButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
+  });
+
+  it("copy button responds to Space key as well as Enter", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]') as HTMLElement;
+    copyButton.focus();
+    await user.keyboard(" ");
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
+  });
+
+  it("shows success feedback after a successful copy", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/copied/i);
+    });
+  });
+
+  it("shows failure feedback when Clipboard API rejects", async () => {
+    mockCopyToClipboard.mockResolvedValueOnce(false);
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/copy failed/i);
+    });
+    // Must never claim success when copy failed.
+    expect(screen.queryByText(/^copied$/i)).toBeNull();
+  });
+
+  it("shows failure feedback when Clipboard API is unavailable", async () => {
+    mockCopyToClipboard.mockResolvedValue(false);
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/copy failed/i);
+    });
+  });
+
+  it("does not make any API request when copying a cell", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Clear any fetch calls from the execute step.
+    fetchSpy.mockClear();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    // Wait briefly for any potential async fetch to fire.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("does not render copy-all, export, CSV, or JSON download controls", async () => {
+    await renderWithResult();
+
+    expect(screen.queryByRole("button", { name: /copy all/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /export/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /csv/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /download/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /select all/i })).toBeNull();
+  });
+
+  it("preserves existing result metadata (row count, duration, limit)", async () => {
+    await renderWithResult();
+
+    expect(screen.getByText(/2 rows/)).toBeInTheDocument();
+    expect(screen.getByText(/18 ms/)).toBeInTheDocument();
+    expect(screen.getByText(/Limit 100/)).toBeInTheDocument();
+  });
+
+  it("preserves existing column headers and cell values in the table", async () => {
+    await renderWithResult();
+
+    expect(screen.getByRole("columnheader", { name: "id" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "name" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "active" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "orders-api" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "true" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "false" })).toBeInTheDocument();
+  });
+
+  it("preserves table semantics with proper thead/tbody structure", async () => {
+    await renderWithResult();
+
+    const table = screen.getByRole("table");
+    expect(table.querySelector("thead")).not.toBeNull();
+    expect(table.querySelector("tbody")).not.toBeNull();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+  });
+
+  it("copy feedback auto-dismisses after a timeout", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <QueryWorkbench
+            targets={[buildReadyTarget()]}
+            pageInfo={pageInfoFor([buildReadyTarget()])}
+            initialFilters={EMPTY_FILTERS}
+          />
+        </NextIntlClientProvider>,
+      );
+
+      await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+      // Wait for the table with fake timers advancing.
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole("table")).toBeInTheDocument();
+      });
+
+      const cell = screen.getByRole("cell", { name: "orders-api" });
+      const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+      await user.click(copyButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole("status")).toHaveTextContent(/copied/i);
+      });
+
+      // Advance past the auto-dismiss timeout (2000ms in the component).
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renders copy feedback in Chinese under zh-CN locale", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^执行$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    const copyButton = cell.querySelector('[data-testid="copy-cell"]')!;
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/已复制/);
+    });
   });
 });

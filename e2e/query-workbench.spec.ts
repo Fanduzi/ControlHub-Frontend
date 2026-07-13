@@ -636,6 +636,59 @@ test.describe("Query Workbench shell", () => {
       .poll(() => getEditorHeight(page), { timeout: 15_000 })
       .toBe(resizedHeight);
   });
+
+  test("copy cell value via the copy button and verify no backend request", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Grant clipboard permissions so the copy button can write to the clipboard.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+
+    // Run the default select 1.
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("cell", { name: "1", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Track network requests after the execution completes to prove copy is local.
+    const requestsAfterRun: string[] = [];
+    page.on("request", (request) => {
+      requestsAfterRun.push(request.url());
+    });
+
+    // Find the result cell and click the copy affordance inside it.
+    // The copy affordance is hidden by default (opacity-0) and appears on hover.
+    const table = page.getByRole("table");
+    await expect(table).toBeVisible();
+    const cell = table.locator("tbody td").first();
+    await expect(cell).toBeVisible();
+    // Hover the cell to make the copy affordance appear.
+    await cell.hover();
+    // The copy affordance is a span with data-testid="copy-cell".
+    const copyAffordance = cell.locator('[data-testid="copy-cell"]');
+    await expect(copyAffordance).toBeVisible({ timeout: 5_000 });
+    await copyAffordance.click();
+
+    // Verify the success feedback appears.
+    await expect(page.getByRole("status")).toHaveText(/copied/i, {
+      timeout: 5_000,
+    });
+
+    // Verify the clipboard contains the expected value.
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboardText).toBe("1");
+
+    // Verify no unexpected backend request was made during the copy action.
+    // The only requests should be from the initial page load and query execution.
+    const unexpectedRequests = requestsAfterRun.filter(
+      (url) => !url.includes("localhost") || url.includes("/execute"),
+    );
+    expect(unexpectedRequests).toHaveLength(0);
+  });
 });
 
 async function openQueryWorkbench(page: Page): Promise<void> {
