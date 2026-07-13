@@ -1036,16 +1036,20 @@ function ExecuteResult({ result }: { result: QueryExecuteResponse }) {
         </dd>
       </dl>
 
-      <ResultTable columns={result.columns} rows={result.rows} />
+      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} />
     </div>
   );
 }
 
 /**
- * Result grid with a single toolbar copy action. Cells are selectable by click
- * (or Enter when focused); a single Copy button in the toolbar copies the
- * currently selected cell value or column name. This avoids polluting the Tab
- * order and screen-reader sequence with per-cell interactive controls.
+ * Result grid with roving-tabindex keyboard selection and a single toolbar copy
+ * action. The grid uses role="grid" with role="columnheader" / role="gridcell";
+ * only the active cell is in the Tab order (tabIndex=0). Arrow keys move the
+ * active cell; Enter/Space selects it for copy. A single Copy button in the
+ * toolbar copies the currently selected value.
+ *
+ * Selection resets when columns or rows change (new execution), preventing
+ * stale copies of invisible values.
  */
 function ResultTable({
   columns,
@@ -1055,6 +1059,10 @@ function ResultTable({
   rows: QueryExecuteResponse["rows"];
 }) {
   const t = useTranslations("queryWorkbench");
+
+  // Roving-tabindex active cell. row = -1 means the header row.
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  // Selection for copy (distinct from keyboard focus).
   const [selectedCell, setSelectedCell] = useState<{
     rowIndex: number;
     colIndex: number;
@@ -1070,8 +1078,8 @@ function ResultTable({
   } | null>(null);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear the feedback timer on unmount to prevent state updates after the
-  // component is gone (e.g. worksheet switch, worksheet close, result refresh).
+  // Clear the feedback timer on unmount. Selection state resets automatically
+  // via the key={executionId} prop on ResultTable which forces a remount.
   useEffect(() => {
     return () => {
       if (feedbackTimerRef.current) {
@@ -1079,6 +1087,9 @@ function ResultTable({
       }
     };
   }, []);
+
+  const colCount = columns.length;
+  const rowCount = rows.length;
 
   function showFeedback(message: string, type: "success" | "error") {
     if (feedbackTimerRef.current) {
@@ -1090,21 +1101,77 @@ function ResultTable({
     }, 2000);
   }
 
-  /** Get the text representation of a cell value for clipboard copy. */
   function getCellCopyText(value: QueryResultCellValue): string {
     if (value === null) return t("result.nullMarker");
     if (typeof value === "boolean") return value ? "true" : "false";
     return String(value);
   }
 
-  function handleSelectCell(rowIndex: number, colIndex: number, value: QueryResultCellValue) {
+  function selectCellAt(rowIndex: number, colIndex: number) {
+    const value = rows[rowIndex]?.[colIndex] ?? null;
     setSelectedCell({ rowIndex, colIndex, value });
     setSelectedHeader(null);
   }
 
-  function handleSelectHeader(colIndex: number, name: string) {
-    setSelectedHeader({ colIndex, name });
+  function selectHeaderAt(colIndex: number) {
+    setSelectedHeader({ colIndex, name: columns[colIndex]?.name ?? "" });
     setSelectedCell(null);
+  }
+
+  function handleCellClick(row: number, col: number) {
+    setActiveCell({ row, col });
+    selectCellAt(row, col);
+  }
+
+  function handleHeaderClick(col: number) {
+    setActiveCell({ row: -1, col });
+    selectHeaderAt(col);
+  }
+
+  function handleGridKeyDown(event: React.KeyboardEvent) {
+    if (!activeCell) return;
+    const { row, col } = activeCell;
+
+    switch (event.key) {
+      case "ArrowRight": {
+        event.preventDefault();
+        const nextCol = Math.min(col + 1, colCount - 1);
+        setActiveCell({ row, col: nextCol });
+        break;
+      }
+      case "ArrowLeft": {
+        event.preventDefault();
+        const prevCol = Math.max(col - 1, 0);
+        setActiveCell({ row, col: prevCol });
+        break;
+      }
+      case "ArrowDown": {
+        event.preventDefault();
+        if (row < rowCount - 1) {
+          setActiveCell({ row: row + 1, col });
+        }
+        break;
+      }
+      case "ArrowUp": {
+        event.preventDefault();
+        if (row >= 0) {
+          setActiveCell({ row: row - 1, col });
+        }
+        break;
+      }
+      case "Enter":
+      case " ": {
+        event.preventDefault();
+        if (row === -1) {
+          selectHeaderAt(col);
+        } else {
+          selectCellAt(row, col);
+        }
+        break;
+      }
+      default:
+        break;
+    }
   }
 
   async function handleCopy() {
@@ -1123,7 +1190,6 @@ function ResultTable({
     );
   }
 
-  /** Build the aria-label for the single copy button based on current selection. */
   function copyButtonLabel(): string {
     if (selectedCell) {
       return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
@@ -1172,41 +1238,58 @@ function ResultTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full border-collapse text-sm">
+        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- roving tabindex: only the active cell has tabIndex=0 */}
+        <table
+          role="grid"
+          className="w-full border-collapse text-sm"
+          onKeyDown={handleGridKeyDown}
+        >
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              {columns.map((column, colIndex) => (
-                <th
-                  key={column.name}
-                  scope="col"
-                  onClick={() => handleSelectHeader(colIndex, column.name)}
-                  data-selected={selectedHeader?.colIndex === colIndex ? "" : undefined}
-                  className={cn(
-                    "cursor-default select-none px-3 py-2 font-medium",
-                    selectedHeader?.colIndex === colIndex && "ring-2 ring-inset ring-ring",
-                  )}
-                >
-                  {column.name}
-                </th>
-              ))}
+              {columns.map((column, colIndex) => {
+                const isActive = activeCell?.row === -1 && activeCell.col === colIndex;
+                const isSelected = selectedHeader?.colIndex === colIndex;
+                return (
+                  <th
+                    key={column.name}
+                    scope="col"
+                    tabIndex={isActive ? 0 : -1}
+                    onClick={() => handleHeaderClick(colIndex)}
+                    onFocus={() => setActiveCell({ row: -1, col: colIndex })}
+                    data-selected={isSelected ? "" : undefined}
+                    className={cn(
+                      "cursor-default select-none px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                      isSelected && "ring-2 ring-inset ring-ring",
+                    )}
+                  >
+                    {column.name}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
               <tr key={rowIndex} className="border-b border-border/60">
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={cellIndex}
-                    onClick={() => handleSelectCell(rowIndex, cellIndex, cell)}
-                    data-selected={selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex ? "" : undefined}
-                    className={cn(
-                      "cursor-default px-3 py-2",
-                      selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex && "ring-2 ring-inset ring-ring",
-                    )}
-                  >
-                    <ResultCell value={cell} />
-                  </td>
-                ))}
+                {row.map((cell, cellIndex) => {
+                  const isActive = activeCell?.row === rowIndex && activeCell.col === cellIndex;
+                  const isSelected = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex;
+                  return (
+                    <td
+                      key={cellIndex}
+                      tabIndex={isActive ? 0 : -1}
+                      onClick={() => handleCellClick(rowIndex, cellIndex)}
+                      onFocus={() => setActiveCell({ row: rowIndex, col: cellIndex })}
+                      data-selected={isSelected ? "" : undefined}
+                      className={cn(
+                        "cursor-default px-3 py-2 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                        isSelected && "ring-2 ring-inset ring-ring",
+                      )}
+                    >
+                      <ResultCell value={cell} />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

@@ -2768,7 +2768,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
 
     await user.click(screen.getByRole("button", { name: /^run$/i }));
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
     return { user };
@@ -2958,7 +2958,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
   it("preserves table semantics with proper thead/tbody structure", async () => {
     await renderWithResult();
 
-    const table = screen.getByRole("table");
+    const table = screen.getByRole("grid");
     expect(table.querySelector("thead")).not.toBeNull();
     expect(table.querySelector("tbody")).not.toBeNull();
     expect(screen.getAllByRole("columnheader")).toHaveLength(3);
@@ -2988,7 +2988,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByRole("table")).toBeInTheDocument();
+        expect(screen.getByRole("grid")).toBeInTheDocument();
       });
 
       // Select a cell and copy.
@@ -3028,7 +3028,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
 
     await user.click(screen.getByRole("button", { name: /^执行$/i }));
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
     const cell = screen.getByRole("cell", { name: "orders-api" });
@@ -3057,7 +3057,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
 
     await user.click(screen.getByRole("button", { name: /^run$/i }));
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
     // Select a cell and trigger copy to start the feedback timer.
@@ -3111,5 +3111,117 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     // No per-cell copy buttons.
     expect(screen.queryAllByTestId("copy-cell")).toHaveLength(0);
     expect(screen.queryAllByTestId("copy-header")).toHaveLength(0);
+  });
+
+  it("keyboard arrow keys move focus between cells (roving tabindex)", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Click the first cell to activate it.
+    const cell1 = screen.getByRole("cell", { name: "1" });
+    await user.click(cell1);
+    expect(cell1).toHaveAttribute("tabindex", "0");
+
+    // Press ArrowRight to move to the next cell.
+    await user.keyboard("{ArrowRight}");
+    const cell2 = screen.getByRole("cell", { name: "orders-api" });
+    expect(cell2).toHaveAttribute("tabindex", "0");
+    expect(cell1).toHaveAttribute("tabindex", "-1");
+
+    // Press ArrowDown to move to the second row.
+    await user.keyboard("{ArrowDown}");
+    const cell3 = screen.getByRole("cell", { name: "NULL" });
+    expect(cell3).toHaveAttribute("tabindex", "0");
+  });
+
+  it("Enter on a focused cell selects it for copy", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Click a cell to activate it, then press Enter to select.
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    await user.click(cell);
+    await user.keyboard("{Enter}");
+
+    // The cell should be selected (ring highlight).
+    expect(cell).toHaveAttribute("data-selected");
+
+    // The copy button should be enabled and copy the selected value.
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeEnabled();
+    await user.click(copyButton);
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("orders-api");
+  });
+
+  it("Space on a focused cell selects it for copy", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    await user.click(cell);
+    await user.keyboard(" ");
+
+    expect(cell).toHaveAttribute("data-selected");
+    expect(screen.getByTestId("copy-selection")).toBeEnabled();
+  });
+
+  it("ArrowUp from first data row moves focus to header row", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Click first data cell.
+    const cell = screen.getByRole("cell", { name: "1" });
+    await user.click(cell);
+
+    // ArrowUp should move to the header.
+    await user.keyboard("{ArrowUp}");
+    const header = screen.getByRole("columnheader", { name: "id" });
+    expect(header).toHaveAttribute("tabindex", "0");
+
+    // Enter on header selects it for copy.
+    await user.keyboard("{Enter}");
+    expect(header).toHaveAttribute("data-selected");
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeEnabled();
+    await user.click(copyButton);
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("id");
+  });
+
+  it("selection resets when new query results arrive", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    // Select a cell.
+    const cell = screen.getByRole("cell", { name: "orders-api" });
+    await user.click(cell);
+    expect(cell).toHaveAttribute("data-selected");
+    expect(screen.getByTestId("copy-selection")).toBeEnabled();
+
+    // Run a new query with different results.
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1002,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "n", databaseType: "INT", nullable: false }],
+      rows: [[42]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 5,
+      limitApplied: 100,
+      executedAt: "2026-07-13T10:00:00Z",
+    });
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    // Wait for new results.
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "42" })).toBeInTheDocument();
+    });
+
+    // Selection and copy button should be reset.
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+    // New cell should not be selected.
+    const newCell = screen.getByRole("cell", { name: "42" });
+    expect(newCell).not.toHaveAttribute("data-selected");
   });
 });

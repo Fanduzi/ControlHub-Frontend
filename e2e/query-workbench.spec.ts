@@ -286,10 +286,10 @@ test.describe("Query Workbench shell", () => {
 
     // The backend executes SHOW TABLES and returns a result table.
     // The result is rendered as an HTML <table>, not a grid.
-    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 
     // The result should contain at least one cell with a table name.
-    const cells = page.getByRole("cell");
+    const cells = page.getByRole("gridcell");
     const cellCount = await cells.count();
     expect(cellCount).toBeGreaterThan(0);
   });
@@ -307,10 +307,10 @@ test.describe("Query Workbench shell", () => {
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Wait for the result table to show table names.
-    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 
     // Get the first table name from a data cell (not a header).
-    const dataCells = page.getByRole("cell");
+    const dataCells = page.getByRole("gridcell");
     const cellCount = await dataCells.count();
     test.skip(cellCount === 0, "SHOW TABLES returned no data cells");
 
@@ -330,7 +330,7 @@ test.describe("Query Workbench shell", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     // Additionally verify at least one data row exists (a column definition).
-    const describeDataCells = page.getByRole("cell");
+    const describeDataCells = page.getByRole("gridcell");
     const describeCellCount = await describeDataCells.count();
     expect(describeCellCount).toBeGreaterThan(0);
   });
@@ -410,7 +410,7 @@ test.describe("Query Workbench shell", () => {
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // Wait for the result table to appear.
-    await expect(page.getByRole("table")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 
     // Switch to history tab and verify the SHOW TABLES attempt is recorded.
     await page.getByRole("tab", { name: /query history/i }).click();
@@ -661,7 +661,7 @@ test.describe("Query Workbench shell", () => {
     });
 
     // Select a cell by clicking it, then copy via the toolbar button.
-    const table = page.getByRole("table");
+    const table = page.getByRole("grid");
     await expect(table).toBeVisible();
     const cell = table.locator("tbody td").first();
     await expect(cell).toBeVisible();
