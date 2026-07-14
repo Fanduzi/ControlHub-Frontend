@@ -3,6 +3,8 @@ import type {
   QueryExecuteRequest,
   QueryExecuteResponse,
   QueryExecutionListResponse,
+  RelatedRecordNavigationRequest,
+  RelatedRecordNavigationResponse,
 } from "@/types/query-execution";
 
 /**
@@ -122,4 +124,36 @@ export async function listQueryExecutions(
   return apiClient<QueryExecutionListResponse>(
     `/query-targets/${targetResourceId}/executions?page=${page}&pageSize=${pageSize}`,
   );
+}
+
+/**
+ * Navigate to referenced records via a governed foreign key. Posts only source
+ * metadata and ordered local values — never SQL, credentials, DSN, or
+ * `actorUserId`. The backend resolves referenced identifiers and constructs
+ * parameterized SQL server-side.
+ *
+ * Rejects with a controlled `QueryExecuteError` on HTTP errors, using the same
+ * status-to-code mapping as `executeQueryTarget`.
+ */
+export async function navigateRelatedRecords(
+  targetResourceId: number,
+  input: RelatedRecordNavigationRequest,
+): Promise<RelatedRecordNavigationResponse> {
+  const body: RelatedRecordNavigationRequest = {
+    source: input.source,
+    localValues: input.localValues,
+    ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
+  };
+
+  try {
+    return await apiClient<RelatedRecordNavigationResponse>(
+      `/query-targets/${targetResourceId}/related-records`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
+  } catch (error) {
+    throw toQueryExecuteError(error);
+  }
 }

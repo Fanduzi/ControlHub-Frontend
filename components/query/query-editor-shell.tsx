@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Check, Copy, Lock, Play, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, ListTree, Lock, Play, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -12,14 +12,24 @@ import type {
   QueryExecuteResponse,
   QueryExecutionRecord,
   QueryResultCellValue,
+  RelatedRecordNavigationResponse,
+  TablePreviewRequest,
 } from "@/types/query-execution";
 import {
   executeQueryTarget,
   listQueryExecutions,
+  navigateRelatedRecords,
   QueryExecuteError,
+  type QueryExecuteErrorCode,
 } from "@/services/query-executions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -49,6 +59,7 @@ import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick
 import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
 import type { QuerySchemaStore } from "@/lib/query-schema-store";
 import type { ObjectSummary } from "@/types/query-schema";
+import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -59,6 +70,8 @@ type QueryEditorShellProps = {
   onActiveTargetChange: (resourceId: number) => void;
   onActiveDatabaseChange?: (database: string | null) => void;
   schemaStore: QuerySchemaStore;
+  pendingPreviewEvent?: { id: number; request: TablePreviewRequest } | null;
+  onPreviewConsumed?: () => void;
 };
 
 type WorksheetTab = "worksheet" | "history";
@@ -92,6 +105,30 @@ function createHistoryState(targetId: number): HistoryState {
   return { status: "idle", items: [], boundTargetId: targetId, generation: 0 };
 }
 
+type PreviewProvenance = {
+  readonly targetId: number;
+  readonly database: string;
+  readonly table: string;
+  readonly kind: "table";
+  readonly statement: string;
+  readonly foreignKeys: readonly ForeignKeyDetail[];
+  readonly foreignKeysTruncated: boolean;
+};
+
+type NavigationCapability = {
+  readonly sourceDatabase: string;
+  readonly sourceObject: string;
+  readonly foreignKeys: readonly ForeignKeyDetail[];
+  readonly foreignKeysTruncated: boolean;
+  readonly onNavigate: (foreignKey: string, localValues: readonly string[]) => void;
+};
+
+type RelatedRecordsState =
+  | { readonly status: "idle"; readonly generation: number }
+  | { readonly status: "loading"; readonly generation: number; readonly foreignKey: string }
+  | { readonly status: "ready"; readonly generation: number; readonly response: RelatedRecordNavigationResponse }
+  | { readonly status: "error"; readonly generation: number; readonly code: QueryExecuteErrorCode };
+
 type LocalWorksheet = {
   id: string;
   name: string;
@@ -106,6 +143,8 @@ type LocalWorksheet = {
   requestId: string;
   activeDatabase: string | null;
   isDirty: boolean;
+  previewProvenance: PreviewProvenance | null;
+  relatedRecords: RelatedRecordsState;
 };
 
 function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
@@ -123,6 +162,8 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     requestId: "req-initial",
     activeDatabase: null,
     isDirty: false,
+    previewProvenance: null,
+    relatedRecords: { status: "idle", generation: 0 },
   };
 }
 
@@ -146,10 +187,12 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     requestId: `req-${unique}`,
     activeDatabase: null,
     isDirty: false,
+    previewProvenance: null,
+    relatedRecords: { status: "idle", generation: 0 },
   };
 }
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
@@ -238,6 +281,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               isExecuting: false,
               requestId: crypto.randomUUID(),
               isDirty: false,
+              previewProvenance: null,
             }
           : ws,
       ),
@@ -372,6 +416,42 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     // on first History-tab open (or after a successful run for that worksheet).
   }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run]);
 
+  // Consume preview events from Object Explorer. Creates a new worksheet with
+  // a generated qualified statement and stores provenance. Never auto-executes.
+  const lastPreviewIdRef = useRef(0);
+  useEffect(() => {
+    if (!pendingPreviewEvent || pendingPreviewEvent.id === lastPreviewIdRef.current) {
+      return;
+    }
+    lastPreviewIdRef.current = pendingPreviewEvent.id;
+    onPreviewConsumed?.();
+
+    const { request } = pendingPreviewEvent;
+    const quotedDb = `\`${request.database.replace(/`/g, "``")}\``;
+    const quotedTable = `\`${request.table.replace(/`/g, "``")}\``;
+    const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_MAX_ROWS}`;
+
+    const newWs: LocalWorksheet = {
+      ...createWorksheet(worksheetsRef.current.length + 1, request.targetId),
+      name: `Preview: ${request.table}`,
+      targetResourceId: request.targetId,
+      statement,
+      previewProvenance: {
+        targetId: request.targetId,
+        database: request.database,
+        table: request.table,
+        kind: "table",
+        statement,
+        foreignKeys: request.foreignKeys,
+        foreignKeysTruncated: request.foreignKeysTruncated,
+      },
+    };
+    const newWorksheets = [...worksheetsRef.current, newWs];
+    worksheetsRef.current = newWorksheets;
+    setWorksheets(newWorksheets);
+    setActiveWorksheetId(newWs.id);
+  }, [pendingPreviewEvent, onPreviewConsumed]);
+
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
     if (worksheet && worksheet.targetResourceId !== activeTarget.resourceId) {
@@ -478,6 +558,74 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
   }
 
+  function handleRelatedRecordsNavigate(foreignKey: string, localValues: readonly string[]) {
+    const provenance = activeWorksheet.previewProvenance;
+    if (!provenance) return;
+
+    const targetId = activeWorksheet.targetResourceId;
+    const worksheetId = activeWorksheet.id;
+    const generation = activeWorksheet.relatedRecords.generation + 1;
+
+    updateActiveWorksheet({
+      relatedRecords: { status: "loading", generation, foreignKey },
+    });
+
+    void navigateRelatedRecords(targetId, {
+      source: {
+        database: provenance.database,
+        object: provenance.table,
+        kind: "table",
+        foreignKey,
+      },
+      localValues: [...localValues],
+    }).then(
+      (response) => {
+        setWorksheets((previous) => {
+          const ws = previous.find((w) => w.id === worksheetId);
+          if (
+            !ws ||
+            ws.targetResourceId !== targetId ||
+            ws.relatedRecords.generation !== generation ||
+            ws.previewProvenance?.statement !== provenance.statement
+          ) {
+            return previous;
+          }
+          return previous.map((w) =>
+            w.id === worksheetId
+              ? { ...w, relatedRecords: { status: "ready" as const, generation, response } }
+              : w,
+          );
+        });
+      },
+      (error: unknown) => {
+        setWorksheets((previous) => {
+          const ws = previous.find((w) => w.id === worksheetId);
+          if (
+            !ws ||
+            ws.targetResourceId !== targetId ||
+            ws.relatedRecords.generation !== generation
+          ) {
+            return previous;
+          }
+          const code = error instanceof QueryExecuteError
+            ? error.code
+            : "internal_error" as const;
+          return previous.map((w) =>
+            w.id === worksheetId
+              ? { ...w, relatedRecords: { status: "error" as const, generation, code } }
+              : w,
+          );
+        });
+      },
+    );
+  }
+
+  function handleCloseRelatedRecords() {
+    updateActiveWorksheet({
+      relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation },
+    });
+  }
+
   async function handleRun() {
     if (!runEnabled) {
       return;
@@ -487,7 +635,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const targetId = activeWorksheet.targetResourceId;
     const requestId = crypto.randomUUID();
 
-    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false });
+    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false, previewProvenance: null });
 
     try {
       const response = await executeQueryTarget(targetId, {
@@ -716,7 +864,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             <ReadyWorksheet
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
-              onStatementChange={(value) => updateActiveWorksheet({ statement: value, isDirty: true })}
+              onStatementChange={(value) => updateActiveWorksheet({
+                statement: value,
+                isDirty: true,
+                previewProvenance: null,
+              })}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
               runEnabled={runEnabled}
@@ -737,6 +889,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               activeDatabase={activeWorksheet.activeDatabase}
               loadedDatabases={loadedDatabases}
               loadedObjects={loadedObjects}
+              previewProvenance={activeWorksheet.previewProvenance}
+              relatedRecords={activeWorksheet.relatedRecords}
+              onRelatedRecordsNavigate={handleRelatedRecordsNavigate}
+              onCloseRelatedRecords={handleCloseRelatedRecords}
             />
           </div>
         ) : (
@@ -875,6 +1031,10 @@ function ReadyWorksheet({
   activeDatabase,
   loadedDatabases,
   loadedObjects,
+  previewProvenance,
+  relatedRecords,
+  onRelatedRecordsNavigate,
+  onCloseRelatedRecords,
 }: {
   worksheetId: string;
   statement: string;
@@ -899,6 +1059,10 @@ function ReadyWorksheet({
   activeDatabase: string | null;
   loadedDatabases: readonly string[];
   loadedObjects: readonly ObjectSummary[];
+  previewProvenance: PreviewProvenance | null;
+  relatedRecords: RelatedRecordsState;
+  onRelatedRecordsNavigate: (foreignKey: string, localValues: readonly string[]) => void;
+  onCloseRelatedRecords: () => void;
 }) {
   const t = useTranslations("queryWorkbench");
   const { namespace, columnFetcher } = useWorksheetSchemaAdapter(
@@ -1009,7 +1173,28 @@ function ReadyWorksheet({
         {error ? (
           <ExecuteErrorPanel error={error} />
         ) : result ? (
-          <ExecuteResult result={result} />
+          <>
+            <ExecuteResult
+              result={result}
+              navigationCapability={
+                previewProvenance
+                  ? {
+                      sourceDatabase: previewProvenance.database,
+                      sourceObject: previewProvenance.table,
+                      foreignKeys: previewProvenance.foreignKeys,
+                      foreignKeysTruncated: previewProvenance.foreignKeysTruncated,
+                      onNavigate: onRelatedRecordsNavigate,
+                    }
+                  : undefined
+              }
+            />
+            {relatedRecords.status !== "idle" && (
+              <RelatedRecordsPanel
+                state={relatedRecords}
+                onClose={onCloseRelatedRecords}
+              />
+            )}
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">{t("result.notExecuted")}</p>
         )}
@@ -1018,7 +1203,7 @@ function ReadyWorksheet({
   );
 }
 
-function ExecuteResult({ result }: { result: QueryExecuteResponse }) {
+function ExecuteResult({ result, navigationCapability }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability }) {
   const t = useTranslations("queryWorkbench");
 
   return (
@@ -1036,7 +1221,64 @@ function ExecuteResult({ result }: { result: QueryExecuteResponse }) {
         </dd>
       </dl>
 
-      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} />
+      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} />
+    </div>
+  );
+}
+
+function RelatedRecordsPanel({
+  state,
+  onClose,
+}: {
+  state: RelatedRecordsState;
+  onClose: () => void;
+}) {
+  const t = useTranslations("queryWorkbench");
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (state.status === "ready" || state.status === "error") {
+      closeRef.current?.focus();
+    }
+  }, [state.status]);
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3" role="region" aria-label={t("result.relatedRecords")}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-foreground">{t("result.relatedRecords")}</h3>
+        <Button
+          ref={closeRef}
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onClose}
+          aria-label={t("result.closeRelatedRecords")}
+        >
+          {t("result.closeRelatedRecords")}
+        </Button>
+      </div>
+      {state.status === "loading" && (
+        <p className="text-sm text-muted-foreground">{t("result.relatedRecordsLoading")}</p>
+      )}
+      {state.status === "ready" && (
+        <>
+          {state.response.rowCount === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("result.relatedRecordsEmpty")}</p>
+          ) : (
+            <>
+              <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                <dd>{t("result.rowCount", { count: state.response.rowCount })}</dd>
+                <dd>{t("result.durationMs", { count: state.response.durationMs })}</dd>
+                {state.response.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
+              </dl>
+              <ResultTable columns={state.response.columns} rows={state.response.rows} />
+            </>
+          )}
+        </>
+      )}
+      {state.status === "error" && (
+        <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>
+      )}
     </div>
   );
 }
@@ -1054,9 +1296,11 @@ function ExecuteResult({ result }: { result: QueryExecuteResponse }) {
 function ResultTable({
   columns,
   rows,
+  navigationCapability,
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
+  navigationCapability?: NavigationCapability;
 }) {
   const t = useTranslations("queryWorkbench");
 
@@ -1107,6 +1351,45 @@ function ResultTable({
 
   const colCount = columns.length;
   const rowCount = rows.length;
+
+  // Compute eligible FKs for the current selected data row.
+  const eligibleFKs = useMemo(() => {
+    if (!navigationCapability || !selectedCell || selectedHeader) {
+      return [];
+    }
+    if (navigationCapability.foreignKeysTruncated) {
+      return [];
+    }
+    const columnNames = columns.map((col) => col.name);
+    const result: Array<{ foreignKey: string; localValues: readonly string[]; referencedDatabase: string; referencedObject: string; referencedColumns: readonly string[] }> = [];
+    for (const fk of navigationCapability.foreignKeys) {
+      const localValues: string[] = [];
+      let eligible = true;
+      for (const fkCol of fk.columns) {
+        const colIndex = columnNames.indexOf(fkCol);
+        if (colIndex === -1 || columnNames.filter((n) => n === fkCol).length !== 1) {
+          eligible = false;
+          break;
+        }
+        const cellValue = rows[selectedCell.rowIndex]?.[colIndex];
+        if (cellValue === null || cellValue === undefined) {
+          eligible = false;
+          break;
+        }
+        localValues.push(String(cellValue));
+      }
+      if (eligible && localValues.length === fk.columns.length) {
+        result.push({
+          foreignKey: fk.name,
+          localValues,
+          referencedDatabase: fk.referencedDatabase,
+          referencedObject: fk.referencedObject,
+          referencedColumns: fk.referencedColumns,
+        });
+      }
+    }
+    return result;
+  }, [navigationCapability, selectedCell, selectedHeader, columns, rows]);
 
   function showFeedback(message: string, type: "success" | "error") {
     if (feedbackTimerRef.current) {
@@ -1239,6 +1522,37 @@ function ResultTable({
           <Copy className="size-3.5" aria-hidden />
           {t("result.copyCellValue")}
         </Button>
+        {eligibleFKs.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  data-testid="related-records"
+                />
+              }
+            >
+              <ListTree className="size-3.5" aria-hidden />
+              {t("result.relatedRecords")}
+              <ChevronDown className="size-3" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {eligibleFKs.map((fk) => (
+                <DropdownMenuItem
+                  key={fk.foreignKey}
+                  onSelect={() => navigationCapability?.onNavigate(fk.foreignKey, fk.localValues)}
+                >
+                  {t("result.relatedRecordsFor", {
+                    foreignKey: fk.foreignKey,
+                    referencedTable: `${fk.referencedDatabase}.${fk.referencedObject}`,
+                  })}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {copyFeedback && (
           <span
             role="status"

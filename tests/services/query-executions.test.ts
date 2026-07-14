@@ -13,6 +13,7 @@ import { apiClient } from "@/services/api-client";
 import {
   executeQueryTarget,
   listQueryExecutions,
+  navigateRelatedRecords,
   QueryExecuteError,
 } from "@/services/query-executions";
 import * as queryExecutionsModule from "@/services/query-executions";
@@ -54,6 +55,31 @@ function buildExecutionListResponse() {
       },
     ],
     pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+  };
+}
+
+function buildRelatedRecordResponse() {
+  return {
+    executionId: 2001,
+    status: "success" as const,
+    targetResourceId: 22,
+    engine: "mysql",
+    columns: [
+      { name: "id", databaseType: "BIGINT", nullable: false },
+      { name: "name", databaseType: "VARCHAR", nullable: true },
+    ],
+    rows: [[100, "Widget"]],
+    rowCount: 1,
+    truncated: false,
+    durationMs: 12,
+    limitApplied: 100,
+    executedAt: "2026-07-14T08:00:00Z",
+    sourceDatabase: "orders",
+    sourceObject: "order_items",
+    foreignKey: "fk_order_items_order",
+    referencedDatabase: "orders",
+    referencedObject: "orders",
+    referencedColumns: ["id"],
   };
 }
 
@@ -201,12 +227,125 @@ describe("listQueryExecutions", () => {
   });
 });
 
+describe("navigateRelatedRecords", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("POSTs to /query-targets/:id/related-records", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+      localValues: ["42"],
+    });
+
+    expect(mockApiClient).toHaveBeenCalledTimes(1);
+    const [path, init] = mockApiClient.mock.calls[0]!;
+    expect(path).toBe("/query-targets/22/related-records");
+    expect((init as RequestInit).method).toBe("POST");
+  });
+
+  it("sends exact body with source, localValues, and optional maxRows", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+      localValues: ["42"],
+      maxRows: 100,
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).toEqual({
+      source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+      localValues: ["42"],
+      maxRows: 100,
+    });
+  });
+
+  it("preserves ordered localValues in FK column order", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: { database: "app", object: "junction", kind: "table", foreignKey: "fk_composite" },
+      localValues: ["10", "20"],
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).toMatchObject({
+      localValues: ["10", "20"],
+    });
+  });
+
+  it("omits maxRows when not provided", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+      localValues: ["42"],
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).not.toHaveProperty("maxRows");
+  });
+
+  it("never sends actorUserId or SQL in the request body", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+      localValues: ["42"],
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    const body = JSON.stringify(requestBody(init));
+    expect(body).not.toContain("actorUserId");
+    expect(body).not.toContain("actor_user_id");
+    expect(body).not.toContain("statement");
+    expect(body).not.toContain("SELECT");
+  });
+
+  it("returns the backend related-record response unchanged", async () => {
+    const response = buildRelatedRecordResponse();
+    mockApiClient.mockResolvedValueOnce(response);
+
+    await expect(
+      navigateRelatedRecords(22, {
+        source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+        localValues: ["42"],
+      }),
+    ).resolves.toEqual(response);
+  });
+
+  it("maps each documented status to its controlled error code", async () => {
+    const cases: Array<[number, string]> = [
+      [400, "validation_failed"],
+      [403, "query_not_allowed"],
+      [404, "query_target_not_found"],
+      [408, "query_timeout"],
+      [500, "internal_error"],
+      [502, "query_backend_error"],
+    ];
+
+    for (const [status, code] of cases) {
+      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked"));
+      const error = await navigateRelatedRecords(22, {
+        source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
+        localValues: ["42"],
+      }).catch((value: unknown) => value as QueryExecuteError);
+      expect(error).toBeInstanceOf(QueryExecuteError);
+      expect((error as QueryExecuteError).code).toBe(code);
+      expect((error as QueryExecuteError).status).toBe(status);
+    }
+  });
+});
+
 describe("query-executions module surface", () => {
-  it("exposes only the execute and history functions plus the error class", () => {
+  it("exposes only the execute, history, and related-record functions plus the error class", () => {
     // Guards against accidentally widening this module (e.g. adding an auth or
     // credential helper). The query execution path must stay narrowly scoped.
     expect(Object.keys(queryExecutionsModule).sort()).toEqual(
-      ["QueryExecuteError", "executeQueryTarget", "listQueryExecutions"].sort(),
+      ["QueryExecuteError", "executeQueryTarget", "listQueryExecutions", "navigateRelatedRecords"].sort(),
     );
   });
 });

@@ -8,6 +8,7 @@ import { QueryObjectTree } from "@/components/query/query-object-tree";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
 import { getObjectDetails, getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 import type { ObjectDetailResponse, ObjectSummary } from "@/types/query-schema";
+import type { TablePreviewRequest } from "@/types/query-execution";
 
 const PAGE_SIZE = 25;
 const MAX_OBJECTS = 500;
@@ -17,9 +18,13 @@ type DetailViewState =
   | { readonly status: "ready"; readonly detail: ObjectDetailResponse }
   | { readonly status: "error" };
 
-type QueryObjectExplorerProps = { readonly targetId: number; readonly store: QuerySchemaStore };
+type QueryObjectExplorerProps = {
+  readonly targetId: number;
+  readonly store: QuerySchemaStore;
+  readonly onPreviewRequest?: (request: TablePreviewRequest) => void;
+};
 
-export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProps) {
+export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: QueryObjectExplorerProps) {
   const t = useTranslations("queryWorkbench");
   const [databases, setDatabases] = useState<readonly string[]>([]);
   const [objects, setObjects] = useState<ReadonlyMap<string, readonly ObjectSummary[]>>(new Map());
@@ -113,12 +118,34 @@ export function QueryObjectExplorer({ targetId, store }: QueryObjectExplorerProp
     const columns = state.detail.columns ?? [];
     const indexes = state.detail.indexes ?? [];
     const foreignKeys = state.detail.foreignKeys ?? [];
+    const isTable = object.kind === "table";
+    const foreignKeysTruncated = state.detail.truncated?.foreignKeys ?? false;
     return (
       <div className="space-y-2 text-xs text-muted-foreground">
         <p>{t("schema.detailColumns", { count: columns.length })}</p>
         <p>{t("schema.detailKeys", { count: columns.filter((column) => column.primaryKey).length })}</p>
         <p>{t("schema.detailIndexes", { count: indexes.length })}</p>
         <p>{t("schema.detailForeignKeys", { count: foreignKeys.length })}</p>
+        {isTable && onPreviewRequest && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-1"
+            onClick={() =>
+              onPreviewRequest({
+                targetId,
+                database: object.database,
+                table: object.name,
+                kind: "table",
+                foreignKeys,
+                foreignKeysTruncated,
+              })
+            }
+          >
+            {t("schema.previewRows")}
+          </Button>
+        )}
       </div>
     );
   }} />;

@@ -7,6 +7,7 @@ import { Check, Database, ListTree, TriangleAlert, XCircle } from "lucide-react"
 
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
+import type { TablePreviewRequest } from "@/types/query-execution";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
   EMPTY_FILTERS,
@@ -74,6 +75,11 @@ export function QueryWorkbench({
   const [activeDatabase, setActiveDatabase] = useState<string | null>(null);
   const searchGeneration = useRef(0);
   const schemaStore = useMemo(() => new QuerySchemaStore(), []);
+  const previewGeneration = useRef(0);
+  const [pendingPreviewEvent, setPendingPreviewEvent] = useState<{
+    id: number;
+    request: TablePreviewRequest;
+  } | null>(null);
 
   const OBJECTS_PANE_STORAGE_KEY = "query-objects-pane-open";
   const OBJECTS_WIDTH_STORAGE_KEY = "query-objects-pane-width";
@@ -238,6 +244,11 @@ export function QueryWorkbench({
     setActiveTargetId(resourceId);
   }
 
+  function handlePreviewRequest(request: TablePreviewRequest) {
+    previewGeneration.current += 1;
+    setPendingPreviewEvent({ id: previewGeneration.current, request });
+  }
+
   return (
     <div className="flex min-h-0 flex-col gap-0">
       {activeTarget ? (
@@ -285,6 +296,7 @@ export function QueryWorkbench({
                       <QueryObjectExplorer
                         targetId={activeTarget.resourceId}
                         store={schemaStore}
+                        onPreviewRequest={handlePreviewRequest}
                       />
                     ) : (
                       <p className="p-2 text-sm text-muted-foreground">{t("schema.locked")}</p>
@@ -329,6 +341,7 @@ export function QueryWorkbench({
                     <QueryObjectExplorer
                       targetId={activeTarget.resourceId}
                       store={schemaStore}
+                      onPreviewRequest={handlePreviewRequest}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{t("schema.locked")}</p>
@@ -345,6 +358,8 @@ export function QueryWorkbench({
                 onActiveTargetChange={setActiveTargetFromWorksheet}
                 onActiveDatabaseChange={setActiveDatabase}
                 schemaStore={schemaStore}
+                pendingPreviewEvent={pendingPreviewEvent}
+                onPreviewConsumed={() => setPendingPreviewEvent(null)}
               />
             </div>
           </div>

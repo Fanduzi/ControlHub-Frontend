@@ -1001,7 +1001,8 @@
       "loadError": "Unable to load objects.",
       "noDatabases": "No databases found.",
       "retry": "Retry",
-      "detailLoadError": "Could not load object details"
+      "detailLoadError": "Could not load object details",
+      "previewRows": "Preview rows"
     },
     "navigator": {
       "title": "Quick navigator",
@@ -1072,7 +1073,14 @@
       "copySuccess": "Copied",
       "copyFailed": "Copy failed",
       "copyCellAriaLabel": "Copy cell value: {value}",
-      "copyColumnNameAriaLabel": "Copy column name: {name}"
+      "copyColumnNameAriaLabel": "Copy column name: {name}",
+      "relatedRecords": "Related records",
+      "relatedRecordsFor": "Related: {foreignKey} → {referencedTable}",
+      "relatedRecordsLoading": "Loading related records…",
+      "relatedRecordsEmpty": "No related records found.",
+      "relatedRecordsTruncated": "Related records truncated",
+      "relatedRecordsError": "Could not load related records.",
+      "closeRelatedRecords": "Close related records"
     },
     "error": {
       "title": "Query could not run",
