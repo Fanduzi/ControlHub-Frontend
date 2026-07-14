@@ -58,10 +58,12 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   function toggleDatabase(database: string) {
     const next = new Set(expandedDatabases); next.has(database) ? next.delete(database) : next.add(database); setExpandedDatabases(next);
     if (next.has(database) && !objects.has(database)) {
-      const controller = new AbortController(); setLoadingObjects((previous) => new Set(previous).add(database));
+      const controller = new AbortController();
+      const requestGeneration = generation.current;
+      setLoadingObjects((previous) => new Set(previous).add(database));
       void getSchemaObjects(targetId, { database, page: 1, pageSize: PAGE_SIZE, signal: controller.signal }).then((response) => {
-        if (!controller.signal.aborted) setObjects((previous) => new Map(previous).set(database, response.items.slice(0, MAX_OBJECTS)));
-      }, () => { /* swallow — error state is not tracked per-database */ }).finally(() => { if (!controller.signal.aborted) setLoadingObjects((previous) => { const copy = new Set(previous); copy.delete(database); return copy; }); });
+        if (!controller.signal.aborted && requestGeneration === generation.current) setObjects((previous) => new Map(previous).set(database, response.items.slice(0, MAX_OBJECTS)));
+      }, () => { /* swallow — error state is not tracked per-database */ }).finally(() => { if (!controller.signal.aborted && requestGeneration === generation.current) setLoadingObjects((previous) => { const copy = new Set(previous); copy.delete(database); return copy; }); });
     }
   }
 
@@ -69,23 +71,33 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     if (!object.database) return;
     const key = `${object.database}:${object.kind}:${object.name}`;
     const storeKey = { targetId, database: object.database, kind: object.kind, name: object.name };
+    const requestGeneration = generation.current;
+    const controller = new AbortController();
     store.setDetailLoading(storeKey);
     setLoadingDetails((previous) => new Set(previous).add(key));
     setDetails((previous) => new Map(previous).set(key, { status: "loading" }));
-    void getObjectDetails(targetId, { database: object.database, name: object.name, kind: object.kind }).then(
+    void getObjectDetails(targetId, { database: object.database, name: object.name, kind: object.kind, signal: controller.signal }).then(
       (detail) => {
-        store.setDetail(storeKey, detail);
-        setDetails((previous) => new Map(previous).set(key, { status: "ready", detail }));
+        if (!controller.signal.aborted && requestGeneration === generation.current) {
+          store.setDetail(storeKey, detail);
+          setDetails((previous) => new Map(previous).set(key, { status: "ready", detail }));
+        }
       },
       () => {
-        store.setEmptyDetail(storeKey);
-        setDetails((previous) => new Map(previous).set(key, { status: "error" }));
+        if (!controller.signal.aborted && requestGeneration === generation.current) {
+          store.setEmptyDetail(storeKey);
+          setDetails((previous) => new Map(previous).set(key, { status: "error" }));
+        }
       },
-    ).finally(() => setLoadingDetails((previous) => {
-      const copy = new Set(previous);
-      copy.delete(key);
-      return copy;
-    }));
+    ).finally(() => {
+      if (!controller.signal.aborted && requestGeneration === generation.current) {
+        setLoadingDetails((previous) => {
+          const copy = new Set(previous);
+          copy.delete(key);
+          return copy;
+        });
+      }
+    });
   }
 
   function toggleObject(object: ObjectSummary) {

@@ -428,6 +428,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     onPreviewConsumed?.();
 
     const { request } = pendingPreviewEvent;
+    if (request.targetId !== activeTarget.resourceId) {
+      return;
+    }
+
     const quotedDb = `\`${request.database.replace(/`/g, "``")}\``;
     const quotedTable = `\`${request.table.replace(/`/g, "``")}\``;
     const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_MAX_ROWS}`;
@@ -451,7 +455,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     worksheetsRef.current = newWorksheets;
     setWorksheets(newWorksheets);
     setActiveWorksheetId(newWs.id);
-  }, [pendingPreviewEvent, onPreviewConsumed]);
+  }, [pendingPreviewEvent, onPreviewConsumed, activeTarget.resourceId]);
 
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
