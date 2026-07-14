@@ -1104,6 +1104,10 @@ function ReadyWorksheet({
     loadedObjects,
   );
 
+  // Ref for the Related records trigger button, used for focus restoration
+  // when the RelatedRecordsPanel closes. Avoids global querySelector.
+  const relatedRecordsTriggerRef = useRef<HTMLButtonElement>(null);
+
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
@@ -1220,11 +1224,13 @@ function ReadyWorksheet({
                     }
                   : undefined
               }
+              relatedRecordsTriggerRef={relatedRecordsTriggerRef}
             />
             {relatedRecords.status !== "idle" && (
               <RelatedRecordsPanel
                 state={relatedRecords}
                 onClose={onCloseRelatedRecords}
+                triggerRef={relatedRecordsTriggerRef}
               />
             )}
           </>
@@ -1236,7 +1242,7 @@ function ReadyWorksheet({
   );
 }
 
-function ExecuteResult({ result, navigationCapability }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability }) {
+function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null> }) {
   const t = useTranslations("queryWorkbench");
 
   return (
@@ -1254,7 +1260,7 @@ function ExecuteResult({ result, navigationCapability }: { result: QueryExecuteR
         </dd>
       </dl>
 
-      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} />
+      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} />
     </div>
   );
 }
@@ -1262,9 +1268,11 @@ function ExecuteResult({ result, navigationCapability }: { result: QueryExecuteR
 function RelatedRecordsPanel({
   state,
   onClose,
+  triggerRef,
 }: {
   state: RelatedRecordsState;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const t = useTranslations("queryWorkbench");
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -1277,9 +1285,8 @@ function RelatedRecordsPanel({
 
   function handleClose() {
     onClose();
-    // Restore focus to the Related records menu trigger after the panel unmounts.
     requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('[data-testid="related-records"]')?.focus();
+      triggerRef?.current?.focus();
     });
   }
 
@@ -1338,10 +1345,12 @@ function ResultTable({
   columns,
   rows,
   navigationCapability,
+  relatedRecordsTriggerRef,
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
   navigationCapability?: NavigationCapability;
+  relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const t = useTranslations("queryWorkbench");
 
@@ -1572,6 +1581,7 @@ function ResultTable({
             <DropdownMenuTrigger
               render={
                 <Button
+                  ref={relatedRecordsTriggerRef}
                   type="button"
                   size="sm"
                   variant="outline"
