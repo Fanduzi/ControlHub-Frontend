@@ -1132,4 +1132,89 @@ test.describe("Query Workbench schema intelligence", () => {
     await expect(explorerSheet).toBeHidden();
     await expect(objectsButton).toBeFocused();
   });
+
+  test("preview rows button appears for loaded table details", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Open objects pane
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    // Expand first database
+    const firstDb = explorer.getByRole("treeitem").first();
+    await expect(firstDb).toBeVisible({ timeout: 15_000 });
+    await firstDb.click();
+
+    // Expand first table
+    const firstTable = explorer.getByRole("treeitem").nth(2);
+    await expect(firstTable).toBeVisible({ timeout: 10_000 });
+    await firstTable.click();
+
+    // Preview rows button should appear for table details
+    const previewButton = explorer.getByRole("button", { name: "Preview rows" });
+    await expect(previewButton).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("related records menu does not appear for arbitrary SQL results", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Run arbitrary SQL
+    await clearAndType(page, "SELECT 1 AS id, 'test' AS name");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Select a data cell
+    await page.getByRole("gridcell").first().click();
+
+    // Related records menu should NOT appear for arbitrary SQL
+    await expect(page.getByTestId("related-records")).toHaveCount(0);
+  });
+
+  test("related records menu does not appear when header is selected", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Run arbitrary SQL
+    await clearAndType(page, "SELECT 1 AS id, 'test' AS name");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Select a header cell
+    await page.getByRole("columnheader", { name: "id" }).click();
+
+    // Related records menu should NOT appear for header selection
+    await expect(page.getByTestId("related-records")).toHaveCount(0);
+  });
+
+  test("copy button works alongside result grid", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Run query
+    await clearAndType(page, "SELECT 1 AS id");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Select a data cell
+    await page.getByRole("gridcell").first().click();
+
+    // Copy button should be enabled
+    const copyButton = page.getByTestId("copy-selection");
+    await expect(copyButton).toBeEnabled();
+  });
 });

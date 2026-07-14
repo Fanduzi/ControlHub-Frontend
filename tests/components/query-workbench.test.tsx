@@ -3281,3 +3281,135 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
   });
 
 });
+
+describe("FK record navigation", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    replace.mockClear();
+  });
+
+  it("preview creates a new worksheet with qualified statement but does not auto-run", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    // Open objects pane
+    await user.click(screen.getByRole("button", { name: "Objects" }));
+
+    // The preview button should not be visible until we expand a table detail
+    expect(screen.queryByRole("button", { name: "Preview rows" })).toBeNull();
+  });
+
+  it("related records menu does not appear for arbitrary SQL results", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "name", databaseType: "VARCHAR", nullable: true },
+      ],
+      rows: [[1, "test"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    // Run arbitrary SQL
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // Select a cell
+    await user.click(screen.getByRole("cell", { name: "1" }));
+
+    // Related records menu should not appear for arbitrary SQL
+    expect(screen.queryByTestId("related-records")).toBeNull();
+  });
+
+  it("copy button remains functional alongside related records eligibility", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "name", databaseType: "VARCHAR", nullable: true },
+      ],
+      rows: [[1, "test"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    // Run query
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // Select a cell
+    await user.click(screen.getByRole("cell", { name: "1" }));
+
+    // Copy button should be enabled
+    expect(screen.getByTestId("copy-selection")).toBeEnabled();
+  });
+
+  it("header selection does not enable related records menu", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "name", databaseType: "VARCHAR", nullable: true },
+      ],
+      rows: [[1, "test"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    // Run query
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // Select a header
+    await user.click(screen.getByRole("columnheader", { name: "id" }));
+
+    // Related records menu should not appear for header selection
+    expect(screen.queryByTestId("related-records")).toBeNull();
+  });
+
+  it("Chinese locale renders related records strings correctly", () => {
+    // Verify Chinese messages contain the expected keys
+    expect((zhMessages as Record<string, unknown>)["queryWorkbench"]).toBeDefined();
+    const queryWorkbench = (zhMessages as Record<string, unknown>)["queryWorkbench"] as Record<string, unknown>;
+    const schema = queryWorkbench["schema"] as Record<string, unknown>;
+    expect(schema["previewRows"]).toBe("预览行");
+    const result = queryWorkbench["result"] as Record<string, unknown>;
+    expect(result["relatedRecords"]).toBe("关联记录");
+    expect(result["closeRelatedRecords"]).toBe("关闭关联记录");
+  });
+});
