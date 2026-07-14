@@ -1225,6 +1225,7 @@ function ReadyWorksheet({
                   : undefined
               }
               relatedRecordsTriggerRef={relatedRecordsTriggerRef}
+              onRelatedRecordsIneligible={onCloseRelatedRecords}
             />
             {relatedRecords.status !== "idle" && (
               <RelatedRecordsPanel
@@ -1242,7 +1243,7 @@ function ReadyWorksheet({
   );
 }
 
-function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null> }) {
+function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef, onRelatedRecordsIneligible }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>; onRelatedRecordsIneligible?: () => void }) {
   const t = useTranslations("queryWorkbench");
 
   return (
@@ -1260,7 +1261,7 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef 
         </dd>
       </dl>
 
-      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} />
+      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} />
     </div>
   );
 }
@@ -1346,11 +1347,13 @@ function ResultTable({
   rows,
   navigationCapability,
   relatedRecordsTriggerRef,
+  onRelatedRecordsIneligible,
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
   navigationCapability?: NavigationCapability;
   relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
+  onRelatedRecordsIneligible?: () => void;
 }) {
   const t = useTranslations("queryWorkbench");
 
@@ -1444,6 +1447,14 @@ function ResultTable({
     }
     return result;
   }, [navigationCapability, selectedCell, selectedHeader, columns, rows]);
+
+  const prevEligibleCountRef = useRef(eligibleFKs.length);
+  useEffect(() => {
+    if (prevEligibleCountRef.current > 0 && eligibleFKs.length === 0 && onRelatedRecordsIneligible) {
+      onRelatedRecordsIneligible();
+    }
+    prevEligibleCountRef.current = eligibleFKs.length;
+  }, [eligibleFKs.length, onRelatedRecordsIneligible]);
 
   function showFeedback(message: string, type: "success" | "error") {
     if (feedbackTimerRef.current) {
