@@ -1205,7 +1205,7 @@ function ReadyWorksheet({
             <ExecuteResult
               result={result}
               navigationCapability={
-                previewProvenance
+                previewProvenance && !isExecuting
                   ? {
                       sourceDatabase: previewProvenance.database,
                       sourceObject: previewProvenance.table,
