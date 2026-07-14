@@ -312,7 +312,10 @@ export function QueryObjectInspector({
         onClose();
         // Restore focus to trigger after close animation
         requestAnimationFrame(() => {
-          triggerRef.current?.focus();
+          const trigger = triggerRef.current;
+          if (trigger && trigger.isConnected) {
+            trigger.focus();
+          }
         });
       }
     },
@@ -335,7 +338,7 @@ export function QueryObjectInspector({
               variant="ghost"
               size="icon-sm"
               onClick={() => handleOpenChange(false)}
-              aria-label={t("schema.closeObjects")}
+              aria-label={t("schema.closeInspector")}
             >
               <span aria-hidden>×</span>
             </Button>
@@ -352,10 +355,19 @@ export function QueryObjectInspector({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
-        showCloseButton
+        showCloseButton={false}
       >
-        <DialogHeader>
+        <DialogHeader className="flex flex-row items-start justify-between gap-2 pr-2">
           <DialogTitle>{title}</DialogTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => handleOpenChange(false)}
+            aria-label={t("schema.closeInspector")}
+          >
+            <span aria-hidden>×</span>
+          </Button>
         </DialogHeader>
         <InspectorBody detail={detail} t={t} />
       </DialogContent>

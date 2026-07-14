@@ -992,6 +992,7 @@
       "objectsLabel": "对象",
       "objectsLabelWithDb": "对象：{database}",
       "closeObjects": "关闭对象面板",
+      "closeInspector": "关闭检查器",
       "resizeObjects": "调整对象面板大小",
       "detailColumns": "{count} 列",
       "detailKeys": "{count} 键",

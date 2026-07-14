@@ -1662,6 +1662,11 @@ test.describe("Object Inspector metadata", () => {
         break;
       }
     }
-    test.skip(!verifiedLocked, "no locked query target present");
+    if (!verifiedLocked) {
+      throw new Error(
+        "E2E fixture setup error: no locked query target found. " +
+        "Seed a locked (non-ready) query target before this suite."
+      );
+    }
   });
 });

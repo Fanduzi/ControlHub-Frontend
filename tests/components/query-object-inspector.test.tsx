@@ -205,6 +205,22 @@ describe("QueryObjectInspector", () => {
     expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
   });
 
+  it("close button has localized accessible name 'Close inspector'", async () => {
+    await openInspector();
+
+    const closeButton = screen.getByRole("button", { name: "Close inspector" });
+    expect(closeButton).toBeVisible();
+  });
+
+  it("focuses trigger element even if component re-renders", async () => {
+    const { user } = await openInspector();
+
+    await user.keyboard("{Escape}");
+
+    const inspectButton = screen.getByRole("button", { name: "Inspect" });
+    expect(inspectButton).toHaveFocus();
+  });
+
   it("renders primary key and auto-increment badges with text labels", async () => {
     await openInspector();
 

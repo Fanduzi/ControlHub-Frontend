@@ -992,6 +992,7 @@
       "objectsLabel": "Objects",
       "objectsLabelWithDb": "Objects: {database}",
       "closeObjects": "Close objects pane",
+      "closeInspector": "Close inspector",
       "resizeObjects": "Resize objects pane",
       "detailColumns": "{count} Columns",
       "detailKeys": "{count} Keys",

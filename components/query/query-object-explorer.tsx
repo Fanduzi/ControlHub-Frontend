@@ -166,13 +166,14 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             <p>{t("schema.detailForeignKeys", { count: foreignKeys.length })}</p>
             <div className="flex gap-2">
               <Button
-                ref={inspectorKey === objectKey ? inspectTriggerRef : undefined}
+                ref={inspectTriggerRef}
                 type="button"
                 variant="outline"
                 size="sm"
                 className="mt-1"
                 data-testid="inspect-button"
-                onClick={() => {
+                onClick={(e) => {
+                  inspectTriggerRef.current = e.currentTarget;
                   setInspectorKey(objectKey);
                   setInspectorDetail(state.detail);
                 }}
