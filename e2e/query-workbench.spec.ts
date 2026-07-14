@@ -1331,7 +1331,17 @@ test.describe("FK record navigation", () => {
 
   test("mobile Objects Sheet completes FK navigation at 375px", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 844 });
-    await openQueryWorkbench(page);
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
     await ensureReadyTargetSelected(page);
 
     const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
@@ -1352,7 +1362,9 @@ test.describe("FK record navigation", () => {
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
     await previewButton.click();
 
-    await expect(page.getByText("0 rows · not executed")).toBeVisible();
+    await expect(page.getByText("0 rows · not executed")).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
 
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
