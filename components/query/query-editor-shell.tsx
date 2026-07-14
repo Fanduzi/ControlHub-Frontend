@@ -635,7 +635,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const targetId = activeWorksheet.targetResourceId;
     const requestId = crypto.randomUUID();
 
-    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false, previewProvenance: null });
+    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false });
 
     try {
       const response = await executeQueryTarget(targetId, {
@@ -1242,6 +1242,14 @@ function RelatedRecordsPanel({
     }
   }, [state.status]);
 
+  function handleClose() {
+    onClose();
+    // Restore focus to the Related records menu trigger after the panel unmounts.
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('[data-testid="related-records"]')?.focus();
+    });
+  }
+
   return (
     <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3" role="region" aria-label={t("result.relatedRecords")}>
       <div className="flex items-center justify-between mb-2">
@@ -1251,7 +1259,7 @@ function RelatedRecordsPanel({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label={t("result.closeRelatedRecords")}
         >
           {t("result.closeRelatedRecords")}
