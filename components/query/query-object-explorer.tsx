@@ -119,7 +119,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     const indexes = state.detail.indexes ?? [];
     const foreignKeys = state.detail.foreignKeys ?? [];
     const isTable = object.kind === "table";
-    const foreignKeysTruncated = state.detail.truncated?.foreignKeys ?? false;
+    const foreignKeysTruncated = state.detail.truncated?.foreignKeys ?? true;
     return (
       <div className="space-y-2 text-xs text-muted-foreground">
         <p>{t("schema.detailColumns", { count: columns.length })}</p>

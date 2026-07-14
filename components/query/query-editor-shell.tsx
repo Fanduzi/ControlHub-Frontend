@@ -625,7 +625,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   function handleCloseRelatedRecords() {
     updateActiveWorksheet({
-      relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation },
+      relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
     });
   }
 
@@ -875,10 +875,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             <ReadyWorksheet
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
-              onStatementChange={(value) => updateActiveWorksheet({
-                statement: value,
-                isDirty: true,
-              })}
+              onStatementChange={(value) => {
+                updateActiveWorksheet({
+                  statement: value,
+                  isDirty: true,
+                  previewProvenance: null,
+                  relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
+                });
+              }}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
               runEnabled={runEnabled}
@@ -1383,6 +1387,10 @@ function ResultTable({
     const columnNames = columns.map((col) => col.name);
     const result: Array<{ foreignKey: string; localValues: readonly string[]; referencedDatabase: string; referencedObject: string; referencedColumns: readonly string[] }> = [];
     for (const fk of navigationCapability.foreignKeys) {
+      // Fail-closed: skip empty or duplicate FK column lists.
+      if (fk.columns.length === 0) continue;
+      if (new Set(fk.columns).size !== fk.columns.length) continue;
+
       const localValues: string[] = [];
       let eligible = true;
       for (const fkCol of fk.columns) {
