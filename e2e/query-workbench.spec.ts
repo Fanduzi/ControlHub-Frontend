@@ -1462,3 +1462,206 @@ test.describe("FK record navigation", () => {
     await expect(relatedButton).toBeFocused();
   });
 });
+
+test.describe("Object Inspector metadata", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-inspector-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop EN: Inspect opens read-only metadata panel with columns, indexes, and foreign keys", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    const columnsSection = inspector.locator('[aria-label="Columns"]');
+    await expect(columnsSection).toBeVisible();
+    await expect(columnsSection.getByRole("cell", { name: "id", exact: true })).toBeVisible();
+
+    const indexesSection = inspector.locator('[aria-label="Indexes"]');
+    await expect(indexesSection).toBeVisible();
+
+    const fkSection = inspector.locator('[aria-label="Foreign Keys"]');
+    await expect(fkSection).toBeVisible();
+    await expect(fkSection.getByText("fk_schema_child_parent")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(inspector).toBeHidden();
+    await expect(inspectButton).toBeFocused();
+  });
+
+  test("375px mobile EN: Inspector opens as a bottom sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await objectsButton.click();
+
+    const sheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(sheet).toBeVisible();
+
+    const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = sheet.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspectorSheet).toBeVisible();
+    await expect(inspectorSheet).toHaveAttribute("data-side", "bottom");
+
+    await expect(inspectorSheet.locator('[aria-label="Columns"]')).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(inspectorSheet).toBeHidden();
+  });
+
+  test("zh-CN desktop: localized Inspect button and Inspector title", async ({ page }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
+    await expect(inspector).toBeVisible();
+
+    await expect(inspector.locator('[aria-label="列"]')).toBeVisible();
+    await expect(inspector.locator('[aria-label="索引"]')).toBeVisible();
+    await expect(inspector.locator('[aria-label="外键"]')).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(inspector).toBeHidden();
+    await expect(inspectButton).toBeFocused();
+  });
+
+  test("opening Inspector sends no execute, related-record, or additional object-detail request", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    await expect(explorer.getByRole("button", { name: "Inspect" })).toBeVisible({ timeout: 10_000 });
+
+    const requestsBefore: string[] = [];
+    page.on("request", (req) => {
+      requestsBefore.push(req.url());
+    });
+
+    await explorer.getByRole("button", { name: "Inspect" }).click();
+    await expect(page.getByRole("dialog", { name: /Inspector/ })).toBeVisible();
+
+    const forbidden = requestsBefore.filter(
+      (url) =>
+        url.includes("/execute") ||
+        url.includes("/related-records") ||
+        url.includes("/object-details"),
+    );
+    expect(forbidden).toHaveLength(0);
+  });
+
+  test("a locked target hides the Inspect button", async ({ page }) => {
+    await openQueryWorkbench(page);
+
+    const count = await connectionTargetCount(page);
+    let verifiedLocked = false;
+    for (let index = 0; index < count; index += 1) {
+      await selectConnectionTarget(page, index);
+      if (!(await isRunEnabled(page))) {
+        await page.getByRole("button", { name: "Objects", exact: true }).click();
+        const explorer = page.getByRole("complementary", { name: "Objects" });
+        await expect(explorer).toBeVisible();
+
+        await expect(explorer.getByRole("button", { name: "Inspect" })).toHaveCount(0);
+        verifiedLocked = true;
+        break;
+      }
+    }
+    test.skip(!verifiedLocked, "no locked query target present");
+  });
+});
