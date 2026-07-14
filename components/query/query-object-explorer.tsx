@@ -47,6 +47,10 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       setDatabases([]);
       setObjects(new Map());
       setDetails(new Map());
+      setExpandedDatabases(new Set());
+      setExpandedObjects(new Set());
+      setLoadingObjects(new Set());
+      setLoadingDetails(new Set());
     });
     void getSchemaDatabases(targetId, { page: 1, pageSize: PAGE_SIZE, signal: controller.signal }).then(
       (response) => { if (!controller.signal.aborted && requestGeneration === generation.current) setDatabases(response.items.map((database) => database.name)); },
