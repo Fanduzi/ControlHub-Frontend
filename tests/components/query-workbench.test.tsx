@@ -17,6 +17,7 @@ vi.mock("@/services/query-executions", async () => {
     ...actual,
     executeQueryTarget: vi.fn(),
     listQueryExecutions: vi.fn(),
+    navigateRelatedRecords: vi.fn(),
   };
 });
 
@@ -3411,5 +3412,152 @@ describe("FK record navigation", () => {
     const result = queryWorkbench["result"] as Record<string, unknown>;
     expect(result["relatedRecords"]).toBe("关联记录");
     expect(result["closeRelatedRecords"]).toBe("关闭关联记录");
+  });
+
+  it("run clears statement-related state to prevent stale related record persistence", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+      ],
+      rows: [[1, 10]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "1" }));
+    expect(screen.queryByTestId("related-records")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "1" }));
+    expect(screen.queryByTestId("related-records")).toBeNull();
+  });
+
+  it("target switch resets worksheet state including related records tracking", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+      ],
+      rows: [[1, 10]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+
+    const targets = [
+      buildReadyWorkbenchTarget(),
+      buildQueryTarget({
+        resourceId: 31,
+        displayName: "Staging MySQL",
+        resourceName: "staging-mysql",
+        connectionContext: {
+          engine: "mysql",
+          host: "staging-mysql.internal",
+          port: 3306,
+          environment: "Staging",
+          owner: "Platform",
+          clusterName: "",
+        },
+        capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+        readiness: "ready",
+        governance: {
+          executionEnabled: true,
+          credentialState: "configured_readonly_credential",
+          auditRequired: true,
+          safetyState: "readonly_sandbox_enabled",
+          safetyNote: "Read-only sandbox is enabled.",
+          policyNotes: [],
+        },
+        availableActions: {
+          run: true,
+          explain: false,
+          export: false,
+          saveSheet: false,
+          requestAccess: false,
+        },
+        missingFields: [],
+      }),
+    ];
+    renderWorkbench(targets);
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "1" }));
+    expect(screen.queryByTestId("related-records")).toBeNull();
+
+    openConnections();
+    await user.click(await screen.findByRole("button", { name: "Staging MySQL" }));
+
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+    expect(screen.queryByRole("grid")).toBeNull();
+  });
+
+  it("format clears provenance tracking when SQL is rewritten", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+      ],
+      rows: [[1, 10]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-14T08:00:00Z",
+    });
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "1" }));
+    expect(screen.queryByTestId("related-records")).toBeNull();
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.click(statement);
+    await user.keyboard("{Control>}{Shift>}f{/Shift}{/Control}");
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("related-records")).toBeNull();
+    });
   });
 });

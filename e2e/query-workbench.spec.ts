@@ -1314,12 +1314,10 @@ test.describe("FK record navigation", () => {
     await page.goto("/query");
     await ensureReadyTargetSelected(page);
 
-    // Open Objects pane (Chinese label).
     await page.getByRole("button", { name: "对象", exact: true }).click();
     const explorer = page.getByRole("complementary", { name: "对象" });
     await expect(explorer).toBeVisible();
 
-    // Expand the FK fixture table.
     const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
     await expect(auxDb).toBeVisible({ timeout: 15_000 });
     await auxDb.click();
@@ -1327,8 +1325,128 @@ test.describe("FK record navigation", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    // Preview rows button should be in Chinese.
     const previewButton = explorer.getByRole("button", { name: "预览行" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("mobile Objects Sheet completes FK navigation at 375px", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await objectsButton.click();
+
+    const sheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(sheet).toBeVisible();
+
+    const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const previewButton = sheet.getByRole("button", { name: "Preview rows" });
+    await expect(previewButton).toBeVisible({ timeout: 10_000 });
+    await previewButton.click();
+
+    await expect(page.getByText("0 rows · not executed")).toBeVisible();
+
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    const firstDataCell = page.getByRole("gridcell").first();
+    await expect(firstDataCell).toBeVisible();
+    await firstDataCell.click();
+
+    const relatedButton = page.getByTestId("related-records");
+    await expect(relatedButton).toBeVisible({ timeout: 5_000 });
+
+    const relatedRequest = page.waitForRequest(
+      (req) => req.url().includes("/related-records") && req.method() === "POST",
+      { timeout: 10_000 },
+    );
+
+    await relatedButton.click();
+    await page.getByRole("menuitem", { name: /fk_schema_child_parent/ }).click();
+
+    const request = await relatedRequest;
+    expect(request.url()).toContain("/related-records");
+
+    const relatedPanel = page.getByRole("region", { name: "Related records" });
+    await expect(relatedPanel).toBeVisible({ timeout: 15_000 });
+    await expect(relatedPanel.getByRole("grid")).toBeVisible();
+    await expect(page.getByRole("grid")).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Close related records" }).click();
+    await expect(relatedPanel).toBeHidden();
+    await expect(relatedButton).toBeFocused();
+  });
+
+  test("Chinese locale completes full FK navigation path", async ({ page }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const previewButton = explorer.getByRole("button", { name: "预览行" });
+    await expect(previewButton).toBeVisible({ timeout: 10_000 });
+    await previewButton.click();
+
+    await expect(page.getByText("0 行 · 未执行")).toBeVisible();
+
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    const firstDataCell = page.getByRole("gridcell").first();
+    await expect(firstDataCell).toBeVisible();
+    await firstDataCell.click();
+
+    const relatedButton = page.getByTestId("related-records");
+    await expect(relatedButton).toBeVisible({ timeout: 5_000 });
+
+    const relatedRequest = page.waitForRequest(
+      (req) => req.url().includes("/related-records") && req.method() === "POST",
+      { timeout: 10_000 },
+    );
+
+    await relatedButton.click();
+    await page.getByRole("menuitem", { name: /fk_schema_child_parent/ }).click();
+
+    const request = await relatedRequest;
+    expect(request.url()).toContain("/related-records");
+
+    const relatedPanel = page.getByRole("region", { name: "关联记录" });
+    await expect(relatedPanel).toBeVisible({ timeout: 15_000 });
+    await expect(relatedPanel.getByRole("grid")).toBeVisible();
+
+    const finalEditorContent = await getEditorContent(page);
+    expect(finalEditorContent).toContain("SELECT * FROM");
+    expect(finalEditorContent).not.toContain("P_ALPHA");
+    expect(finalEditorContent).not.toContain("Alpha Parent");
+
+    await page.getByRole("button", { name: "关闭关联记录" }).click();
+    await expect(relatedPanel).toBeHidden();
+    await expect(relatedButton).toBeFocused();
   });
 });

@@ -282,6 +282,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               requestId: crypto.randomUUID(),
               isDirty: false,
               previewProvenance: null,
+              relatedRecords: { status: "idle", generation: ws.relatedRecords.generation + 1 },
             }
           : ws,
       ),
@@ -645,6 +646,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       error: null,
       requestId,
       isDirty: false,
+      relatedRecords: {
+        status: "idle",
+        generation: activeWorksheet.relatedRecords.generation + 1,
+      },
       ...(statementChanged ? { previewProvenance: null } : {}),
     });
 
@@ -675,12 +680,20 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     );
 
     if (result.ok) {
-      // Formatting rewrites SQL and must mark the worksheet dirty so close/
-      // retarget protection covers a format-only edit of the default statement.
+      const statementChanged = result.formatted !== worksheet.statement;
       updateActiveWorksheet({
         statement: result.formatted,
         formatError: null,
         isDirty: true,
+        ...(statementChanged
+          ? {
+              previewProvenance: null,
+              relatedRecords: {
+                status: "idle" as const,
+                generation: worksheet.relatedRecords.generation + 1,
+              },
+            }
+          : {}),
       });
       const view = editorViewRef.current;
       if (view) {
