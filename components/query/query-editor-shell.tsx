@@ -558,8 +558,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
   }
 
+  const activeProvenanceRef = useRef(activeWorksheet.previewProvenance);
+  activeProvenanceRef.current = activeWorksheet.previewProvenance;
+
   function handleRelatedRecordsNavigate(foreignKey: string, localValues: readonly string[]) {
-    const provenance = activeWorksheet.previewProvenance;
+    const provenance = activeProvenanceRef.current;
     if (!provenance) return;
 
     const targetId = activeWorksheet.targetResourceId;
@@ -634,8 +637,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const worksheetId = activeWorksheetId;
     const targetId = activeWorksheet.targetResourceId;
     const requestId = crypto.randomUUID();
+    const provenance = activeWorksheet.previewProvenance;
+    const statementChanged = provenance !== null && activeWorksheet.statement !== provenance.statement;
 
-    updateActiveWorksheet({ isExecuting: true, error: null, requestId, isDirty: false });
+    updateActiveWorksheet({
+      isExecuting: true,
+      error: null,
+      requestId,
+      isDirty: false,
+      ...(statementChanged ? { previewProvenance: null } : {}),
+    });
 
     try {
       const response = await executeQueryTarget(targetId, {
@@ -867,7 +878,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onStatementChange={(value) => updateActiveWorksheet({
                 statement: value,
                 isDirty: true,
-                previewProvenance: null,
               })}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
@@ -1103,6 +1113,7 @@ function ReadyWorksheet({
         <span className="ml-auto text-xs text-muted-foreground">
           {isExecuting ? t("editor.runReady") : t("editor.ready")}
         </span>
+        <span data-testid="provenance-state" data-has-provenance={!!previewProvenance} className="sr-only" />
       </div>
 
       <div className="border-b border-border bg-muted/20 p-3">
@@ -1183,7 +1194,8 @@ function ReadyWorksheet({
                       sourceObject: previewProvenance.table,
                       foreignKeys: previewProvenance.foreignKeys,
                       foreignKeysTruncated: previewProvenance.foreignKeysTruncated,
-                      onNavigate: onRelatedRecordsNavigate,
+                      onNavigate: (foreignKey, localValues) =>
+                        onRelatedRecordsNavigate(foreignKey, localValues),
                     }
                   : undefined
               }
@@ -1550,7 +1562,7 @@ function ResultTable({
               {eligibleFKs.map((fk) => (
                 <DropdownMenuItem
                   key={fk.foreignKey}
-                  onSelect={() => navigationCapability?.onNavigate(fk.foreignKey, fk.localValues)}
+                  onClick={() => navigationCapability?.onNavigate(fk.foreignKey, fk.localValues)}
                 >
                   {t("result.relatedRecordsFor", {
                     foreignKey: fk.foreignKey,

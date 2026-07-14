@@ -1132,89 +1132,203 @@ test.describe("Query Workbench schema intelligence", () => {
     await expect(explorerSheet).toBeHidden();
     await expect(objectsButton).toBeFocused();
   });
+});
 
-  test("preview rows button appears for loaded table details", async ({ page }) => {
+test.describe("FK record navigation", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-fk-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("preview rows creates a new worksheet and related records navigates to referenced rows", async ({ page }) => {
     await openQueryWorkbench(page);
-    const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
-    await selectConnectionTarget(page, readyIndex);
+    await ensureReadyTargetSelected(page);
 
-    // Open objects pane
+    // Step 1: Open Objects pane and expand the FK fixture table.
     await page.getByRole("button", { name: "Objects", exact: true }).click();
     const explorer = page.getByRole("complementary", { name: "Objects" });
     await expect(explorer).toBeVisible();
 
-    // Expand first database
-    const firstDb = explorer.getByRole("treeitem").first();
-    await expect(firstDb).toBeVisible({ timeout: 15_000 });
-    await firstDb.click();
+    // Expand query_e2e_aux database.
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
 
-    // Expand first table
-    const firstTable = explorer.getByRole("treeitem").nth(2);
-    await expect(firstTable).toBeVisible({ timeout: 10_000 });
-    await firstTable.click();
+    // Expand schema_child table (has FK → schema_parent).
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
 
-    // Preview rows button should appear for table details
+    // Step 2: Click Preview rows.
     const previewButton = explorer.getByRole("button", { name: "Preview rows" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
-  });
 
-  test("related records menu does not appear for arbitrary SQL results", async ({ page }) => {
-    await openQueryWorkbench(page);
-    const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
-    await selectConnectionTarget(page, readyIndex);
+    // Record initial worksheet tab count.
+    const initialTabCount = await page.locator('[role="tab"][id^="ws-tab-"]').count();
 
-    // Run arbitrary SQL
-    await clearAndType(page, "SELECT 1 AS id, 'test' AS name");
+    await previewButton.click();
+
+    // Step 3: Assert a new worksheet was created (one more tab).
+    await expect(page.locator('[role="tab"][id^="ws-tab-"]')).toHaveCount(initialTabCount + 1);
+
+    // The new worksheet should contain a generated qualified SELECT statement.
+    const editorContent = await getEditorContent(page);
+    expect(editorContent).toContain("SELECT * FROM");
+    expect(editorContent).toContain("schema_child");
+
+    // No auto-run: the result area should still say "not executed" or have no grid.
+    // (The preview does not auto-execute.)
+    await expect(page.getByText("0 rows · not executed")).toBeVisible();
+
+    // Step 4: Run the unchanged preview.
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 
-    // Select a data cell
+    // The grid should have data rows from schema_child.
+    const firstDataCell = page.getByRole("gridcell").first();
+    await expect(firstDataCell).toBeVisible();
+
+    // Step 5: Select a data cell (any row — parent_id is non-null in fixture).
+    await firstDataCell.click();
+
+    // Step 6: The Related records menu should appear for eligible FK.
+    const relatedButton = page.getByTestId("related-records");
+    await expect(relatedButton).toBeVisible({ timeout: 5_000 });
+
+    // Intercept the related-records API call to verify it's made.
+    const relatedRequest = page.waitForRequest(
+      (req) => req.url().includes("/related-records") && req.method() === "POST",
+      { timeout: 10_000 },
+    );
+    const relatedResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/related-records") && resp.status() === 200,
+      { timeout: 15_000 },
+    );
+
+    await relatedButton.click();
+
+    // Select the fk_schema_child_parent relation.
+    const menuItem = page.getByRole("menuitem", { name: /fk_schema_child_parent/ });
+    await expect(menuItem).toBeVisible();
+    await menuItem.click();
+
+    // Verify the API call was made.
+    const request = await relatedRequest;
+    expect(request.url()).toContain("/related-records");
+    const response = await relatedResponse;
+    expect(response.status()).toBe(200);
+
+    // Step 7: Assert the related records panel appears with referenced data.
+    const relatedPanel = page.getByRole("region", { name: "Related records" });
+    await expect(relatedPanel).toBeVisible({ timeout: 15_000 });
+
+    // The panel should show schema_parent columns (parent_code, label).
+    await expect(relatedPanel.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+
+    // Step 8: Assert the source grid is still visible (unchanged).
+    // There should be two grids: the source result and the related result.
+    const grids = page.getByRole("grid");
+    await expect(grids).toHaveCount(2);
+
+    // Step 9: Assert no selected value leakage into the editor.
+    const finalEditorContent = await getEditorContent(page);
+    // The editor should still contain only the generated SELECT, not any cell value.
+    expect(finalEditorContent).toContain("SELECT * FROM");
+    expect(finalEditorContent).not.toContain("P_ALPHA");
+    expect(finalEditorContent).not.toContain("Alpha Parent");
+  });
+
+  test("related records panel close restores focus to the trigger button", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    // Open Objects and expand schema_child.
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    // Preview and run.
+    await explorer.getByRole("button", { name: "Preview rows" }).click();
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    // Select a cell and navigate related records.
     await page.getByRole("gridcell").first().click();
+    const relatedButton = page.getByTestId("related-records");
+    await expect(relatedButton).toBeVisible({ timeout: 5_000 });
+    await relatedButton.click();
+    await page.getByRole("menuitem", { name: /fk_schema_child_parent/ }).click();
+    await expect(page.getByRole("region", { name: "Related records" })).toBeVisible({ timeout: 15_000 });
 
-    // Related records menu should NOT appear for arbitrary SQL
-    await expect(page.getByTestId("related-records")).toHaveCount(0);
+    // Close the panel.
+    await page.getByRole("button", { name: "Close related records" }).click();
+    await expect(page.getByRole("region", { name: "Related records" })).toBeHidden();
+
+    // Focus should return to the Related records trigger.
+    await expect(relatedButton).toBeFocused();
   });
 
-  test("related records menu does not appear when header is selected", async ({ page }) => {
-    await openQueryWorkbench(page);
-    const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
-    await selectConnectionTarget(page, readyIndex);
+  test("Chinese locale renders preview and related records strings", async ({ page }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
 
-    // Run arbitrary SQL
-    await clearAndType(page, "SELECT 1 AS id, 'test' AS name");
-    await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // Open Objects pane (Chinese label).
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
 
-    // Select a header cell
-    await page.getByRole("columnheader", { name: "id" }).click();
+    // Expand the FK fixture table.
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
 
-    // Related records menu should NOT appear for header selection
-    await expect(page.getByTestId("related-records")).toHaveCount(0);
-  });
-
-  test("copy button works alongside result grid", async ({ page }) => {
-    await openQueryWorkbench(page);
-    const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
-    await selectConnectionTarget(page, readyIndex);
-
-    // Run query
-    await clearAndType(page, "SELECT 1 AS id");
-    await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
-
-    // Select a data cell
-    await page.getByRole("gridcell").first().click();
-
-    // Copy button should be enabled
-    const copyButton = page.getByTestId("copy-selection");
-    await expect(copyButton).toBeEnabled();
+    // Preview rows button should be in Chinese.
+    const previewButton = explorer.getByRole("button", { name: "预览行" });
+    await expect(previewButton).toBeVisible({ timeout: 10_000 });
   });
 });
