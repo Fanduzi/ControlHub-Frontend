@@ -1817,3 +1817,196 @@ test.describe("Object Inspector metadata", () => {
   });
 
 });
+
+test.describe("Table definition inspector", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-def-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop English: Inspector open makes no definition request; View definition shows CREATE TABLE", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    // Track definition requests
+    const definitionRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/table-definition")) {
+        definitionRequests.push(request.url());
+      }
+    });
+
+    // Open Objects pane and expand a database with tables
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    // Expand query_e2e_aux database
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    // Expand schema_child table
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    // Click Inspect
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    // Inspector should open
+    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    // NO definition request should have been made on open
+    expect(definitionRequests).toHaveLength(0);
+
+    // NO execute or related-records request should have been made
+    // (we only track definition here; the console/network guards catch others)
+
+    // Click View definition
+    const viewDefButton = inspector.getByTestId("view-definition-button");
+    await expect(viewDefButton).toBeVisible();
+    await expect(viewDefButton).toHaveText("View definition");
+    await viewDefButton.click();
+
+    // Exactly one definition request should have been made
+    await expect.poll(() => definitionRequests.length, { timeout: 10_000 }).toBe(1);
+
+    // Verify the request URL contains the expected path
+    expect(definitionRequests[0]).toContain("/table-definition");
+    expect(definitionRequests[0]).toContain("database=");
+    expect(definitionRequests[0]).toContain("name=");
+
+    // The CREATE TABLE text should be visible
+    await expect(inspector.getByText(/CREATE TABLE/)).toBeVisible({ timeout: 15_000 });
+
+    // Definition section title should be visible
+    await expect(inspector.getByText("Definition", { exact: true })).toBeVisible();
+  });
+
+  test("375px mobile English: View definition works in bottom sheet Inspector", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    // Open Objects pane
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await expect(objectsButton).toBeVisible();
+    await objectsButton.click();
+
+    const explorer = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(explorer).toBeVisible();
+
+    // Expand database and table
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    // Click Inspect
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    // Mobile Inspector opens as a sheet
+    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    // Click View definition
+    const viewDefButton = inspector.getByTestId("view-definition-button");
+    await expect(viewDefButton).toBeVisible();
+    await viewDefButton.click();
+
+    // CREATE TABLE text should be visible
+    await expect(inspector.getByText(/CREATE TABLE/)).toBeVisible({ timeout: 15_000 });
+
+    // Close via Escape — should not break Sheet behavior
+    await page.keyboard.press("Escape");
+    await expect(inspector).toBeHidden();
+  });
+
+  test("desktop Simplified Chinese: localized definition action and section labels", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    // Open Objects pane
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
+
+    // Expand database and table
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    // Click Inspect (检查)
+    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /检查器/ });
+    await expect(inspector).toBeVisible();
+
+    // Chinese "View definition" (查看定义) button
+    const viewDefButton = inspector.getByTestId("view-definition-button");
+    await expect(viewDefButton).toBeVisible();
+    await expect(viewDefButton).toHaveText("查看定义");
+
+    // Click it
+    await viewDefButton.click();
+
+    // Chinese "Definition" (定义) section title
+    await expect(inspector.getByText("定义", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // CREATE TABLE text should be visible
+    await expect(inspector.getByText(/CREATE TABLE/)).toBeVisible({ timeout: 15_000 });
+  });
+});

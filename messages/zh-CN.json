@@ -1033,7 +1033,17 @@
       "inspectorFkOnUpdate": "更新时",
       "inspectorFkOnDelete": "删除时",
       "inspectorYes": "是",
-      "inspectorNo": "否"
+      "inspectorNo": "否",
+      "viewDefinition": "查看定义",
+      "loadingDefinition": "加载定义中…",
+      "definitionTitle": "定义",
+      "definitionTruncated": "定义可能被截断。",
+      "definitionErrorUnavailable": "该对象不可用定义。",
+      "definitionErrorAccessDenied": "不允许访问目标。",
+      "definitionErrorNotFound": "表已不可用。",
+      "definitionErrorTimeout": "元数据请求超时。",
+      "definitionErrorGeneric": "无法加载定义。",
+      "retryDefinition": "重试"
     },
     "navigator": {
       "title": "快速导航",

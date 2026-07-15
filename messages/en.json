@@ -1033,7 +1033,17 @@
       "inspectorFkOnUpdate": "ON UPDATE",
       "inspectorFkOnDelete": "ON DELETE",
       "inspectorYes": "Yes",
-      "inspectorNo": "No"
+      "inspectorNo": "No",
+      "viewDefinition": "View definition",
+      "loadingDefinition": "Loading definition…",
+      "definitionTitle": "Definition",
+      "definitionTruncated": "Definition may be truncated.",
+      "definitionErrorUnavailable": "Definition unavailable for this object.",
+      "definitionErrorAccessDenied": "Target access is not allowed.",
+      "definitionErrorNotFound": "Table is no longer available.",
+      "definitionErrorTimeout": "Metadata request timed out.",
+      "definitionErrorGeneric": "Definition could not be loaded.",
+      "retryDefinition": "Retry"
     },
     "navigator": {
       "title": "Quick navigator",

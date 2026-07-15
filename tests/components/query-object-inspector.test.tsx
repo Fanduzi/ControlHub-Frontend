@@ -21,17 +21,19 @@ vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn(),
   getSchemaDatabases: vi.fn(),
   getSchemaObjects: vi.fn(),
+  getTableDefinition: vi.fn(),
 }));
 
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
-import { getObjectDetails, getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
+import { getObjectDetails, getSchemaDatabases, getSchemaObjects, getTableDefinition } from "@/services/query-schema";
 import type { ObjectDetailResponse } from "@/types/query-schema";
 import enMessages from "@/messages/en.json";
 
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 const mockGetObjectDetails = vi.mocked(getObjectDetails);
+const mockGetTableDefinition = vi.mocked(getTableDefinition);
 
 function buildDetail(overrides: Partial<ObjectDetailResponse> = {}): ObjectDetailResponse {
   return {
@@ -354,5 +356,261 @@ describe("QueryObjectInspector", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
     expect(newInspectButton).toHaveFocus();
+  });
+
+  // --- Table definition tests ---
+
+  it("renders View definition button for table but makes no definition request until clicked", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    expect(viewDefButton).toBeVisible();
+    expect(viewDefButton).toHaveTextContent("View definition");
+
+    // No definition request should have been made on open
+    expect(mockGetTableDefinition).not.toHaveBeenCalled();
+  });
+
+  it("clicking View definition fetches and renders the CREATE TABLE text", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(255)\n);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    expect(mockGetTableDefinition).toHaveBeenCalledTimes(1);
+    expect(mockGetTableDefinition).toHaveBeenCalledWith(1, {
+      database: "test_db",
+      name: "test_table",
+      signal: expect.any(AbortSignal),
+    });
+
+    // Definition text should be rendered in a pre element
+    await waitFor(() => {
+      expect(screen.getByText(/CREATE TABLE test_table/)).toBeVisible();
+    });
+    expect(screen.getByText(/id INT PRIMARY KEY AUTO_INCREMENT/)).toBeVisible();
+  });
+
+  it("view Inspector renders no definition action and sends no definition request", async () => {
+    const viewDetail = buildDetail({
+      kind: "view",
+      name: "test_view",
+    });
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_view",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE VIEW test_view AS SELECT 1;",
+      truncated: false,
+    });
+
+    await openInspector(viewDetail);
+
+    expect(screen.queryByTestId("view-definition-button")).not.toBeInTheDocument();
+    expect(mockGetTableDefinition).not.toHaveBeenCalled();
+  });
+
+  it("loading state disables the button and shows loading text", async () => {
+    // Create a deferred promise that we control
+    let resolveDefinition!: (value: unknown) => void;
+    const definitionPromise = new Promise((resolve) => {
+      resolveDefinition = resolve;
+    });
+    mockGetTableDefinition.mockReturnValue(definitionPromise as ReturnType<typeof getTableDefinition>);
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    // Button should be disabled and show loading text
+    expect(viewDefButton).toBeDisabled();
+    expect(viewDefButton).toHaveTextContent("Loading definition…");
+
+    // Resolve to clean up
+    resolveDefinition({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+  });
+
+  it("truncated response renders the truncation warning", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: true,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Definition may be truncated.")).toBeVisible();
+    });
+  });
+
+  it("controlled error shows localized message and Retry makes a second request", async () => {
+    mockGetTableDefinition.mockRejectedValueOnce(Object.assign(new Error("Not Found"), { status: 404 }));
+    mockGetTableDefinition.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    // Should show localized error message (not raw error)
+    await waitFor(() => {
+      expect(screen.getByText("Table is no longer available.")).toBeVisible();
+    });
+
+    // Should NOT show any raw error markers
+    expect(screen.queryByText(/Not Found/)).not.toBeInTheDocument();
+
+    // Click Retry
+    const retryButton = screen.getByRole("button", { name: "Retry" });
+    await user.click(retryButton);
+
+    // Should make a second request
+    await waitFor(() => {
+      expect(mockGetTableDefinition).toHaveBeenCalledTimes(2);
+    });
+
+    // Should show the definition after retry
+    await waitFor(() => {
+      expect(screen.getByText(/CREATE TABLE test_table/)).toBeVisible();
+    });
+  });
+
+  it("close or rerender with different target does not render stale definition", async () => {
+    // Create a deferred promise
+    let resolveDefinition!: (value: unknown) => void;
+    const definitionPromise = new Promise((resolve) => {
+      resolveDefinition = resolve;
+    });
+    mockGetTableDefinition.mockReturnValue(definitionPromise as ReturnType<typeof getTableDefinition>);
+
+    mockGetSchemaDatabases.mockResolvedValueOnce({
+      targetResourceId: 1,
+      defaultDatabase: "test_db",
+      items: [{ name: "test_db", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    }).mockResolvedValueOnce({
+      targetResourceId: 2,
+      defaultDatabase: "other_db",
+      items: [{ name: "other_db", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      items: [{ database: "test_db", name: "test_table", kind: "table" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetObjectDetails.mockResolvedValue(buildDetail());
+
+    const { rerenderWithTarget } = renderExplorer(1);
+    const user = userEvent.setup();
+
+    const dbButton = await screen.findByRole("button", { name: "test_db" });
+    await user.click(dbButton);
+    const tableButton = await screen.findByRole("button", { name: "test_table" });
+    await user.click(tableButton);
+    const inspectButton = await screen.findByRole("button", { name: "Inspect" });
+    await user.click(inspectButton);
+
+    // Start definition request
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    // Switch target while request is pending
+    rerenderWithTarget(2);
+
+    // Now resolve the old request
+    resolveDefinition({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    // Wait for the new target to load
+    await screen.findByRole("button", { name: "other_db" });
+
+    // The old definition must NOT appear under the new target
+    expect(screen.queryByText(/CREATE TABLE test_table/)).not.toBeInTheDocument();
+  });
+
+  it("Escape and close-button focus restoration still works after definition request", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    // Make a definition request
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    // Wait for definition to load
+    await waitFor(() => {
+      expect(screen.getByText(/CREATE TABLE test_table/)).toBeVisible();
+    });
+
+    // Close via Escape
+    await user.keyboard("{Escape}");
+
+    // Inspector should close and focus should return to Inspect button
+    expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
   });
 });

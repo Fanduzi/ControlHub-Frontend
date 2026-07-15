@@ -14,6 +14,7 @@ import {
   getSchemaObjects,
   getObjectDetails,
   normalizeObjectDetail,
+  getTableDefinition,
 } from "@/services/query-schema";
 
 const mockApiClient = vi.mocked(apiClient);
@@ -264,5 +265,120 @@ describe("normalizeObjectDetail", () => {
 
     const result = normalizeObjectDetail(raw);
     expect(result.columns).toEqual(columns);
+  });
+});
+
+describe("getTableDefinition", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls GET /query-targets/{id}/schema/table-definition with exact URL", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE users (id INT PRIMARY KEY);",
+      truncated: false,
+    });
+
+    await getTableDefinition(1, { database: "mydb", name: "users" });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/table-definition?database=mydb&name=users",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
+  it("encodes special characters in database and name params", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "my db",
+      name: "user@table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE `user@table` (id INT);",
+      truncated: false,
+    });
+
+    await getTableDefinition(1, { database: "my db", name: "user@table" });
+
+    const callPath = mockApiClient.mock.calls[0]?.[0] as string;
+    expect(callPath).toContain("database=my+db");
+    expect(callPath).toContain("name=user%40table");
+  });
+
+  it("forwards AbortSignal to apiClient", async () => {
+    const controller = new AbortController();
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE users (id INT);",
+      truncated: false,
+    });
+
+    await getTableDefinition(1, { database: "mydb", name: "users", signal: controller.signal });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
+  it("passes through response unchanged", async () => {
+    const response = {
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table" as const,
+      dialect: "mysql" as const,
+      definition: "CREATE TABLE users (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(255)\n);",
+      truncated: true,
+    };
+    mockApiClient.mockResolvedValueOnce(response);
+
+    const result = await getTableDefinition(1, { database: "mydb", name: "users" });
+
+    expect(result).toEqual(response);
+  });
+
+  it("never sends SQL, DSN, password, username, credential, or actorUserId fields", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE users (id INT);",
+      truncated: false,
+    });
+
+    await getTableDefinition(1, { database: "mydb", name: "users" });
+
+    const callArgs = mockApiClient.mock.calls[0];
+    expect(callArgs).toBeDefined();
+
+    const path = callArgs?.[0] as string;
+    expect(path).not.toContain("sql");
+    expect(path).not.toContain("dsn");
+    expect(path).not.toContain("password");
+    expect(path).not.toContain("username");
+    expect(path).not.toContain("credential");
+    expect(path).not.toContain("actorUserId");
+
+    const options = callArgs?.[1] as Record<string, unknown> | undefined;
+    if (options) {
+      expect(options).not.toHaveProperty("sql");
+      expect(options).not.toHaveProperty("dsn");
+      expect(options).not.toHaveProperty("password");
+      expect(options).not.toHaveProperty("username");
+      expect(options).not.toHaveProperty("credential");
+      expect(options).not.toHaveProperty("actorUserId");
+    }
   });
 });

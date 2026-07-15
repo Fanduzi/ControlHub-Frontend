@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { getTableDefinition } from "@/services/query-schema";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import type {
   ForeignKeyDetail,
   IndexDetail,
   ObjectDetailResponse,
+  TableDefinitionResponse,
 } from "@/types/query-schema";
 
 function subscribe(query: string, callback: () => void): () => void {
@@ -46,6 +48,7 @@ type QueryObjectInspectorProps = {
   readonly onClose: () => void;
   readonly detail: ObjectDetailResponse;
   readonly triggerElement: HTMLButtonElement | null;
+  readonly targetId: number;
 };
 
 /* ------------------------------------------------------------------ */
@@ -257,15 +260,101 @@ function BooleanBadge({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Definition state                                                   */
+/* ------------------------------------------------------------------ */
+
+type DefinitionState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "ready"; readonly response: TableDefinitionResponse }
+  | { readonly status: "error"; readonly code: number };
+
+function mapDefinitionError(status: number, t: (key: string) => string): string {
+  switch (status) {
+    case 400:
+      return t("schema.definitionErrorUnavailable");
+    case 403:
+      return t("schema.definitionErrorAccessDenied");
+    case 404:
+      return t("schema.definitionErrorNotFound");
+    case 408:
+      return t("schema.definitionErrorTimeout");
+    default:
+      return t("schema.definitionErrorGeneric");
+  }
+}
+
+/* ---------- Definition section ---------- */
+
+function DefinitionSection({
+  state,
+  t,
+  onRetry,
+}: {
+  readonly state: DefinitionState;
+  readonly t: (key: string) => string;
+  readonly onRetry: () => void;
+}) {
+  if (state.status === "idle") {
+    return null;
+  }
+
+  if (state.status === "loading") {
+    return (
+      <section aria-label={t("schema.definitionTitle")}>
+        <h3 className="mb-2 text-sm font-medium text-foreground">
+          {t("schema.definitionTitle")}
+        </h3>
+        <p className="text-xs text-muted-foreground">{t("schema.loadingDefinition")}</p>
+      </section>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <section aria-label={t("schema.definitionTitle")}>
+        <h3 className="mb-2 text-sm font-medium text-foreground">
+          {t("schema.definitionTitle")}
+        </h3>
+        <div className="space-y-2">
+          <p className="text-xs text-destructive">{mapDefinitionError(state.code, t)}</p>
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            {t("schema.retryDefinition")}
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label={t("schema.definitionTitle")}>
+      <h3 className="mb-2 text-sm font-medium text-foreground">
+        {t("schema.definitionTitle")}
+      </h3>
+      <div className="overflow-x-auto rounded border border-border bg-muted/30 p-3">
+        <pre className="whitespace-pre text-xs text-foreground">{state.response.definition}</pre>
+      </div>
+      {state.response.truncated && (
+        <TruncatedNotice message={t("schema.definitionTruncated")} />
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Shared inspector body                                              */
 /* ------------------------------------------------------------------ */
 
 function InspectorBody({
   detail,
+  definitionState,
   t,
+  onRetryDefinition,
 }: {
   readonly detail: ObjectDetailResponse;
+  readonly definitionState: DefinitionState;
   readonly t: (key: string) => string;
+  readonly onRetryDefinition: () => void;
 }) {
   return (
     <div className="space-y-6 py-2">
@@ -284,6 +373,11 @@ function InspectorBody({
         truncated={detail.truncated.foreignKeys}
         t={t}
       />
+      <DefinitionSection
+        state={definitionState}
+        t={t}
+        onRetry={onRetryDefinition}
+      />
     </div>
   );
 }
@@ -297,29 +391,80 @@ export function QueryObjectInspector({
   onClose,
   detail,
   triggerElement,
+  targetId,
 }: QueryObjectInspectorProps) {
   const t = useTranslations("queryWorkbench");
   const isMobile = useMediaQuery("(max-width: 767px)");
   const triggerRef = useRef<HTMLButtonElement | null>(triggerElement);
+  const [definitionState, setDefinitionState] = useState<DefinitionState>({ status: "idle" });
+  const definitionGeneration = useRef(0);
+  const definitionControllerRef = useRef<AbortController | null>(null);
 
   // Keep ref in sync with the element
   useEffect(() => {
     triggerRef.current = triggerElement;
   }, [triggerElement]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      definitionControllerRef.current?.abort();
+    };
+  }, []);
+
   const title = useMemo(
     () => t("schema.inspectorTitle", { name: detail.name }),
     [t, detail.name],
   );
 
+  const handleViewDefinition = useCallback(() => {
+    const generation = definitionGeneration.current + 1;
+    definitionGeneration.current = generation;
+
+    definitionControllerRef.current?.abort();
+    const controller = new AbortController();
+    definitionControllerRef.current = controller;
+
+    setDefinitionState({ status: "loading" });
+
+    void getTableDefinition(targetId, {
+      database: detail.database,
+      name: detail.name,
+      signal: controller.signal,
+    }).then(
+      (response) => {
+        if (!controller.signal.aborted && generation === definitionGeneration.current) {
+          setDefinitionState({ status: "ready", response });
+        }
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted && generation === definitionGeneration.current) {
+          const status = error instanceof Error && "status" in error
+            ? (error as { status: number }).status
+            : 502;
+          setDefinitionState({ status: "error", code: status });
+        }
+      },
+    );
+  }, [targetId, detail.database, detail.name]);
+
+  const handleRetryDefinition = useCallback(() => {
+    handleViewDefinition();
+  }, [handleViewDefinition]);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
+        definitionControllerRef.current?.abort();
+        definitionControllerRef.current = null;
+        setDefinitionState({ status: "idle" });
         onClose();
       }
     },
     [onClose],
   );
+
+  const isTable = detail.kind === "table";
 
   if (isMobile) {
     return (
@@ -343,7 +488,28 @@ export function QueryObjectInspector({
             </Button>
           </SheetHeader>
           <div className="min-w-0 px-4 pb-4">
-            <InspectorBody detail={detail} t={t} />
+            {isTable && (
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewDefinition}
+                  disabled={definitionState.status === "loading"}
+                  data-testid="view-definition-button"
+                >
+                  {definitionState.status === "loading"
+                    ? t("schema.loadingDefinition")
+                    : t("schema.viewDefinition")}
+                </Button>
+              </div>
+            )}
+            <InspectorBody
+              detail={detail}
+              definitionState={definitionState}
+              t={t}
+              onRetryDefinition={handleRetryDefinition}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -368,7 +534,28 @@ export function QueryObjectInspector({
             <span aria-hidden>×</span>
           </Button>
         </DialogHeader>
-        <InspectorBody detail={detail} t={t} />
+        {isTable && (
+          <div className="mb-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleViewDefinition}
+              disabled={definitionState.status === "loading"}
+              data-testid="view-definition-button"
+            >
+              {definitionState.status === "loading"
+                ? t("schema.loadingDefinition")
+                : t("schema.viewDefinition")}
+            </Button>
+          </div>
+        )}
+        <InspectorBody
+          detail={detail}
+          definitionState={definitionState}
+          t={t}
+          onRetryDefinition={handleRetryDefinition}
+        />
       </DialogContent>
     </Dialog>
   );

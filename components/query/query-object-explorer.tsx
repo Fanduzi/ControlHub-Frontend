@@ -217,10 +217,12 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       }} />
       {inspectorDetail && (
         <QueryObjectInspector
+          key={`${targetId}-${inspectorDetail.database}-${inspectorDetail.name}-${inspectorDetail.kind}`}
           open={inspectorKey !== null}
           onClose={closeInspector}
           detail={inspectorDetail}
           triggerElement={inspectTriggerElement}
+          targetId={targetId}
         />
       )}
     </>

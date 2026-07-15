@@ -111,3 +111,21 @@ export type SchemaObjectDetailParams = {
   readonly kind?: ObjectKind;
   readonly signal?: AbortSignal;
 };
+
+/** Response envelope for `GET /query-targets/{id}/schema/table-definition`. */
+export type TableDefinitionResponse = {
+  readonly targetResourceId: number;
+  readonly database: string;
+  readonly name: string;
+  readonly kind: "table";
+  readonly dialect: "mysql";
+  readonly definition: string;
+  readonly truncated: boolean;
+};
+
+/** Query parameters for table definition. */
+export type TableDefinitionParams = {
+  readonly database: string;
+  readonly name: string;
+  readonly signal?: AbortSignal;
+};

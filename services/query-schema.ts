@@ -6,6 +6,8 @@ import type {
   SchemaDatabaseListParams,
   SchemaObjectDetailParams,
   SchemaObjectListParams,
+  TableDefinitionParams,
+  TableDefinitionResponse,
 } from "@/types/query-schema";
 
 /**
@@ -49,6 +51,26 @@ export async function getObjectDetails(
   const path = buildObjectDetailsPath(targetId, params);
   const raw = await apiClient<ObjectDetailResponse>(path, { signal: params.signal });
   return normalizeObjectDetail(raw);
+}
+
+/**
+ * Fetch the CREATE TABLE definition for a specific table.
+ *
+ * @param targetId - The query target resource ID
+ * @param params - Required database and name, optional abort signal
+ */
+export async function getTableDefinition(
+  targetId: number,
+  params: TableDefinitionParams,
+): Promise<TableDefinitionResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("database", params.database);
+  searchParams.set("name", params.name);
+
+  return apiClient<TableDefinitionResponse>(
+    `/query-targets/${targetId}/schema/table-definition?${searchParams.toString()}`,
+    { signal: params.signal },
+  );
 }
 
 /** Coerce wire null/undefined collections to empty arrays for safe rendering. */
