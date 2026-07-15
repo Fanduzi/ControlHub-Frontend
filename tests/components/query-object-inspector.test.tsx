@@ -261,11 +261,16 @@ describe("QueryObjectInspector", () => {
     expect(cells[2]).toHaveTextContent("m_col");
   });
 
-  it("safe close when trigger button is unmounted by target change", async () => {
-    mockGetSchemaDatabases.mockResolvedValue({
+  it("targetId rerender while Inspector open: closes Inspector, unmounts old trigger, clears old metadata", async () => {
+    mockGetSchemaDatabases.mockResolvedValueOnce({
       targetResourceId: 1,
       defaultDatabase: "test_db",
       items: [{ name: "test_db", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    }).mockResolvedValueOnce({
+      targetResourceId: 2,
+      defaultDatabase: "other_db",
+      items: [{ name: "other_db", isDefault: true }],
       pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
     });
     mockGetSchemaObjects.mockResolvedValue({
@@ -291,11 +296,10 @@ describe("QueryObjectInspector", () => {
 
     expect(screen.getByText("test_table — Inspector")).toBeVisible();
 
-    // Capture reference to the trigger button before target change
     const triggerButton = screen.getByTestId("inspect-button");
 
-    // Change target — this triggers the target-change effect which must
-    // clear inspectorKey, inspectorDetail, AND inspectTriggerElement
+    // Trigger: rerender with new targetId
+    // State under test: inspectorKey, inspectorDetail, inspectTriggerElement
     rerenderWithTarget(2);
 
     // Inspector must close
@@ -306,29 +310,49 @@ describe("QueryObjectInspector", () => {
     // No console errors during the close
     expect(consoleSpy).not.toHaveBeenCalled();
 
-    // The old trigger button is no longer connected (unmounted by tree re-render)
+    // Old trigger button is no longer connected (unmounted by tree re-render)
     expect(triggerButton.isConnected).toBe(false);
+
+    // New target's database loads; old object metadata does not leak
+    const newDbButton = await screen.findByRole("button", { name: "other_db" });
+    expect(newDbButton).toBeVisible();
+    expect(screen.queryByText("test_db")).not.toBeInTheDocument();
+    expect(screen.queryByText("test_table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inspect")).not.toBeInTheDocument();
 
     consoleSpy.mockRestore();
   });
 
-  it("object collapse closes Inspector and clears trigger element", async () => {
+  it("object collapse while Inspector open: closes, re-expand shows new Inspect, full reopen cycle proves no stale trigger", async () => {
     const { user } = await openInspector();
 
     expect(screen.getByText("test_table — Inspector")).toBeVisible();
 
-    // Collapse the object by clicking the treeitem button that contains "test_table"
+    // Trigger: collapse the object while Inspector is open
+    // State under test: inspectorKey, inspectorDetail, inspectTriggerElement
     const tableSpan = screen.getByText("test_table");
     const tableButton = tableSpan.closest("button")!;
     await user.click(tableButton);
 
+    // Inspector must close
     await waitFor(() => {
       expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
     });
 
-    // Re-expand the object — the Inspect button should reappear
+    // Re-expand the object
     await user.click(tableButton);
+
+    // New Inspect button must appear (old trigger state was cleared)
     const newInspectButton = await screen.findByRole("button", { name: "Inspect" });
     expect(newInspectButton).toBeVisible();
+
+    // Click new Inspect — must successfully reopen the Inspector
+    await user.click(newInspectButton);
+    expect(screen.getByText("test_table — Inspector")).toBeVisible();
+
+    // Close via Escape — focus must return to the NEW Inspect button, not a stale reference
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+    expect(newInspectButton).toHaveFocus();
   });
 });
