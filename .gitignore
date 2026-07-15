@@ -59,6 +59,9 @@ next-env.d.ts
 /.claude/
 .superpowers/
 
+# Local advisor handoff plans
+advisor-plans/
+
 # E2E failure screenshots (Playwright root-level artifacts)
 query-*.png
 query-*/
