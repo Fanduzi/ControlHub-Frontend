@@ -57,6 +57,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       setLoadingDetails(new Set());
       setInspectorKey(null);
       setInspectorDetail(null);
+      setInspectTriggerElement(null);
     });
     void getSchemaDatabases(targetId, { page: 1, pageSize: PAGE_SIZE, signal: controller.signal }).then(
       (response) => { if (!controller.signal.aborted && requestGeneration === generation.current) setDatabases(response.items.map((database) => database.name)); },
@@ -83,6 +84,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     if (inspectorKey === key) {
       setInspectorKey(null);
       setInspectorDetail(null);
+      setInspectTriggerElement(null);
     }
     const storeKey = { targetId, database: object.database, kind: object.kind, name: object.name };
     const requestGeneration = generation.current;
@@ -123,6 +125,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     if (!next.has(key) && inspectorKey === key) {
       setInspectorKey(null);
       setInspectorDetail(null);
+      setInspectTriggerElement(null);
     }
     if (next.has(key) && !details.has(key)) {
       loadObjectDetail(object);

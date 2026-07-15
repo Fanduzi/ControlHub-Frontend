@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -65,17 +65,28 @@ function buildDetail(overrides: Partial<ObjectDetailResponse> = {}): ObjectDetai
 
 function renderExplorer(targetId = 1) {
   const onPreviewRequest = vi.fn();
+  const result = render(
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <QueryObjectExplorer
+        targetId={targetId}
+        store={new QuerySchemaStore()}
+        onPreviewRequest={onPreviewRequest}
+      />
+    </NextIntlClientProvider>,
+  );
   return {
     onPreviewRequest,
-    ...render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryObjectExplorer
-          targetId={targetId}
-          store={new QuerySchemaStore()}
-          onPreviewRequest={onPreviewRequest}
-        />
-      </NextIntlClientProvider>,
-    ),
+    ...result,
+    rerenderWithTarget: (newTargetId: number) =>
+      result.rerender(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <QueryObjectExplorer
+            targetId={newTargetId}
+            store={new QuerySchemaStore()}
+            onPreviewRequest={onPreviewRequest}
+          />
+        </NextIntlClientProvider>,
+      ),
   };
 }
 
@@ -248,5 +259,76 @@ describe("QueryObjectInspector", () => {
     expect(cells[0]).toHaveTextContent("z_col");
     expect(cells[1]).toHaveTextContent("a_col");
     expect(cells[2]).toHaveTextContent("m_col");
+  });
+
+  it("safe close when trigger button is unmounted by target change", async () => {
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1,
+      defaultDatabase: "test_db",
+      items: [{ name: "test_db", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      items: [{ database: "test_db", name: "test_table", kind: "table" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetObjectDetails.mockResolvedValue(buildDetail());
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerenderWithTarget } = renderExplorer(1);
+
+    const user = userEvent.setup();
+    const dbButton = await screen.findByRole("button", { name: "test_db" });
+    await user.click(dbButton);
+
+    const tableButton = await screen.findByRole("button", { name: "test_table" });
+    await user.click(tableButton);
+
+    const inspectButton = await screen.findByRole("button", { name: "Inspect" });
+    await user.click(inspectButton);
+
+    expect(screen.getByText("test_table — Inspector")).toBeVisible();
+
+    // Capture reference to the trigger button before target change
+    const triggerButton = screen.getByTestId("inspect-button");
+
+    // Change target — this triggers the target-change effect which must
+    // clear inspectorKey, inspectorDetail, AND inspectTriggerElement
+    rerenderWithTarget(2);
+
+    // Inspector must close
+    await waitFor(() => {
+      expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+    });
+
+    // No console errors during the close
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    // The old trigger button is no longer connected (unmounted by tree re-render)
+    expect(triggerButton.isConnected).toBe(false);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("object collapse closes Inspector and clears trigger element", async () => {
+    const { user } = await openInspector();
+
+    expect(screen.getByText("test_table — Inspector")).toBeVisible();
+
+    // Collapse the object by clicking the treeitem button that contains "test_table"
+    const tableSpan = screen.getByText("test_table");
+    const tableButton = tableSpan.closest("button")!;
+    await user.click(tableButton);
+
+    await waitFor(() => {
+      expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+    });
+
+    // Re-expand the object — the Inspect button should reappear
+    await user.click(tableButton);
+    const newInspectButton = await screen.findByRole("button", { name: "Inspect" });
+    expect(newInspectButton).toBeVisible();
   });
 });
