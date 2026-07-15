@@ -39,7 +39,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const generation = useRef(0);
   const [inspectorKey, setInspectorKey] = useState<string | null>(null);
   const [inspectorDetail, setInspectorDetail] = useState<ObjectDetailResponse | null>(null);
-  const inspectTriggerRef = useRef<HTMLButtonElement>(null);
+  const [inspectTriggerElement, setInspectTriggerElement] = useState<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,9 +130,18 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   }
 
   const closeInspector = useCallback(() => {
+    // Capture the trigger element before cleanup
+    const trigger = inspectTriggerElement;
     setInspectorKey(null);
     setInspectorDetail(null);
-  }, []);
+    setInspectTriggerElement(null);
+    // Restore focus after animation completes
+    requestAnimationFrame(() => {
+      if (trigger && trigger.isConnected) {
+        trigger.focus();
+      }
+    });
+  }, [inspectTriggerElement]);
 
   if (loadingDatabases) return <p className="p-4 text-sm text-muted-foreground">{t("schema.loading")}</p>;
   if (error) return <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={() => { generation.current++; setLoadingDatabases(true); }}>{t("schema.retry")}</Button></div>;
@@ -166,14 +175,13 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             <p>{t("schema.detailForeignKeys", { count: foreignKeys.length })}</p>
             <div className="flex gap-2">
               <Button
-                ref={inspectTriggerRef}
                 type="button"
                 variant="outline"
                 size="sm"
                 className="mt-1"
                 data-testid="inspect-button"
                 onClick={(e) => {
-                  inspectTriggerRef.current = e.currentTarget;
+                  setInspectTriggerElement(e.currentTarget);
                   setInspectorKey(objectKey);
                   setInspectorDetail(state.detail);
                 }}
@@ -209,7 +217,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
           open={inspectorKey !== null}
           onClose={closeInspector}
           detail={inspectorDetail}
-          triggerRef={inspectTriggerRef}
+          triggerElement={inspectTriggerElement}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ type QueryObjectInspectorProps = {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly detail: ObjectDetailResponse;
-  readonly triggerRef: RefObject<HTMLButtonElement | null>;
+  readonly triggerElement: HTMLButtonElement | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -296,10 +296,16 @@ export function QueryObjectInspector({
   open,
   onClose,
   detail,
-  triggerRef,
+  triggerElement,
 }: QueryObjectInspectorProps) {
   const t = useTranslations("queryWorkbench");
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const triggerRef = useRef<HTMLButtonElement | null>(triggerElement);
+
+  // Keep ref in sync with the element
+  useEffect(() => {
+    triggerRef.current = triggerElement;
+  }, [triggerElement]);
 
   const title = useMemo(
     () => t("schema.inspectorTitle", { name: detail.name }),
@@ -310,16 +316,9 @@ export function QueryObjectInspector({
     (nextOpen: boolean) => {
       if (!nextOpen) {
         onClose();
-        // Restore focus to trigger after close animation
-        requestAnimationFrame(() => {
-          const trigger = triggerRef.current;
-          if (trigger && trigger.isConnected) {
-            trigger.focus();
-          }
-        });
       }
     },
-    [onClose, triggerRef],
+    [onClose],
   );
 
   if (isMobile) {
