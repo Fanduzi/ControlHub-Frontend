@@ -1043,7 +1043,17 @@
       "definitionErrorNotFound": "Table is no longer available.",
       "definitionErrorTimeout": "Metadata request timed out.",
       "definitionErrorGeneric": "Definition could not be loaded.",
-      "retryDefinition": "Retry"
+      "retryDefinition": "Retry",
+      "searchObjectsLabel": "Search objects in {database}",
+      "searchObjectsPlaceholder": "Search tables and views…",
+      "searchObjects": "Search",
+      "clearObjectSearch": "Clear",
+      "loadMoreDatabases": "Load more databases",
+      "loadMoreObjects": "Load more objects",
+      "loadingObjects": "Loading objects…",
+      "objectsLoadError": "Unable to load objects.",
+      "retryObjects": "Retry",
+      "noObjects": "No objects found."
     },
     "navigator": {
       "title": "Quick navigator",

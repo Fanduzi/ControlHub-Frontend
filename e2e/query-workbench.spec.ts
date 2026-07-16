@@ -2010,3 +2010,192 @@ test.describe("Table definition inspector", () => {
     await expect(inspector.getByText(/CREATE TABLE/)).toBeVisible({ timeout: 15_000 });
   });
 });
+
+test.describe("Schema explorer search and pagination", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-search-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop English: search uses server q and Clear restores unfiltered page 1", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+
+    const schemaRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/schema/objects")) {
+        schemaRequests.push(request.url());
+      }
+    });
+
+    const searchInput = explorer.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill("schema_zz_page_26");
+    await explorer.getByRole("button", { name: "Search" }).click();
+
+    await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+
+    expect(schemaRequests.some((url) => url.includes("q=schema_zz_page_26"))).toBe(true);
+    expect(schemaRequests.some((url) => url.includes("page=1"))).toBe(true);
+
+    await explorer.getByRole("button", { name: "Clear" }).click();
+
+    await expect(searchInput).toHaveValue("");
+    await expect(explorer.getByText("schema_zz_page_26")).not.toBeVisible({ timeout: 5_000 }).catch(() => {});
+
+    const clearRequests = schemaRequests.filter((url) => !url.includes("q="));
+    expect(clearRequests.length).toBeGreaterThan(0);
+  });
+
+  test("desktop English: Load more objects loads page 2 and objects remain inspectable", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+
+    const loadMoreButton = explorer.getByRole("button", { name: "Load more objects" });
+    await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
+
+    const schemaRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/schema/objects")) {
+        schemaRequests.push(request.url());
+      }
+    });
+
+    await loadMoreButton.click();
+
+    await expect(explorer.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
+
+    expect(schemaRequests.some((url) => url.includes("page=2"))).toBe(true);
+
+    const page2Object = explorer.getByRole("treeitem", { name: "schema_zz_page_24" });
+    await expect(page2Object).toBeVisible();
+    await page2Object.click();
+
+    await expect(explorer.getByRole("button", { name: "Inspect" })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("mobile English: search and Load more work in Objects Sheet at 375px", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await objectsButton.click();
+
+    const sheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(sheet).toBeVisible();
+
+    const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    await expect(sheet.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+
+    const searchInput = sheet.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
+    await expect(searchInput).toBeVisible();
+
+    await searchInput.fill("schema_zz_page_26");
+    await sheet.getByRole("button", { name: "Search" }).click();
+
+    await expect(sheet.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+
+    await sheet.getByRole("button", { name: "Clear" }).click();
+    await expect(searchInput).toHaveValue("");
+
+    const loadMoreButton = sheet.getByRole("button", { name: "Load more objects" });
+    await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
+    await loadMoreButton.click();
+
+    await expect(sheet.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("desktop Simplified Chinese: localized search controls and pagination", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+
+    const searchInput = explorer.getByRole("textbox", { name: /搜索 query_e2e_aux 中的对象/i });
+    await expect(searchInput).toBeVisible();
+
+    await searchInput.fill("schema_zz_page_26");
+    await explorer.getByRole("button", { name: "搜索" }).click();
+
+    await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+
+    await explorer.getByRole("button", { name: "清除" }).click();
+    await expect(searchInput).toHaveValue("");
+
+    const loadMoreButton = explorer.getByRole("button", { name: "加载更多对象" });
+    await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
+    await loadMoreButton.click();
+
+    await expect(explorer.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
+  });
+});

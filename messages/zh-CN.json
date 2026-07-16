@@ -1043,7 +1043,17 @@
       "definitionErrorNotFound": "表已不可用。",
       "definitionErrorTimeout": "元数据请求超时。",
       "definitionErrorGeneric": "无法加载定义。",
-      "retryDefinition": "重试"
+      "retryDefinition": "重试",
+      "searchObjectsLabel": "搜索 {database} 中的对象",
+      "searchObjectsPlaceholder": "搜索表和视图…",
+      "searchObjects": "搜索",
+      "clearObjectSearch": "清除",
+      "loadMoreDatabases": "加载更多数据库",
+      "loadMoreObjects": "加载更多对象",
+      "loadingObjects": "加载对象中…",
+      "objectsLoadError": "无法加载对象。",
+      "retryObjects": "重试",
+      "noObjects": "未找到对象。"
     },
     "navigator": {
       "title": "快速导航",
