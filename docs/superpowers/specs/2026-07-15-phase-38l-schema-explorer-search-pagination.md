@@ -2,10 +2,8 @@
 
 ## Status
 
-Draft. This delivery extends the existing governed schema browser after Phase
-38K's Object Inspector and table-definition work. It consumes existing schema
-list pagination and object-name search contracts; it does not change backend
-APIs, query execution, or credentials.
+In progress. Implementation complete; E2E blocked by pre-existing connection
+dialog timing issue (fails on baseline `ea6062a` too).
 
 ## Problem
 
