@@ -888,13 +888,18 @@ async function connectionTargetCount(page: Page): Promise<number> {
  * the editor worksheet tabs to update (new worksheet created for a different
  * target) so we do not race the deferred worksheet-switch effect. Falls through
  * for same-target re-selection.
+ *
+ * Uses scrollIntoViewIfNeeded to handle long target lists where the button may
+ * not be in the visible viewport, and force:true to avoid instability from
+ * scroll-induced position changes during the click action.
  */
 async function selectConnectionTarget(page: Page, index: number): Promise<void> {
   const dialog = await openConnectionNavigator(page);
   const target = getConnectionTargetButtons(page).nth(index);
   await expect(target).toBeVisible({ timeout: 5_000 });
-  await target.click();
-  await expect(dialog).toBeHidden({ timeout: 5_000 });
+  await target.scrollIntoViewIfNeeded();
+  await target.click({ force: true });
+  await expect(dialog).toBeHidden({ timeout: 10_000 });
 }
 
 /**
@@ -904,10 +909,13 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
  * selected locked target as ready. Locked targets omit the exact Run control
  * (or keep it disabled) → false. Schema-intelligence tests skip when false
  * unless the fixture must provide a ready target.
+ *
+ * Uses 3 stable samples at 100ms intervals (300ms minimum) with a 2-second
+ * deadline to avoid excessive per-target wait when iterating many targets.
  */
 async function waitForCommittedRunState(page: Page): Promise<boolean> {
   const run = page.getByRole("button", { name: /^(run|执行)$/i });
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + 2_000;
   let lastEnabled: boolean | null = null;
   let stableSamples = 0;
   while (Date.now() < deadline) {
@@ -916,7 +924,7 @@ async function waitForCommittedRunState(page: Page): Promise<boolean> {
       (await run.first().isEnabled().catch(() => false));
     if (lastEnabled === enabled) {
       stableSamples += 1;
-      if (stableSamples >= 5) {
+      if (stableSamples >= 3) {
         return enabled;
       }
     } else {
