@@ -888,18 +888,15 @@ async function connectionTargetCount(page: Page): Promise<number> {
  * the editor worksheet tabs to update (new worksheet created for a different
  * target) so we do not race the deferred worksheet-switch effect. Falls through
  * for same-target re-selection.
- *
- * Uses scrollIntoViewIfNeeded to handle long target lists where the button may
- * not be in the visible viewport, and force:true to avoid instability from
- * scroll-induced position changes during the click action.
  */
 async function selectConnectionTarget(page: Page, index: number): Promise<void> {
   const dialog = await openConnectionNavigator(page);
   const target = getConnectionTargetButtons(page).nth(index);
   await expect(target).toBeVisible({ timeout: 5_000 });
   await target.scrollIntoViewIfNeeded();
-  await target.click({ force: true });
-  await expect(dialog).toBeHidden({ timeout: 10_000 });
+  await expect(target).toBeEnabled({ timeout: 5_000 });
+  await target.click();
+  await expect(dialog).toBeHidden({ timeout: 5_000 });
 }
 
 /**
@@ -909,13 +906,10 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
  * selected locked target as ready. Locked targets omit the exact Run control
  * (or keep it disabled) → false. Schema-intelligence tests skip when false
  * unless the fixture must provide a ready target.
- *
- * Uses 3 stable samples at 100ms intervals (300ms minimum) with a 2-second
- * deadline to avoid excessive per-target wait when iterating many targets.
  */
 async function waitForCommittedRunState(page: Page): Promise<boolean> {
   const run = page.getByRole("button", { name: /^(run|执行)$/i });
-  const deadline = Date.now() + 2_000;
+  const deadline = Date.now() + 5_000;
   let lastEnabled: boolean | null = null;
   let stableSamples = 0;
   while (Date.now() < deadline) {
@@ -924,7 +918,7 @@ async function waitForCommittedRunState(page: Page): Promise<boolean> {
       (await run.first().isEnabled().catch(() => false));
     if (lastEnabled === enabled) {
       stableSamples += 1;
-      if (stableSamples >= 3) {
+      if (stableSamples >= 5) {
         return enabled;
       }
     } else {
@@ -933,9 +927,7 @@ async function waitForCommittedRunState(page: Page): Promise<boolean> {
     }
     await page.waitForTimeout(100);
   }
-  return (
-    (await run.count()) > 0 && (await run.first().isEnabled().catch(() => false))
-  );
+  return false;
 }
 
 async function findReadyOptionIndex(page: Page): Promise<number | null> {
@@ -2085,7 +2077,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "Search" }).click();
+    await explorer.getByRole("button", { name: "Search objects in query_e2e_aux" }).click();
     await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
@@ -2101,7 +2093,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "Clear" }).click();
+    await explorer.getByRole("button", { name: "Clear search in query_e2e_aux" }).click();
     await clearResponse;
 
     await expect(searchInput).toHaveValue("");
@@ -2123,7 +2115,7 @@ test.describe("Schema explorer search and pagination", () => {
 
     await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
 
-    const loadMoreButton = explorer.getByRole("button", { name: "Load more objects" });
+    const loadMoreButton = explorer.getByRole("button", { name: "Load more objects in query_e2e_aux" });
     await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
 
     const schemaRequests: string[] = [];
@@ -2176,7 +2168,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await sheet.getByRole("button", { name: "Search" }).click();
+    await sheet.getByRole("button", { name: "Search objects in query_e2e_aux" }).click();
     await searchResponse;
 
     await expect(sheet.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
@@ -2190,12 +2182,12 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await sheet.getByRole("button", { name: "Clear" }).click();
+    await sheet.getByRole("button", { name: "Clear search in query_e2e_aux" }).click();
     await clearResponse;
     await expect(searchInput).toHaveValue("");
     await expect(sheet.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
-    const loadMoreButton = sheet.getByRole("button", { name: "Load more objects" });
+    const loadMoreButton = sheet.getByRole("button", { name: "Load more objects in query_e2e_aux" });
     await expect(loadMoreButton).toBeVisible({ timeout: 10_000 });
     const page2Response = page.waitForResponse(
       (resp) => resp.url().includes("/schema/objects") && resp.url().includes("page=2") && resp.ok(),
@@ -2243,7 +2235,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "搜索" }).click();
+    await explorer.getByRole("button", { name: "搜索 query_e2e_aux 中的对象" }).click();
     await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
@@ -2257,12 +2249,12 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "清除" }).click();
+    await explorer.getByRole("button", { name: "清除 query_e2e_aux 中的搜索" }).click();
     await clearResponse;
     await expect(searchInput).toHaveValue("");
     await expect(explorer.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
-    const loadMoreButton = explorer.getByRole("button", { name: "加载更多对象" });
+    const loadMoreButton = explorer.getByRole("button", { name: "加载更多 query_e2e_aux 中的对象" });
     await expect(loadMoreButton).toBeVisible({ timeout: 10_000 });
     const page2Response = page.waitForResponse(
       (resp) => resp.url().includes("/schema/objects") && resp.url().includes("page=2") && resp.ok(),
