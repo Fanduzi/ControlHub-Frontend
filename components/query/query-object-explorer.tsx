@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { QueryObjectInspector } from "@/components/query/query-object-inspector";
 import { QueryObjectTree, type ObjectListingState } from "@/components/query/query-object-tree";
 import { Button } from "@/components/ui/button";
+import { objectIdentityKey, objectKeyBelongsToDatabase } from "@/lib/query-object-identity";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
 import { getObjectDetails, getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 import type { ObjectDetailResponse, ObjectSummary } from "@/types/query-schema";
@@ -54,10 +55,6 @@ const emptyDatabaseListing: DatabaseListingState = {
   error: false,
   generation: 0,
 };
-
-function objectKey(object: ObjectSummary): string {
-  return `${object.database}:${object.kind}:${object.name}`;
-}
 
 function dedupeDatabases(items: readonly string[]): readonly string[] {
   return [...new Set(items)];
@@ -210,34 +207,33 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   }, []);
 
   const invalidateDatabaseObjectUi = useCallback((database: string) => {
-    const prefix = `${database}:`;
     for (const [key, controller] of detailControllers.current) {
-      if (!key.startsWith(prefix)) continue;
+      if (!objectKeyBelongsToDatabase(key, database)) continue;
       controller.abort();
       detailControllers.current.delete(key);
     }
     setExpandedObjects((previous) => {
       const next = new Set(previous);
       for (const key of previous) {
-        if (key.startsWith(prefix)) next.delete(key);
+        if (objectKeyBelongsToDatabase(key, database)) next.delete(key);
       }
       return next;
     });
     setDetails((previous) => {
       const next = new Map(previous);
       for (const key of previous.keys()) {
-        if (key.startsWith(prefix)) next.delete(key);
+        if (objectKeyBelongsToDatabase(key, database)) next.delete(key);
       }
       return next;
     });
     setLoadingDetails((previous) => {
       const next = new Set(previous);
       for (const key of previous) {
-        if (key.startsWith(prefix)) next.delete(key);
+        if (objectKeyBelongsToDatabase(key, database)) next.delete(key);
       }
       return next;
     });
-    if (inspectorKeyRef.current?.startsWith(prefix)) {
+    if (inspectorKeyRef.current && objectKeyBelongsToDatabase(inspectorKeyRef.current, database)) {
       setInspectorKey(null);
       setInspectorDetail(null);
       setInspectTriggerElement(null);
@@ -246,10 +242,9 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const removeObjectsFromState = useCallback(
     (database: string, items: readonly ObjectSummary[]) => {
-      const activeKeys = new Set(items.map(objectKey));
-      const prefix = `${database}:`;
+      const activeKeys = new Set(items.map(objectIdentityKey));
       const removedKeys = [...expandedObjectsRef.current].filter(
-        (key) => key.startsWith(prefix) && !activeKeys.has(key),
+        (key) => objectKeyBelongsToDatabase(key, database) && !activeKeys.has(key),
       );
       if (removedKeys.length === 0) return;
       for (const key of removedKeys) detailControllers.current.get(key)?.abort();
@@ -413,7 +408,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const loadObjectDetail = useCallback(
     (object: ObjectSummary) => {
       if (!object.database) return;
-      const key = objectKey(object);
+      const key = objectIdentityKey(object);
       if (inspectorKey === key) {
         setInspectorKey(null);
         setInspectorDetail(null);
@@ -457,7 +452,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const toggleObject = useCallback(
     (object: ObjectSummary) => {
       if (!object.database) return;
-      const key = objectKey(object);
+      const key = objectIdentityKey(object);
       const next = new Set(expandedObjects);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -549,7 +544,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const renderDetail = useCallback(
     (object: ObjectSummary) => {
-      const state = details.get(objectKey(object));
+      const state = details.get(objectIdentityKey(object));
       if (!state || state.status === "loading") return null;
       if (state.status === "error") {
         return (
@@ -574,7 +569,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" className="mt-1" data-testid="inspect-button" onClick={(event) => {
               setInspectTriggerElement(event.currentTarget);
-              setInspectorKey(objectKey(object));
+              setInspectorKey(objectIdentityKey(object));
               setInspectorDetail(state.detail);
             }}>
               {t("schema.inspect")}

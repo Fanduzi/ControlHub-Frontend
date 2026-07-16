@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
+import { objectIdentityKey, schemaObjectGroupId } from "@/lib/query-object-identity";
 import type { PageInfo } from "@/types/resource";
 import type { ObjectSummary } from "@/types/query-schema";
 
@@ -39,11 +40,6 @@ type QueryObjectTreeProps = {
   readonly onDraftQueryChange?: (database: string, query: string) => void;
 };
 
-function objectGroupId(database: string): string {
-  const encoded = encodeURIComponent(database).replace(/%/g, "_");
-  return `schema-object-group-${encoded}`;
-}
-
 export function QueryObjectTree({
   databases,
   expandedDatabases,
@@ -76,7 +72,7 @@ export function QueryObjectTree({
           const isLoading = listing?.status === "loading" || loadingDatabases.has(database);
           const isError = listing?.status === "error";
           const showClear = Boolean(listing);
-          const groupId = objectGroupId(database);
+          const groupId = schemaObjectGroupId(database);
 
           return (
             <Fragment key={database}>
@@ -173,7 +169,7 @@ export function QueryObjectTree({
                           </p>
                           <ul role="group">
                             {group.map((object) => {
-                              const key = `${object.database}:${object.kind}:${object.name}`;
+                              const key = objectIdentityKey(object);
                               const objectExpanded = expandedObjects.has(key);
                               return (
                                 <li key={key} role="treeitem" aria-expanded={objectExpanded} aria-selected={false}>
