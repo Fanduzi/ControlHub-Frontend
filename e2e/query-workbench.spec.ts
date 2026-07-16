@@ -2060,12 +2060,6 @@ test.describe("Schema explorer search and pagination", () => {
     const explorer = page.getByRole("complementary", { name: "Objects" });
     await expect(explorer).toBeVisible();
 
-    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
-    await auxDb.click();
-
-    await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
-
     const schemaRequests: string[] = [];
     page.on("request", (request) => {
       if (request.url().includes("/schema/objects")) {
@@ -2073,23 +2067,46 @@ test.describe("Schema explorer search and pagination", () => {
       }
     });
 
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
+
     const searchInput = explorer.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
     await expect(searchInput).toBeVisible();
     await searchInput.fill("schema_zz_page_26");
+
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("q=schema_zz_page_26") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await explorer.getByRole("button", { name: "Search" }).click();
+    await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByText("schema_child")).not.toBeVisible({ timeout: 5_000 });
 
     expect(schemaRequests.some((url) => url.includes("q=schema_zz_page_26"))).toBe(true);
-    expect(schemaRequests.some((url) => url.includes("page=1"))).toBe(true);
 
+    const clearResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("database=query_e2e_aux") &&
+        !resp.url().includes("q=") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await explorer.getByRole("button", { name: "Clear" }).click();
+    await clearResponse;
 
     await expect(searchInput).toHaveValue("");
-    await expect(explorer.getByText("schema_zz_page_26")).not.toBeVisible({ timeout: 5_000 }).catch(() => {});
-
-    const clearRequests = schemaRequests.filter((url) => !url.includes("q="));
-    expect(clearRequests.length).toBeGreaterThan(0);
+    await expect(explorer.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByText("schema_zz_page_26")).not.toBeVisible({ timeout: 5_000 });
   });
 
   test("desktop English: Load more objects loads page 2 and objects remain inspectable", async ({ page }) => {
@@ -2146,21 +2163,46 @@ test.describe("Schema explorer search and pagination", () => {
     await auxDb.click();
 
     await expect(sheet.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+    await expect(sheet.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
     const searchInput = sheet.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
     await expect(searchInput).toBeVisible();
 
     await searchInput.fill("schema_zz_page_26");
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("q=schema_zz_page_26") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await sheet.getByRole("button", { name: "Search" }).click();
+    await searchResponse;
 
     await expect(sheet.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+    await expect(sheet.getByText("schema_child")).not.toBeVisible({ timeout: 5_000 });
 
+    const clearResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("database=query_e2e_aux") &&
+        !resp.url().includes("q=") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await sheet.getByRole("button", { name: "Clear" }).click();
+    await clearResponse;
     await expect(searchInput).toHaveValue("");
+    await expect(sheet.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
     const loadMoreButton = sheet.getByRole("button", { name: "Load more objects" });
-    await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
+    await expect(loadMoreButton).toBeVisible({ timeout: 10_000 });
+    const page2Response = page.waitForResponse(
+      (resp) => resp.url().includes("/schema/objects") && resp.url().includes("page=2") && resp.ok(),
+      { timeout: 15_000 },
+    );
     await loadMoreButton.click();
+    await page2Response;
 
     await expect(sheet.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
   });
@@ -2188,21 +2230,46 @@ test.describe("Schema explorer search and pagination", () => {
     await auxDb.click();
 
     await expect(explorer.getByRole("tree")).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
     const searchInput = explorer.getByRole("textbox", { name: /搜索 query_e2e_aux 中的对象/i });
     await expect(searchInput).toBeVisible();
 
     await searchInput.fill("schema_zz_page_26");
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("q=schema_zz_page_26") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await explorer.getByRole("button", { name: "搜索" }).click();
+    await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByText("schema_child")).not.toBeVisible({ timeout: 5_000 });
 
+    const clearResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/schema/objects") &&
+        resp.url().includes("database=query_e2e_aux") &&
+        !resp.url().includes("q=") &&
+        resp.ok(),
+      { timeout: 15_000 },
+    );
     await explorer.getByRole("button", { name: "清除" }).click();
+    await clearResponse;
     await expect(searchInput).toHaveValue("");
+    await expect(explorer.getByText("schema_child")).toBeVisible({ timeout: 10_000 });
 
     const loadMoreButton = explorer.getByRole("button", { name: "加载更多对象" });
-    await expect(loadMoreButton).toBeVisible({ timeout: 5_000 });
+    await expect(loadMoreButton).toBeVisible({ timeout: 10_000 });
+    const page2Response = page.waitForResponse(
+      (resp) => resp.url().includes("/schema/objects") && resp.url().includes("page=2") && resp.ok(),
+      { timeout: 15_000 },
+    );
     await loadMoreButton.click();
+    await page2Response;
 
     await expect(explorer.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
   });
