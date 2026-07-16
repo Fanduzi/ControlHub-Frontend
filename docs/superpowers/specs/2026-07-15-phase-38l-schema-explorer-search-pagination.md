@@ -2,8 +2,7 @@
 
 ## Status
 
-In progress. Implementation complete; E2E blocked by pre-existing connection
-dialog timing issue (fails on baseline `ea6062a` too).
+Implemented (candidate).
 
 ## Problem
 
