@@ -94,7 +94,9 @@ export function QueryObjectTree({
                       className="space-y-2 pb-2"
                       onSubmit={(event) => {
                         event.preventDefault();
-                        onSearch(database, listing?.draftQuery ?? "");
+                        const formData = new FormData(event.currentTarget);
+                        const query = String(formData.get("object-search") ?? "");
+                        onSearch(database, query);
                       }}
                     >
                       <label htmlFor={`schema-search-${database}`} className="text-xs font-medium">
@@ -103,6 +105,7 @@ export function QueryObjectTree({
                       <div className="flex gap-2">
                         <input
                           id={`schema-search-${database}`}
+                          name="object-search"
                           value={listing?.draftQuery ?? ""}
                           placeholder={t("schema.searchObjectsPlaceholder")}
                           className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"

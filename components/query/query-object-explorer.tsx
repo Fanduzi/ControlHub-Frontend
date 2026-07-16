@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { QueryObjectInspector } from "@/components/query/query-object-inspector";
@@ -26,6 +26,20 @@ type DetailViewState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly detail: ObjectDetailResponse }
   | { readonly status: "error" };
+
+type ObjectRequestMode = "replace" | "append";
+
+type ActiveObjectRequest = {
+  readonly id: number;
+  readonly controller: AbortController;
+  readonly targetId: number;
+  readonly explorerGeneration: number;
+  readonly objectGeneration: number;
+  readonly database: string;
+  readonly query: string;
+  readonly page: number;
+  readonly mode: ObjectRequestMode;
+};
 
 type QueryObjectExplorerProps = {
   readonly targetId: number;
@@ -73,12 +87,18 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const explorerGeneration = useRef(0);
   const databaseGeneration = useRef(0);
+  const currentTargetIdRef = useRef(targetId);
   const objectGenerations = useRef(new Map<string, number>());
   const databaseController = useRef<AbortController | null>(null);
   const objectControllers = useRef(new Map<string, AbortController>());
   const detailControllers = useRef(new Map<string, AbortController>());
+  const activeObjectRequests = useRef(new Map<string, ActiveObjectRequest>());
   const expandedObjectsRef = useRef<ReadonlySet<string>>(new Set());
   const inspectorKeyRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    currentTargetIdRef.current = targetId;
+  }, [targetId]);
 
   useEffect(() => {
     expandedObjectsRef.current = expandedObjects;
@@ -93,8 +113,17 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     databaseController.current = null;
     for (const controller of objectControllers.current.values()) controller.abort();
     objectControllers.current.clear();
+    activeObjectRequests.current.clear();
     for (const controller of detailControllers.current.values()) controller.abort();
     detailControllers.current.clear();
+  }, []);
+
+  const isActiveObjectRequest = useCallback((token: ActiveObjectRequest): boolean => {
+    if (activeObjectRequests.current.get(token.database) !== token) return false;
+    if (token.targetId !== currentTargetIdRef.current) return false;
+    if (token.explorerGeneration !== explorerGeneration.current) return false;
+    if (token.objectGeneration !== objectGenerations.current.get(token.database)) return false;
+    return true;
   }, []);
 
   const startDatabaseRequest = useCallback(
@@ -121,7 +150,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
           if (
             controller.signal.aborted ||
             databaseController.current !== controller ||
-            requestTargetId !== targetId ||
+            requestTargetId !== currentTargetIdRef.current ||
             requestExplorerGeneration !== explorerGeneration.current ||
             generation !== databaseGeneration.current
           ) {
@@ -140,6 +169,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
           if (
             controller.signal.aborted ||
             databaseController.current !== controller ||
+            requestTargetId !== currentTargetIdRef.current ||
             requestExplorerGeneration !== explorerGeneration.current ||
             generation !== databaseGeneration.current
           ) {
@@ -231,24 +261,35 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       objectControllers.current.get(database)?.abort();
       const controller = new AbortController();
       objectControllers.current.set(database, controller);
-      const requestTargetId = targetId;
-      const generation = replace ? nextObjectGeneration(database) : objectGenerations.current.get(database) ?? nextObjectGeneration(database);
-      const requestExplorerGeneration = explorerGeneration.current;
-      const previous = objectListings.get(database);
-      const currentItems = previous?.items ?? [];
-      startTransition(() => {
-        setObjectListings((listings) => {
-          const next = new Map(listings);
-          next.set(database, {
-            draftQuery,
-            submittedQuery,
-            items: replace && !preserveItems ? [] : currentItems,
-            pageInfo: replace && !preserveItems ? null : previous?.pageInfo ?? null,
-            status: "loading",
-            generation,
-          });
-          return next;
+      const mode: ObjectRequestMode = replace ? "replace" : "append";
+      const objectGeneration = replace
+        ? nextObjectGeneration(database)
+        : (objectGenerations.current.get(database) ?? nextObjectGeneration(database));
+      const token: ActiveObjectRequest = {
+        id: objectGeneration * 1_000_000 + page * 10 + (mode === "replace" ? 0 : 1),
+        controller,
+        targetId,
+        explorerGeneration: explorerGeneration.current,
+        objectGeneration,
+        database,
+        query: submittedQuery,
+        page,
+        mode,
+      };
+      activeObjectRequests.current.set(database, token);
+
+      setObjectListings((listings) => {
+        const previous = listings.get(database);
+        const next = new Map(listings);
+        next.set(database, {
+          draftQuery,
+          submittedQuery,
+          items: replace && !preserveItems ? [] : (previous?.items ?? []),
+          pageInfo: replace && !preserveItems ? null : (previous?.pageInfo ?? null),
+          status: "loading",
+          generation: objectGeneration,
         });
+        return next;
       });
 
       void getSchemaObjects(targetId, {
@@ -259,54 +300,58 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         signal: controller.signal,
       }).then(
         (response) => {
-          if (
-            controller.signal.aborted ||
-            objectControllers.current.get(database) !== controller ||
-            requestTargetId !== targetId ||
-            requestExplorerGeneration !== explorerGeneration.current ||
-            generation !== objectGenerations.current.get(database)
-          ) {
-            return;
+          if (!isActiveObjectRequest(token)) return;
+          if (token.query !== submittedQuery || token.page !== page || token.mode !== mode) return;
+          if (token.controller.signal.aborted) return;
+
+          if (token.mode === "replace") {
+            removeObjectsFromState(database, dedupeObjects(response.items));
           }
-          const nextItems = dedupeObjects(replace ? response.items : [...currentItems, ...response.items]);
-          if (replace) removeObjectsFromState(database, nextItems);
+
           setObjectListings((listings) => {
+            if (activeObjectRequests.current.get(database) !== token) return listings;
+            if (token.explorerGeneration !== explorerGeneration.current) return listings;
+            if (token.objectGeneration !== objectGenerations.current.get(database)) return listings;
+            const listing = listings.get(database);
+            if (!listing || listing.generation !== token.objectGeneration) return listings;
+            if (token.mode === "append" && listing.submittedQuery !== token.query) return listings;
+
+            const nextItems = dedupeObjects(
+              token.mode === "replace" ? response.items : [...listing.items, ...response.items],
+            );
             const next = new Map(listings);
-            const listing = next.get(database);
-            if (!listing) return listings;
             next.set(database, {
               ...listing,
               draftQuery,
-              submittedQuery,
+              submittedQuery: token.query,
               items: nextItems,
               pageInfo: response.pageInfo,
               status: "ready",
-              generation,
+              generation: token.objectGeneration,
             });
             return next;
           });
         },
         () => {
-          if (
-            controller.signal.aborted ||
-            objectControllers.current.get(database) !== controller ||
-            requestExplorerGeneration !== explorerGeneration.current ||
-            generation !== objectGenerations.current.get(database)
-          ) {
-            return;
-          }
+          if (!isActiveObjectRequest(token)) return;
+          if (token.controller.signal.aborted) return;
           setObjectListings((listings) => {
+            if (activeObjectRequests.current.get(database) !== token) return listings;
+            if (token.objectGeneration !== objectGenerations.current.get(database)) return listings;
+            const listing = listings.get(database);
+            if (!listing || listing.generation !== token.objectGeneration) return listings;
             const next = new Map(listings);
-            const listing = next.get(database);
-            if (listing) next.set(database, { ...listing, status: "error", generation });
+            next.set(database, { ...listing, status: "error", generation: token.objectGeneration });
             return next;
           });
         },
       ).finally(() => {
-        if (objectControllers.current.get(database) === controller) objectControllers.current.delete(database);
+        if (objectControllers.current.get(database) === controller) {
+          objectControllers.current.delete(database);
+        }
       });
     },
-    [objectListings, nextObjectGeneration, removeObjectsFromState, targetId],
+    [isActiveObjectRequest, nextObjectGeneration, removeObjectsFromState, targetId],
   );
 
   const toggleDatabase = useCallback(
@@ -439,13 +484,14 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     (database: string) => {
       const listing = objectListings.get(database);
       if (!listing) return;
+      const retryFailedLoadMore = Boolean(listing.pageInfo?.hasNextPage && listing.items.length > 0);
       startObjectRequest({
         database,
         draftQuery: listing.draftQuery,
         submittedQuery: listing.submittedQuery,
-        page: listing.pageInfo?.hasNextPage ? listing.pageInfo.page + 1 : 1,
-        replace: true,
-        preserveItems: true,
+        page: retryFailedLoadMore ? listing.pageInfo!.page + 1 : 1,
+        replace: !retryFailedLoadMore,
+        preserveItems: retryFailedLoadMore,
       });
     },
     [objectListings, startObjectRequest],
