@@ -209,11 +209,47 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     return generation;
   }, []);
 
+  const invalidateDatabaseObjectUi = useCallback((database: string) => {
+    const prefix = `${database}:`;
+    for (const [key, controller] of detailControllers.current) {
+      if (!key.startsWith(prefix)) continue;
+      controller.abort();
+      detailControllers.current.delete(key);
+    }
+    setExpandedObjects((previous) => {
+      const next = new Set(previous);
+      for (const key of previous) {
+        if (key.startsWith(prefix)) next.delete(key);
+      }
+      return next;
+    });
+    setDetails((previous) => {
+      const next = new Map(previous);
+      for (const key of previous.keys()) {
+        if (key.startsWith(prefix)) next.delete(key);
+      }
+      return next;
+    });
+    setLoadingDetails((previous) => {
+      const next = new Set(previous);
+      for (const key of previous) {
+        if (key.startsWith(prefix)) next.delete(key);
+      }
+      return next;
+    });
+    if (inspectorKeyRef.current?.startsWith(prefix)) {
+      setInspectorKey(null);
+      setInspectorDetail(null);
+      setInspectTriggerElement(null);
+    }
+  }, []);
+
   const removeObjectsFromState = useCallback(
     (database: string, items: readonly ObjectSummary[]) => {
       const activeKeys = new Set(items.map(objectKey));
+      const prefix = `${database}:`;
       const removedKeys = [...expandedObjectsRef.current].filter(
-        (key) => key.startsWith(`${database}:`) && !activeKeys.has(key),
+        (key) => key.startsWith(prefix) && !activeKeys.has(key),
       );
       if (removedKeys.length === 0) return;
       for (const key of removedKeys) detailControllers.current.get(key)?.abort();
@@ -278,11 +314,15 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       };
       activeObjectRequests.current.set(database, token);
 
+      if (replace && !preserveItems) {
+        invalidateDatabaseObjectUi(database);
+      }
+
       setObjectListings((listings) => {
         const previous = listings.get(database);
         const next = new Map(listings);
         next.set(database, {
-          draftQuery,
+          draftQuery: replace ? draftQuery : (previous?.draftQuery ?? draftQuery),
           submittedQuery,
           items: replace && !preserveItems ? [] : (previous?.items ?? []),
           pageInfo: replace && !preserveItems ? null : (previous?.pageInfo ?? null),
@@ -322,7 +362,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             const next = new Map(listings);
             next.set(database, {
               ...listing,
-              draftQuery,
+              draftQuery: token.mode === "append" ? listing.draftQuery : draftQuery,
               submittedQuery: token.query,
               items: nextItems,
               pageInfo: response.pageInfo,
@@ -351,7 +391,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         }
       });
     },
-    [isActiveObjectRequest, nextObjectGeneration, removeObjectsFromState, targetId],
+    [invalidateDatabaseObjectUi, isActiveObjectRequest, nextObjectGeneration, removeObjectsFromState, targetId],
   );
 
   const toggleDatabase = useCallback(
