@@ -39,6 +39,11 @@ type QueryObjectTreeProps = {
   readonly onDraftQueryChange?: (database: string, query: string) => void;
 };
 
+function objectGroupId(database: string): string {
+  const encoded = encodeURIComponent(database).replace(/%/g, "_");
+  return `schema-object-group-${encoded}`;
+}
+
 export function QueryObjectTree({
   databases,
   expandedDatabases,
@@ -71,10 +76,16 @@ export function QueryObjectTree({
           const isLoading = listing?.status === "loading" || loadingDatabases.has(database);
           const isError = listing?.status === "error";
           const showClear = Boolean(listing);
+          const groupId = objectGroupId(database);
 
           return (
             <Fragment key={database}>
-              <li role="treeitem" aria-expanded={expanded} aria-selected={false}>
+              <li
+                role="treeitem"
+                aria-expanded={expanded}
+                aria-selected={false}
+                aria-owns={expanded ? groupId : undefined}
+              >
                 <Button
                   variant="ghost"
                   size="sm"
@@ -88,7 +99,7 @@ export function QueryObjectTree({
                 </Button>
               </li>
               {expanded ? (
-                <li className="ml-4 border-l border-border pl-2">
+                <li role="none" className="ml-4 border-l border-border pl-2">
                   {onSearch && onDraftQueryChange ? (
                     <form
                       className="space-y-2 pb-2"
@@ -111,12 +122,18 @@ export function QueryObjectTree({
                           className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           onChange={(event) => onDraftQueryChange(database, event.target.value)}
                         />
-                        <Button type="submit" variant="outline" size="sm">
-                          {t("schema.searchObjects")}
+                        <Button type="submit" variant="outline" size="sm" aria-label={t("schema.searchObjects", { database })}>
+                          {t("schema.searchObjects", { database })}
                         </Button>
                         {showClear && onClearSearch ? (
-                          <Button type="button" variant="outline" size="sm" onClick={() => onClearSearch(database)}>
-                            {t("schema.clearObjectSearch")}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={t("schema.clearObjectSearch", { database })}
+                            onClick={() => onClearSearch(database)}
+                          >
+                            {t("schema.clearObjectSearch", { database })}
                           </Button>
                         ) : null}
                       </div>
@@ -127,8 +144,14 @@ export function QueryObjectTree({
                     <div className="space-y-2 py-2 text-xs">
                       <p className="text-destructive">{t("schema.objectsLoadError")}</p>
                       {onRetryObjects ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => onRetryObjects(database)}>
-                          {t("schema.retryObjects")}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={t("schema.retryObjects", { database })}
+                          onClick={() => onRetryObjects(database)}
+                        >
+                          {t("schema.retryObjects", { database })}
                         </Button>
                       ) : null}
                     </div>
@@ -136,7 +159,7 @@ export function QueryObjectTree({
                   {!isLoading && !isError && listing?.status === "ready" && objects.length === 0 ? (
                     <p className="py-2 text-xs text-muted-foreground">{t("schema.noObjects")}</p>
                   ) : null}
-                  <ul role="group">
+                  <ul role="group" id={groupId}>
                     {(["table", "view"] as const).map((kind) => {
                       const group = objects.filter((object) => object.kind === kind);
                       if (group.length === 0) return null;
@@ -184,9 +207,10 @@ export function QueryObjectTree({
                       size="sm"
                       className="mt-2"
                       disabled={listing.status === "loading"}
+                      aria-label={t("schema.loadMoreObjects", { database })}
                       onClick={() => onLoadMoreObjects(database)}
                     >
-                      {t("schema.loadMoreObjects")}
+                      {t("schema.loadMoreObjects", { database })}
                     </Button>
                   ) : null}
                 </li>

@@ -1046,13 +1046,13 @@
       "retryDefinition": "重试",
       "searchObjectsLabel": "搜索 {database} 中的对象",
       "searchObjectsPlaceholder": "搜索表和视图…",
-      "searchObjects": "搜索",
-      "clearObjectSearch": "清除",
+      "searchObjects": "搜索 {database} 中的对象",
+      "clearObjectSearch": "清除 {database} 中的搜索",
       "loadMoreDatabases": "加载更多数据库",
-      "loadMoreObjects": "加载更多对象",
+      "loadMoreObjects": "加载更多 {database} 中的对象",
       "loadingObjects": "加载对象中…",
       "objectsLoadError": "无法加载对象。",
-      "retryObjects": "重试",
+      "retryObjects": "重试加载 {database} 中的对象",
       "noObjects": "未找到对象。"
     },
     "navigator": {

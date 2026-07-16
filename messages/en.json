@@ -1046,13 +1046,13 @@
       "retryDefinition": "Retry",
       "searchObjectsLabel": "Search objects in {database}",
       "searchObjectsPlaceholder": "Search tables and views…",
-      "searchObjects": "Search",
-      "clearObjectSearch": "Clear",
+      "searchObjects": "Search objects in {database}",
+      "clearObjectSearch": "Clear search in {database}",
       "loadMoreDatabases": "Load more databases",
-      "loadMoreObjects": "Load more objects",
+      "loadMoreObjects": "Load more objects in {database}",
       "loadingObjects": "Loading objects…",
       "objectsLoadError": "Unable to load objects.",
-      "retryObjects": "Retry",
+      "retryObjects": "Retry loading objects in {database}",
       "noObjects": "No objects found."
     },
     "navigator": {
