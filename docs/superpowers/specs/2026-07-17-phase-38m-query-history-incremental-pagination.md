@@ -2,9 +2,9 @@
 
 ## Status
 
-Planned. This frontend delivery follows Phase 38L and consumes the existing
-governed execution-history pagination contract. It does not add a backend API
-or alter actor visibility.
+Planned as 38M Workstream A. It follows Phase 38L and consumes the existing
+governed execution-history pagination contract. The broader 38M milestone is
+defined in `2026-07-17-phase-38m-governed-query-history-operations.md`.
 
 ## Problem
 
