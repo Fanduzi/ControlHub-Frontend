@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented (candidate).
+Complete on frontend `main` at `7e4b195`.
 
 ## Problem
 

@@ -2,9 +2,10 @@
 
 ## Status
 
-Planned. This frontend delivery consumes the governed backend table-definition
-endpoint shipped in Phase 38K Delivery B. It does not alter the backend
-contract, query execution, schema metadata persistence, or credential flows.
+Complete on frontend `main` at `8472d94`. This frontend delivery consumes the
+governed backend table-definition endpoint shipped in Phase 38K Delivery B. It
+does not alter the backend contract, query execution, schema metadata
+persistence, or credential flows.
 
 ## User Outcome
 
