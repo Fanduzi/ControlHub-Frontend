@@ -2,7 +2,8 @@ import { apiClient, ApiError } from "@/services/api-client";
 import type {
   QueryExecuteRequest,
   QueryExecuteResponse,
-  QueryExecutionListResponse,
+  QueryExecutionCursorPage,
+  QueryExecutionStatus,
   RelatedRecordNavigationRequest,
   RelatedRecordNavigationResponse,
 } from "@/types/query-execution";
@@ -111,18 +112,29 @@ export async function executeQueryTarget(
 }
 
 /**
- * List execution history (metadata only) for a query target. Never sends
- * `actorUserId`. Defaults to page 1, pageSize 20 — matching the backend default.
+ * List execution history (metadata only) for a query target. Supports cursor-
+ * based pagination with optional status and date range filters. Never sends
+ * `actorUserId`. Defaults pageSize to 20 — matching the backend default.
  */
 export async function listQueryExecutions(
   targetResourceId: number,
-  params: { page?: number; pageSize?: number } = {},
-): Promise<QueryExecutionListResponse> {
-  const page = params.page ?? 1;
-  const pageSize = params.pageSize ?? 20;
+  params: {
+    status?: QueryExecutionStatus;
+    from?: string;
+    to?: string;
+    cursor?: string;
+    pageSize?: number;
+  } = {},
+): Promise<QueryExecutionCursorPage> {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set("status", params.status);
+  if (params.from) searchParams.set("from", params.from);
+  if (params.to) searchParams.set("to", params.to);
+  if (params.cursor) searchParams.set("cursor", params.cursor);
+  searchParams.set("pageSize", String(params.pageSize ?? 20));
 
-  return apiClient<QueryExecutionListResponse>(
-    `/query-targets/${targetResourceId}/executions?page=${page}&pageSize=${pageSize}`,
+  return apiClient<QueryExecutionCursorPage>(
+    `/query-targets/${targetResourceId}/executions?${searchParams.toString()}`,
   );
 }
 

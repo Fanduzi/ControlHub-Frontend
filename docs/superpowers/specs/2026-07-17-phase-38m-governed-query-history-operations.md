@@ -17,9 +17,16 @@ admins see target records and non-admins see only their own records.
 
 ### A. Bounded Continuation
 
-Use the current page/pageSize/pageInfo contract to append older rows for the
-active worksheet. A Run or filter change refreshes page one and invalidates
-older loaded pages.
+Use cursor-based continuation with opaque nextCursor to append older rows for
+the active worksheet. The cursor is versioned, bounded (max 1024 bytes), and
+URL-safe; the browser never constructs or interprets it. The cursor carries an
+unkeyed SHA-256 query-context digest (not a cryptographic signature) that the
+server validates against the current request's (target, status, from, to,
+scope) tuple to detect context-mismatched replays; actor scope is always
+server-derived and enforced in SQL. The legacy page/pageSize parameters are
+preserved for backward compatibility but new continuation uses nextCursor
+exclusively. A Run or filter change refreshes page one and invalidates older
+loaded pages.
 
 ### B. Server-Governed Operational Filters
 
@@ -41,7 +48,8 @@ raw results, credentials, or raw backend errors.
 - Existing backend actor visibility remains authoritative.
 - History remains metadata-only and never exposes raw actor IDs, emails, DSNs,
   passwords, result rows, or raw driver errors.
-- All list/filter/pagination queries remain bounded and parameterized.
+- All list/filter/pagination queries remain bounded and parameterized; cursor
+  values are opaque and server-generated.
 - The browser stores state only in the active worksheet; no URL, local storage,
   global cache, persistence, or cross-target aggregation is introduced.
 - No retention/deletion policy, approval workflow, saved query, query guard
@@ -50,6 +58,6 @@ raw results, credentials, or raw backend errors.
 ## Completion Standard
 
 The milestone is complete only when backend contract/integration/OpenAPI/fuzz
-coverage and frontend component/E2E coverage prove pagination, filters, actor
-scope, stale-request rejection, mobile detail, EN/ZH behavior, and zero-skip
+coverage and frontend component/E2E coverage prove cursor continuation,
+pagination, filters, actor scope, stale-request rejection, mobile detail, EN/ZH behavior, and zero-skip
 real E2E against a fixture with more than one accessible history page.

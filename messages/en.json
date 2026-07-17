@@ -1165,7 +1165,40 @@
       "emptyStatus": "—",
       "loadError": "Could not load execution history",
       "retry": "Retry",
-      "unknownActor": "Unknown user"
+      "unknownActor": "Unknown user",
+      "filter": {
+        "status": {
+          "label": "Status",
+          "all": "All statuses",
+          "success": "Success",
+          "rejected": "Rejected",
+          "failed": "Failed",
+          "timeout": "Timeout"
+        },
+        "from": {
+          "label": "From"
+        },
+        "to": {
+          "label": "To"
+        },
+        "apply": "Apply",
+        "clear": "Clear"
+      },
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "appendError": "Could not load more history",
+      "detail": {
+        "title": "Execution details",
+        "close": "Close",
+        "timestamp": "Timestamp",
+        "actor": "Actor",
+        "engine": "Engine",
+        "status": "Status",
+        "preview": "Statement preview",
+        "rowCount": "Row count",
+        "duration": "Duration",
+        "error": "Error"
+      }
     },
     "governance": {
       "title": "Governance & access",

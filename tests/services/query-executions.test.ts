@@ -189,23 +189,23 @@ describe("listQueryExecutions", () => {
     vi.clearAllMocks();
   });
 
-  it("GETs /query-targets/:id/executions with default page and pageSize", async () => {
+  it("GETs /query-targets/:id/executions with default pageSize", async () => {
     mockApiClient.mockResolvedValueOnce(buildExecutionListResponse());
 
     await listQueryExecutions(22);
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/query-targets/22/executions?page=1&pageSize=20",
+      "/query-targets/22/executions?pageSize=20",
     );
   });
 
-  it("forwards custom page and pageSize", async () => {
+  it("forwards custom pageSize and filters", async () => {
     mockApiClient.mockResolvedValueOnce(buildExecutionListResponse());
 
-    await listQueryExecutions(22, { page: 2, pageSize: 5 });
+    await listQueryExecutions(22, { pageSize: 5, status: "failed" });
 
     expect(mockApiClient).toHaveBeenCalledWith(
-      "/query-targets/22/executions?page=2&pageSize=5",
+      "/query-targets/22/executions?status=failed&pageSize=5",
     );
   });
 

@@ -82,6 +82,26 @@ export type QueryExecutionListResponse = {
 };
 
 /**
+ * Response body for `GET /query-targets/{id}/executions`. The envelope is the
+ * same for both cursor and legacy offset modes: `items` and `nextCursor` are
+ * always present (`nextCursor` is `null` when no continuation exists or in
+ * offset mode); `pageInfo` is present only for explicit legacy `?page=` offset
+ * requests and is omitted in cursor mode.
+ */
+export type QueryExecutionCursorPage = {
+  items: QueryExecutionRecord[];
+  nextCursor: string | null;
+  pageInfo?: PageInfo;
+};
+
+/** Filter criteria for querying execution history. All fields are optional. */
+export type QueryExecutionFilter = {
+  readonly status?: QueryExecutionStatus;
+  readonly from?: string;
+  readonly to?: string;
+};
+
+/**
  * Source metadata for `POST /query-targets/{id}/related-records`. The browser
  * sends only trusted identifiers resolved from Object Explorer preview
  * provenance — never referenced table/column names, credentials, or SQL.

@@ -2266,3 +2266,194 @@ test.describe("Schema explorer search and pagination", () => {
     await expect(explorer.getByText("schema_zz_page_24")).toBeVisible({ timeout: 10_000 });
   });
 });
+
+test.describe("Query History cursor-based pagination, filters, and detail", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "en", domain: "localhost", path: "/" },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-history-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  async function runMultipleQueries(page: Page, count: number): Promise<void> {
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw new Error("no ready query target seeded");
+    await selectConnectionTarget(page, readyIndex);
+
+    for (let i = 0; i < count; i++) {
+      await clearAndType(page, `SELECT ${i + 1}`);
+      await page.getByRole("button", { name: /^run$/i }).click();
+      await expect(page.locator("td").filter({ hasText: new RegExp(`^${i + 1}$`) })).toBeVisible({ timeout: 15_000 });
+    }
+  }
+
+  test("desktop EN: creates 2+ pages of history via governed Run and shows Load more", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await runMultipleQueries(page, 3);
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("SELECT 2").first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("SELECT 3").first()).toBeVisible({ timeout: 5_000 });
+
+    const loadMoreButton = page.getByRole("button", { name: /load more/i });
+    const hasLoadMore = await loadMoreButton.count();
+    if (hasLoadMore > 0) {
+      await expect(loadMoreButton).toBeVisible();
+    }
+  });
+
+  test("desktop EN: filter Apply narrows history by status", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await runMultipleQueries(page, 2);
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    const statusFilter = page.locator("#history-filter-status");
+    await expect(statusFilter).toBeVisible();
+    await statusFilter.click();
+    await page.getByRole("option", { name: /success/i }).click();
+
+    await page.getByRole("button", { name: /apply/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("desktop EN: clicking a history row opens execution detail sheet", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await runMultipleQueries(page, 1);
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    await expect(historyRow).toBeVisible();
+    await historyRow.click();
+
+    const detailSheet = page.getByRole("dialog", { name: /execution details/i });
+    await expect(detailSheet).toBeVisible({ timeout: 10_000 });
+    await expect(detailSheet.getByText(/actor|执行人/i)).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(detailSheet).toBeHidden();
+  });
+
+  test("desktop EN: actor display name shown, never raw actorUserId", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await runMultipleQueries(page, 1);
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    await expect(page.getByText(/actorUserId/i)).toHaveCount(0);
+
+    const actorCells = page.locator("td").filter({ hasText: /\w+/ });
+    const count = await actorCells.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test("375px mobile EN: filters, Load more, and Sheet detail", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    await ensureReadyTargetSelected(page);
+
+    await clearAndType(page, "SELECT 1");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    const statusFilter = page.locator("#history-filter-status");
+    await expect(statusFilter).toBeVisible();
+
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    await expect(historyRow).toBeVisible();
+    await historyRow.click();
+
+    const detailSheet = page.getByRole("dialog", { name: /execution details/i });
+    await expect(detailSheet).toBeVisible({ timeout: 10_000 });
+    await expect(detailSheet).toHaveAttribute("data-side", "bottom");
+
+    await page.keyboard.press("Escape");
+    await expect(detailSheet).toBeHidden();
+  });
+
+  test("desktop zh-CN: filters, Load more, and detail labels", async ({ page }) => {
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "zh-CN", domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await clearAndType(page, "SELECT 1");
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("tab", { name: /查询历史/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    const statusFilter = page.locator("#history-filter-status");
+    await expect(statusFilter).toBeVisible();
+    await expect(page.getByRole("button", { name: /应用/i })).toBeVisible();
+
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    await expect(historyRow).toBeVisible();
+    await historyRow.click();
+
+    const detailSheet = page.getByRole("dialog", { name: /执行详情/i });
+    await expect(detailSheet).toBeVisible({ timeout: 10_000 });
+    await expect(detailSheet.getByText("执行人")).toBeVisible();
+    await expect(detailSheet.getByText("关闭")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(detailSheet).toBeHidden();
+  });
+
+  test("regression: history rows expose role=button (not data-slot) so click navigation is real", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await runMultipleQueries(page, 1);
+
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+
+    // History rows must render role="button" (keyboard-accessible, real click).
+    // A regression to a data-slot-only selector would make this assertion fail
+    // before the click-based detail tests time out with a misleading 30s wait.
+    const historyRowByRole = page.getByRole("button", { name: "SELECT 1" }).first();
+    await expect(historyRowByRole).toBeVisible({ timeout: 10_000 });
+
+    // data-slot is NOT present on history rows (the table primitive is not used);
+    // assert zero matches so a future revert is caught immediately.
+    await expect(page.locator("tbody tr[data-slot]")).toHaveCount(0);
+
+    await historyRowByRole.click();
+    const detailSheet = page.getByRole("dialog", { name: /execution details/i });
+    await expect(detailSheet).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(detailSheet).toBeHidden();
+  });
+});

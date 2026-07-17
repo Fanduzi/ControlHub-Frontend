@@ -1165,7 +1165,40 @@
       "emptyStatus": "—",
       "loadError": "无法加载执行历史",
       "retry": "重试",
-      "unknownActor": "未知用户"
+      "unknownActor": "未知用户",
+      "filter": {
+        "status": {
+          "label": "状态",
+          "all": "全部状态",
+          "success": "成功",
+          "rejected": "已拒绝",
+          "failed": "失败",
+          "timeout": "超时"
+        },
+        "from": {
+          "label": "从"
+        },
+        "to": {
+          "label": "到"
+        },
+        "apply": "应用",
+        "clear": "清除"
+      },
+      "loadMore": "加载更多",
+      "loadingMore": "正在加载…",
+      "appendError": "无法加载更多历史",
+      "detail": {
+        "title": "执行详情",
+        "close": "关闭",
+        "timestamp": "时间戳",
+        "actor": "执行人",
+        "engine": "引擎",
+        "status": "状态",
+        "preview": "语句预览",
+        "rowCount": "行数",
+        "duration": "耗时",
+        "error": "错误"
+      }
     },
     "governance": {
       "title": "治理与访问",

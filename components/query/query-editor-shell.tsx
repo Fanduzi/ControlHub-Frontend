@@ -10,8 +10,10 @@ import type { EditorView } from "@codemirror/view";
 import type { QueryTarget } from "@/types/query-target";
 import type {
   QueryExecuteResponse,
+  QueryExecutionFilter,
   QueryExecutionRecord,
   QueryResultCellValue,
+  QueryExecutionStatus,
   RelatedRecordNavigationResponse,
   TablePreviewRequest,
 } from "@/types/query-execution";
@@ -83,18 +85,48 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
 
 const DEFAULT_STATEMENT = "select 1";
 const DEFAULT_MAX_ROWS = 100;
+const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
+  "success",
+  "rejected",
+  "failed",
+  "timeout",
+];
 
 /** Fixed id for the SSR/client initial worksheet — must not use Date.now()/random. */
 const INITIAL_WORKSHEET_ID = "worksheet-1";
+
+/**
+ * Convert a YYYY-MM-DD date string (from `<input type="date">`) to RFC3339
+ * start-of-day UTC for the `from` query parameter.
+ */
+function toRFC3339From(dateStr: string): string {
+  return `${dateStr}T00:00:00Z`;
+}
+
+/**
+ * Convert a YYYY-MM-DD date string to RFC3339 start-of-next-day UTC (exclusive
+ * upper bound) for the `to` query parameter.
+ */
+function toRFC3339To(dateStr: string): string {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
 
 /**
  * History state machine for a single worksheet. Independent of the execution
  * requestId — history has its own generation counter for stale rejection.
  */
 type HistoryState = {
-  status: "idle" | "loading" | "ready" | "error";
+  replaceStatus: "idle" | "loading" | "ready" | "error";
   items: QueryExecutionRecord[];
-  error?: string;
+  replaceError?: string;
+  appendStatus: "idle" | "loading" | "error";
+  appendError?: string;
+  nextCursor: string | null;
+  filters: QueryExecutionFilter;
+  pendingFilters: QueryExecutionFilter;
+  selectedRecordId: number | null;
   /** The targetId this history was fetched for. */
   boundTargetId: number;
   /** Monotonic generation counter for stale rejection. */
@@ -102,7 +134,17 @@ type HistoryState = {
 };
 
 function createHistoryState(targetId: number): HistoryState {
-  return { status: "idle", items: [], boundTargetId: targetId, generation: 0 };
+  return {
+    replaceStatus: "idle",
+    items: [],
+    appendStatus: "idle",
+    nextCursor: null,
+    filters: {},
+    pendingFilters: {},
+    selectedRecordId: null,
+    boundTargetId: targetId,
+    generation: 0,
+  };
 }
 
 type PreviewProvenance = {
@@ -340,7 +382,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const targetsByIdRef = useRef(targetsById);
   targetsByIdRef.current = targetsById;
 
-  const refreshHistory = useCallback(async (worksheetId?: string) => {
+  const refreshHistory = useCallback(async (worksheetId?: string, requestedFilters?: QueryExecutionFilter) => {
     const targetWorksheetId = worksheetId ?? activeWorksheetId;
     const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
     if (!worksheet) return;
@@ -350,38 +392,230 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
     const targetId = worksheet.targetResourceId;
     const nextGeneration = worksheet.history.generation + 1;
+    const filters = requestedFilters ?? worksheet.history.filters;
 
     setWorksheets((previous) =>
       previous.map((ws) =>
         ws.id === targetWorksheetId
-          ? { ...ws, history: { ...ws.history, status: "loading" as const, generation: nextGeneration, boundTargetId: targetId } }
+          ? {
+              ...ws,
+              history: {
+                ...ws.history,
+                replaceStatus: "loading" as const,
+                replaceError: undefined,
+                appendStatus: "idle" as const,
+                appendError: undefined,
+                items: [],
+                nextCursor: null,
+                filters,
+                pendingFilters: requestedFilters === undefined ? ws.history.pendingFilters : filters,
+                selectedRecordId: null,
+                boundTargetId: targetId,
+                generation: nextGeneration,
+              },
+            }
           : ws,
       ),
     );
 
     try {
-      const response = await listQueryExecutions(targetId);
+      const response = await listQueryExecutions(targetId, {
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
+        ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
+        pageSize: 20,
+      });
       setWorksheets((previous) => {
         const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (!current || current.targetResourceId !== targetId || current.history.generation !== nextGeneration) return previous;
+        if (
+          !current ||
+          current.targetResourceId !== targetId ||
+          current.history.generation !== nextGeneration ||
+          current.history.filters.status !== filters.status ||
+          current.history.filters.from !== filters.from ||
+          current.history.filters.to !== filters.to
+        ) return previous;
+        const seenIds = new Set<number>();
+        const items = response.items.filter((item) => {
+          if (seenIds.has(item.id)) return false;
+          seenIds.add(item.id);
+          return true;
+        });
         return previous.map((ws) =>
           ws.id === targetWorksheetId
-            ? { ...ws, history: { status: "ready" as const, items: response.items, boundTargetId: targetId, generation: nextGeneration } }
+            ? {
+                ...ws,
+                history: {
+                  ...ws.history,
+                  replaceStatus: "ready" as const,
+                  replaceError: undefined,
+                  items,
+                  nextCursor: response.nextCursor,
+                  filters,
+                  appendStatus: "idle" as const,
+                  appendError: undefined,
+                  boundTargetId: targetId,
+                  generation: nextGeneration,
+                },
+              }
             : ws,
         );
       });
     } catch {
       setWorksheets((previous) => {
         const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (!current || current.targetResourceId !== targetId || current.history.generation !== nextGeneration) return previous;
+        if (
+          !current ||
+          current.targetResourceId !== targetId ||
+          current.history.generation !== nextGeneration ||
+          current.history.filters.status !== filters.status ||
+          current.history.filters.from !== filters.from ||
+          current.history.filters.to !== filters.to
+        ) return previous;
         return previous.map((ws) =>
           ws.id === targetWorksheetId
-            ? { ...ws, history: { ...ws.history, status: "error" as const, error: "historyLoadFailed", generation: nextGeneration } }
+            ? {
+                ...ws,
+                history: {
+                  ...ws.history,
+                  replaceStatus: "error" as const,
+                  replaceError: "historyLoadFailed",
+                  appendStatus: "idle" as const,
+                  appendError: undefined,
+                  generation: nextGeneration,
+                },
+              }
             : ws,
         );
       });
     }
   }, [activeWorksheetId]);
+
+  const loadMoreHistory = useCallback(async (worksheetId?: string) => {
+    const targetWorksheetId = worksheetId ?? activeWorksheetId;
+    const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+    if (!worksheet) return;
+
+    const target = targetsByIdRef.current.get(worksheet.targetResourceId);
+    if (!target?.availableActions.run) return;
+
+    const targetId = worksheet.targetResourceId;
+    const { nextCursor, filters, generation } = worksheet.history;
+    if (!nextCursor || worksheet.history.appendStatus === "loading") return;
+
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === targetWorksheetId
+          ? {
+              ...ws,
+              history: {
+                ...ws.history,
+                appendStatus: "loading" as const,
+                appendError: undefined,
+              },
+            }
+          : ws,
+      ),
+    );
+
+    try {
+      const response = await listQueryExecutions(targetId, {
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
+        ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
+        cursor: nextCursor,
+        pageSize: 20,
+      });
+      setWorksheets((previous) => {
+        const current = previous.find((ws) => ws.id === targetWorksheetId);
+        if (
+          !current ||
+          current.targetResourceId !== targetId ||
+          current.history.boundTargetId !== targetId ||
+          current.history.generation !== generation ||
+          current.history.filters.status !== filters.status ||
+          current.history.filters.from !== filters.from ||
+          current.history.filters.to !== filters.to
+        ) {
+          return previous;
+        }
+        const seenIds = new Set(current.history.items.map((item) => item.id));
+        const newItems = response.items.filter((item) => {
+          if (seenIds.has(item.id)) return false;
+          seenIds.add(item.id);
+          return true;
+        });
+        return previous.map((ws) =>
+          ws.id === targetWorksheetId
+            ? {
+                ...ws,
+                history: {
+                  ...ws.history,
+                  items: [...ws.history.items, ...newItems],
+                  nextCursor: response.nextCursor,
+                  appendStatus: "idle" as const,
+                  appendError: undefined,
+                },
+              }
+            : ws,
+        );
+      });
+    } catch {
+      setWorksheets((previous) => {
+        const current = previous.find((ws) => ws.id === targetWorksheetId);
+        if (
+          !current ||
+          current.targetResourceId !== targetId ||
+          current.history.boundTargetId !== targetId ||
+          current.history.generation !== generation ||
+          current.history.filters.status !== filters.status ||
+          current.history.filters.from !== filters.from ||
+          current.history.filters.to !== filters.to
+        ) {
+          return previous;
+        }
+        return previous.map((ws) =>
+          ws.id === targetWorksheetId
+            ? {
+                ...ws,
+                history: {
+                  ...ws.history,
+                  appendStatus: "error" as const,
+                  appendError: "historyAppendFailed",
+                },
+              }
+            : ws,
+        );
+      });
+    }
+  }, [activeWorksheetId]);
+
+  function applyFilters(filters: QueryExecutionFilter) {
+    updateActiveWorksheet({
+      history: { ...activeWorksheet.history, pendingFilters: filters },
+    });
+    void refreshHistory(activeWorksheetId, filters);
+  }
+
+  function clearFilters() {
+    const filters: QueryExecutionFilter = {};
+    updateActiveWorksheet({
+      history: { ...activeWorksheet.history, pendingFilters: filters },
+    });
+    void refreshHistory(activeWorksheetId, filters);
+  }
+
+  function openHistoryDetail(record: QueryExecutionRecord) {
+    updateActiveWorksheet({
+      history: { ...activeWorksheet.history, selectedRecordId: record.id },
+    });
+  }
+
+  function closeHistoryDetail() {
+    updateActiveWorksheet({
+      history: { ...activeWorksheet.history, selectedRecordId: null },
+    });
+  }
 
   function selectWorksheetTab(tab: WorksheetTab) {
     setActiveTab(tab);
@@ -390,7 +624,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (!worksheet) return;
     const target = targetsByIdRef.current.get(worksheet.targetResourceId);
     if (!target?.availableActions.run) return;
-    if (worksheet.history.status === "idle" || worksheet.history.status === "error") {
+    if (worksheet.history.replaceStatus === "idle" || worksheet.history.replaceStatus === "error") {
       void refreshHistory(worksheet.id);
     }
   }
@@ -953,12 +1187,31 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       ) : activeTab === "history" && canExecute ? (
         <div id="section-panel-history" role="tabpanel" aria-labelledby="section-tab-history">
           <QueryHistoryPanel
-            status={activeWorksheet.history.status}
+            status={activeWorksheet.history.replaceStatus}
             items={activeWorksheet.history.items}
-            error={activeWorksheet.history.error}
+            error={activeWorksheet.history.replaceError}
             onRetry={() => {
               void refreshHistory(activeWorksheet.id);
             }}
+            nextCursor={activeWorksheet.history.nextCursor}
+            filter={activeWorksheet.history.pendingFilters}
+            isLoadingMore={activeWorksheet.history.appendStatus === "loading"}
+            appendError={activeWorksheet.history.appendError}
+            onApplyFilter={(filter) => {
+              const status = HISTORY_STATUS_OPTIONS.find((option) => option === filter.status);
+              applyFilters({
+                ...(status ? { status } : {}),
+                ...(filter.from ? { from: filter.from } : {}),
+                ...(filter.to ? { to: filter.to } : {}),
+              });
+            }}
+            onClearFilter={clearFilters}
+            onLoadMore={() => void loadMoreHistory(activeWorksheet.id)}
+            detailExecution={activeWorksheet.history.items.find(
+              (item) => item.id === activeWorksheet.history.selectedRecordId,
+            ) ?? null}
+            onOpenDetail={openHistoryDetail}
+            onCloseDetail={closeHistoryDetail}
           />
         </div>
       ) : null}

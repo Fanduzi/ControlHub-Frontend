@@ -105,7 +105,8 @@ import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
 import type {
   QueryExecuteResponse,
-  QueryExecutionListResponse,
+  QueryExecutionCursorPage,
+  QueryExecutionRecord,
 } from "@/types/query-execution";
 import enMessages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
@@ -115,17 +116,10 @@ const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 
-function emptyHistory(): QueryExecutionListResponse {
+function emptyHistory(): QueryExecutionCursorPage {
   return {
     items: [],
-    pageInfo: {
-      page: 1,
-      pageSize: 20,
-      totalItems: 0,
-      totalPages: 0,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
+    nextCursor: null,
   };
 }
 
@@ -794,7 +788,7 @@ describe("QueryWorkbench execution (ready target)", () => {
 
     // After the execution settles, history is refreshed once.
     await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledTimes(1));
-    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30);
+    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30, { pageSize: 20 });
   });
 });
 
@@ -893,7 +887,7 @@ describe("QueryWorkbench initial worksheet mount", () => {
     expect(mockListQueryExecutions).not.toHaveBeenCalled();
     await user.click(screen.getByRole("tab", { name: /query history/i }));
     await waitFor(() => {
-      expect(mockListQueryExecutions).toHaveBeenCalledWith(31);
+      expect(mockListQueryExecutions).toHaveBeenCalledWith(31, { pageSize: 20 });
     });
     expect(mockListQueryExecutions).toHaveBeenCalledTimes(1);
   });
@@ -992,7 +986,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     };
   }
 
-  function historyForA(): QueryExecutionListResponse {
+  function historyForA(): QueryExecutionCursorPage {
     return {
       items: [
         {
@@ -1010,14 +1004,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
           createdAt: "2026-06-22T08:00:00Z",
         },
       ],
-      pageInfo: {
-        page: 1,
-        pageSize: 20,
-        totalItems: 1,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
+      nextCursor: null,
     };
   }
 
@@ -1072,10 +1059,10 @@ describe("QueryWorkbench target switching (ready targets)", () => {
 
   it("does not leak target A's history into target B while B's history is loading", async () => {
     const user = userEvent.setup();
-    let resolveBHistory!: (value: QueryExecutionListResponse) => void;
+    let resolveBHistory!: (value: QueryExecutionCursorPage) => void;
     mockListQueryExecutions.mockImplementation((resourceId: number) => {
       if (resourceId === TARGET_A_ID) return Promise.resolve(historyForA());
-      return new Promise<QueryExecutionListResponse>((resolve) => {
+      return new Promise<QueryExecutionCursorPage>((resolve) => {
         resolveBHistory = resolve;
       });
     });
@@ -2453,7 +2440,7 @@ describe("QueryWorkbench history target-race guard", () => {
 
   it("discards stale history when worksheet target changes during pending request", async () => {
     const user = userEvent.setup();
-    let resolveHistoryA!: (value: QueryExecutionListResponse) => void;
+    let resolveHistoryA!: (value: QueryExecutionCursorPage) => void;
 
     // History for A hangs after execute; B settles empty immediately.
     mockListQueryExecutions.mockImplementation((resourceId: number) => {
@@ -2506,7 +2493,7 @@ describe("QueryWorkbench history target-race guard", () => {
     // Initial mount must not load history; start a pending A history via Run.
     expect(mockListQueryExecutions).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /^run$/i }));
-    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30));
+    await waitFor(() => expect(mockListQueryExecutions).toHaveBeenCalledWith(30, { pageSize: 20 }));
 
     // Switch targets while A's post-run history is still in flight.
     openConnections();
@@ -2527,14 +2514,7 @@ describe("QueryWorkbench history target-race guard", () => {
         errorMessage: "",
         createdAt: "2026-07-08T10:00:00Z",
       }],
-      pageInfo: {
-        page: 1,
-        pageSize: 20,
-        totalItems: 1,
-        totalPages: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
+      nextCursor: null,
     });
 
     // Active worksheet is B — A's late history must never surface in B's panel.
@@ -3559,5 +3539,566 @@ describe("FK record navigation", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("related-records")).toBeNull();
     });
+  });
+});
+
+/**
+ * Phase 38M: cursor-based history with filters and detail. The workbench
+ * supports cursor-paginated history, status/date filters, load-more append,
+ * execution detail sheet, and deduplication by execution ID.
+ */
+describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockReset();
+  });
+
+  function buildReadyTarget() {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+    });
+  }
+
+  function buildHistoryRecord(overrides: Partial<QueryExecutionRecord> = {}): QueryExecutionRecord {
+    return {
+      id: 9001,
+      targetResourceId: 30,
+      actor: { displayName: "Chen Hao" },
+      engine: "mysql",
+      statementDigest: "digest-1",
+      statementPreview: "select * from users",
+      status: "success",
+      rowCount: 42,
+      durationMs: 15,
+      errorCode: "",
+      errorMessage: "",
+      createdAt: "2026-07-15T10:00:00Z",
+      ...overrides,
+    };
+  }
+
+  function buildCursorPage(
+    records: QueryExecutionRecord[],
+    nextCursor: string | null = null,
+  ) {
+    return {
+      items: records,
+      nextCursor,
+    };
+  }
+
+  function renderReady(target = buildReadyTarget()) {
+    return render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  async function openHistoryTab(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+  }
+
+  it("does not fetch history on mount — only on History tab open", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderReady();
+
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("initial load is cursor-free (no cursor param)", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledWith(30, { pageSize: 20 });
+    });
+  });
+
+  it("renders initial history items from the first cursor page", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [
+          buildHistoryRecord({ id: 9001, statementPreview: "select * from users" }),
+          buildHistoryRecord({ id: 9002, statementPreview: "select * from orders" }),
+        ],
+        "cursor-page-2",
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+      expect(screen.getByText("select * from orders")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Load more button when nextCursor is present", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001 })],
+        "cursor-page-2",
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Load more button when nextCursor is null", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage([buildHistoryRecord({ id: 9001 })], null),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
+  });
+
+  it("Load more appends items from the next cursor page", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+          "cursor-page-2",
+        ),
+      )
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [buildHistoryRecord({ id: 9002, statementPreview: "select * from orders" })],
+          null,
+        ),
+      );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("select * from orders")).toBeInTheDocument();
+    });
+    expect(screen.getByText("select * from users")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
+  });
+
+  it("Load more sends cursor param to listQueryExecutions", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions
+      .mockResolvedValueOnce(
+        buildCursorPage([buildHistoryRecord({ id: 9001 })], "abc-123"),
+      )
+      .mockResolvedValueOnce(
+        buildCursorPage([buildHistoryRecord({ id: 9002 })], null),
+      );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledTimes(2);
+    });
+    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30, { cursor: "abc-123", pageSize: 20 });
+  });
+
+  it("append failure keeps current rows and shows error", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+          "cursor-page-2",
+        ),
+      )
+      .mockRejectedValueOnce(new Error("network error"));
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByText("select * from users")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
+  });
+
+  it("deduplicates items by execution ID on append", async () => {
+    const user = userEvent.setup();
+    const duplicateRecord = buildHistoryRecord({ id: 9001, statementPreview: "select * from users" });
+    mockListQueryExecutions
+      .mockResolvedValueOnce(
+        buildCursorPage([duplicateRecord], "cursor-page-2"),
+      )
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [
+            duplicateRecord,
+            buildHistoryRecord({ id: 9002, statementPreview: "select * from orders" }),
+          ],
+          null,
+        ),
+      );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("select * from orders")).toBeInTheDocument();
+    });
+    const userRows = screen.getAllByText("select * from users");
+    expect(userRows).toHaveLength(1);
+  });
+
+  it("Filter Apply triggers a replace fetch with filter params", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions
+      .mockResolvedValueOnce(buildCursorPage([buildHistoryRecord({ id: 9001 })], null))
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [buildHistoryRecord({ id: 9003, status: "failed" as const, statementPreview: "select bad" })],
+          null,
+        ),
+      );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const statusSelect = screen.getByRole("combobox", { name: /status/i });
+    await user.click(statusSelect);
+    await user.click(screen.getByRole("option", { name: /failed/i }));
+
+    await user.click(screen.getByRole("button", { name: /apply/i }));
+
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledTimes(2);
+    });
+    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30, { status: "failed", pageSize: 20 });
+    await waitFor(() => {
+      expect(screen.getByText("select bad")).toBeInTheDocument();
+    });
+  });
+
+  it("Filter Clear resets filters and fetches without params", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions
+      .mockResolvedValueOnce(buildCursorPage([buildHistoryRecord({ id: 9001 })], null))
+      .mockResolvedValueOnce(
+        buildCursorPage(
+          [buildHistoryRecord({ id: 9003, status: "failed" as const, statementPreview: "select bad" })],
+          null,
+        ),
+      )
+      .mockResolvedValueOnce(
+        buildCursorPage([buildHistoryRecord({ id: 9002, statementPreview: "select 1" })], null),
+      );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const statusSelect = screen.getByRole("combobox", { name: /status/i });
+    await user.click(statusSelect);
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: /failed/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("option", { name: /failed/i }));
+
+    await user.click(screen.getByRole("button", { name: /apply/i }));
+
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledTimes(2);
+    });
+    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30, { status: "failed", pageSize: 20 });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /clear/i }));
+
+    await waitFor(() => {
+      expect(mockListQueryExecutions).toHaveBeenCalledTimes(3);
+    });
+    expect(mockListQueryExecutions).toHaveBeenLastCalledWith(30, { pageSize: 20 });
+  });
+
+  it("stale append rejection after target switch keeps new target's rows", async () => {
+    const user = userEvent.setup();
+    let resolveAppend!: (value: ReturnType<typeof buildCursorPage>) => void;
+
+    mockListQueryExecutions.mockImplementation((resourceId: number, params?: { cursor?: string }) => {
+      if (resourceId === 30 && !params?.cursor) {
+        return Promise.resolve(
+          buildCursorPage(
+            [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+            "cursor-page-2",
+          ),
+        );
+      }
+      if (resourceId === 30 && params?.cursor) {
+        return new Promise((resolve) => {
+          resolveAppend = resolve;
+        });
+      }
+      return Promise.resolve(emptyHistory());
+    });
+
+    const targetA = buildReadyTarget();
+    const targetB = buildQueryTarget({
+      resourceId: 31,
+      displayName: "Staging MySQL",
+      readiness: "ready",
+      availableActions: { run: true, explain: false, export: false, saveSheet: false, requestAccess: false },
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[targetA, targetB]}
+          pageInfo={pageInfoFor([targetA, targetB])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    openConnections();
+    await user.click(screen.getByRole("button", { name: "Staging MySQL" }));
+
+    resolveAppend(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9002, statementPreview: "select * from stale" })],
+        null,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Loading history…")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("select * from stale")).toBeNull();
+  });
+
+  it("opens execution detail sheet when clicking a history row", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const row = screen.getByRole("button", { name: /select \* from users/i });
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+    const dialog = screen.getByRole("dialog", { name: /execution details/i });
+    expect(within(dialog).getByText("Chen Hao")).toBeInTheDocument();
+    expect(within(dialog).getByText("42")).toBeInTheDocument();
+  });
+
+  it("closes execution detail sheet on Close button click", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /select \* from users/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: /execution details/i });
+    const allButtons = within(dialog).getAllByRole("button");
+    const closeBtn = allButtons.find((btn) => btn.textContent?.includes("Close"));
+    expect(closeBtn).toBeDefined();
+    await user.click(closeBtn!);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
+    });
+  });
+
+  it("renders history detail labels in Chinese under zh-CN locale", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /查询历史/i }));
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /select \* from users/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /执行详情/i })).toBeInTheDocument();
+    });
+    const dialog = screen.getByRole("dialog", { name: /执行详情/i });
+    expect(within(dialog).getAllByText("执行人").length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getByText("引擎")).toBeInTheDocument();
+    expect(within(dialog).getByText("关闭")).toBeInTheDocument();
+  });
+
+  it("renders filter controls with localized labels in EN", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: /status/i })).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("From")).toBeInTheDocument();
+    expect(screen.getByLabelText("To")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /apply/i })).toBeInTheDocument();
+  });
+
+  it("renders filter controls with localized labels in zh-CN", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /查询历史/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: /状态/i })).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("从")).toBeInTheDocument();
+    expect(screen.getByLabelText("到")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /应用/i })).toBeInTheDocument();
+  });
+
+  it("never renders actorUserId in history responses", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001 })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("Chen Hao")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/actorUserId/i)).toBeNull();
+    expect(screen.queryByText(/^9001$/)).toBeNull();
   });
 });
