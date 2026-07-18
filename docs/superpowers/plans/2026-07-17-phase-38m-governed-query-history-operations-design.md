@@ -29,9 +29,13 @@ scope is server-derived from the authenticated role and enforced in SQL; the
 browser never sends actor IDs or roles. No signing secret is introduced because
 the cursor is bounded (max 1024 bytes), versioned, and validated server-side
 against the current request context. Legacy `page`/`pageSize` parameters are
-preserved for backward compatibility but new continuation uses `cursor` and
-`nextCursor` exclusively. The service resolves target existence and actor
-scope first, then invokes the repository with both scope and filters.
+preserved with an explicit contract: absent `page` selects cursor-initial mode,
+valid `page >= 1` selects offset mode with `pageInfo`, and invalid explicit
+`page` or `pageSize` values return controlled 400 `validation_failed` without
+calling `ListHistory`. `pageSize` defaults to 20 and accepts only integers in
+`1..500`; `page` and `cursor` are mutually exclusive. New continuation uses
+`cursor` and `nextCursor` exclusively. The service resolves target existence
+and actor scope first, then invokes the repository with both scope and filters.
 
 The repository uses bound values for all filters and returns the existing safe
 record projection plus a `nextCursor` value when more rows exist. Establish the
@@ -63,9 +67,11 @@ filters, cursor, mode, and generation identity to match.
 
 Desktop may use a compact expandable detail row if it preserves table reading;
 mobile uses the established local Sheet pattern. The component receives an
-existing record and performs no new API request. Closing, retargeting, filter
-replacement, or worksheet closure clears the detail selection and restores
-focus to the originating row/action when it remains mounted.
+existing record and performs no new API request. The originating row is
+captured synchronously from click/keyboard activation, and the modal receives
+initial focus. Closing, retargeting, filter replacement, or worksheet closure
+clears the detail selection and restores focus only when that captured trigger
+is still connected; detached triggers are never focused.
 
 ## Rejected Alternatives
 
@@ -82,8 +88,8 @@ focus to the originating row/action when it remains mounted.
 ## Verification Shape
 
 Backend: model/service/handler/repository tests, integration for actor scope +
-filters + cursor continuation + pagination, OpenAPI validation, fuzz, vet, and
-build.
+filters + cursor continuation + pagination validation, OpenAPI validation, fuzz,
+vet, and build.
 
 Frontend: component races for filters/cursor replacement/append/detail closure,
 EN/ZH accessibility tests, and real E2E creating enough governed executions to

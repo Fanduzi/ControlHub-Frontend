@@ -25,7 +25,7 @@ status, statement-preview, and controlled-error presentation.
 Use only the existing authenticated endpoint:
 
 ```text
-GET /query-targets/{id}/executions?page={page}&pageSize={pageSize}
+GET /query-targets/{id}/executions?[page={page}&]pageSize={pageSize}&[cursor={cursor}]
 ```
 
 The browser sends target id and pagination parameters only. It does not send an
@@ -33,16 +33,23 @@ actor id, SQL, credential reference, DSN, result values, or history filter.
 The server continues to decide visibility: admins receive target history and
 non-admins receive only their own rows.
 
+When `page` is absent, the request uses cursor-initial mode; a valid explicit
+`page` uses legacy offset mode and returns `pageInfo`. Explicit invalid `page`
+or `pageSize` values return `400 validation_failed` and do not invoke history
+listing. `pageSize` defaults to 20 and accepts only integers in `1..500`.
+`page` and `cursor` are mutually exclusive.
+
 ## Functional Requirements
 
-- First opening a worksheet History tab requests only page 1 at page size 20;
+- First opening a worksheet History tab requests only the cursor-initial page at
+  page size 20;
   it must not add a mount-time request.
-- When `pageInfo.hasNextPage` is true, show a localized, keyboard-reachable
+- When `nextCursor` is present, show a localized, keyboard-reachable
   `Load more history` action.
-- Loading more requests exactly the next page for the same worksheet target and
-  appends records in the returned newest-to-oldest order, deduplicated by
-  execution id.
-- A successful Run refreshes page 1 and replaces all previously loaded history
+- Loading more requests exactly the next opaque cursor continuation for the
+  same worksheet target and appends records in the returned newest-to-oldest
+  order, deduplicated by execution id.
+- A successful Run refreshes the cursor-initial page and replaces all previously loaded history
   pages, because newest-first ordering may have changed.
 - A page-1 error replaces the panel with the existing controlled error/retry
   state. An append error retains currently loaded records and presents an
@@ -78,11 +85,15 @@ one. A second continuation click is disabled while append is pending.
 - Real E2E creates enough governed fixture executions to load history page two
   and covers desktop English, 375px mobile English, and desktop Simplified
   Chinese with zero failures and zero skips.
+- Detail close by Escape and explicit Close restores focus to the originating
+  row on desktop and 375px mobile; keyboard activation restores the same row;
+  removing the row while detail is open closes without focusing a detached
+  element.
 - All final gates run against the exact final commit. Fixture insufficiency is a
   loud setup blocker, never a mock or test skip.
 
 ## Explicit Non-Goals
 
-No backend/OpenAPI/migration changes; no history search, filters, page jumps,
+No migrations; no history search, filters, page jumps,
 page-size selector, export, persistence, cross-target history, SQL insertion,
 credential controls, actor-id exposure, result-row display, or SQL guard change.

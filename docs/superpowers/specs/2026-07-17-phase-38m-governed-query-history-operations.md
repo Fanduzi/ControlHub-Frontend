@@ -24,9 +24,14 @@ unkeyed SHA-256 query-context digest (not a cryptographic signature) that the
 server validates against the current request's (target, status, from, to,
 scope) tuple to detect context-mismatched replays; actor scope is always
 server-derived and enforced in SQL. The legacy page/pageSize parameters are
-preserved for backward compatibility but new continuation uses nextCursor
-exclusively. A Run or filter change refreshes page one and invalidates older
-loaded pages.
+preserved with a precise HTTP contract: an absent `page` selects cursor-
+initial mode, a valid explicit `page` selects legacy offset mode with
+`pageInfo`, and an explicitly supplied invalid `page` returns controlled 400
+`validation_failed` rather than falling back to cursor mode. `pageSize`
+defaults to 20 and must be an integer in `1..500`; explicitly invalid values
+return the same controlled 400 in both modes. `page` and `cursor` are
+mutually exclusive. New continuation uses `nextCursor` exclusively. A Run
+or filter change refreshes page one and invalidates older loaded pages.
 
 ### B. Server-Governed Operational Filters
 
@@ -43,6 +48,11 @@ status, timestamp, statement preview/digest, rows, duration, and controlled
 error metadata only. It must not offer editor insertion, copy/export/download,
 raw results, credentials, or raw backend errors.
 
+Opening from a history row captures that row synchronously from the click or
+keyboard activation event. Escape and explicit Close restore focus to that row
+only while it remains connected; filter, target, or worksheet transitions that
+remove the row close safely without focusing a detached element.
+
 ## Safety Boundary
 
 - Existing backend actor visibility remains authoritative.
@@ -50,6 +60,9 @@ raw results, credentials, or raw backend errors.
   passwords, result rows, or raw driver errors.
 - All list/filter/pagination queries remain bounded and parameterized; cursor
   values are opaque and server-generated.
+- OpenAPI documents the page/pageSize validation contract and only uses
+  structurally valid version-1 cursor examples; cursor examples are opaque
+  illustrative tokens, not reusable authorization artifacts.
 - The browser stores state only in the active worksheet; no URL, local storage,
   global cache, persistence, or cross-target aggregation is introduced.
 - No retention/deletion policy, approval workflow, saved query, query guard
@@ -59,5 +72,7 @@ raw results, credentials, or raw backend errors.
 
 The milestone is complete only when backend contract/integration/OpenAPI/fuzz
 coverage and frontend component/E2E coverage prove cursor continuation,
-pagination, filters, actor scope, stale-request rejection, mobile detail, EN/ZH behavior, and zero-skip
-real E2E against a fixture with more than one accessible history page.
+pagination validation in both modes, filters, actor scope, stale-request
+rejection, connected-trigger focus restoration, mobile detail, EN/ZH behavior,
+and zero-skip real E2E against a fixture with more than one accessible history
+page.

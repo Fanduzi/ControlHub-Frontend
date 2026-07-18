@@ -3,17 +3,17 @@
 ## Decision
 
 Extend the existing per-worksheet History state machine in
-`QueryEditorShell`. The backend and frontend service already support bounded
-history pagination, so this delivery retains the API contract and adds only a
-local continuation state plus a small History-panel action.
+`QueryEditorShell`. Cursor continuation remains worksheet-local, while the
+backend handler owns the precise page/pageSize contract and controlled errors:
+absent page means cursor-initial, valid explicit page means offset/pageInfo,
+and explicit invalid page/pageSize returns 400 without a service call.
 
 ## Current State
 
-`listQueryExecutions(targetId, { page, pageSize })` already serializes page
-parameters and returns `QueryExecutionListResponse` with `items` and
-`pageInfo`. `refreshHistory` currently requests the default first page and
-discards pageInfo. `QueryHistoryPanel` renders the records but has no
-continuation or append-error surface.
+`listQueryExecutions(targetId, { page, pageSize, cursor })` serializes the
+pagination mode and returns `items`, `nextCursor`, and optional `pageInfo`.
+`refreshHistory` requests the cursor-initial page and resets continuation.
+`QueryHistoryPanel` renders the records and the cursor continuation action.
 
 ## History Model
 
@@ -21,7 +21,7 @@ Each `LocalWorksheet.history` retains:
 
 ```text
 items
-pageInfo
+nextCursor
 status: idle | loading | ready | error
 appendStatus: idle | loading | error
 appendError
@@ -36,14 +36,14 @@ order. Do not client-sort or refetch a larger page.
 
 ## Request Modes
 
-`replace` always requests page 1/pageSize 20 and replaces `items` plus
-`pageInfo`. First History open, a page-one retry, and post-Run refresh use this
-mode. A successful Run deliberately discards older loaded pages.
+`replace` requests the cursor-initial page at pageSize 20 and replaces `items`
+plus `nextCursor`. First History open, a page-one retry, and post-Run refresh
+use this mode. A successful Run deliberately discards older loaded pages.
 
-`append` reads `pageInfo.page + 1`, keeps existing items visible, and only
-updates the same worksheet when worksheet id, target id, generation, page, and
-mode still match. On failure, retain items/pageInfo and expose a retry for the
-same next page.
+`append` sends the current `nextCursor`, keeps existing items visible, and only
+updates the same worksheet when worksheet id, target id, generation, cursor,
+and mode still match. On failure, retain items/nextCursor and expose a retry for
+the same continuation.
 
 ## Invalidations
 
@@ -55,7 +55,8 @@ worksheet target ownership remain mandatory. History must never reuse execute
 ## UI
 
 Keep the existing table and safe metadata columns. Beneath it, render one
-localized Button only when `hasNextPage`. Disable it while append is loading.
+localized Button only when `nextCursor` is present. Disable it while append is
+loading.
 Render a scoped append error and Retry without replacing table rows. Add concise
 EN/ZH labels with no raw server error text.
 
@@ -66,11 +67,13 @@ tests for append order/dedupe, page parameters, append retry preservation,
 post-Run replacement, target/worksheet stale rejection, and continuation
 visibility/disabled state. Add real E2E that creates enough executions through
 the governed Run path and verifies page two in EN desktop, EN mobile, and ZH
-desktop without mocks or skips.
+desktop without mocks or skips. Add handler/OpenAPI tests for invalid explicit
+page/pageSize values and component tests for click/keyboard detail focus
+restoration and safe row removal.
 
 ## Boundaries
 
-Do not change the backend contract, actor scope, service type, history search,
+Do not change actor scope, service type, history search,
 page-size selection, persistence, exports, credentials, SQL guard, or result
 grid. If real E2E cannot safely produce more than one accessible history page,
 stop and define a fixture prerequisite rather than weakening acceptance.
