@@ -2,16 +2,24 @@
 
 ## Status
 
-Planned as 38M Workstream A. It follows Phase 38L and consumes the existing
-governed execution-history pagination contract. The broader 38M milestone is
-defined in `2026-07-17-phase-38m-governed-query-history-operations.md`.
+Merged and verified on 2026-07-18 as 38M Workstream A. It follows Phase 38L
+and consumes the governed execution-history pagination contract. The broader
+38M milestone is defined in
+`2026-07-17-phase-38m-governed-query-history-operations.md`.
 
-## Problem
+## Delivery Evidence
 
-The execution-history endpoint already returns `items` and `pageInfo`, with a
-bounded default page size of 20. The Workbench always requests page 1, stores
-only `items`, and offers no way to reach older accessible records. An operator
-therefore cannot inspect more than the most recent page for a worksheet target.
+- Backend main: `94c2c39cbd1615283fb06ac5d49eb9e1f2e789ee`.
+- Frontend main: `639bf28017b74e75223effd1c6313ae9fae7d203`.
+- Real merged-head E2E: 70 passed, 0 failed, 0 skipped.
+- CI: [backend run 29638474931](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29638474931) and [frontend run 29638474360](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/29638474360) completed successfully.
+
+## Planning Baseline
+
+Before Phase 38M, the execution-history endpoint returned `items` and
+`pageInfo`, with a bounded default page size of 20. The Workbench requested
+only page 1, stored only `items`, and offered no way to reach older accessible
+records.
 
 ## User Outcome
 

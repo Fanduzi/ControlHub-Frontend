@@ -2,9 +2,16 @@
 
 ## Status
 
-Planned. Phase 38M makes the existing Query Workbench History panel useful for
-operational investigation at scale without expanding query execution, actor
-visibility, or data disclosure.
+Merged and verified on 2026-07-18. Phase 38M makes the existing Query
+Workbench History panel useful for operational investigation at scale without
+expanding query execution, actor visibility, or data disclosure.
+
+## Delivery Evidence
+
+- Backend main: `94c2c39cbd1615283fb06ac5d49eb9e1f2e789ee`.
+- Frontend main: `639bf28017b74e75223effd1c6313ae9fae7d203`.
+- Real merged-head E2E: 70 passed, 0 failed, 0 skipped.
+- CI: [backend run 29638474931](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29638474931) and [frontend run 29638474360](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/29638474360) completed successfully.
 
 ## Milestone Goal
 
