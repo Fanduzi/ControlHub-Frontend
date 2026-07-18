@@ -2356,6 +2356,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
 
     await page.keyboard.press("Escape");
     await expect(detailSheet).toBeHidden();
+    await expect(historyRow).toBeFocused();
   });
 
   test("desktop EN: actor display name shown, never raw actorUserId", async ({ page }) => {
@@ -2399,6 +2400,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
 
     await page.keyboard.press("Escape");
     await expect(detailSheet).toBeHidden();
+    await expect(historyRow).toBeFocused();
   });
 
   test("desktop zh-CN: filters, Load more, and detail labels", async ({ page }) => {
@@ -2431,6 +2433,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
 
     await page.keyboard.press("Escape");
     await expect(detailSheet).toBeHidden();
+    await expect(historyRow).toBeFocused();
   });
 
   test("regression: history rows expose role=button (not data-slot) so click navigation is real", async ({ page }) => {
