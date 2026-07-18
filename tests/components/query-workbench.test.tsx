@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -87,6 +88,7 @@ vi.mock("next-themes", () => ({
 }));
 
 import { QueryWorkbench } from "@/components/query/query-workbench";
+import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { QUERY_EDITOR_HEIGHT_STORAGE_KEY } from "@/lib/query-editor-preferences";
 import {
   buildColumnCompletionsForDot,
@@ -4011,6 +4013,192 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
     });
+  });
+
+  // --- Phase 38M final repair: focus restoration to the originating row ---
+  //
+  // WHY: the prior HistoryDetailSheet captured document.activeElement in a child
+  // useEffect that ran AFTER Base UI had already moved focus into the dialog, so
+  // the captured "trigger" was the dialog content — not the row. Escape and
+  // Close therefore restored focus to the wrong element. These tests fail
+  // against that defective implementation because toHaveFocus() lands on the
+  // dialog, not the row. The fix captures the trigger synchronously from the
+  // activation event and passes it to SheetContent via finalFocus, which Base
+  // UI invokes only when the ref target is still connected.
+
+  it("restores focus to the originating row after closing detail via Escape", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const row = screen.getByRole("button", { name: /select \* from users/i });
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
+    });
+    // WHY: focus must return to the row that opened the sheet, not to the dialog
+    // content or document.body. The prior implementation captured
+    // document.activeElement post-mount, so this assertion failed.
+    await waitFor(() => {
+      expect(row).toHaveFocus();
+    });
+  });
+
+  it("restores focus to the originating row after closing detail via Close button", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const row = screen.getByRole("button", { name: /select \* from users/i });
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: /execution details/i });
+    // WHY: SheetContent renders a default X close button (sr-only "Close"), so
+    // there are two buttons whose accessible name matches /close/i. The visible
+    // outline Close button is the one wired to onClose; pick it by matching the
+    // non-icon variant. This mirrors the existing detail-close test's pattern.
+    const allButtons = within(dialog).getAllByRole("button");
+    const closeBtn = allButtons.find((btn) => btn.textContent?.includes("Close") && !btn.querySelector("svg.lucide-x"));
+    expect(closeBtn).toBeDefined();
+    await user.click(closeBtn!);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
+    });
+    // WHY: the Close button path must also restore focus to the originating row.
+    await waitFor(() => {
+      expect(row).toHaveFocus();
+    });
+  });
+
+  it("opens detail via keyboard (Enter) and restores focus on Escape", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [buildHistoryRecord({ id: 9001, statementPreview: "select * from users" })],
+        null,
+      ),
+    );
+    renderReady();
+
+    await openHistoryTab(user);
+    await waitFor(() => {
+      expect(screen.getByText("select * from users")).toBeInTheDocument();
+    });
+
+    const row = screen.getByRole("button", { name: /select \* from users/i });
+    // WHY: keyboard activation must capture the same trigger as click activation.
+    // Focus the row explicitly, then press Enter to open.
+    row.focus();
+    await waitFor(() => {
+      expect(row).toHaveFocus();
+    });
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
+    });
+    await waitFor(() => {
+      expect(row).toHaveFocus();
+    });
+  });
+
+  it("closes safely without focusing a detached row when a target transition replaces items", async () => {
+    const user = userEvent.setup();
+    const firstRecord = buildHistoryRecord({ id: 9001, statementPreview: "select * from users" });
+    const replacementRecord = buildHistoryRecord({ id: 9002, statementPreview: "select * from orders", status: "rejected" });
+    let replaceItems: (() => void) | undefined;
+
+    function TransitionHarness() {
+      const [items, setItems] = useState([firstRecord]);
+      const [selectedRecordId, setSelectedRecordId] = useState<number | null>(null);
+      useEffect(() => {
+        replaceItems = () => setItems([replacementRecord]);
+        return () => {
+          replaceItems = undefined;
+        };
+      }, []);
+
+      return (
+        <QueryHistoryPanel
+          status="ready"
+          items={items}
+          nextCursor={null}
+          filter={{}}
+          isLoadingMore={false}
+          onApplyFilter={() => undefined}
+          onClearFilter={() => undefined}
+          onLoadMore={() => undefined}
+          detailExecution={items.find((item) => item.id === selectedRecordId) ?? null}
+          onOpenDetail={(record) => setSelectedRecordId(record.id)}
+          onCloseDetail={() => setSelectedRecordId(null)}
+        />
+      );
+    }
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <TransitionHarness />
+      </NextIntlClientProvider>,
+    );
+
+    const row9001 = screen.getByRole("button", { name: /select \* from users/i });
+    await user.click(row9001);
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /execution details/i })).toBeInTheDocument();
+    });
+
+    // WHY: a target/worksheet transition can replace the parent's history
+    // items while detail is open. The selected ID remains 9001, but the new
+    // items no longer contain it, so detailExecution becomes null and the
+    // Sheet unmounts. The finalFocus callback must not focus the detached row.
+    act(() => {
+      replaceItems?.();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /execution details/i })).toBeNull();
+    });
+    expect(row9001).not.toBeInTheDocument();
+    expect(row9001).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: /select \* from orders/i })).toBeInTheDocument();
   });
 
   it("renders history detail labels in Chinese under zh-CN locale", async () => {

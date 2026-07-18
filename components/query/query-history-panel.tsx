@@ -89,19 +89,49 @@ function formatAbsoluteTime(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "medium" }).format(date);
 }
 
-function HistoryDetailSheet({ execution, onClose }: { execution: QueryExecutionRecord; onClose: () => void }) {
+function HistoryDetailSheet({
+  execution,
+  onClose,
+  triggerRef,
+}: {
+  execution: QueryExecutionRecord;
+  onClose: () => void;
+  triggerRef: React.RefObject<HTMLElement | null>;
+}) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
-  const triggerRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    triggerRef.current = document.activeElement as HTMLElement;
-    return () => { triggerRef.current?.focus(); };
+  // WHY: Base UI's finalFocus runs on both controlled close and unmount. An
+  // explicit ref is resolved without an isConnected check, so a detached row
+  // (removed by filter/target/worksheet transition while the Sheet was open)
+  // would receive focus onto a dead node. Returning false tells Base UI to
+  // skip focus restoration entirely when the trigger is no longer connected,
+  // rather than falling back to document.body.
+  const finalFocus = useCallback((): HTMLElement | false | void => {
+    const el = triggerRef.current;
+    if (el && el.isConnected) return el;
+    return false;
+  }, [triggerRef]);
+
+  // WHY: SheetContent sets initialFocus={false} globally (the resizable
+  // right-side sheet does not want to steal focus on mount). The history
+  // detail sheet, however, is a modal dialog that must receive focus on open
+  // so screen readers announce it and keyboard users land inside the dialog.
+  // Focusing the Close button explicitly gives a predictable, named landing
+  // target that is also the most common next action.
+  const initialFocus = useCallback((): HTMLElement | false | void => {
+    return closeButtonRef.current ?? false;
   }, []);
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent data-side="bottom" aria-label={t("history.detail.title")}>
+      <SheetContent
+        side="bottom"
+        finalFocus={finalFocus}
+        initialFocus={initialFocus}
+        aria-label={t("history.detail.title")}
+      >
         <SheetHeader>
           <SheetTitle>{t("history.detail.title")}</SheetTitle>
           <SheetDescription>{execution.statementPreview || t("history.emptyStatus")}</SheetDescription>
@@ -131,7 +161,7 @@ function HistoryDetailSheet({ execution, onClose }: { execution: QueryExecutionR
           </dl>
         </div>
         <div className="px-4 pb-4">
-          <Button type="button" variant="outline" onClick={onClose}>{t("history.detail.close")}</Button>
+          <Button type="button" variant="outline" ref={closeButtonRef} onClick={onClose}>{t("history.detail.close")}</Button>
         </div>
       </SheetContent>
     </Sheet>
@@ -144,6 +174,19 @@ export function QueryHistoryPanel({
 }: QueryHistoryPanelProps) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
+
+  // WHY: the trigger element must be captured synchronously from the click or
+  // keyboard activation event, before the Sheet mounts and Base UI moves focus
+  // into the dialog. A child useEffect (the prior approach) ran AFTER Base UI
+  // had already focused the dialog content, so document.activeElement pointed
+  // at the dialog, not the row. This ref is component-local only — never stored
+  // in worksheet persistence state (only selectedRecordId: number is persisted).
+  const detailTriggerRef = useRef<HTMLElement | null>(null);
+
+  const openDetailFromEvent = useCallback((record: QueryExecutionRecord, event: React.SyntheticEvent) => {
+    detailTriggerRef.current = event.currentTarget as HTMLElement;
+    onOpenDetail(record);
+  }, [onOpenDetail]);
 
   const [localStatus, setLocalStatus] = useState(filter.status ?? "");
   const [localFrom, setLocalFrom] = useState(filter.from ?? "");
@@ -238,10 +281,11 @@ export function QueryHistoryPanel({
                   <tr
                     key={record.id}
                     className="cursor-pointer border-b border-border/60 align-top hover:bg-muted/50"
-                    onClick={() => onOpenDetail(record)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenDetail(record); } }}
+                    onClick={(e) => openDetailFromEvent(record, e)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetailFromEvent(record, e); } }}
                     tabIndex={0}
                     role="button"
+                    aria-haspopup="dialog"
                     aria-label={record.statementPreview || t("history.emptyStatus")}
                   >
                     <td className="px-3 py-2 text-xs text-muted-foreground">
@@ -277,7 +321,13 @@ export function QueryHistoryPanel({
         </div>
       )}
 
-      {detailExecution && <HistoryDetailSheet execution={detailExecution} onClose={onCloseDetail} />}
+      {detailExecution && (
+        <HistoryDetailSheet
+          execution={detailExecution}
+          onClose={onCloseDetail}
+          triggerRef={detailTriggerRef}
+        />
+      )}
     </div>
   );
 }
