@@ -2460,3 +2460,161 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await expect(detailSheet).toBeHidden();
   });
 });
+
+test.describe("Query Workbench Explain (Phase 38N)", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "en", domain: "localhost", path: "/" },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-explain-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  async function openExplainableTarget(
+    page: Page,
+    options?: { locale?: "en" | "zh-CN"; mobile?: boolean },
+  ): Promise<void> {
+    const locale = options?.locale ?? "en";
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: locale, domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    if (options?.mobile) {
+      await page.goto("/query");
+    } else {
+      await page.locator('a[href="/query"]').first().click();
+    }
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+    const explainTrigger = page.getByTestId("explain-trigger");
+    test.skip(
+      !(await explainTrigger.isVisible().catch(() => false)),
+      "no Explain-capable target seeded",
+    );
+    await expect(explainTrigger).toBeVisible({ timeout: 10_000 });
+  }
+
+  async function historyItemCount(page: Page): Promise<number> {
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await page.waitForTimeout(500);
+    const empty = page.getByText(/no (query )?history|empty/i);
+    if (await empty.isVisible().catch(() => false)) {
+      await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
+      return 0;
+    }
+    const rows = page.locator("#section-panel-history").getByRole("button");
+    const count = await rows.count();
+    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
+    return count;
+  }
+
+  test("desktop EN: Explain shows normalized risk, no history growth, focus restores", async ({ page }) => {
+    await openExplainableTarget(page);
+
+    const beforeHistory = await historyItemCount(page);
+
+    await clearAndType(page, "select * from qe_explain_big");
+    const trigger = page.getByTestId("explain-trigger");
+    await expect(trigger).toBeEnabled();
+    await trigger.click();
+
+    const panel = page.getByTestId("explain-panel");
+    await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("explain-ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
+    await expect(page.locator('[data-node-access="full_scan"]')).toBeVisible();
+    await expect(panel.getByText(/query_block|table_name|qe_explain_big|possible_keys/i)).toHaveCount(0);
+
+    await page.getByTestId("explain-close").click();
+    await expect(panel).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    const afterHistory = await historyItemCount(page);
+    expect(afterHistory).toBe(beforeHistory);
+
+    await clearAndType(page, "select 1");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("375px mobile EN: Explain panel stacks in result area", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await openExplainableTarget(page, { mobile: true });
+
+    const trigger = page.getByTestId("explain-trigger");
+    await clearAndType(page, "select * from qe_explain_big");
+    await trigger.click();
+
+    const panel = page.getByTestId("explain-panel");
+    await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("explain-ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
+
+    const box = await panel.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      // Panel must fit the 375px viewport width (allow small subpixel/overflow chrome).
+      expect(box.width).toBeLessThanOrEqual(400);
+      expect(box.width).toBeGreaterThan(200);
+    }
+
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+  });
+
+  test("zh-CN desktop: Explain labels and close restore focus", async ({ page }) => {
+    await openExplainableTarget(page, { locale: "zh-CN" });
+
+    const trigger = page.getByTestId("explain-trigger");
+    await clearAndType(page, "select * from qe_explain_big");
+    await trigger.click();
+
+    const panel = page.getByTestId("explain-panel");
+    await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("explain-ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
+    await expect(page.getByTestId("explain-close")).toHaveText(/关闭/);
+
+    await page.getByTestId("explain-close").click();
+    await expect(panel).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("Explain does not replace a prior normal Run result", async ({ page }) => {
+    await openExplainableTarget(page);
+
+    await clearAndType(page, "select 1 as value");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
+
+    await clearAndType(page, "select * from qe_explain_big");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").first()).toBeVisible({ timeout: 15_000 });
+
+    const trigger = page.getByTestId("explain-trigger");
+    await trigger.click();
+    await expect(page.getByTestId("explain-panel")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("table, [role='grid']").first()).toBeVisible();
+  });
+});
