@@ -12,6 +12,7 @@ import { ApiError } from "@/services/api-client";
 import { apiClient } from "@/services/api-client";
 import {
   executeQueryTarget,
+  explainQueryTarget,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
@@ -340,12 +341,117 @@ describe("navigateRelatedRecords", () => {
   });
 });
 
+describe("explainQueryTarget", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("posts only the statement to the governed explain endpoint", async () => {
+    const response = {
+      targetResourceId: 22,
+      engine: "mysql" as const,
+      formatVersion: 1,
+      nodes: [
+        {
+          id: "0",
+          operation: "table_access" as const,
+          access: "full_scan" as const,
+          estimatedRows: 120000,
+          usesIndex: false,
+        },
+      ],
+      risks: [
+        { code: "full_table_scan" as const, severity: "warning" as const },
+      ],
+      truncated: false,
+    };
+    mockApiClient.mockResolvedValueOnce(response);
+
+    const result = await explainQueryTarget(22, { statement: "select * from big" });
+
+    expect(result).toEqual(response);
+    expect(mockApiClient).toHaveBeenCalledWith("/query-targets/22/explain", {
+      method: "POST",
+      body: JSON.stringify({ statement: "select * from big" }),
+    });
+  });
+
+  it("never sends actor, credential, EXPLAIN prefix, or maxRows fields", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 22,
+      engine: "mysql",
+      formatVersion: 1,
+      nodes: [],
+      risks: [],
+      truncated: false,
+    });
+
+    await explainQueryTarget(22, { statement: "select 1" });
+
+    const init = mockApiClient.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toEqual({ statement: "select 1" });
+    expect(body).not.toHaveProperty("actorUserId");
+    expect(body).not.toHaveProperty("actor_user_id");
+    expect(body).not.toHaveProperty("maxRows");
+    expect(body).not.toHaveProperty("credential");
+    expect(body).not.toHaveProperty("dsn");
+    expect(body).not.toHaveProperty("engine");
+    expect(String(body.statement)).not.toMatch(/^\s*explain/i);
+  });
+
+  it("passes AbortSignal through to apiClient", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 22,
+      engine: "mysql",
+      formatVersion: 1,
+      nodes: [],
+      risks: [],
+      truncated: false,
+    });
+    const controller = new AbortController();
+
+    await explainQueryTarget(22, { statement: "select 1" }, { signal: controller.signal });
+
+    const init = mockApiClient.mock.calls[0]?.[1] as RequestInit;
+    expect(init.signal).toBe(controller.signal);
+  });
+
+  it("maps HTTP statuses including 409 to controlled error codes", async () => {
+    const cases: Array<[number, string]> = [
+      [400, "validation_failed"],
+      [403, "query_not_allowed"],
+      [404, "query_target_not_found"],
+      [408, "query_timeout"],
+      [409, "query_explain_not_supported"],
+      [500, "internal_error"],
+      [502, "query_backend_error"],
+    ];
+
+    for (const [status, code] of cases) {
+      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked"));
+      const error = await explainQueryTarget(22, { statement: "select 1" }).catch(
+        (value: unknown) => value as QueryExecuteError,
+      );
+      expect(error).toBeInstanceOf(QueryExecuteError);
+      expect((error as QueryExecuteError).code).toBe(code);
+      expect((error as QueryExecuteError).status).toBe(status);
+    }
+  });
+});
+
 describe("query-executions module surface", () => {
-  it("exposes only the execute, history, and related-record functions plus the error class", () => {
+  it("exposes only the execute, history, explain, and related-record functions plus the error class", () => {
     // Guards against accidentally widening this module (e.g. adding an auth or
     // credential helper). The query execution path must stay narrowly scoped.
     expect(Object.keys(queryExecutionsModule).sort()).toEqual(
-      ["QueryExecuteError", "executeQueryTarget", "listQueryExecutions", "navigateRelatedRecords"].sort(),
+      [
+        "QueryExecuteError",
+        "executeQueryTarget",
+        "explainQueryTarget",
+        "listQueryExecutions",
+        "navigateRelatedRecords",
+      ].sort(),
     );
   });
 });

@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Check, ChevronDown, Copy, ListTree, Lock, Play, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
 import type {
+  ExplainResponse,
   QueryExecuteResponse,
   QueryExecutionFilter,
   QueryExecutionRecord,
@@ -19,6 +20,7 @@ import type {
 } from "@/types/query-execution";
 import {
   executeQueryTarget,
+  explainQueryTarget,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
@@ -171,6 +173,42 @@ type RelatedRecordsState =
   | { readonly status: "ready"; readonly generation: number; readonly response: RelatedRecordNavigationResponse }
   | { readonly status: "error"; readonly generation: number; readonly code: QueryExecuteErrorCode };
 
+/**
+ * Worksheet-local Explain state. Independent from Run results/history.
+ * A response applies only when worksheet id, generation, target id, and
+ * statement identity still match (stale-response guard).
+ */
+type ExplainState = {
+  status: "idle" | "loading" | "ready" | "error";
+  requestGeneration: number;
+  statementIdentity: string | null;
+  targetId: number | null;
+  response: ExplainResponse | null;
+  errorCode: QueryExecuteErrorCode | null;
+};
+
+function createExplainState(): ExplainState {
+  return {
+    status: "idle",
+    requestGeneration: 0,
+    statementIdentity: null,
+    targetId: null,
+    response: null,
+    errorCode: null,
+  };
+}
+
+function invalidateExplainState(explain: ExplainState): ExplainState {
+  return {
+    status: "idle",
+    requestGeneration: explain.requestGeneration + 1,
+    statementIdentity: null,
+    targetId: null,
+    response: null,
+    errorCode: null,
+  };
+}
+
 type LocalWorksheet = {
   id: string;
   name: string;
@@ -187,6 +225,7 @@ type LocalWorksheet = {
   isDirty: boolean;
   previewProvenance: PreviewProvenance | null;
   relatedRecords: RelatedRecordsState;
+  explain: ExplainState;
 };
 
 function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
@@ -206,6 +245,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     isDirty: false,
     previewProvenance: null,
     relatedRecords: { status: "idle", generation: 0 },
+    explain: createExplainState(),
   };
 }
 
@@ -231,6 +271,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     isDirty: false,
     previewProvenance: null,
     relatedRecords: { status: "idle", generation: 0 },
+    explain: createExplainState(),
   };
 }
 
@@ -325,6 +366,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               isDirty: false,
               previewProvenance: null,
               relatedRecords: { status: "idle", generation: ws.relatedRecords.generation + 1 },
+              explain: invalidateExplainState(ws.explain),
             }
           : ws,
       ),
@@ -640,16 +682,24 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     lastSeenVersionRef.current = targetSelectionVersion;
 
     // Create a new worksheet for the new target instead of retargeting the active one
-    // This preserves the original worksheet's SQL, result, and history
+    // This preserves the original worksheet's SQL, result, and history.
+    // Invalidate Explain on the previously active worksheet so a pending
+    // response cannot reappear when the operator returns to it.
+    const previousActiveId = activeWorksheetId;
     const newWs = createWorksheet(worksheetsRef.current.length + 1, activeTarget.resourceId);
-    const newWorksheets = [...worksheetsRef.current, newWs];
+    const newWorksheets = worksheetsRef.current.map((ws) =>
+      ws.id === previousActiveId
+        ? { ...ws, explain: invalidateExplainState(ws.explain) }
+        : ws,
+    );
+    newWorksheets.push(newWs);
     worksheetsRef.current = newWorksheets;
     setWorksheets(newWorksheets);
     setActiveWorksheetId(newWs.id);
 
     // Do not fetch history on target-switch worksheet creation. History loads
     // on first History-tab open (or after a successful run for that worksheet).
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run]);
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, activeWorksheetId]);
 
   // Consume preview events from Object Explorer. Creates a new worksheet with
   // a generated qualified statement and stores provenance. Never auto-executes.
@@ -888,6 +938,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         status: "idle",
         generation: activeWorksheet.relatedRecords.generation + 1,
       },
+      explain: invalidateExplainState(activeWorksheet.explain),
       ...(statementChanged ? { previewProvenance: null } : {}),
     });
 
@@ -907,6 +958,99 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
       void refreshHistory(worksheetId);
     }
+  }
+
+  async function handleExplain() {
+    const canExplain = actions.explain === true;
+    const statement = activeWorksheet.statement.trim();
+    if (!canExplain || statement === "" || activeWorksheet.isExecuting || activeWorksheet.explain.status === "loading") {
+      return;
+    }
+
+    const worksheetId = activeWorksheetId;
+    const targetId = activeWorksheet.targetResourceId;
+    const statementIdentity = statement;
+    const requestGeneration = activeWorksheet.explain.requestGeneration + 1;
+    // Invalidate any in-flight Run by bumping requestId synchronously.
+    const requestId = crypto.randomUUID();
+
+    updateActiveWorksheet({
+      requestId,
+      isExecuting: false,
+      explain: {
+        status: "loading",
+        requestGeneration,
+        statementIdentity,
+        targetId,
+        response: null,
+        errorCode: null,
+      },
+    });
+
+    try {
+      const response = await explainQueryTarget(targetId, { statement });
+      setWorksheets((previous) => {
+        const ws = previous.find((w) => w.id === worksheetId);
+        if (
+          !ws ||
+          ws.explain.requestGeneration !== requestGeneration ||
+          ws.targetResourceId !== targetId ||
+          ws.explain.statementIdentity !== statementIdentity
+        ) {
+          return previous;
+        }
+        return previous.map((w) =>
+          w.id === worksheetId
+            ? {
+                ...w,
+                explain: {
+                  status: "ready" as const,
+                  requestGeneration,
+                  statementIdentity,
+                  targetId,
+                  response,
+                  errorCode: null,
+                },
+              }
+            : w,
+        );
+      });
+    } catch (caught) {
+      const code =
+        caught instanceof QueryExecuteError ? caught.code : ("internal_error" as const);
+      setWorksheets((previous) => {
+        const ws = previous.find((w) => w.id === worksheetId);
+        if (
+          !ws ||
+          ws.explain.requestGeneration !== requestGeneration ||
+          ws.targetResourceId !== targetId ||
+          ws.explain.statementIdentity !== statementIdentity
+        ) {
+          return previous;
+        }
+        return previous.map((w) =>
+          w.id === worksheetId
+            ? {
+                ...w,
+                explain: {
+                  status: "error" as const,
+                  requestGeneration,
+                  statementIdentity,
+                  targetId,
+                  response: null,
+                  errorCode: code,
+                },
+              }
+            : w,
+        );
+      });
+    }
+  }
+
+  function handleCloseExplain() {
+    updateActiveWorksheet({
+      explain: invalidateExplainState(activeWorksheet.explain),
+    });
   }
 
   function handleFormat() {
@@ -930,6 +1074,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 status: "idle" as const,
                 generation: worksheet.relatedRecords.generation + 1,
               },
+              explain: invalidateExplainState(worksheet.explain),
             }
           : {}),
       });
@@ -1132,6 +1277,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                   isDirty: true,
                   previewProvenance: null,
                   relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
+                  explain: invalidateExplainState(activeWorksheet.explain),
                 });
               }}
               maxRows={activeWorksheet.maxRows}
@@ -1139,6 +1285,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
+              explainEnabled={
+                actions.explain === true &&
+                activeWorksheet.statement.trim() !== ""
+              }
+              explainState={activeWorksheet.explain}
+              onExplain={handleExplain}
+              onCloseExplain={handleCloseExplain}
               onFormat={handleFormat}
               onEditorView={(view) => { editorViewRef.current = view; }}
               formatError={activeWorksheet.formatError}
@@ -1300,6 +1453,10 @@ function ReadyWorksheet({
   runEnabled,
   isExecuting,
   onRun,
+  explainEnabled,
+  explainState,
+  onExplain,
+  onCloseExplain,
   onFormat,
   onEditorView,
   formatError,
@@ -1328,6 +1485,10 @@ function ReadyWorksheet({
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
+  explainEnabled: boolean;
+  explainState: ExplainState;
+  onExplain: () => void;
+  onCloseExplain: () => void;
   onFormat: () => void;
   onEditorView?: (view: EditorView) => void;
   formatError: string | null;
@@ -1360,20 +1521,39 @@ function ReadyWorksheet({
   // Ref for the Related records trigger button, used for focus restoration
   // when the RelatedRecordsPanel closes. Avoids global querySelector.
   const relatedRecordsTriggerRef = useRef<HTMLButtonElement>(null);
+  const explainTriggerRef = useRef<HTMLButtonElement>(null);
+  const runButtonRef = useRef<HTMLButtonElement>(null);
+  const explainLoading = explainState.status === "loading";
+  const explainButtonDisabled = !explainEnabled || isExecuting || explainLoading;
 
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-        <Button type="button" size="sm" disabled={!runEnabled} onClick={onRun}>
+        <Button ref={runButtonRef} type="button" size="sm" disabled={!runEnabled} onClick={onRun}>
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
         </Button>
+        {explainEnabled || explainState.status !== "idle" ? (
+          <Button
+            ref={explainTriggerRef}
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={explainButtonDisabled}
+            onClick={onExplain}
+            aria-label={t("explain.trigger")}
+            data-testid="explain-trigger"
+          >
+            <SearchCode className="size-3.5" aria-hidden />
+            {explainLoading ? t("explain.loading") : t("explain.trigger")}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="outline"
           onClick={onFormat}
-          disabled={isExecuting}
+          disabled={isExecuting || explainLoading}
         >
           {t("editor.format")}
         </Button>
@@ -1407,7 +1587,7 @@ function ReadyWorksheet({
           onFormat={onFormat}
           onEditorView={onEditorView}
           ariaLabel={t("editor.statementLabel")}
-          disabled={isExecuting}
+          disabled={isExecuting || explainLoading}
           themePreference={themePreference}
           height={editorHeight}
           schemaNamespace={namespace}
@@ -1488,8 +1668,17 @@ function ReadyWorksheet({
               />
             )}
           </>
-        ) : (
+        ) : explainState.status === "idle" ? (
           <p className="text-sm text-muted-foreground">{t("result.notExecuted")}</p>
+        ) : null}
+        {explainState.status !== "idle" && (
+          <ExplainPanel
+            state={explainState}
+            onClose={onCloseExplain}
+            onRetry={onExplain}
+            triggerRef={explainTriggerRef}
+            fallbackFocusRef={runButtonRef}
+          />
         )}
       </div>
     </div>
@@ -1580,6 +1769,170 @@ function RelatedRecordsPanel({
       )}
       {state.status === "error" && (
         <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>
+      )}
+    </div>
+  );
+}
+
+function ExplainPanel({
+  state,
+  onClose,
+  onRetry,
+  triggerRef,
+  fallbackFocusRef,
+}: {
+  state: ExplainState;
+  onClose: () => void;
+  onRetry: () => void;
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
+  fallbackFocusRef?: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const t = useTranslations("queryWorkbench");
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (state.status === "ready" || state.status === "error") {
+      closeRef.current?.focus();
+    }
+  }, [state.status]);
+
+  function handleClose() {
+    onClose();
+    requestAnimationFrame(() => {
+      const trigger = triggerRef?.current;
+      if (trigger?.isConnected) {
+        trigger.focus();
+        return;
+      }
+      fallbackFocusRef?.current?.focus();
+    });
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleClose();
+    }
+  }
+
+  return (
+    <div
+      className="mt-3 rounded-lg border border-border bg-muted/20 p-3"
+      role="region"
+      aria-label={t("explain.title")}
+      data-testid="explain-panel"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-foreground">{t("explain.title")}</h3>
+        <Button
+          ref={closeRef}
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleClose}
+          aria-label={t("explain.close")}
+          data-testid="explain-close"
+        >
+          {t("explain.close")}
+        </Button>
+      </div>
+
+      {state.status === "loading" && (
+        <p className="text-sm text-muted-foreground" data-testid="explain-loading">
+          {t("explain.loading")}
+        </p>
+      )}
+
+      {state.status === "error" && (
+        <div role="alert" className="space-y-2" data-testid="explain-error">
+          <p className="text-sm font-medium text-rose-700 dark:text-rose-300">
+            {t("explain.error.title")}
+          </p>
+          <p className="text-sm text-rose-700 dark:text-rose-300">
+            {t(`explain.error.${state.errorCode ?? "internal_error"}`)}
+          </p>
+          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+            {t("explain.retry")}
+          </Button>
+        </div>
+      )}
+
+      {state.status === "ready" && state.response && (
+        <div className="space-y-3" data-testid="explain-ready">
+          {state.response.truncated ? (
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              {t("explain.truncated")}
+            </p>
+          ) : null}
+
+          {state.response.risks.length > 0 ? (
+            <ul className="flex flex-wrap gap-2" data-testid="explain-risks">
+              {state.response.risks.map((risk) => (
+                <li key={risk.code}>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      risk.severity === "warning" &&
+                        "border-amber-500/40 text-amber-700 dark:text-amber-300",
+                      risk.severity === "critical" &&
+                        "border-rose-500/40 text-rose-700 dark:text-rose-300",
+                      risk.severity === "info" &&
+                        "border-sky-500/40 text-sky-700 dark:text-sky-300",
+                    )}
+                    data-risk-code={risk.code}
+                    data-risk-severity={risk.severity}
+                  >
+                    {t(`explain.risks.${risk.code}.label`)}
+                    <span className="sr-only">
+                      {t(`explain.severities.${risk.severity}`)}
+                    </span>
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {state.response.nodes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("explain.emptyNodes")}</p>
+          ) : (
+            <ul className="space-y-2" data-testid="explain-nodes">
+              {state.response.nodes.map((node) => (
+                <li
+                  key={node.id}
+                  className="rounded-md border border-border bg-background/60 px-3 py-2 text-sm"
+                  aria-label={t("explain.nodeAriaLabel", {
+                    id: node.id,
+                    operation: t(`explain.operations.${node.operation}`),
+                  })}
+                  data-node-id={node.id}
+                  data-node-operation={node.operation}
+                  data-node-access={node.access}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-foreground">
+                      {t(`explain.operations.${node.operation}`)}
+                    </span>
+                    <Badge variant="secondary">{t(`explain.access.${node.access}`)}</Badge>
+                    {node.estimatedRows !== undefined ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t("explain.estimatedRowsLabel")}: {node.estimatedRows}
+                      </span>
+                    ) : null}
+                    {node.usesIndex !== undefined ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t("explain.usesIndexLabel")}:{" "}
+                        {node.usesIndex
+                          ? t("explain.usesIndexTrue")
+                          : t("explain.usesIndexFalse")}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

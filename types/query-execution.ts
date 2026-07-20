@@ -156,3 +156,70 @@ export type TablePreviewRequest = {
   readonly foreignKeys: readonly ForeignKeyDetail[];
   readonly foreignKeysTruncated: boolean;
 };
+
+// ─── Phase 38N: Governed Explain ───────────────────────────────────────────
+// The browser sends only the worksheet statement to the governed Explain
+// endpoint. It never constructs EXPLAIN, engine-specific syntax, or sends
+// actor/role/credential/DSN fields. The backend owns wrapping the guarded
+// SELECT in EXPLAIN FORMAT=JSON and normalizing the raw plan into this
+// versioned, leak-free response.
+
+/** Request body for POST /query-targets/{id}/explain. */
+export type ExplainRequest = {
+  statement: string;
+};
+
+/** Finite enum of normalized plan node operations. Matches the backend v1. */
+export type ExplainNodeOperation =
+  | "table_access"
+  | "index_access"
+  | "nested_loop"
+  | "sort"
+  | "aggregate"
+  | "temporary_table"
+  | "unknown";
+
+/** Finite enum of normalized access types. Matches the backend v1.. */
+export type ExplainNodeAccess =
+  | "full_scan"
+  | "index"
+  | "unique_row"
+  | "range"
+  | "unknown";
+
+/** Finite enum of backend-derived risk codes. Matches the backend v1. */
+export type ExplainRiskCode =
+  | "full_table_scan"
+  | "filesort"
+  | "temporary_table"
+  | "high_estimated_rows"
+  | "unknown_plan_shape";
+
+/** Finite enum of risk severities. Matches the backend v1. */
+export type ExplainRiskSeverity = "info" | "warning" | "critical";
+
+/** One normalized plan node. No free-form engine strings leave the backend. */
+export type ExplainNode = {
+  id: string;
+  parentId?: string | null;
+  operation: ExplainNodeOperation;
+  access: ExplainNodeAccess;
+  estimatedRows?: number;
+  usesIndex?: boolean;
+};
+
+/** One backend-derived risk signal with a finite severity. */
+export type ExplainRisk = {
+  code: ExplainRiskCode;
+  severity: ExplainRiskSeverity;
+};
+
+/** Response body for POST /query-targets/{id}/explain. Versioned, normalized, leak-free. */
+export type ExplainResponse = {
+  targetResourceId: number;
+  engine: "mysql";
+  formatVersion: number;
+  nodes: ExplainNode[];
+  risks: ExplainRisk[];
+  truncated: boolean;
+};

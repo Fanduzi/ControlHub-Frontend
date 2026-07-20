@@ -1085,7 +1085,8 @@
       "ready": "Ready",
       "format": "Format",
       "formatError": "SQL formatting failed. Check the statement syntax and try again.",
-      "resizeEditor": "Resize SQL editor"
+      "resizeEditor": "Resize SQL editor",
+      "explainReady": "Explain"
     },
     "actions": {
       "run": "Run locked",
@@ -1093,7 +1094,8 @@
       "saveSheet": "Save sheet",
       "export": "Export unavailable",
       "schemaSync": "Schema sync",
-      "requestAccess": "Request read-only access later"
+      "requestAccess": "Request read-only access later",
+      "explainReady": "Explain"
     },
     "result": {
       "grid": "Result grid",
@@ -1141,7 +1143,8 @@
       "query_timeout": "Query timed out",
       "query_backend_error": "Target database error",
       "internal_error": "Unexpected error",
-      "detailLabel": "Detail"
+      "detailLabel": "Detail",
+      "query_explain_not_supported": "Explain is not supported for this target"
     },
     "history": {
       "title": "Query history",
@@ -1320,6 +1323,68 @@
       "description": "This worksheet has unsaved changes. Are you sure you want to close it?",
       "cancel": "Cancel",
       "confirm": "Close worksheet"
+    },
+    "explain": {
+      "title": "Explain",
+      "trigger": "Explain",
+      "loading": "Explaining…",
+      "close": "Close",
+      "retry": "Retry",
+      "truncated": "Plan truncated",
+      "estimatedRowsLabel": "Estimated rows",
+      "usesIndexLabel": "Uses index",
+      "usesIndexTrue": "Yes",
+      "usesIndexFalse": "No",
+      "nodeAriaLabel": "Node {id}: {operation}",
+      "emptyNodes": "No plan nodes to display",
+      "error": {
+        "title": "Explain failed",
+        "validation_failed": "Statement is not a permitted read-only SELECT",
+        "query_not_allowed": "Target is not enabled for execution",
+        "query_target_not_found": "Query target not found",
+        "query_explain_not_supported": "Explain is not supported for this target",
+        "query_timeout": "Explain exceeded the timeout",
+        "query_backend_error": "Target database rejected the explain request",
+        "internal_error": "Unexpected server failure"
+      },
+      "operations": {
+        "table_access": "Table access",
+        "index_access": "Index access",
+        "nested_loop": "Nested loop",
+        "sort": "Sort",
+        "aggregate": "Aggregate",
+        "temporary_table": "Temporary table",
+        "unknown": "Unknown operation"
+      },
+      "access": {
+        "full_scan": "Full scan",
+        "index": "Index",
+        "unique_row": "Unique row",
+        "range": "Range",
+        "unknown": "Unknown access"
+      },
+      "risks": {
+        "full_table_scan": {
+          "label": "Full table scan"
+        },
+        "filesort": {
+          "label": "Filesort"
+        },
+        "temporary_table": {
+          "label": "Temporary table"
+        },
+        "high_estimated_rows": {
+          "label": "High estimated rows"
+        },
+        "unknown_plan_shape": {
+          "label": "Unknown plan shape"
+        }
+      },
+      "severities": {
+        "info": "Info",
+        "warning": "Warning",
+        "critical": "Critical"
+      }
     }
   },
   "queryCredentialSettings": {

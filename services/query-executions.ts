@@ -1,5 +1,7 @@
 import { apiClient, ApiError } from "@/services/api-client";
 import type {
+  ExplainRequest,
+  ExplainResponse,
   QueryExecuteRequest,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
@@ -46,6 +48,7 @@ export type QueryExecuteErrorCode =
   | "validation_failed"
   | "query_not_allowed"
   | "query_target_not_found"
+  | "query_explain_not_supported"
   | "query_timeout"
   | "query_backend_error"
   | "internal_error";
@@ -55,6 +58,7 @@ const STATUS_TO_ERROR_CODE: Readonly<Record<number, QueryExecuteErrorCode>> = {
   403: "query_not_allowed",
   404: "query_target_not_found",
   408: "query_timeout",
+  409: "query_explain_not_supported",
   500: "internal_error",
   502: "query_backend_error",
 };
@@ -163,6 +167,36 @@ export async function navigateRelatedRecords(
       {
         method: "POST",
         body: JSON.stringify(body),
+      },
+    );
+  } catch (error) {
+    throw toQueryExecuteError(error);
+  }
+}
+
+/**
+ * Explain a guarded SELECT against a ready query target. Posts only
+ * `statement` — never EXPLAIN prefix, engine syntax, actorUserId, role,
+ * credential, DSN, or risk score. The backend owns wrapping the guarded
+ * SELECT in EXPLAIN FORMAT=JSON and normalizing the raw plan.
+ *
+ * Rejects with a controlled `QueryExecuteError` on HTTP errors, using the
+ * same status-to-code mapping as `executeQueryTarget` plus the 409
+ * `query_explain_not_supported` code for unsupported engines.
+ */
+export async function explainQueryTarget(
+  targetResourceId: number,
+  input: ExplainRequest,
+  options?: { readonly signal?: AbortSignal },
+): Promise<ExplainResponse> {
+  const body: ExplainRequest = { statement: input.statement };
+  try {
+    return await apiClient<ExplainResponse>(
+      `/query-targets/${targetResourceId}/explain`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       },
     );
   } catch (error) {

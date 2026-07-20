@@ -17,6 +17,7 @@ vi.mock("@/services/query-executions", async () => {
   return {
     ...actual,
     executeQueryTarget: vi.fn(),
+    explainQueryTarget: vi.fn(),
     listQueryExecutions: vi.fn(),
     navigateRelatedRecords: vi.fn(),
   };
@@ -97,6 +98,7 @@ import {
 import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import {
   executeQueryTarget,
+  explainQueryTarget,
   listQueryExecutions,
   QueryExecuteError,
 } from "@/services/query-executions";
@@ -106,6 +108,7 @@ import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targe
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
 import type {
+  ExplainResponse,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
   QueryExecutionRecord,
@@ -114,6 +117,7 @@ import enMessages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
 
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
+const mockExplainQueryTarget = vi.mocked(explainQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
@@ -4288,5 +4292,349 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
     });
     expect(screen.queryByText(/actorUserId/i)).toBeNull();
     expect(screen.queryByText(/^9001$/)).toBeNull();
+  });
+});
+
+describe("QueryWorkbench Explain (Phase 38N)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+  });
+
+  function buildExplainableTarget(overrides: DeepPartial<QueryTarget> = {}): QueryTarget {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: true,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+      ...overrides,
+    });
+  }
+
+  function renderExplainable(
+    target: QueryTarget = buildExplainableTarget(),
+    messages: Record<string, unknown> = enMessages,
+    locale = "en",
+  ) {
+    return render(
+      <NextIntlClientProvider locale={locale} messages={messages}>
+        <QueryWorkbench
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  function buildExplainResponse(overrides: Partial<ExplainResponse> = {}): ExplainResponse {
+    return {
+      targetResourceId: 30,
+      engine: "mysql",
+      formatVersion: 1,
+      nodes: [
+        {
+          id: "0",
+          operation: "table_access",
+          access: "full_scan",
+          estimatedRows: 120000,
+          usesIndex: false,
+        },
+      ],
+      risks: [{ code: "full_table_scan", severity: "warning" }],
+      truncated: false,
+      ...overrides,
+    };
+  }
+
+  it("hides Explain when availableActions.explain is false", () => {
+    renderExplainable(
+      buildExplainableTarget({
+        availableActions: {
+          run: true,
+          explain: false,
+          export: false,
+          saveSheet: false,
+          requestAccess: false,
+        },
+      }),
+    );
+    expect(screen.queryByTestId("explain-trigger")).toBeNull();
+  });
+
+  it("shows Explain for a capable target and posts only the statement", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    const trigger = await screen.findByTestId("explain-trigger");
+    expect(trigger).toBeEnabled();
+    await user.click(trigger);
+
+    await waitFor(() => {
+      expect(mockExplainQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    expect(mockExplainQueryTarget).toHaveBeenCalledWith(30, { statement: "select 1" });
+    const body = mockExplainQueryTarget.mock.calls[0]![1] as Record<string, unknown>;
+    expect(body).not.toHaveProperty("actorUserId");
+    expect(body).not.toHaveProperty("maxRows");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+    const riskBadge = screen.getByTestId("explain-risks").querySelector('[data-risk-code="full_table_scan"]');
+    expect(riskBadge).not.toBeNull();
+    expect(riskBadge?.textContent).toContain("Full table scan");
+    expect(screen.getByTestId("explain-nodes").querySelector('[data-node-operation="table_access"]')).not.toBeNull();
+    expect(screen.queryByText(/query_block|table_name|secret/i)).toBeNull();
+  });
+
+  it("keeps the Explain button visible and disabled while loading", async () => {
+    const user = userEvent.setup();
+    let resolveExplain: (value: ExplainResponse) => void = () => undefined;
+    mockExplainQueryTarget.mockImplementationOnce(
+      () =>
+        new Promise<ExplainResponse>((resolve) => {
+          resolveExplain = resolve;
+        }),
+    );
+    renderExplainable();
+
+    const trigger = await screen.findByTestId("explain-trigger");
+    await user.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-loading")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("explain-trigger")).toBeDisabled();
+    expect(screen.getByTestId("explain-trigger")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveExplain(buildExplainResponse());
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+  });
+
+  it("renders controlled error and retry without raw backend text", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget
+      .mockRejectedValueOnce(
+        new QueryExecuteError(409, "query_explain_not_supported", "raw driver boom"),
+      )
+      .mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-error")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Explain is not supported for this target")).toBeInTheDocument();
+    expect(screen.queryByText(/raw driver boom/i)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => {
+      expect(mockExplainQueryTarget).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+  });
+
+  it("invalidates Explain on statement edit and does not revive on revert", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValue(buildExplainResponse());
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+
+    const editor = screen.getByLabelText(/statement/i);
+    await user.clear(editor);
+    await user.type(editor, "select 2");
+    await waitFor(() => {
+      expect(screen.queryByTestId("explain-panel")).toBeNull();
+    });
+
+    await user.clear(editor);
+    await user.type(editor, "select 1");
+    expect(screen.queryByTestId("explain-panel")).toBeNull();
+  });
+
+  it("invalidates Explain when Run starts", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "value", databaseType: "BIGINT", nullable: false }],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-06-22T08:30:00Z",
+    });
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalled();
+      expect(screen.queryByTestId("explain-panel")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/1 row/)).toBeInTheDocument();
+    });
+  });
+
+  it("rejects a stale Explain response after a superseding request", async () => {
+    const user = userEvent.setup();
+    let resolveFirst: (value: ExplainResponse) => void = () => undefined;
+    let resolveSecond: (value: ExplainResponse) => void = () => undefined;
+    mockExplainQueryTarget
+      .mockImplementationOnce(
+        () =>
+          new Promise<ExplainResponse>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<ExplainResponse>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => expect(mockExplainQueryTarget).toHaveBeenCalledTimes(1));
+
+    // Edit then explain again so the first request is stale.
+    const editor = screen.getByLabelText(/statement/i) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "select 2" } });
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => expect(mockExplainQueryTarget).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveFirst(
+        buildExplainResponse({
+          risks: [{ code: "filesort", severity: "warning" }],
+        }),
+      );
+    });
+    // The stale first response must not produce a ready panel with filesort;
+    // the second request is still loading.
+    const risksAfterStale = screen.queryByTestId("explain-risks");
+    if (risksAfterStale) {
+      expect(risksAfterStale.querySelector('[data-risk-code="filesort"]')).toBeNull();
+    }
+
+    await act(async () => {
+      resolveSecond(buildExplainResponse());
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-risks").querySelector('[data-risk-code="full_table_scan"]')).not.toBeNull();
+    });
+    expect(screen.queryByTestId("explain-risks")?.querySelector('[data-risk-code="filesort"]')).toBeNull();
+  });
+
+  it("restores focus to the Explain trigger on Escape close", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    const trigger = await screen.findByTestId("explain-trigger");
+    await user.click(trigger);
+    const panel = await screen.findByTestId("explain-panel");
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+    fireEvent.keyDown(panel, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByTestId("explain-panel")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("restores focus via Close button", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    const trigger = await screen.findByTestId("explain-trigger");
+    await user.click(trigger);
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-close")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("explain-close"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("explain-panel")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("renders Simplified Chinese Explain labels", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable(buildExplainableTarget(), zhMessages, "zh-CN");
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+    const riskBadge = screen.getByTestId("explain-risks").querySelector('[data-risk-code="full_table_scan"]');
+    expect(riskBadge?.textContent).toContain("全表扫描");
+    expect(screen.getByTestId("explain-close")).toHaveTextContent("关闭");
+  });
+
+  it("does not add execution history when Explain completes", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+    expect(mockListQueryExecutions).not.toHaveBeenCalled();
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
   });
 });

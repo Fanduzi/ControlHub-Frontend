@@ -1085,7 +1085,8 @@
       "ready": "就绪",
       "format": "格式化",
       "formatError": "SQL 格式化失败。请检查语句语法后重试。",
-      "resizeEditor": "调整 SQL 编辑器大小"
+      "resizeEditor": "调整 SQL 编辑器大小",
+      "explainReady": "Explain"
     },
     "actions": {
       "run": "执行已锁定",
@@ -1093,7 +1094,8 @@
       "saveSheet": "保存脚本",
       "export": "导出不可用",
       "schemaSync": "Schema 同步",
-      "requestAccess": "稍后申请只读访问"
+      "requestAccess": "稍后申请只读访问",
+      "explainReady": "Explain"
     },
     "result": {
       "grid": "结果网格",
@@ -1141,7 +1143,8 @@
       "query_timeout": "查询超时",
       "query_backend_error": "目标数据库错误",
       "internal_error": "发生意外错误",
-      "detailLabel": "详情"
+      "detailLabel": "详情",
+      "query_explain_not_supported": "此目标不支持 Explain"
     },
     "history": {
       "title": "查询历史",
@@ -1320,6 +1323,68 @@
       "description": "此工作表有未保存的更改。确定要关闭吗？",
       "cancel": "取消",
       "confirm": "关闭工作表"
+    },
+    "explain": {
+      "title": "Explain",
+      "trigger": "Explain",
+      "loading": "正在分析…",
+      "close": "关闭",
+      "retry": "重试",
+      "truncated": "计划已截断",
+      "estimatedRowsLabel": "估计行数",
+      "usesIndexLabel": "使用索引",
+      "usesIndexTrue": "是",
+      "usesIndexFalse": "否",
+      "nodeAriaLabel": "节点 {id}：{operation}",
+      "emptyNodes": "没有可显示的计划节点",
+      "error": {
+        "title": "Explain 失败",
+        "validation_failed": "语句不是允许的只读 SELECT",
+        "query_not_allowed": "目标未启用执行",
+        "query_target_not_found": "查询目标未找到",
+        "query_explain_not_supported": "此目标不支持 Explain",
+        "query_timeout": "Explain 超时",
+        "query_backend_error": "目标数据库拒绝了 Explain 请求",
+        "internal_error": "意外的服务器故障"
+      },
+      "operations": {
+        "table_access": "表访问",
+        "index_access": "索引访问",
+        "nested_loop": "嵌套循环",
+        "sort": "排序",
+        "aggregate": "聚合",
+        "temporary_table": "临时表",
+        "unknown": "未知操作"
+      },
+      "access": {
+        "full_scan": "全表扫描",
+        "index": "索引",
+        "unique_row": "唯一行",
+        "range": "范围",
+        "unknown": "未知访问"
+      },
+      "risks": {
+        "full_table_scan": {
+          "label": "全表扫描"
+        },
+        "filesort": {
+          "label": "文件排序"
+        },
+        "temporary_table": {
+          "label": "临时表"
+        },
+        "high_estimated_rows": {
+          "label": "高估计行数"
+        },
+        "unknown_plan_shape": {
+          "label": "未知计划形态"
+        }
+      },
+      "severities": {
+        "info": "信息",
+        "warning": "警告",
+        "critical": "严重"
+      }
     }
   },
   "queryCredentialSettings": {
