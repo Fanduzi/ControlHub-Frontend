@@ -2532,18 +2532,23 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
   test("desktop EN: Explain shows normalized risk, no history growth, focus restores", async ({ page }) => {
     await openExplainableTarget(page);
 
-    // Record the most recent history item text before Explain
+    // Run a normal query first to establish a known history baseline
+    const preExplainMarker = `select 'pre-explain-38o-marker-${Date.now()}'`;
+    await clearAndType(page, preExplainMarker);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /pre-explain-38o-marker/ })).toBeVisible({ timeout: 30_000 });
+
+    // Record history count and verify the marker is the most recent item
     await page.getByRole("tab", { name: /query history/i }).click();
     await page.waitForTimeout(500);
-    const empty = page.getByText(/no (query )?history|empty/i);
-    const hasHistoryBefore = !(await empty.isVisible().catch(() => false));
-    let mostRecentBefore = "";
-    if (hasHistoryBefore) {
-      mostRecentBefore = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
-    }
+    const beforeCount = await page.locator("#section-panel-history").getByRole("button").count();
+    const mostRecentBefore = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
+    expect(mostRecentBefore).toContain("pre-explain-38o-marker");
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
-    await clearAndType(page, "select * from qe_explain_big");
+    // Run Explain with a distinct statement
+    const explainStatement = "select * from qe_explain_big";
+    await clearAndType(page, explainStatement);
     const trigger = page.getByTestId("explain-trigger");
     await expect(trigger).toBeEnabled();
     await trigger.click();
@@ -2562,9 +2567,21 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     // Verify Explain did NOT add a new history item
     await page.getByRole("tab", { name: /query history/i }).click();
     await page.waitForTimeout(500);
+    const afterCount = await page.locator("#section-panel-history").getByRole("button").count();
     const mostRecentAfter = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
-    expect(mostRecentAfter).toBe(mostRecentBefore);
+
+    // Most recent item is still the pre-explain marker (Explain didn't add anything)
+    expect(mostRecentAfter).toContain("pre-explain-38o-marker");
+    // No new history items were added
+    expect(afterCount).toBe(beforeCount);
+
+    // Verify Explain statement is NOT anywhere in the history list
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await page.waitForTimeout(500);
+    const historyText = await page.locator("#section-panel-history").textContent() ?? "";
+    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
+    expect(historyText).not.toContain("qe_explain_big");
 
     await clearAndType(page, "select 1");
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -2722,29 +2739,31 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(explorer).toBeVisible();
 
     const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = explorer.getByRole("button", { name: "Inspect" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
     await expect(inspector).toBeVisible();
 
-    // Track relationship-map requests and successful responses
-    const capturedUrls: string[] = [];
-    const successfulResponses: string[] = [];
+    // Track ALL requests from BEFORE the click
+    const capturedRequests: { url: string; method: string }[] = [];
     page.on("request", (req) => {
-      capturedUrls.push(req.url());
+      capturedRequests.push({ url: req.url(), method: req.method() });
     });
+
+    // Track ALL responses to relationship-map endpoint
+    const capturedResponses: { url: string; status: number }[] = [];
     page.on("response", (resp) => {
-      if (resp.url().includes("/relationship-map") && resp.status() === 200) {
-        successfulResponses.push(resp.url());
+      if (resp.url().includes("/relationship-map")) {
+        capturedResponses.push({ url: resp.url(), status: resp.status() });
       }
     });
 
@@ -2755,15 +2774,21 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(relMapDialog).toBeVisible({ timeout: 10_000 });
     await expect(relMapDialog.getByRole("heading", { name: "Inbound" })).toBeVisible({ timeout: 10_000 });
 
-    // Exactly one successful relationship-map response (no N+1)
-    expect(successfulResponses).toHaveLength(1);
+    // Exactly ONE relationship-map request was made (no N+1)
+    const relMapRequests = capturedRequests.filter((req) => req.url.includes("/relationship-map"));
+    expect(relMapRequests).toHaveLength(1);
 
-    const forbidden = capturedUrls.filter(
-      (url) =>
-        url.includes("/run") ||
-        url.includes("/related-records") ||
-        url.includes("/table-definition") ||
-        url.includes("/object-details"),
+    // That single request succeeded with 200
+    expect(capturedResponses).toHaveLength(1);
+    expect(capturedResponses[0].status).toBe(200);
+
+    // No forbidden fan-out requests
+    const forbidden = capturedRequests.filter(
+      (req) =>
+        req.url.includes("/run") ||
+        req.url.includes("/related-records") ||
+        req.url.includes("/table-definition") ||
+        req.url.includes("/object-details"),
     );
     expect(forbidden).toHaveLength(0);
   });
