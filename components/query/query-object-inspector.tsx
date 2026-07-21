@@ -401,6 +401,7 @@ export function QueryObjectInspector({
   const definitionGeneration = useRef(0);
   const definitionControllerRef = useRef<AbortController | null>(null);
   const [view, setView] = useState<"details" | "relationships">("details");
+  const relationshipsTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Keep ref in sync with the element
   useEffect(() => {
@@ -477,6 +478,9 @@ export function QueryObjectInspector({
 
   const handleBackToDetails = useCallback(() => {
     setView("details");
+    requestAnimationFrame(() => {
+      relationshipsTriggerRef.current?.focus();
+    });
   }, []);
 
   if (isMobile) {
@@ -528,6 +532,7 @@ export function QueryObjectInspector({
                     </Button>
                     {canViewRelationships && (
                       <Button
+                        ref={relationshipsTriggerRef}
                         type="button"
                         variant="outline"
                         size="sm"
@@ -598,6 +603,7 @@ export function QueryObjectInspector({
                 </Button>
                 {canViewRelationships && (
                   <Button
+                    ref={relationshipsTriggerRef}
                     type="button"
                     variant="outline"
                     size="sm"

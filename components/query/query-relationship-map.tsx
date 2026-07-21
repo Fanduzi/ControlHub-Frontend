@@ -53,8 +53,15 @@ function EdgeItem({
     ? `${relatedNode.database}.${relatedNode.name}`
     : "—";
 
+  const mappingSummary = edge.columns
+    .map((col, i) => `${col} → ${edge.referencedColumns[i]}`)
+    .join(", ");
+
   return (
-    <li className="flex items-start gap-2 rounded border border-border/50 px-2 py-1.5 text-xs">
+    <li
+      aria-label={`${edge.direction} relationship: ${mappingSummary}`}
+      className="flex items-start gap-2 rounded border border-border/50 px-2 py-1.5 text-xs"
+    >
       <span
         className={
           edge.direction === "inbound"
@@ -68,7 +75,16 @@ function EdgeItem({
         {relatedName}
       </span>
       <span className="shrink-0 text-muted-foreground">
-        ({edge.columns.join(", ")})
+        {edge.columns.map((col, i) => (
+          <span key={col} className="inline-flex items-center">
+            <span>{col}</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>{edge.referencedColumns[i]}</span>
+            {i < edge.columns.length - 1 && (
+              <span className="mr-1">,</span>
+            )}
+          </span>
+        ))}
       </span>
     </li>
   );

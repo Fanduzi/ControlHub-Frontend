@@ -15,6 +15,7 @@ import {
   getObjectDetails,
   normalizeObjectDetail,
   getTableDefinition,
+  getRelationshipMap,
 } from "@/services/query-schema";
 
 const mockApiClient = vi.mocked(apiClient);
@@ -359,6 +360,97 @@ describe("getTableDefinition", () => {
     });
 
     await getTableDefinition(1, { database: "mydb", name: "users" });
+
+    const callArgs = mockApiClient.mock.calls[0];
+    expect(callArgs).toBeDefined();
+
+    const path = callArgs?.[0] as string;
+    expect(path).not.toContain("sql");
+    expect(path).not.toContain("dsn");
+    expect(path).not.toContain("password");
+    expect(path).not.toContain("username");
+    expect(path).not.toContain("credential");
+    expect(path).not.toContain("actorUserId");
+
+    const options = callArgs?.[1] as Record<string, unknown> | undefined;
+    if (options) {
+      expect(options).not.toHaveProperty("sql");
+      expect(options).not.toHaveProperty("dsn");
+      expect(options).not.toHaveProperty("password");
+      expect(options).not.toHaveProperty("username");
+      expect(options).not.toHaveProperty("credential");
+      expect(options).not.toHaveProperty("actorUserId");
+    }
+  });
+});
+
+describe("getRelationshipMap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls GET /query-targets/{id}/schema/relationship-map with database and name", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      root: { id: "r1", database: "mydb", name: "users", kind: "table", role: "root" },
+      nodes: [],
+      edges: [],
+      truncated: false,
+    });
+
+    await getRelationshipMap(1, { database: "mydb", name: "users" });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/relationship-map?database=mydb&name=users",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
+  it("appends refresh=true when refresh param is set", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      root: { id: "r1", database: "mydb", name: "users", kind: "table", role: "root" },
+      nodes: [],
+      edges: [],
+      truncated: false,
+    });
+
+    await getRelationshipMap(1, { database: "mydb", name: "users", refresh: true });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/relationship-map?database=mydb&name=users&refresh=true",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
+  it("forwards AbortSignal to apiClient", async () => {
+    const controller = new AbortController();
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      root: { id: "r1", database: "mydb", name: "users", kind: "table", role: "root" },
+      nodes: [],
+      edges: [],
+      truncated: false,
+    });
+
+    await getRelationshipMap(1, { database: "mydb", name: "users", signal: controller.signal });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
+  it("never sends SQL, DSN, password, username, credential, or actorUserId fields", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      targetResourceId: 1,
+      root: { id: "r1", database: "mydb", name: "users", kind: "table", role: "root" },
+      nodes: [],
+      edges: [],
+      truncated: false,
+    });
+
+    await getRelationshipMap(1, { database: "mydb", name: "users" });
 
     const callArgs = mockApiClient.mock.calls[0];
     expect(callArgs).toBeDefined();
