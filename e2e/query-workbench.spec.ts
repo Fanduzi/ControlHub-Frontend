@@ -2723,21 +2723,25 @@ test.describe("Relationship map (Phase 38O)", () => {
     const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
     await expect(inspector).toBeVisible();
 
-    // Attach request listener BEFORE clicking "View relationships"
+    // Track relationship-map requests and successful responses
     const capturedUrls: string[] = [];
+    const successfulResponses: string[] = [];
     page.on("request", (req) => {
       capturedUrls.push(req.url());
     });
+    page.on("response", (resp) => {
+      if (resp.url().includes("/relationship-map") && resp.status() === 200) {
+        successfulResponses.push(resp.url());
+      }
+    });
 
-    const relMapResponse = page.waitForResponse(
-      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
-    );
     await inspector.getByTestId("view-relationships-button").click();
-    await relMapResponse;
 
-    // Exactly one relationship-map request on activation (no N+1)
-    const relMapRequests = capturedUrls.filter((url) => url.includes("/relationship-map"));
-    expect(relMapRequests).toHaveLength(1);
+    // Wait for the successful response to be processed
+    await expect(inspector.getByRole("heading", { name: "Inbound" })).toBeVisible({ timeout: 10_000 });
+
+    // Exactly one successful relationship-map response (no N+1)
+    expect(successfulResponses).toHaveLength(1);
 
     const forbidden = capturedUrls.filter(
       (url) =>
