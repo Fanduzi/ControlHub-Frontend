@@ -2,8 +2,29 @@
 
 ## Status
 
-Draft. This is the next proposed cross-repository milestone after Phase 38M.
-It is a product contract, not implementation authorization.
+Merged and verified on 2026-07-21. Phase 38N delivers governed Explain
+and query risk presentation for the Query Workbench without expanding
+execution, actor visibility, or data disclosure.
+
+## Delivery Evidence
+
+- Backend explain delivery: `9ce2dd91ca35d2c0981574d8f99bd3571267fe1e`.
+- Backend fixture repair: `9a8cf1dfb19f745076c3bfe47afa5f35d2b8861c`.
+- Frontend delivery: `b593ad0f0aa264998158104f7982471acf82da55`.
+- Real merged-root E2E: 74 passed, 0 failed, 0 skipped.
+- CI: [backend run 29750525937](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29750525937),
+  [backend run 29807643409](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29807643409),
+  and [frontend run 29750997509](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/29750997509)
+  completed successfully.
+- Engine decision: MySQL v1 normalized Explain is supported. TiDB advertises
+  `explain=false`. Direct unsupported Explain calls return controlled HTTP 409;
+  this behavior is contract-tested. No ready TiDB target existed to prove the
+  runtime engine gate end-to-end.
+- Fixture: `query_e2e.qe_explain_big` is a deterministic, idempotent E2E
+  fixture table created solely to support the governed Explain acceptance
+  statement. It produces the normalized MySQL `full_table_scan` risk. It does
+  not change grants, credentials, DSN format, SQL guard, OpenAPI, or product
+  data model.
 
 ## Goal
 
