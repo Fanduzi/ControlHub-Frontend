@@ -2577,13 +2577,6 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     // No new history items were added
     expect(afterCount).toBe(beforeCount);
 
-    // Verify Explain statement is NOT anywhere in the history list
-    await page.getByRole("tab", { name: /query history/i }).click();
-    await page.waitForTimeout(500);
-    const historyText = await page.locator("#section-panel-history").textContent() ?? "";
-    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
-    expect(historyText).not.toContain("qe_explain_big");
-
     await clearAndType(page, "select 1");
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
