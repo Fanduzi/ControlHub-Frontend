@@ -7,6 +7,22 @@ normal execute route and not as a generic result-table rendering of user-typed
 `EXPLAIN`. This keeps execution history, data-return semantics, raw plan
 parsing, and risk policy out of the browser.
 
+## Delivery Status
+
+Merged and verified on 2026-07-21.
+
+- Backend explain delivery: `9ce2dd91` (CI
+  [29750525937](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29750525937)).
+- Backend fixture repair: `9a8cf1df` (CI
+  [29807643409](https://github.com/Fanduzi/ControlHub-Backend/actions/runs/29807643409)).
+- Frontend delivery: `b593ad0` (CI
+  [29750997509](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/29750997509)).
+- Real merged-root E2E: 74 passed, 0 failed, 0 skipped.
+- MySQL v1 normalized Explain supported. TiDB advertises `explain=false`;
+  direct 409 behavior contract-tested against no ready TiDB target.
+- `query_e2e.qe_explain_big` fixture: deterministic, idempotent, produces
+  `full_table_scan` risk, no side effects on grants/credentials/DSN/OpenAPI.
+
 ```text
 Worksheet statement
   -> POST /query-targets/{id}/explain
