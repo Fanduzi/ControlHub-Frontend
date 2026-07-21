@@ -2738,7 +2738,9 @@ test.describe("Relationship map (Phase 38O)", () => {
     await inspector.getByTestId("view-relationships-button").click();
 
     // Wait for the successful response to be processed
-    await expect(inspector.getByRole("heading", { name: "Inbound" })).toBeVisible({ timeout: 10_000 });
+    const relMapDialog = page.getByRole("dialog", { name: "Relationships" });
+    await expect(relMapDialog).toBeVisible({ timeout: 10_000 });
+    await expect(relMapDialog.getByRole("heading", { name: "Inbound" })).toBeVisible({ timeout: 10_000 });
 
     // Exactly one successful relationship-map response (no N+1)
     expect(successfulResponses).toHaveLength(1);
