@@ -2541,8 +2541,9 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     // Record history count and verify the marker is the most recent item
     await page.getByRole("tab", { name: /query history/i }).click();
     await page.waitForTimeout(500);
-    const beforeCount = await page.locator("#section-panel-history").getByRole("button").count();
-    const mostRecentBefore = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
+    const historyRows = page.locator("tr[role='button']");
+    const beforeCount = await historyRows.count();
+    const mostRecentBefore = await historyRows.first().textContent() ?? "";
     expect(mostRecentBefore).toContain("pre-explain-38o-marker");
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
@@ -2567,8 +2568,8 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     // Verify Explain did NOT add a new history item
     await page.getByRole("tab", { name: /query history/i }).click();
     await page.waitForTimeout(500);
-    const afterCount = await page.locator("#section-panel-history").getByRole("button").count();
-    const mostRecentAfter = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
+    const afterCount = await historyRows.count();
+    const mostRecentAfter = await historyRows.first().textContent() ?? "";
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
     // Most recent item is still the pre-explain marker (Explain didn't add anything)
