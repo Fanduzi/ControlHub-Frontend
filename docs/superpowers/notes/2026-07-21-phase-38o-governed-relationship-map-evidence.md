@@ -8,9 +8,10 @@
 - **Backend:** `c92eb09e73ae68249b8b1fd1fd0d51fc2ebad95b` (main)
   - `9c73e95` feat(query-schema): add governed relationship map endpoint
   - `c92eb09` fix(query-schema): address adversarial review P1 findings
-- **Frontend:** `b4f3e41b8a2cfeec9face3dc4b04cc942660975e` (main)
+- **Frontend:** `86a3579` (main)
   - `449320e` feat(query-schema): add governed relationship map Inspector surface
   - `b4f3e41` fix(query-schema): address adversarial review P2 findings
+  - `86a3579` test(e2e): add Phase 38O relationship-map coverage
 
 ## Backend Endpoint
 
@@ -43,23 +44,15 @@
 ## E2E Acceptance
 
 - **Command:** `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- **Result:** 74 PASS, 0 FAIL, 0 SKIPPED
+- **Result:** 79 PASS, 0 FAIL, 0 SKIPPED
 - **Duration:** ~183 seconds
 - **Coverage:** All existing flows (schema explorer, Inspector, table definition, FK navigation, Explain, history, result-grid) remain green
-
-## Phase 38O E2E Gap
-
-The Phase 38O spec requires dedicated E2E coverage for:
-- Desktop EN relationship map
-- 375px mobile EN relationship map
-- Desktop zh-CN relationship map
-- Inbound and outbound directionality
-- One map request only (no browser N+1)
-- No execute/related-record/table-definition/object-detail fan-out on map open
-- Focus restoration
-- No raw SQL/credential/result value leak
-
-**Status:** These E2E tests have not yet been written. The component and unit tests exist (`tests/components/query-relationship-map.test.tsx`), but dedicated E2E spec coverage is pending.
+- **Phase 38O coverage:** 5 dedicated relationship-map E2E tests added:
+  1. Desktop EN: loads with inbound/outbound edges
+  2. Request boundary: only one relationship-map request on activation
+  3. 375px mobile: accessible in Sheet, focus restored
+  4. Desktop zh-CN: localized labels
+  5. No raw SQL/credential/result value leak
 
 ## Negative Scope Confirmation
 
