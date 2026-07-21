@@ -190,8 +190,15 @@ export function QueryRelationshipMap({
   const [retryNonce, setRetryNonce] = useState(0);
   const generation = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
+  const effectRan = useRef(false);
 
   useEffect(() => {
+    // StrictMode double-fire prevention: skip the first effect invocation
+    if (process.env.NODE_ENV === "development" && !effectRan.current) {
+      effectRan.current = true;
+      return;
+    }
+
     const gen = generation.current + 1;
     generation.current = gen;
 
