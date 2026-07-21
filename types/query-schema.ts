@@ -129,3 +129,47 @@ export type TableDefinitionParams = {
   readonly name: string;
   readonly signal?: AbortSignal;
 };
+
+/** Maximum number of nodes in a relationship map response. */
+export const RELATIONSHIP_MAP_MAX_NODES = 40
+
+/** Maximum number of edges in a relationship map response. */
+export const RELATIONSHIP_MAP_MAX_EDGES = 80
+
+/** Node in a relationship map. ID is an opaque request-local token. */
+export type RelationshipMapNode = {
+  readonly id: string;
+  readonly database: string;
+  readonly name: string;
+  readonly kind: "table";
+  readonly role: "root" | "related";
+};
+
+/** Edge in a relationship map. ID is an opaque request-local token. */
+export type RelationshipMapEdge = {
+  readonly id: string;
+  readonly direction: "inbound" | "outbound";
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly columns: readonly string[];
+  readonly referencedColumns: readonly string[];
+  readonly onUpdate: string;
+  readonly onDelete: string;
+};
+
+/** Response envelope for `GET /query-targets/{id}/schema/relationship-map`. */
+export type RelationshipMapResponse = {
+  readonly targetResourceId: number;
+  readonly root: RelationshipMapNode;
+  readonly nodes: readonly RelationshipMapNode[];
+  readonly edges: readonly RelationshipMapEdge[];
+  readonly truncated: boolean;
+};
+
+/** Query parameters for relationship map. */
+export type RelationshipMapParams = {
+  readonly database: string;
+  readonly name: string;
+  readonly refresh?: boolean;
+  readonly signal?: AbortSignal;
+};

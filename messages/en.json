@@ -1053,7 +1053,16 @@
       "loadingObjects": "Loading objects…",
       "objectsLoadError": "Unable to load objects.",
       "retryObjects": "Retry loading objects in {database}",
-      "noObjects": "No objects found."
+      "noObjects": "No objects found.",
+      "viewRelationships": "View relationships",
+      "relationshipMap": "Relationships",
+      "relationshipBack": "Back to details",
+      "inbound": "Inbound",
+      "outbound": "Outbound",
+      "relationshipTruncated": "Showing partial results. Some relationships were omitted due to size limits.",
+      "relationshipEmpty": "No foreign key relationships found.",
+      "relationshipError": "Failed to load relationships.",
+      "relationshipRetry": "Retry"
     },
     "navigator": {
       "title": "Quick navigator",

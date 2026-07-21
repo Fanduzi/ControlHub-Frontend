@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { QueryRelationshipMap } from "@/components/query/query-relationship-map";
 import { getTableDefinition } from "@/services/query-schema";
 import {
   Dialog,
@@ -399,6 +400,7 @@ export function QueryObjectInspector({
   const [definitionState, setDefinitionState] = useState<DefinitionState>({ status: "idle" });
   const definitionGeneration = useRef(0);
   const definitionControllerRef = useRef<AbortController | null>(null);
+  const [view, setView] = useState<"details" | "relationships">("details");
 
   // Keep ref in sync with the element
   useEffect(() => {
@@ -458,6 +460,7 @@ export function QueryObjectInspector({
         definitionControllerRef.current?.abort();
         definitionControllerRef.current = null;
         setDefinitionState({ status: "idle" });
+        setView("details");
         onClose();
       }
     },
@@ -465,6 +468,16 @@ export function QueryObjectInspector({
   );
 
   const isTable = detail.kind === "table";
+  const canViewRelationships = isTable && !detail.truncated.foreignKeys;
+  const isRelationshipsView = view === "relationships";
+
+  const handleViewRelationships = useCallback(() => {
+    setView("relationships");
+  }, []);
+
+  const handleBackToDetails = useCallback(() => {
+    setView("details");
+  }, []);
 
   if (isMobile) {
     return (
@@ -476,7 +489,9 @@ export function QueryObjectInspector({
           finalFocus={triggerRef}
         >
           <SheetHeader className="flex flex-row items-start justify-between gap-2 pr-2">
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle>
+              {isRelationshipsView ? t("schema.relationshipMap") : title}
+            </SheetTitle>
             <Button
               type="button"
               variant="ghost"
@@ -488,28 +503,50 @@ export function QueryObjectInspector({
             </Button>
           </SheetHeader>
           <div className="min-w-0 px-4 pb-4">
-            {isTable && (
-              <div className="mb-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleViewDefinition}
-                  disabled={definitionState.status === "loading"}
-                  data-testid="view-definition-button"
-                >
-                  {definitionState.status === "loading"
-                    ? t("schema.loadingDefinition")
-                    : t("schema.viewDefinition")}
-                </Button>
-              </div>
+            {isRelationshipsView ? (
+              <QueryRelationshipMap
+                targetId={targetId}
+                database={detail.database}
+                name={detail.name}
+                onBack={handleBackToDetails}
+              />
+            ) : (
+              <>
+                {isTable && (
+                  <div className="mb-4 flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleViewDefinition}
+                      disabled={definitionState.status === "loading"}
+                      data-testid="view-definition-button"
+                    >
+                      {definitionState.status === "loading"
+                        ? t("schema.loadingDefinition")
+                        : t("schema.viewDefinition")}
+                    </Button>
+                    {canViewRelationships && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleViewRelationships}
+                        data-testid="view-relationships-button"
+                      >
+                        {t("schema.viewRelationships")}
+                      </Button>
+                    )}
+                  </div>
+                )}
+                <InspectorBody
+                  detail={detail}
+                  definitionState={definitionState}
+                  t={t}
+                  onRetryDefinition={handleRetryDefinition}
+                />
+              </>
             )}
-            <InspectorBody
-              detail={detail}
-              definitionState={definitionState}
-              t={t}
-              onRetryDefinition={handleRetryDefinition}
-            />
           </div>
         </SheetContent>
       </Sheet>
@@ -523,7 +560,9 @@ export function QueryObjectInspector({
         showCloseButton={false}
       >
         <DialogHeader className="flex flex-row items-start justify-between gap-2 pr-2">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>
+            {isRelationshipsView ? t("schema.relationshipMap") : title}
+          </DialogTitle>
           <Button
             type="button"
             variant="ghost"
@@ -534,28 +573,50 @@ export function QueryObjectInspector({
             <span aria-hidden>×</span>
           </Button>
         </DialogHeader>
-        {isTable && (
-          <div className="mb-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleViewDefinition}
-              disabled={definitionState.status === "loading"}
-              data-testid="view-definition-button"
-            >
-              {definitionState.status === "loading"
-                ? t("schema.loadingDefinition")
-                : t("schema.viewDefinition")}
-            </Button>
-          </div>
+        {isRelationshipsView ? (
+          <QueryRelationshipMap
+            targetId={targetId}
+            database={detail.database}
+            name={detail.name}
+            onBack={handleBackToDetails}
+          />
+        ) : (
+          <>
+            {isTable && (
+              <div className="mb-2 flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewDefinition}
+                  disabled={definitionState.status === "loading"}
+                  data-testid="view-definition-button"
+                >
+                  {definitionState.status === "loading"
+                    ? t("schema.loadingDefinition")
+                    : t("schema.viewDefinition")}
+                </Button>
+                {canViewRelationships && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleViewRelationships}
+                    data-testid="view-relationships-button"
+                  >
+                    {t("schema.viewRelationships")}
+                  </Button>
+                )}
+              </div>
+            )}
+            <InspectorBody
+              detail={detail}
+              definitionState={definitionState}
+              t={t}
+              onRetryDefinition={handleRetryDefinition}
+            />
+          </>
         )}
-        <InspectorBody
-          detail={detail}
-          definitionState={definitionState}
-          t={t}
-          onRetryDefinition={handleRetryDefinition}
-        />
       </DialogContent>
     </Dialog>
   );

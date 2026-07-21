@@ -1053,7 +1053,16 @@
       "loadingObjects": "加载对象中…",
       "objectsLoadError": "无法加载对象。",
       "retryObjects": "重试加载 {database} 中的对象",
-      "noObjects": "未找到对象。"
+      "noObjects": "未找到对象。",
+      "viewRelationships": "查看关系",
+      "relationshipMap": "关系",
+      "relationshipBack": "返回详情",
+      "inbound": "入站",
+      "outbound": "出站",
+      "relationshipTruncated": "显示部分结果。由于大小限制，某些关系已省略。",
+      "relationshipEmpty": "未找到外键关系。",
+      "relationshipError": "加载关系失败。",
+      "relationshipRetry": "重试"
     },
     "navigator": {
       "title": "快速导航",

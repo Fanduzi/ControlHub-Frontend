@@ -3,6 +3,8 @@ import type {
   DatabaseListResponse,
   ObjectDetailResponse,
   ObjectListResponse,
+  RelationshipMapParams,
+  RelationshipMapResponse,
   SchemaDatabaseListParams,
   SchemaObjectDetailParams,
   SchemaObjectListParams,
@@ -71,6 +73,20 @@ export async function getTableDefinition(
     `/query-targets/${targetId}/schema/table-definition?${searchParams.toString()}`,
     { signal: params.signal },
   );
+}
+
+/**
+ * Fetch the foreign-key relationship map for a specific schema object.
+ *
+ * @param targetId - The query target resource ID
+ * @param params - Required database and name, optional refresh and abort signal
+ */
+export async function getRelationshipMap(
+  targetId: number,
+  params: RelationshipMapParams,
+): Promise<RelationshipMapResponse> {
+  const path = buildRelationshipMapPath(targetId, params);
+  return apiClient<RelationshipMapResponse>(path, { signal: params.signal });
 }
 
 /** Coerce wire null/undefined collections to empty arrays for safe rendering. */
@@ -154,4 +170,16 @@ function buildObjectDetailsPath(
   }
 
   return `/query-targets/${targetId}/schema/object-details?${searchParams.toString()}`;
+}
+
+function buildRelationshipMapPath(
+  targetId: number,
+  params: RelationshipMapParams,
+): string {
+  const searchParams = new URLSearchParams({
+    database: params.database,
+    name: params.name,
+  });
+  if (params.refresh) searchParams.set("refresh", "true");
+  return `/query-targets/${targetId}/schema/relationship-map?${searchParams.toString()}`;
 }
