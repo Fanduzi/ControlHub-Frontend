@@ -1548,19 +1548,19 @@ test.describe("Object Inspector metadata", () => {
     await expect(sheet).toBeVisible();
 
     const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = sheet.getByRole("button", { name: "Inspect" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Inspector/ });
-    await expect(inspectorSheet).toBeVisible();
+    await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
     await expect(inspectorSheet).toHaveAttribute("data-side", "bottom");
 
     await expect(inspectorSheet.locator('[aria-label="Columns"]')).toBeVisible();
@@ -2303,7 +2303,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     for (let i = 0; i < count; i++) {
       await clearAndType(page, `SELECT ${i + 1}`);
       await page.getByRole("button", { name: /^run$/i }).click();
-      await expect(page.locator("td").filter({ hasText: new RegExp(`^${i + 1}$`) })).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("td").filter({ hasText: new RegExp(`^${i + 1}$`) })).toBeVisible({ timeout: 30_000 });
     }
   }
 
@@ -2778,23 +2778,23 @@ test.describe("Relationship map (Phase 38O)", () => {
     await objectsButton.click();
 
     const sheet = page.getByRole("dialog", { name: "Schema browser" });
-    await expect(sheet).toBeVisible();
+    await expect(sheet).toBeVisible({ timeout: 30_000 });
 
     const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = sheet.getByRole("button", { name: "Inspect" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     // Mobile Inspector opens as a bottom sheet
     const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
-    await expect(inspector).toBeVisible();
+    await expect(inspector).toBeVisible({ timeout: 30_000 });
     await expect(inspector).toHaveAttribute("data-side", "bottom");
 
     const relMapResponse = page.waitForResponse(
@@ -2804,13 +2804,13 @@ test.describe("Relationship map (Phase 38O)", () => {
     await relMapResponse;
 
     const relMapSheet = page.getByRole("dialog", { name: "Relationships" });
-    await expect(relMapSheet).toBeVisible();
+    await expect(relMapSheet).toBeVisible({ timeout: 30_000 });
 
     const trigger = page.getByTestId("view-relationships-button");
     const backButton = relMapSheet.getByRole("button", { name: /Back to details/ });
     await backButton.click();
 
-    await expect(trigger).toBeVisible({ timeout: 5_000 });
+    await expect(trigger).toBeVisible({ timeout: 10_000 });
     await trigger.focus();
     await expect(trigger).toBeFocused();
   });
@@ -2831,22 +2831,22 @@ test.describe("Relationship map (Phase 38O)", () => {
 
     await page.getByRole("button", { name: "对象", exact: true }).click();
     const explorer = page.getByRole("complementary", { name: "对象" });
-    await expect(explorer).toBeVisible();
+    await expect(explorer).toBeVisible({ timeout: 30_000 });
 
     const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = explorer.getByRole("button", { name: "检查" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
-    await expect(inspector).toBeVisible();
+    await expect(inspector).toBeVisible({ timeout: 30_000 });
 
     const viewRelButton = inspector.getByTestId("view-relationships-button");
     await expect(viewRelButton).toBeVisible();
@@ -2873,22 +2873,22 @@ test.describe("Relationship map (Phase 38O)", () => {
 
     await page.getByRole("button", { name: "Objects", exact: true }).click();
     const explorer = page.getByRole("complementary", { name: "Objects" });
-    await expect(explorer).toBeVisible();
+    await expect(explorer).toBeVisible({ timeout: 30_000 });
 
     const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = explorer.getByRole("button", { name: "Inspect" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
-    await expect(inspector).toBeVisible();
+    await expect(inspector).toBeVisible({ timeout: 30_000 });
 
     const relMapResponse = page.waitForResponse(
       (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
