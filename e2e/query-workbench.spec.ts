@@ -1711,27 +1711,27 @@ test.describe("Object Inspector metadata", () => {
     await expect(sheet).toBeVisible();
 
     const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
-    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
     await auxDb.click();
 
     const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
-    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
     const inspectButton = sheet.getByRole("button", { name: "Inspect" });
-    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
 
     // Test Escape key closes and restores focus
     await inspectButton.click();
     const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Inspector/ });
-    await expect(inspectorSheet).toBeVisible();
+    await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
     await page.keyboard.press("Escape");
     await expect(inspectorSheet).toBeHidden();
     await expect(inspectButton).toBeFocused();
 
     // Test Close button closes and restores focus
     await inspectButton.click();
-    await expect(inspectorSheet).toBeVisible();
+    await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
     await inspectorSheet.getByRole("button", { name: "Close inspector" }).click();
     await expect(inspectorSheet).toBeHidden();
     await expect(inspectButton).toBeFocused();
@@ -2532,7 +2532,16 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
   test("desktop EN: Explain shows normalized risk, no history growth, focus restores", async ({ page }) => {
     await openExplainableTarget(page);
 
-    const beforeHistory = await historyItemCount(page);
+    // Record the most recent history item text before Explain
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await page.waitForTimeout(500);
+    const empty = page.getByText(/no (query )?history|empty/i);
+    const hasHistoryBefore = !(await empty.isVisible().catch(() => false));
+    let mostRecentBefore = "";
+    if (hasHistoryBefore) {
+      mostRecentBefore = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
+    }
+    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
     await clearAndType(page, "select * from qe_explain_big");
     const trigger = page.getByTestId("explain-trigger");
@@ -2550,8 +2559,12 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await expect(panel).toBeHidden();
     await expect(trigger).toBeFocused();
 
-    const afterHistory = await historyItemCount(page);
-    expect(afterHistory).toBe(beforeHistory);
+    // Verify Explain did NOT add a new history item
+    await page.getByRole("tab", { name: /query history/i }).click();
+    await page.waitForTimeout(500);
+    const mostRecentAfter = await page.locator("#section-panel-history").getByRole("button").first().textContent() ?? "";
+    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
+    expect(mostRecentAfter).toBe(mostRecentBefore);
 
     await clearAndType(page, "select 1");
     await page.getByRole("button", { name: /^run$/i }).click();

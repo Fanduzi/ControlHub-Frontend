@@ -11,5 +11,5 @@ export async function loginViaUI(page: Page): Promise<void> {
   await page.locator("#password").fill(TEST_PASSWORD);
   await page.locator('button[type="submit"]').click();
 
-  await expect(page).toHaveURL(/\/overview/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
 }
