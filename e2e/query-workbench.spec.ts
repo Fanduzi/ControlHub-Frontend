@@ -2735,9 +2735,9 @@ test.describe("Relationship map (Phase 38O)", () => {
     await inspector.getByTestId("view-relationships-button").click();
     await relMapResponse;
 
-    // React StrictMode may double-fire the effect, producing 2 requests in dev.
+    // Exactly one relationship-map request on activation (no N+1)
     const relMapRequests = capturedUrls.filter((url) => url.includes("/relationship-map"));
-    expect(relMapRequests.length).toBeGreaterThanOrEqual(1);
+    expect(relMapRequests).toHaveLength(1);
 
     const forbidden = capturedUrls.filter(
       (url) =>
