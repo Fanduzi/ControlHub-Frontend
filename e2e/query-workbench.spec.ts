@@ -2618,3 +2618,273 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await expect(page.locator("table, [role='grid']").first()).toBeVisible();
   });
 });
+
+// ─── Phase 38O: Relationship map ──────────────────────────────────────────────
+
+test.describe("Relationship map (Phase 38O)", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `query-relmap-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop EN: Relationship map loads with inbound/outbound edges", async ({ page }) => {
+    await loginViaUI(page);
+    await page.getByRole("link", { name: "Query Workbench" }).click();
+    await page.waitForURL(/\/query/);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    const viewRelButton = inspector.getByTestId("view-relationships-button");
+    await expect(viewRelButton).toBeVisible();
+    await expect(viewRelButton).toHaveText("View relationships");
+
+    const relMapResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
+    );
+    await viewRelButton.click();
+    await relMapResponse;
+
+    const relMapDialog = page.getByRole("dialog", { name: "Relationships" });
+    await expect(relMapDialog).toBeVisible();
+    await expect(relMapDialog.getByRole("heading", { name: "Inbound" })).toBeVisible();
+    await expect(relMapDialog.getByRole("heading", { name: "Outbound" })).toBeVisible();
+
+    await expect(relMapDialog.getByText(/schema_parent/)).toBeVisible({ timeout: 10_000 });
+    await expect(relMapDialog.getByText(/→/)).toBeVisible();
+  });
+
+  test("request boundary: Only one relationship-map request on activation", async ({ page }) => {
+    await loginViaUI(page);
+    await page.getByRole("link", { name: "Query Workbench" }).click();
+    await page.waitForURL(/\/query/);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    // Attach request listener BEFORE clicking "View relationships"
+    const capturedUrls: string[] = [];
+    page.on("request", (req) => {
+      capturedUrls.push(req.url());
+    });
+
+    const relMapResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
+    );
+    await inspector.getByTestId("view-relationships-button").click();
+    await relMapResponse;
+
+    // React StrictMode may double-fire the effect, producing 2 requests in dev.
+    const relMapRequests = capturedUrls.filter((url) => url.includes("/relationship-map"));
+    expect(relMapRequests.length).toBeGreaterThanOrEqual(1);
+
+    const forbidden = capturedUrls.filter(
+      (url) =>
+        url.includes("/run") ||
+        url.includes("/related-records") ||
+        url.includes("/table-definition") ||
+        url.includes("/object-details"),
+    );
+    expect(forbidden).toHaveLength(0);
+  });
+
+  test("375px mobile: Relationship map accessible in Sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    const objectsButton = page.getByRole("button", { name: "Open objects", exact: true });
+    await objectsButton.click();
+
+    const sheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(sheet).toBeVisible();
+
+    const auxDb = sheet.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = sheet.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = sheet.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    // Mobile Inspector opens as a bottom sheet
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+    await expect(inspector).toHaveAttribute("data-side", "bottom");
+
+    const relMapResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
+    );
+    await inspector.getByTestId("view-relationships-button").click();
+    await relMapResponse;
+
+    const relMapSheet = page.getByRole("dialog", { name: "Relationships" });
+    await expect(relMapSheet).toBeVisible();
+
+    const trigger = page.getByTestId("view-relationships-button");
+    const backButton = relMapSheet.getByRole("button", { name: /Back to details/ });
+    await backButton.click();
+
+    await expect(trigger).toBeVisible({ timeout: 5_000 });
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("desktop zh-CN: Localized labels", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "对象", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "对象" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
+    await expect(inspector).toBeVisible();
+
+    const viewRelButton = inspector.getByTestId("view-relationships-button");
+    await expect(viewRelButton).toBeVisible();
+    await expect(viewRelButton).toHaveText("查看关系");
+
+    const relMapResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
+    );
+    await viewRelButton.click();
+    await relMapResponse;
+
+    const relMapDialog = page.getByRole("dialog", { name: "关系" });
+    await expect(relMapDialog).toBeVisible();
+
+    await expect(relMapDialog.getByRole("heading", { name: "入站" })).toBeVisible();
+    await expect(relMapDialog.getByRole("heading", { name: "出站" })).toBeVisible();
+  });
+
+  test("no raw SQL/credential/result value leak", async ({ page }) => {
+    await loginViaUI(page);
+    await page.getByRole("link", { name: "Query Workbench" }).click();
+    await page.waitForURL(/\/query/);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    const relMapResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/relationship-map") && resp.status() === 200,
+    );
+    await inspector.getByTestId("view-relationships-button").click();
+    await relMapResponse;
+
+    const relMapDialog = page.getByRole("dialog", { name: "Relationships" });
+    await expect(relMapDialog).toBeVisible();
+
+    const relMapText = await relMapDialog.textContent();
+    expect(relMapText).not.toContain("SELECT ");
+    expect(relMapText).not.toContain("CREATE TABLE");
+    expect(relMapText).not.toContain("INSERT INTO");
+    expect(relMapText).not.toMatch(/mysql:\/\//);
+    expect(relMapText).not.toMatch(/password[=:]/i);
+  });
+});
