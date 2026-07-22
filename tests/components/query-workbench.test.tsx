@@ -4880,3 +4880,18 @@ describe("QueryWorkbench objects pane width (Phase 38P)", () => {
     expect(Number(valuenow)).toBeLessThanOrEqual(560);
   });
 });
+
+describe("Phase 38P: Oracle regression", () => {
+  it("restores DEFAULT width when localStorage has no width key", async () => {
+    // Verify: Number(null) is 0, which would clamp to MIN (260) not DEFAULT (320)
+    // After fix: missing key uses DEFAULT_OBJECTS_WIDTH (320)
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.removeItem("query-objects-pane-width");
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+    const separator = screen.getByRole("separator", { name: "Resize objects pane" });
+    expect(separator).toHaveAttribute("aria-valuenow", "320");
+  });
+});

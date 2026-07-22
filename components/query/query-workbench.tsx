@@ -102,12 +102,15 @@ export function QueryWorkbench({
 
   useEffect(() => {
     const storedOpen = window.localStorage.getItem(OBJECTS_PANE_STORAGE_KEY) === "true";
-    const storedWidth = Number(window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY));
+    const rawWidth = window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY);
+    const storedWidth = rawWidth !== null ? Number(rawWidth) : NaN;
     const max = getMaxObjectsWidth();
     const clampedWidth = Number.isFinite(storedWidth)
       ? Math.max(MIN_OBJECTS_WIDTH, Math.min(max, storedWidth))
       : DEFAULT_OBJECTS_WIDTH;
 
+    // Hydration: read persisted preferences after mount (cannot read localStorage during SSR)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setObjectsOpen(storedOpen);
     setObjectsPaneWidth(clampedWidth);
     setIsHydrated(true);

@@ -1809,29 +1809,26 @@ function RelatedRecordsPanel({
       {state.status === "loading" && (
         <p className="text-sm text-muted-foreground">{t("result.relatedRecordsLoading")}</p>
       )}
-      {state.status === "ready" && (
-        <>
-          {state.response.rowCount === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("result.relatedRecordsEmpty")}</p>
-          ) : (() => {
-            const normalized = normalizeExecuteResponse(state.response);
-            if (!normalized.ok) {
-              return <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>;
-            }
-            const safeResponse = normalized.response;
-            return (
-              <>
-                <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
-                  <dd>{t("result.rowCount", { count: safeResponse.rowCount })}</dd>
-                  <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
-                  {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
-                </dl>
-                <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} />
-              </>
-            );
-          })()}
-        </>
-      )}
+      {state.status === "ready" && (() => {
+        const normalized = normalizeExecuteResponse(state.response);
+        if (!normalized.ok) {
+          return <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>;
+        }
+        const safeResponse = normalized.response;
+        if (safeResponse.rowCount === 0) {
+          return <p className="text-sm text-muted-foreground">{t("result.relatedRecordsEmpty")}</p>;
+        }
+        return (
+          <>
+            <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+              <dd>{t("result.rowCount", { count: safeResponse.rowCount })}</dd>
+              <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
+              {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
+            </dl>
+            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} />
+          </>
+        );
+      })()}
       {state.status === "error" && (
         <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>
       )}

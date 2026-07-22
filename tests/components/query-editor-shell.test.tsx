@@ -2,6 +2,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueryResultColumn } from "@/types/query-execution";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
@@ -341,5 +342,20 @@ describe("ExecuteResult mixed-version response boundary", () => {
     });
     expect(screen.getByText(/1 rows/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("Phase 38P: Oracle regression — related-record panel", () => {
+  it("shows controlled error for malformed zero-row related-record response", async () => {
+    // Verify: rowCount=0 with malformed columns must show error, not empty state
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse({ rows: [], rowCount: 0, columns: "invalid" as unknown as QueryResultColumn[] }),
+    );
+    renderReady();
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
   });
 });
