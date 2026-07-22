@@ -83,32 +83,45 @@ export function QueryWorkbench({
 
   const OBJECTS_PANE_STORAGE_KEY = "query-objects-pane-open";
   const OBJECTS_WIDTH_STORAGE_KEY = "query-objects-pane-width";
-  const MIN_OBJECTS_WIDTH = 240;
-  const MAX_OBJECTS_WIDTH = 280;
-  const DEFAULT_OBJECTS_WIDTH = 260;
+  const MIN_OBJECTS_WIDTH = 260;
+  const DEFAULT_OBJECTS_WIDTH = 320;
+  const EDITOR_MIN_WIDTH = 480;
+  const ABSOLUTE_MAX_OBJECTS_WIDTH = 560;
 
-  const [objectsOpen, setObjectsOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(OBJECTS_PANE_STORAGE_KEY) === "true";
-  });
+  function getMaxObjectsWidth(): number {
+    if (typeof window === "undefined") return ABSOLUTE_MAX_OBJECTS_WIDTH;
+    return Math.min(ABSOLUTE_MAX_OBJECTS_WIDTH, window.innerWidth - EDITOR_MIN_WIDTH);
+  }
+
+  const [objectsOpen, setObjectsOpen] = useState(false);
+  const [objectsPaneWidth, setObjectsPaneWidth] = useState(DEFAULT_OBJECTS_WIDTH);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [mobileObjectsOpen, setMobileObjectsOpen] = useState(false);
   const mobileObjectsTriggerRef = useRef<HTMLButtonElement>(null);
-  const [objectsPaneWidth, setObjectsPaneWidth] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_OBJECTS_WIDTH;
-    const stored = Number(window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY));
-    return Number.isFinite(stored) && stored >= MIN_OBJECTS_WIDTH && stored <= MAX_OBJECTS_WIDTH
-      ? stored
-      : DEFAULT_OBJECTS_WIDTH;
-  });
   const objectsPaneWidthRef = useRef(objectsPaneWidth);
+
+  useEffect(() => {
+    const storedOpen = window.localStorage.getItem(OBJECTS_PANE_STORAGE_KEY) === "true";
+    const storedWidth = Number(window.localStorage.getItem(OBJECTS_WIDTH_STORAGE_KEY));
+    const max = getMaxObjectsWidth();
+    const clampedWidth = Number.isFinite(storedWidth)
+      ? Math.max(MIN_OBJECTS_WIDTH, Math.min(max, storedWidth))
+      : DEFAULT_OBJECTS_WIDTH;
+
+    setObjectsOpen(storedOpen);
+    setObjectsPaneWidth(clampedWidth);
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     objectsPaneWidthRef.current = objectsPaneWidth;
   }, [objectsPaneWidth]);
 
   useEffect(() => {
-    window.localStorage.setItem(OBJECTS_PANE_STORAGE_KEY, String(objectsOpen));
-  }, [objectsOpen]);
+    if (isHydrated) {
+      window.localStorage.setItem(OBJECTS_PANE_STORAGE_KEY, String(objectsOpen));
+    }
+  }, [objectsOpen, isHydrated]);
 
   function handleObjectsResizePointerDown(
     event: React.PointerEvent<HTMLButtonElement>,
@@ -121,7 +134,7 @@ export function QueryWorkbench({
 
     function handlePointerMove(moveEvent: PointerEvent) {
       const nextWidth = Math.min(
-        MAX_OBJECTS_WIDTH,
+        getMaxObjectsWidth(),
         Math.max(MIN_OBJECTS_WIDTH, startWidth + moveEvent.clientX - startX),
       );
       objectsPaneWidthRef.current = nextWidth;
@@ -143,13 +156,20 @@ export function QueryWorkbench({
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
+    if (activeTargetId) params.set("targetId", String(activeTargetId));
     if (activeDatabase) {
       params.set("database", activeDatabase);
     } else {
       params.delete("database");
     }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [activeDatabase, pathname, router, searchParams]);
+
+    const desired = `${pathname}?${params.toString()}`;
+    const current = `${pathname}?${searchParams.toString()}`;
+
+    if (desired !== current) {
+      router.replace(desired);
+    }
+  }, [activeDatabase, activeTargetId, pathname, router, searchParams]);
 
   useEffect(() => {
     const generation = searchGeneration.current + 1;
@@ -308,8 +328,20 @@ export function QueryWorkbench({
                   type="button"
                   role="separator"
                   aria-orientation="vertical"
+                  aria-valuemin={MIN_OBJECTS_WIDTH}
+                  aria-valuemax={getMaxObjectsWidth()}
+                  aria-valuenow={objectsPaneWidth}
                   aria-label={t("schema.resizeObjects")}
+                  tabIndex={0}
                   onPointerDown={handleObjectsResizePointerDown}
+                  onKeyDown={(e) => {
+                    const step = e.shiftKey ? 20 : 10;
+                    if (e.key === "ArrowLeft") {
+                      setObjectsPaneWidth((prev) => Math.max(MIN_OBJECTS_WIDTH, prev - step));
+                    } else if (e.key === "ArrowRight") {
+                      setObjectsPaneWidth((prev) => Math.min(getMaxObjectsWidth(), prev + step));
+                    }
+                  }}
                   className="hidden w-1.5 cursor-col-resize items-center justify-center bg-muted/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lg:flex"
                 >
                   <span className="h-8 w-0.5 rounded-full bg-border" aria-hidden />

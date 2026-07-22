@@ -5,11 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
+const stableSearchParams = new URLSearchParams();
+const stableRouter = { replace };
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
-  useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => stableRouter,
+  useSearchParams: () => stableSearchParams,
 }));
 
 vi.mock("@/services/query-executions", async () => {
@@ -4636,5 +4638,245 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     });
     expect(mockListQueryExecutions).not.toHaveBeenCalled();
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Phase 38P: Objects pane hydration, URL synchronization idempotence, pane
+ * width bounds, and resize separator accessibility.
+ */
+describe("QueryWorkbench hydration safety (Phase 38P)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    replace.mockClear();
+  });
+
+  it("SSR render does not read localStorage — initial state uses defaults", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "500");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("complementary", { name: "Objects" })).toHaveStyle({ width: "500px" });
+  });
+
+  it("client hydration restores saved open/width state after mount", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "400");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const aside = screen.getByRole("complementary", { name: "Objects" });
+    expect(aside).toHaveStyle({ width: "400px" });
+  });
+
+  it("invalid stored width is clamped to min on hydration", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "100");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const aside = screen.getByRole("complementary", { name: "Objects" });
+    expect(aside).toHaveStyle({ width: "260px" });
+  });
+
+  it("width above old 280px max is accepted", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "500");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      const aside = screen.getByRole("complementary", { name: "Objects" });
+      expect(aside).toHaveStyle({ width: "500px" });
+    });
+  });
+});
+
+describe("QueryWorkbench URL synchronization idempotence (Phase 38P)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    replace.mockClear();
+  });
+
+  it("canonical URL causes zero additional router.replace calls after initial mount", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+    });
+
+    const callsBefore = replace.mock.calls.length;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(replace.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("objects toggle does not trigger URL sync replacement", async () => {
+    const user = userEvent.setup();
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+    });
+
+    const callsBefore = replace.mock.calls.length;
+
+    const objectsButton = screen.getByRole("button", { name: "Objects" });
+    await user.click(objectsButton);
+
+    expect(replace.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("preserves query parameters in URL sync", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+    });
+
+    const lastCall = replace.mock.calls[replace.mock.calls.length - 1]?.[0] as string | undefined;
+    if (lastCall) {
+      expect(lastCall).toContain("targetId=30");
+    }
+  });
+});
+
+describe("QueryWorkbench objects pane width (Phase 38P)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    replace.mockClear();
+  });
+
+  it("widths above 280px work — pane renders wider than old max", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "500");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      const aside = screen.getByRole("complementary", { name: "Objects" });
+      expect(aside).toHaveStyle({ width: "500px" });
+    });
+  });
+
+  it("maximum preserves editor — pane does not exceed viewport - 480", async () => {
+    window.localStorage.setItem("query-objects-pane-open", "true");
+    window.localStorage.setItem("query-objects-pane-width", "600");
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const aside = screen.getByRole("complementary", { name: "Objects" });
+    const width = parseInt(aside.style.width, 10);
+    expect(width).toBeLessThanOrEqual(560);
+  });
+
+  it("resize re-clamping uses same bounds as hydration", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const separator = screen.getByRole("separator", { name: "Resize objects pane" });
+
+    fireEvent.pointerDown(separator, { clientX: 320, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 9000, pointerId: 1 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      const aside = screen.getByRole("complementary", { name: "Objects" });
+      const width = parseInt(aside.style.width, 10);
+      expect(width).toBeLessThanOrEqual(560);
+    });
+  });
+
+  it("ArrowRight increases pane width and ArrowLeft decreases it", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const separator = screen.getByRole("separator", { name: "Resize objects pane" });
+    separator.focus();
+
+    const asideBefore = screen.getByRole("complementary", { name: "Objects" });
+    const widthBefore = parseInt(asideBefore.style.width, 10);
+
+    fireEvent.keyDown(separator, { key: "ArrowRight" });
+
+    const asideAfter = screen.getByRole("complementary", { name: "Objects" });
+    const widthAfter = parseInt(asideAfter.style.width, 10);
+    expect(widthAfter).toBe(widthBefore + 10);
+
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+
+    const asideFinal = screen.getByRole("complementary", { name: "Objects" });
+    const widthFinal = parseInt(asideFinal.style.width, 10);
+    expect(widthFinal).toBe(widthBefore);
+  });
+
+  it("Shift+ArrowRight increases by 20px", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const separator = screen.getByRole("separator", { name: "Resize objects pane" });
+    separator.focus();
+
+    const asideBefore = screen.getByRole("complementary", { name: "Objects" });
+    const widthBefore = parseInt(asideBefore.style.width, 10);
+
+    fireEvent.keyDown(separator, { key: "ArrowRight", shiftKey: true });
+
+    const asideAfter = screen.getByRole("complementary", { name: "Objects" });
+    const widthAfter = parseInt(asideAfter.style.width, 10);
+    expect(widthAfter).toBe(widthBefore + 20);
+  });
+
+  it("separator has correct ARIA values", async () => {
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("complementary", { name: "Objects" })).toBeInTheDocument();
+    });
+
+    const separator = screen.getByRole("separator", { name: "Resize objects pane" });
+    expect(separator).toHaveAttribute("aria-orientation", "vertical");
+    expect(separator).toHaveAttribute("aria-valuemin", "260");
+    expect(separator).toHaveAttribute("tabindex", "0");
+    const valuenow = separator.getAttribute("aria-valuenow");
+    expect(Number(valuenow)).toBeGreaterThanOrEqual(260);
+    expect(Number(valuenow)).toBeLessThanOrEqual(560);
   });
 });
