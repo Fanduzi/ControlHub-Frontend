@@ -109,29 +109,31 @@ export function QueryObjectTree({
                       <label htmlFor={`schema-search-${database}`} className="text-xs font-medium">
                         {t("schema.searchObjectsLabel", { database })}
                       </label>
-                      <div className="flex gap-2">
+                      <div className="space-y-2">
                         <input
                           id={`schema-search-${database}`}
                           name="object-search"
                           value={listing?.draftQuery ?? ""}
                           placeholder={t("schema.searchObjectsPlaceholder")}
-                          className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           onChange={(event) => onDraftQueryChange(database, event.target.value)}
                         />
-                        <Button type="submit" variant="outline" size="sm" aria-label={t("schema.searchObjects", { database })}>
-                          {t("schema.searchObjects", { database })}
-                        </Button>
-                        {showClear && onClearSearch ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            aria-label={t("schema.clearObjectSearch", { database })}
-                            onClick={() => onClearSearch(database)}
-                          >
-                            {t("schema.clearObjectSearch", { database })}
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="submit" variant="outline" size="sm" aria-label={t("schema.searchObjects", { database })}>
+                            {t("schema.searchObjects", { database })}
                           </Button>
-                        ) : null}
+                          {showClear && onClearSearch ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              aria-label={t("schema.clearObjectSearch", { database })}
+                              onClick={() => onClearSearch(database)}
+                            >
+                              {t("schema.clearObjectSearch", { database })}
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
                     </form>
                   ) : null}

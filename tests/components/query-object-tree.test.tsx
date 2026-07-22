@@ -170,4 +170,31 @@ describe("QueryObjectTree accessibility structure", () => {
     expect(screen.getByRole("button", { name: "加载更多 db1 中的对象" })).toBeVisible();
     expect(screen.getByRole("button", { name: "重试加载 db1 中的对象" })).toBeVisible();
   });
+
+  it("search input is full-width and accessible at narrow widths", () => {
+    renderTree({ databases: ["db1"] });
+    const input = screen.getByRole("textbox", { name: /search objects in db1/i });
+    expect(input).toBeVisible();
+    expect(input.className).toContain("w-full");
+
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+    const controlsRow = form!.querySelector(".flex.flex-wrap.gap-2");
+    expect(controlsRow).not.toBeNull();
+    expect(controlsRow!.contains(input)).toBe(false);
+  });
+
+  it("P2-3: search controls remain outside every treeitem", () => {
+    renderTree({ databases: ["db1"] });
+    const tree = screen.getByRole("tree");
+    const search = screen.getByRole("textbox", { name: /search objects in db1/i });
+    const searchButton = screen.getByRole("button", { name: /search objects in db1/i });
+    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
+
+    for (const treeitem of within(tree).getAllByRole("treeitem")) {
+      expect(treeitem).not.toContainElement(search);
+      expect(treeitem).not.toContainElement(searchButton);
+      expect(treeitem).not.toContainElement(clearButton);
+    }
+  });
 });
