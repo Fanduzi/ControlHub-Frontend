@@ -259,14 +259,15 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
-    // Wait for the editor to load its default content
-    await expect.poll(() => getEditorContent(page), { timeout: 10_000 }).toContain("select 1");
+    // The worksheet seeds a safe default statement and never auto-runs.
+    const content = await getEditorContent(page);
+    expect(content).toContain("select 1");
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // The backend executes `select 1` and returns a single INT cell.
     await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
-      timeout: 30_000,
+      timeout: 15_000,
     });
   });
 
@@ -701,9 +702,6 @@ async function openQueryWorkbench(page: Page): Promise<void> {
   await loginViaUI(page);
   await page.locator('a[href="/query"]').first().click();
   await expect(page).toHaveURL(/\/query/);
-  // Wait for the query workbench to be ready
-  await expect(page.getByRole("button", { name: "Objects", exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: /^run$/i })).toBeVisible({ timeout: 10_000 });
 }
 
 /**
@@ -899,8 +897,6 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
   await expect(target).toBeEnabled({ timeout: 5_000 });
   await target.click();
   await expect(dialog).toBeHidden({ timeout: 5_000 });
-  // Wait for the worksheet to be ready after target selection
-  await expect(page.getByRole("button", { name: /^run$/i })).toBeVisible({ timeout: 10_000 });
 }
 
 /**
