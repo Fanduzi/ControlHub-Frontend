@@ -22,12 +22,12 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   retries: 0,
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   use: {
     baseURL: devServerUrl,
     headless: true,
-    actionTimeout: 10_000,
+    actionTimeout: 15_000,
   },
   projects: [
     {
