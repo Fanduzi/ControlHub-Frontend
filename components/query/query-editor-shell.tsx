@@ -1685,25 +1685,83 @@ function ReadyWorksheet({
   );
 }
 
+/**
+ * Normalize a QueryExecuteResponse for safe rendering.
+ *
+ * The backend may send `rows: null` for zero-row results (legacy mixed-version
+ * behavior). This normalizes that specific proven shape to an empty array so
+ * ResultTable never receives null rows.
+ *
+ * For malformed responses (non-array rows/columns, inconsistent rowCount),
+ * returns a controlled error message instead of allowing a TypeError crash.
+ */
+function normalizeExecuteResponse(
+  raw: QueryExecuteResponse,
+): { ok: true; response: QueryExecuteResponse } | { ok: false; error: string } {
+  if (!Array.isArray(raw.columns)) {
+    return { ok: false, error: "Invalid response: columns is not an array" };
+  }
+  for (const col of raw.columns) {
+    if (typeof col?.name !== "string" || col.name.length === 0) {
+      return { ok: false, error: "Invalid response: column missing name" };
+    }
+  }
+
+  if (raw.rows === null || raw.rows === undefined) {
+    if (raw.status === "success" && raw.rowCount === 0) {
+      return { ok: true, response: { ...raw, rows: [] } };
+    }
+    return { ok: false, error: "Invalid response: rows is null with non-zero rowCount" };
+  }
+
+  if (!Array.isArray(raw.rows)) {
+    return { ok: false, error: "Invalid response: rows is not an array" };
+  }
+
+  if (raw.rows.length !== raw.rowCount) {
+    return { ok: false, error: "Invalid response: row count mismatch" };
+  }
+
+  return { ok: true, response: raw };
+}
+
 function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef, onRelatedRecordsIneligible }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>; onRelatedRecordsIneligible?: () => void }) {
   const t = useTranslations("queryWorkbench");
+
+  const normalized = normalizeExecuteResponse(result);
+  if (!normalized.ok) {
+    return (
+      <div role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/5 p-3">
+        <p className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
+          <TriangleAlert className="size-4 shrink-0" aria-hidden />
+          {t("error.internal_error")}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium">{t("error.detailLabel")}: </span>
+          {normalized.error}
+        </p>
+      </div>
+    );
+  }
+
+  const safeResult = normalized.response;
 
   return (
     <div className="space-y-3">
       <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <dd>{t("result.rowCount", { count: result.rowCount })}</dd>
-        <dd>{t("result.durationMs", { count: result.durationMs })}</dd>
-        <dd>{t("result.limitApplied", { limit: result.limitApplied })}</dd>
-        {result.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.truncated")}</dd> : null}
+        <dd>{t("result.rowCount", { count: safeResult.rowCount })}</dd>
+        <dd>{t("result.durationMs", { count: safeResult.durationMs })}</dd>
+        <dd>{t("result.limitApplied", { limit: safeResult.limitApplied })}</dd>
+        {safeResult.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.truncated")}</dd> : null}
         <dd>
-          {t("result.executionIdLabel")} {result.executionId}
+          {t("result.executionIdLabel")} {safeResult.executionId}
         </dd>
         <dd>
-          {t("result.executedAtLabel")} {result.executedAt}
+          {t("result.executedAtLabel")} {safeResult.executedAt}
         </dd>
       </dl>
 
-      <ResultTable key={result.executionId} columns={result.columns} rows={result.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} />
+      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} />
     </div>
   );
 }
@@ -1755,16 +1813,23 @@ function RelatedRecordsPanel({
         <>
           {state.response.rowCount === 0 ? (
             <p className="text-sm text-muted-foreground">{t("result.relatedRecordsEmpty")}</p>
-          ) : (
-            <>
-              <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
-                <dd>{t("result.rowCount", { count: state.response.rowCount })}</dd>
-                <dd>{t("result.durationMs", { count: state.response.durationMs })}</dd>
-                {state.response.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
-              </dl>
-              <ResultTable columns={state.response.columns} rows={state.response.rows} />
-            </>
-          )}
+          ) : (() => {
+            const normalized = normalizeExecuteResponse(state.response);
+            if (!normalized.ok) {
+              return <p className="text-sm text-rose-700 dark:text-rose-300">{t("result.relatedRecordsError")}</p>;
+            }
+            const safeResponse = normalized.response;
+            return (
+              <>
+                <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                  <dd>{t("result.rowCount", { count: safeResponse.rowCount })}</dd>
+                  <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
+                  {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
+                </dl>
+                <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} />
+              </>
+            );
+          })()}
         </>
       )}
       {state.status === "error" && (
