@@ -402,6 +402,12 @@ export function QueryObjectInspector({
   const definitionControllerRef = useRef<AbortController | null>(null);
   const [view, setView] = useState<"details" | "relationships">("details");
   const relationshipsTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewRef = useRef(view);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   // Keep ref in sync with the element
   useEffect(() => {
@@ -412,6 +418,9 @@ export function QueryObjectInspector({
   useEffect(() => {
     return () => {
       definitionControllerRef.current?.abort();
+      if (focusTimeoutRef.current !== null) {
+        clearTimeout(focusTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -458,6 +467,10 @@ export function QueryObjectInspector({
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
+        if (focusTimeoutRef.current !== null) {
+          clearTimeout(focusTimeoutRef.current);
+          focusTimeoutRef.current = null;
+        }
         definitionControllerRef.current?.abort();
         definitionControllerRef.current = null;
         setDefinitionState({ status: "idle" });
@@ -477,9 +490,16 @@ export function QueryObjectInspector({
   }, []);
 
   const handleBackToDetails = useCallback(() => {
+    if (focusTimeoutRef.current !== null) {
+      clearTimeout(focusTimeoutRef.current);
+    }
     setView("details");
-    setTimeout(() => {
-      relationshipsTriggerRef.current?.focus();
+    focusTimeoutRef.current = setTimeout(() => {
+      focusTimeoutRef.current = null;
+      const el = relationshipsTriggerRef.current;
+      if (el && el.isConnected && viewRef.current === "details") {
+        el.focus();
+      }
     }, 0);
   }, []);
 

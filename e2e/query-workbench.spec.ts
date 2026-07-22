@@ -1736,6 +1736,49 @@ test.describe("Object Inspector metadata", () => {
     await expect(inspectButton).toBeFocused();
   });
 
+  test("Back then immediate Close restores focus to Inspect trigger, not View relationships", async ({ page }) => {
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 30_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 30_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 30_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    await expect(inspector).toBeVisible();
+
+    const viewRelButton = inspector.getByTestId("view-relationships-button");
+    await expect(viewRelButton).toBeVisible();
+    await viewRelButton.click();
+
+    const relMapDialog = page.getByRole("dialog", { name: "Relationships" });
+    await expect(relMapDialog).toBeVisible({ timeout: 10_000 });
+
+    const backButton = relMapDialog.getByRole("button", { name: /Back to details/ });
+    await backButton.click();
+
+    // Immediately close without waiting for focus restoration
+    const closeButton = inspector.getByRole("button", { name: "Close inspector" });
+    await closeButton.click();
+    await expect(inspector).toBeHidden();
+
+    // Focus must be on Inspect trigger, not on View relationships button
+    await expect(inspectButton).toBeFocused({ timeout: 5_000 });
+  });
+
   test("zh-CN: Inspector close button has accessible name '关闭检查器'", async ({ page }) => {
     await page.context().addCookies([
       {
