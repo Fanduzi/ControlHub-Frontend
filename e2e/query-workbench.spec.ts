@@ -2829,8 +2829,9 @@ test.describe("Relationship map (Phase 38O)", () => {
     await backButton.click();
 
     await expect(trigger).toBeVisible({ timeout: 10_000 });
-    await trigger.focus();
-    await expect(trigger).toBeFocused();
+    // Component uses requestAnimationFrame for focus restoration - wait for DOM commit
+    await page.waitForTimeout(500);
+    await expect(trigger).toBeFocused({ timeout: 5_000 });
   });
 
   test("desktop zh-CN: Localized labels", async ({ page }) => {

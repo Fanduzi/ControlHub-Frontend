@@ -478,9 +478,9 @@ export function QueryObjectInspector({
 
   const handleBackToDetails = useCallback(() => {
     setView("details");
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       relationshipsTriggerRef.current?.focus();
-    });
+    }, 0);
   }, []);
 
   if (isMobile) {
