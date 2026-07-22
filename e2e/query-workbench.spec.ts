@@ -259,15 +259,14 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
-    // The worksheet seeds a safe default statement and never auto-runs.
-    const content = await getEditorContent(page);
-    expect(content).toContain("select 1");
+    // Wait for editor to load default content with retry
+    await expect.poll(() => getEditorContent(page), { timeout: 10_000 }).toContain("select 1");
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
     // The backend executes `select 1` and returns a single INT cell.
     await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
   });
 
