@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
+import { getAuthToken } from "./api.helpers";
 import {
   assertClean,
   collectConsoleMessages,
@@ -10,6 +11,57 @@ import {
   type ConsoleMessage,
   type ExpectedHttpError,
 } from "./harness/console-guards";
+
+const FIXTURE_DIAGNOSTIC =
+  "Run: make query-e2e-mysql-up && seed-query-dev-target";
+
+const PROBE_API_BASE =
+  process.env.CONTROLHUB_API_PROXY_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:8081";
+
+test.beforeAll(async () => {
+  await checkBackendHealth();
+
+  const token = await getAuthToken();
+
+  const targetsRes = await fetch(`${PROBE_API_BASE}/query-targets`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!targetsRes.ok) {
+    throw new Error(
+      `Fixture readiness probe failed: GET /query-targets returned ${targetsRes.status}. ${FIXTURE_DIAGNOSTIC}`,
+    );
+  }
+
+  const targetsBody = (await targetsRes.json()) as {
+    items?: Array<{
+      resourceId: number;
+      availableActions?: { run?: boolean };
+    }>;
+  };
+  const targets = targetsBody.items ?? [];
+  const readyTarget = targets.find((t) => t.availableActions?.run === true);
+  if (!readyTarget) {
+    throw new Error(
+      `Fixture readiness probe failed: no query target with availableActions.run === true. ${FIXTURE_DIAGNOSTIC}`,
+    );
+  }
+
+  const schemaRes = await fetch(
+    `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/schema/databases`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  if (!schemaRes.ok) {
+    throw new Error(
+      `Fixture readiness probe failed: GET /query-targets/${readyTarget.resourceId}/schema/databases returned ${schemaRes.status}. ${FIXTURE_DIAGNOSTIC}`,
+    );
+  }
+});
 
 /**
  * Intentional HTTP errors consumed one-shot after the test body asserts them.
