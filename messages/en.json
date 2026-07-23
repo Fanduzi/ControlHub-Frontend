@@ -1180,7 +1180,8 @@
       "query_backend_error": "Target database error",
       "internal_error": "Unexpected error",
       "detailLabel": "Detail",
-      "query_explain_not_supported": "Explain is not supported for this target"
+      "query_explain_not_supported": "Explain is not supported for this target",
+      "query_result_disclosure_blocked": "Query blocked by result disclosure policy"
     },
     "history": {
       "title": "Query history",

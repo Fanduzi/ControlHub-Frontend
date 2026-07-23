@@ -1180,7 +1180,8 @@
       "query_backend_error": "目标数据库错误",
       "internal_error": "发生意外错误",
       "detailLabel": "详情",
-      "query_explain_not_supported": "此目标不支持 Explain"
+      "query_explain_not_supported": "此目标不支持 Explain",
+      "query_result_disclosure_blocked": "查询被结果披露策略阻止"
     },
     "history": {
       "title": "查询历史",
