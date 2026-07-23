@@ -2096,6 +2096,12 @@ function ResultTable({
           eligible = false;
           break;
         }
+        // Exclude FK columns whose values are masked — never send masked
+        // raw-protected values to construct a related-record request.
+        if (!columns[colIndex]!.copyAllowed) {
+          eligible = false;
+          break;
+        }
         const cellValue = rows[selectedCell.rowIndex]?.[colIndex];
         if (cellValue === null || cellValue === undefined) {
           eligible = false;
@@ -2213,6 +2219,10 @@ function ResultTable({
   async function handleCopy() {
     let text: string;
     if (selectedCell) {
+      const column = columns[selectedCell.colIndex];
+      if (column && !column.copyAllowed) {
+        return;
+      }
       text = getCellCopyText(selectedCell.value);
     } else if (selectedHeader) {
       text = selectedHeader.name;
@@ -2228,6 +2238,10 @@ function ResultTable({
 
   function copyButtonLabel(): string {
     if (selectedCell) {
+      const column = columns[selectedCell.colIndex];
+      if (column && !column.copyAllowed) {
+        return t("result.copyNotAllowed");
+      }
       return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
     }
     if (selectedHeader) {
@@ -2247,7 +2261,7 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!selectedCell && !selectedHeader}
+          disabled={!selectedCell && !selectedHeader || (selectedCell ? !columns[selectedCell.colIndex]?.copyAllowed : false)}
           onClick={() => void handleCopy()}
           aria-label={copyButtonLabel()}
           data-testid="copy-selection"

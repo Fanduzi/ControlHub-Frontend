@@ -80,6 +80,7 @@ vi.mock("next-themes", () => ({
 
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { EMPTY_FILTERS } from "@/lib/query-target-display";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   executeQueryTarget,
   listQueryExecutions,
@@ -100,6 +101,15 @@ const mockNavigateRelatedRecords = vi.mocked(navigateRelatedRecords);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 const mockGetObjectDetails = vi.mocked(getObjectDetails);
+const mockCopyToClipboard = vi.mocked(copyToClipboard);
+
+function col(
+  name: string,
+  databaseType: string,
+  nullable: boolean,
+): QueryResultColumn {
+  return { name, databaseType, nullable, displayMode: "raw_copy_allowed", copyAllowed: true };
+}
 
 function emptyHistory(): QueryExecutionCursorPage {
   return {
@@ -178,8 +188,8 @@ function buildExecuteResponse(
     targetResourceId: 30,
     engine: "mysql",
     columns: [
-      { name: "id", databaseType: "BIGINT", nullable: false },
-      { name: "name", databaseType: "VARCHAR", nullable: true },
+      col("id", "BIGINT", false),
+      col("name", "VARCHAR", true),
     ],
     rows: [
       [1, "orders-api"],
@@ -229,8 +239,8 @@ describe("ExecuteResult mixed-version response boundary", () => {
         rows: null as unknown as QueryExecuteResponse["rows"],
         rowCount: 0,
         columns: [
-          { name: "id", databaseType: "BIGINT", nullable: false },
-          { name: "email", databaseType: "VARCHAR", nullable: true },
+          col("id", "BIGINT", false),
+          col("email", "VARCHAR", true),
         ],
       }),
     );
@@ -318,7 +328,7 @@ describe("ExecuteResult mixed-version response boundary", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce(
       buildExecuteResponse({
-        columns: [{ name: "", databaseType: "INT", nullable: false }],
+        columns: [col("", "INT", false)],
       }),
     );
     renderReady();
@@ -397,8 +407,8 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
       name: "orders",
       kind: "table" as const,
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "user_id", databaseType: "BIGINT", nullable: true },
+        { name: "id", databaseType: "BIGINT", ordinalPosition: 1, nullable: false, primaryKey: true, autoIncrement: true },
+        { name: "user_id", databaseType: "BIGINT", ordinalPosition: 2, nullable: true, primaryKey: false, autoIncrement: false },
       ],
       indexes: [],
       foreignKeys: [{
@@ -416,8 +426,8 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
     mockExecuteQueryTarget.mockResolvedValue(
       buildExecuteResponse({
         columns: [
-          { name: "id", databaseType: "BIGINT", nullable: false },
-          { name: "user_id", databaseType: "BIGINT", nullable: true },
+          col("id", "BIGINT", false),
+          col("user_id", "BIGINT", true),
         ],
         rows: [[1, 42]],
         rowCount: 1,
@@ -480,5 +490,243 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
       expect(screen.getByText("Could not load related records.")).toBeInTheDocument();
     });
     expect(screen.queryByText("No related records found.")).toBeNull();
+  });
+});
+
+/**
+ * Phase 38Q: Result grid disclosure behavior. The server decides whether a
+ * column is raw_copy_allowed, masked_no_copy, or blocked. The frontend renders
+ * the server's decision without client-side masking logic.
+ */
+describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+    vi.mocked(copyToClipboard).mockResolvedValue(true);
+  });
+
+  function colWithDisclosure(
+    name: string,
+    databaseType: string,
+    nullable: boolean,
+    displayMode: "raw_copy_allowed" | "masked_no_copy" | "blocked",
+    copyAllowed: boolean,
+  ): QueryResultColumn {
+    return { name, databaseType, nullable, displayMode, copyAllowed };
+  }
+
+  it("raw_copy_allowed cell can be copied (existing behavior preserved)", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "raw_copy_allowed", true),
+      ],
+      rows: [["alice@example.com"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const cell = screen.getByRole("cell", { name: "alice@example.com" });
+    await user.click(cell);
+    await user.click(screen.getByTestId("copy-selection"));
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("alice@example.com");
+  });
+
+  it("masked_no_copy cell shows [MASKED] value and copy button is disabled", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("email", "VARCHAR", true, "masked_no_copy", false),
+      ],
+      rows: [
+        [1, "[MASKED]"],
+      ],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const maskedCell = screen.getByRole("cell", { name: "[MASKED]" });
+    await user.click(maskedCell);
+
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+  });
+
+  it("masked value is NOT in aria-label, clipboard call, or toast", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("secret", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [["[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const cell = screen.getByRole("cell", { name: "[MASKED]" });
+    await user.click(cell);
+
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toHaveAttribute("aria-label", expect.stringContaining("not permitted"));
+    expect(copyButton).toBeDisabled();
+
+    expect(mockCopyToClipboard).not.toHaveBeenCalled();
+  });
+
+  it("column-name copy still works regardless of disclosure mode", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "masked_no_copy", false),
+      ],
+      rows: [["[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const header = screen.getByRole("columnheader", { name: "email" });
+    await user.click(header);
+    await user.click(screen.getByTestId("copy-selection"));
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("email");
+  });
+
+  it("keyboard navigation still works for masked cells", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("secret", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [
+        [1, "[MASKED]"],
+        [2, "[MASKED]"],
+      ],
+      rowCount: 2,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const firstCell = screen.getByRole("cell", { name: "1" });
+    await user.click(firstCell);
+
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toHaveTextContent("[MASKED]");
+
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toHaveTextContent("[MASKED]");
+
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toHaveTextContent("2");
+
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toHaveTextContent("1");
+  });
+
+  it("focus restoration works after selecting a masked cell", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("secret", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [
+        [1, "[MASKED]"],
+      ],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const maskedCell = screen.getByRole("cell", { name: "[MASKED]" });
+    await user.click(maskedCell);
+    expect(maskedCell).toHaveAttribute("data-selected");
+
+    const idCell = screen.getByRole("cell", { name: "1" });
+    await user.click(idCell);
+    expect(idCell).toHaveAttribute("data-selected");
+    expect(maskedCell).not.toHaveAttribute("data-selected");
+    expect(screen.getByTestId("copy-selection")).toBeEnabled();
   });
 });

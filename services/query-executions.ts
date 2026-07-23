@@ -43,12 +43,18 @@ export class QueryExecuteError extends Error {
  * Machine-readable error codes returned by the Phase 37 sandbox. These pair 1:1
  * with the backend's documented HTTP statuses (see the Phase 37 spec error
  * table) — the frontend maps status to code so render logic keys off the code.
+ *
+ * Phase 38Q adds `query_result_disclosure_blocked` for 403 responses where the
+ * backend's error message identifies a disclosure-policy block (the message
+ * contains "disclosure_blocked"). The frontend disambiguates by inspecting the
+ * `ApiError.message` before falling back to the status-based mapping.
  */
 export type QueryExecuteErrorCode =
   | "validation_failed"
   | "query_not_allowed"
   | "query_target_not_found"
   | "query_explain_not_supported"
+  | "query_result_disclosure_blocked"
   | "query_timeout"
   | "query_backend_error"
   | "internal_error";
@@ -64,8 +70,14 @@ const STATUS_TO_ERROR_CODE: Readonly<Record<number, QueryExecuteErrorCode>> = {
 };
 
 /** Default to a safe internal_error for any unmapped status. */
-function errorCodeFromStatus(status: number): QueryExecuteErrorCode {
-  return STATUS_TO_ERROR_CODE[status] ?? "internal_error";
+function errorCodeFromStatus(error: ApiError): QueryExecuteErrorCode {
+  if (
+    error.status === 403 &&
+    error.message.includes("disclosure_blocked")
+  ) {
+    return "query_result_disclosure_blocked";
+  }
+  return STATUS_TO_ERROR_CODE[error.status] ?? "internal_error";
 }
 
 /** Convert the shared client's ApiError into a controlled QueryExecuteError. */
@@ -73,7 +85,7 @@ function toQueryExecuteError(error: unknown): QueryExecuteError {
   if (error instanceof ApiError) {
     return new QueryExecuteError(
       error.status,
-      errorCodeFromStatus(error.status),
+      errorCodeFromStatus(error),
       error.message,
       error.details,
     );

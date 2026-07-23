@@ -105,7 +105,7 @@ import {
   QueryExecuteError,
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
-import { getSchemaDatabases } from "@/services/query-schema";
+import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -114,6 +114,7 @@ import type {
   QueryExecuteResponse,
   QueryExecutionCursorPage,
   QueryExecutionRecord,
+  QueryResultColumn,
 } from "@/types/query-execution";
 import enMessages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
@@ -123,6 +124,17 @@ const mockExplainQueryTarget = vi.mocked(explainQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
+const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
+const mockGetObjectDetails = vi.mocked(getObjectDetails);
+const mockCopyToClipboard = vi.mocked(copyToClipboard);
+
+function col(
+  name: string,
+  databaseType: string,
+  nullable: boolean,
+): QueryResultColumn {
+  return { name, databaseType, nullable, displayMode: "raw_copy_allowed", copyAllowed: true };
+}
 
 function emptyHistory(): QueryExecutionCursorPage {
   return {
@@ -594,8 +606,8 @@ describe("QueryWorkbench execution (ready target)", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "name", databaseType: "VARCHAR", nullable: true },
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
       ],
       rows: [
         [1, "orders-api"],
@@ -718,7 +730,7 @@ describe("QueryWorkbench execution (ready target)", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce(
       buildExecuteResponse({
-        columns: [{ name: "v", databaseType: "INT", nullable: true }],
+        columns: [col("v", "INT", true)],
         rows: [[null], [7]],
         rowCount: 2,
       }),
@@ -982,8 +994,8 @@ describe("QueryWorkbench target switching (ready targets)", () => {
       targetResourceId: TARGET_A_ID,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "service", databaseType: "VARCHAR", nullable: true },
+        col("id", "BIGINT", false),
+        col("service", "VARCHAR", true),
       ],
       rows: [[1, "orders-api"]],
       rowCount: 1,
@@ -2007,7 +2019,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      columns: [col("1", "INT", false)],
       rows: [[1]],
       rowCount: 1,
       truncated: false,
@@ -2127,7 +2139,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "n", databaseType: "INT", nullable: false }],
+      columns: [col("n", "INT", false)],
       rows: [[2]],
       rowCount: 1,
       truncated: false,
@@ -2178,7 +2190,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      columns: [col("1", "INT", false)],
       rows: [[1]],
       rowCount: 1,
       truncated: false,
@@ -2464,7 +2476,7 @@ describe("QueryWorkbench history target-race guard", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "id", databaseType: "BIGINT", nullable: false }],
+      columns: [col("id", "BIGINT", false)],
       rows: [[1]],
       rowCount: 1,
       truncated: false,
@@ -2578,7 +2590,7 @@ describe("QueryWorkbench SQL completion integration", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "1", databaseType: "INT", nullable: false }],
+      columns: [col("1", "INT", false)],
       rows: [[1]],
       rowCount: 1,
       truncated: false,
@@ -2716,9 +2728,9 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "name", databaseType: "VARCHAR", nullable: true },
-        { name: "active", databaseType: "TINYINT", nullable: false },
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
+        col("active", "TINYINT", false),
       ],
       rows: [
         [1, "orders-api", true],
@@ -3192,7 +3204,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "n", databaseType: "INT", nullable: false }],
+      columns: [col("n", "INT", false)],
       rows: [[42]],
       rowCount: 1,
       truncated: false,
@@ -3297,8 +3309,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "name", databaseType: "VARCHAR", nullable: true },
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
       ],
       rows: [[1, "test"]],
       rowCount: 1,
@@ -3331,8 +3343,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "name", databaseType: "VARCHAR", nullable: true },
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
       ],
       rows: [[1, "test"]],
       rowCount: 1,
@@ -3365,8 +3377,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "name", databaseType: "VARCHAR", nullable: true },
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
       ],
       rows: [[1, "test"]],
       rowCount: 1,
@@ -3410,8 +3422,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+        col("id", "BIGINT", false),
+        col("parent_id", "BIGINT", true),
       ],
       rows: [[1, 10]],
       rowCount: 1,
@@ -3448,8 +3460,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+        col("id", "BIGINT", false),
+        col("parent_id", "BIGINT", true),
       ],
       rows: [[1, 10]],
       rowCount: 1,
@@ -3519,8 +3531,8 @@ describe("FK record navigation", () => {
       targetResourceId: 30,
       engine: "mysql",
       columns: [
-        { name: "id", databaseType: "BIGINT", nullable: false },
-        { name: "parent_id", databaseType: "BIGINT", nullable: true },
+        col("id", "BIGINT", false),
+        col("parent_id", "BIGINT", true),
       ],
       rows: [[1, 10]],
       rowCount: 1,
@@ -4498,7 +4510,7 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
       status: "success",
       targetResourceId: 30,
       engine: "mysql",
-      columns: [{ name: "value", databaseType: "BIGINT", nullable: false }],
+      columns: [col("value", "BIGINT", false)],
       rows: [[1]],
       rowCount: 1,
       truncated: false,
@@ -4893,5 +4905,200 @@ describe("Phase 38P: Oracle regression", () => {
     });
     const separator = screen.getByRole("separator", { name: "Resize objects pane" });
     expect(separator).toHaveAttribute("aria-valuenow", "320");
+  });
+});
+
+/**
+ * Phase 38Q: Result grid disclosure integration. Mixed disclosure modes
+ * render correctly, blocked queries show controlled errors, and FK navigation
+ * is disabled for masked values.
+ */
+describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyWorkbenchTarget()],
+      pageInfo: pageInfoFor([buildReadyWorkbenchTarget()]),
+    });
+    mockGetSchemaDatabases.mockResolvedValue({ targetResourceId: 30, defaultDatabase: null, items: [], pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+    mockGetSchemaObjects.mockResolvedValue({ targetResourceId: 30, database: "", items: [], pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+    mockGetObjectDetails.mockResolvedValue(null as never);
+    mockCopyToClipboard.mockResolvedValue(true);
+  });
+
+  function colWithDisclosure(
+    name: string,
+    databaseType: string,
+    nullable: boolean,
+    displayMode: "raw_copy_allowed" | "masked_no_copy" | "blocked",
+    copyAllowed: boolean,
+  ): QueryResultColumn {
+    return { name, databaseType, nullable, displayMode, copyAllowed };
+  }
+
+  it("renders mixed disclosure modes correctly (raw + masked columns)", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("name", "VARCHAR", true, "raw_copy_allowed", true),
+        colWithDisclosure("ssn", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [
+        [1, "alice", "[MASKED]"],
+        [2, "bob", "[MASKED]"],
+      ],
+      rowCount: 2,
+      truncated: false,
+      durationMs: 12,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("cell", { name: "alice" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "bob" })).toBeInTheDocument();
+    expect(screen.getAllByText("[MASKED]").length).toBeGreaterThanOrEqual(2);
+
+    await user.click(screen.getByRole("cell", { name: "alice" }));
+    expect(screen.getByTestId("copy-selection")).toBeEnabled();
+
+    await user.click(screen.getAllByRole("cell", { name: "[MASKED]" })[0]!);
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+  });
+
+  it("copy button aria-label shows not-permitted for masked cells", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("secret", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [["[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "[MASKED]" }));
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toHaveAttribute("aria-label", expect.stringContaining("not permitted"));
+    expect(copyButton).toBeDisabled();
+  });
+
+  it("column-name copy works for masked columns (metadata-only, always allowed)", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("ssn", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [["[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const header = screen.getByRole("columnheader", { name: "ssn" });
+    await user.click(header);
+    await user.click(screen.getByTestId("copy-selection"));
+
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("ssn");
+    await waitFor(() => {
+      expect(screen.getByText(/copied/i)).toBeInTheDocument();
+    });
+  });
+
+  it("FK navigation not offered for masked FK column values", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockReset();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 30,
+      defaultDatabase: "testdb",
+      items: [{ name: "testdb", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockReset();
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 30,
+      database: "testdb",
+      items: [{ name: "users", kind: "table" as const, database: "testdb" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetObjectDetails.mockReset();
+    mockGetObjectDetails.mockResolvedValue({
+      targetResourceId: 30,
+      database: "testdb",
+      name: "users",
+      kind: "table" as const,
+      columns: [
+        { name: "id", databaseType: "BIGINT", ordinalPosition: 1, nullable: false, primaryKey: true, autoIncrement: true },
+        { name: "email", databaseType: "VARCHAR", ordinalPosition: 2, nullable: false, primaryKey: false, autoIncrement: false },
+      ],
+      indexes: [],
+      foreignKeys: [],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    });
+
+    mockExecuteQueryTarget.mockResolvedValue({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("user_id", "BIGINT", true, "masked_no_copy", false),
+      ],
+      rows: [[1, "[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("cell", { name: "[MASKED]" }));
+
+    expect(screen.queryByTestId("related-records")).toBeNull();
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
   });
 });

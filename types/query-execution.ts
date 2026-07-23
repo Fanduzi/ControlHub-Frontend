@@ -1,5 +1,6 @@
 import type { PageInfo } from "@/types/resource";
 import type { ForeignKeyDetail } from "@/types/query-schema";
+import type { ResultDisclosureMode } from "@/types/query-disclosure";
 
 /**
  * Query execution wire types for the Phase 37 read-only sandbox. Mirror the
@@ -28,6 +29,10 @@ export type QueryResultColumn = {
   name: string;
   databaseType: string;
   nullable: boolean;
+  /** Server-owned disclosure decision. */
+  readonly displayMode: ResultDisclosureMode;
+  /** Whether the value may be copied to clipboard. */
+  readonly copyAllowed: boolean;
 };
 
 /**

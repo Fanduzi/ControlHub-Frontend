@@ -410,6 +410,29 @@
         "description": "Administrators manage metadata references such as credential name and environment policy. Connection secrets (DSN, password) are never exposed to the browser.",
         "adminAction": "Open credential settings",
         "nonAdminCopy": "Managed by administrators. Contact your admin for credential changes."
+      },
+      "disclosurePolicies": {
+        "eyebrow": "Settings",
+        "title": "Result Disclosure Policies",
+        "description": "Manage per-column disclosure modes for query results",
+        "addColumn": "Add Policy",
+        "editColumn": "Edit Policy",
+        "deleteColumn": "Delete Policy",
+        "deleteConfirm": "Are you sure you want to delete this policy? The column will be blocked.",
+        "targetLabel": "Target",
+        "databaseLabel": "Database",
+        "objectLabel": "Object (Table)",
+        "columnLabel": "Column",
+        "modeLabel": "Disclosure Mode",
+        "modeRawCopyAllowed": "Raw — copy allowed",
+        "modeMaskedNoCopy": "Masked — no copy",
+        "emptyState": "No disclosure policies configured. Add a policy to allow or mask query result columns.",
+        "managedByAdmin": "Disclosure policies are managed by administrators.",
+        "createSuccess": "Disclosure policy created",
+        "updateSuccess": "Disclosure policy updated",
+        "deleteSuccess": "Disclosure policy deleted",
+        "adminAction": "Open disclosure policies",
+        "nonAdminCopy": "Managed by administrators. Contact your admin for policy changes."
       }
     }
   },
@@ -1142,7 +1165,11 @@
       "relatedRecordsEmpty": "No related records found.",
       "relatedRecordsTruncated": "Related records truncated",
       "relatedRecordsError": "Could not load related records.",
-      "closeRelatedRecords": "Close related records"
+      "closeRelatedRecords": "Close related records",
+      "copyNotAllowed": "Copy not permitted for this column",
+      "maskedIndicator": "Value masked by policy",
+      "disclosureBlocked": "Query blocked by result disclosure policy",
+      "fkNavigationDisabled": "Related records unavailable for masked values"
     },
     "error": {
       "title": "Query could not run",
@@ -1619,5 +1646,26 @@
       "retryFailed": "Retry failed",
       "clearResults": "Clear results"
     }
+  },
+  "queryDisclosureSettings": {
+    "eyebrow": "Settings",
+    "title": "Result Disclosure Policies",
+    "description": "Manage per-column disclosure modes for query results",
+    "addColumn": "Add Policy",
+    "editColumn": "Edit Policy",
+    "deleteColumn": "Delete Policy",
+    "deleteConfirm": "Are you sure you want to delete this policy? The column will be blocked.",
+    "targetLabel": "Target",
+    "databaseLabel": "Database",
+    "objectLabel": "Object (Table)",
+    "columnLabel": "Column",
+    "modeLabel": "Disclosure Mode",
+    "modeRawCopyAllowed": "Raw — copy allowed",
+    "modeMaskedNoCopy": "Masked — no copy",
+    "emptyState": "No disclosure policies configured. Add a policy to allow or mask query result columns.",
+    "managedByAdmin": "Disclosure policies are managed by administrators.",
+    "createSuccess": "Disclosure policy created",
+    "updateSuccess": "Disclosure policy updated",
+    "deleteSuccess": "Disclosure policy deleted"
   }
 }

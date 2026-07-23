@@ -410,6 +410,29 @@
         "description": "管理员管理凭据名称和环境策略等元数据引用。连接密钥（DSN、密码）不会暴露到浏览器。",
         "adminAction": "打开凭据设置",
         "nonAdminCopy": "由管理员管理。如需变更凭据，请联系管理员。"
+      },
+      "disclosurePolicies": {
+        "eyebrow": "设置",
+        "title": "结果披露策略",
+        "description": "管理查询结果的按列披露模式",
+        "addColumn": "新增策略",
+        "editColumn": "编辑策略",
+        "deleteColumn": "删除策略",
+        "deleteConfirm": "确定要删除此策略吗？该列将被屏蔽。",
+        "targetLabel": "目标",
+        "databaseLabel": "数据库",
+        "objectLabel": "对象（表）",
+        "columnLabel": "列",
+        "modeLabel": "披露模式",
+        "modeRawCopyAllowed": "原文 — 允许复制",
+        "modeMaskedNoCopy": "脱敏 — 禁止复制",
+        "emptyState": "未配置披露策略。添加策略以允许或脱敏查询结果列。",
+        "managedByAdmin": "披露策略由管理员管理。",
+        "createSuccess": "披露策略已创建",
+        "updateSuccess": "披露策略已更新",
+        "deleteSuccess": "披露策略已删除",
+        "adminAction": "打开披露策略",
+        "nonAdminCopy": "由管理员管理。如需变更策略，请联系管理员。"
       }
     }
   },
@@ -1142,7 +1165,11 @@
       "relatedRecordsEmpty": "未找到关联记录。",
       "relatedRecordsTruncated": "关联记录已截断",
       "relatedRecordsError": "无法加载关联记录。",
-      "closeRelatedRecords": "关闭关联记录"
+      "closeRelatedRecords": "关闭关联记录",
+      "copyNotAllowed": "此列不允许复制",
+      "maskedIndicator": "值已被策略遮蔽",
+      "disclosureBlocked": "查询被结果披露策略阻止",
+      "fkNavigationDisabled": "遮蔽值不可用关联记录"
     },
     "error": {
       "title": "查询未能执行",
@@ -1619,5 +1646,26 @@
       "retryFailed": "重试失败",
       "clearResults": "清除结果"
     }
+  },
+  "queryDisclosureSettings": {
+    "eyebrow": "设置",
+    "title": "结果披露策略",
+    "description": "管理查询结果的按列披露模式",
+    "addColumn": "新增策略",
+    "editColumn": "编辑策略",
+    "deleteColumn": "删除策略",
+    "deleteConfirm": "确定要删除此策略吗？该列将被屏蔽。",
+    "targetLabel": "目标",
+    "databaseLabel": "数据库",
+    "objectLabel": "对象（表）",
+    "columnLabel": "列",
+    "modeLabel": "披露模式",
+    "modeRawCopyAllowed": "原文 — 允许复制",
+    "modeMaskedNoCopy": "脱敏 — 禁止复制",
+    "emptyState": "未配置披露策略。添加策略以允许或脱敏查询结果列。",
+    "managedByAdmin": "披露策略由管理员管理。",
+    "createSuccess": "披露策略已创建",
+    "updateSuccess": "披露策略已更新",
+    "deleteSuccess": "披露策略已删除"
   }
 }

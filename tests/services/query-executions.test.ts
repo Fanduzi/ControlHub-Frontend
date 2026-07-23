@@ -21,13 +21,21 @@ import * as queryExecutionsModule from "@/services/query-executions";
 
 const mockApiClient = vi.mocked(apiClient);
 
+function col(
+  name: string,
+  databaseType: string,
+  nullable: boolean,
+): { name: string; databaseType: string; nullable: boolean; displayMode: "raw_copy_allowed"; copyAllowed: true } {
+  return { name, databaseType, nullable, displayMode: "raw_copy_allowed", copyAllowed: true };
+}
+
 function buildExecuteResponse() {
   return {
     executionId: 1001,
     status: "success" as const,
     targetResourceId: 22,
     engine: "mysql",
-    columns: [{ name: "value", databaseType: "BIGINT", nullable: false }],
+    columns: [col("value", "BIGINT", false)],
     rows: [[1]],
     rowCount: 1,
     truncated: false,
@@ -66,8 +74,8 @@ function buildRelatedRecordResponse() {
     targetResourceId: 22,
     engine: "mysql",
     columns: [
-      { name: "id", databaseType: "BIGINT", nullable: false },
-      { name: "name", databaseType: "VARCHAR", nullable: true },
+      col("id", "BIGINT", false),
+      col("name", "VARCHAR", true),
     ],
     rows: [[100, "Widget"]],
     rowCount: 1,
@@ -182,6 +190,22 @@ describe("executeQueryTarget", () => {
       expect((error as QueryExecuteError).code).toBe(code);
       expect((error as QueryExecuteError).status).toBe(status);
     }
+  });
+
+  it("maps 403 with disclosure_blocked message to query_result_disclosure_blocked", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(403, "query_result_disclosure_blocked: column masked"),
+    );
+
+    const error = await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+    }).catch((value: unknown) => value as QueryExecuteError);
+    expect(error).toBeInstanceOf(QueryExecuteError);
+    expect((error as QueryExecuteError).code).toBe(
+      "query_result_disclosure_blocked",
+    );
+    expect((error as QueryExecuteError).status).toBe(403);
   });
 });
 
