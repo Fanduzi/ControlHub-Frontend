@@ -83,8 +83,10 @@ import { EMPTY_FILTERS } from "@/lib/query-target-display";
 import {
   executeQueryTarget,
   listQueryExecutions,
+  navigateRelatedRecords,
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
+import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -94,6 +96,10 @@ import enMessages from "@/messages/en.json";
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
+const mockNavigateRelatedRecords = vi.mocked(navigateRelatedRecords);
+const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
+const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
+const mockGetObjectDetails = vi.mocked(getObjectDetails);
 
 function emptyHistory(): QueryExecutionCursorPage {
   return {
@@ -346,6 +352,15 @@ describe("ExecuteResult mixed-version response boundary", () => {
 });
 
 describe("Phase 38P: Oracle regression — related-record panel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
   it("shows controlled error for malformed zero-row related-record response", async () => {
     // Verify: rowCount=0 with malformed columns must show error, not empty state
     const user = userEvent.setup();
@@ -357,5 +372,113 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
+  });
+
+  it("shows controlled error for malformed navigateRelatedRecords response via FK path", async () => {
+    // Verify: navigateRelatedRecords returning malformed columns shows error
+    // in RelatedRecordsPanel (line 1812), not empty text.
+    const user = userEvent.setup();
+
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 30,
+      defaultDatabase: "testdb",
+      items: [{ name: "testdb", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 30,
+      database: "testdb",
+      items: [{ name: "orders", kind: "table" as const, database: "testdb" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetObjectDetails.mockResolvedValue({
+      targetResourceId: 30,
+      database: "testdb",
+      name: "orders",
+      kind: "table" as const,
+      columns: [
+        { name: "id", databaseType: "BIGINT", nullable: false },
+        { name: "user_id", databaseType: "BIGINT", nullable: true },
+      ],
+      indexes: [],
+      foreignKeys: [{
+        name: "fk_user_id",
+        columns: ["user_id"],
+        referencedDatabase: "testdb",
+        referencedObject: "users",
+        referencedColumns: ["id"],
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
+      }],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    });
+
+    mockExecuteQueryTarget.mockResolvedValue(
+      buildExecuteResponse({
+        columns: [
+          { name: "id", databaseType: "BIGINT", nullable: false },
+          { name: "user_id", databaseType: "BIGINT", nullable: true },
+        ],
+        rows: [[1, 42]],
+        rowCount: 1,
+      }),
+    );
+
+    mockNavigateRelatedRecords.mockResolvedValue({
+      executionId: 2001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: "invalid" as unknown as QueryResultColumn[],
+      rows: [],
+      rowCount: 0,
+      truncated: false,
+      durationMs: 5,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+      sourceDatabase: "testdb",
+      sourceObject: "orders",
+      foreignKey: "fk_user_id",
+      referencedDatabase: "testdb",
+      referencedObject: "users",
+      referencedColumns: ["id"],
+    });
+
+    // Given: Objects pane with FK-capable table and preview provenance
+    renderReady();
+    await user.click(screen.getByRole("button", { name: "Objects" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "testdb" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "testdb" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "orders" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "orders" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Preview rows" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "Preview rows" }));
+
+    // When: run preview, select FK cell, invoke related-record navigation
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("cell", { name: "42" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("related-records")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("related-records"));
+    await waitFor(() => {
+      expect(screen.getByText(/fk_user_id/)).toBeInTheDocument();
+    });
+    await user.click(screen.getByText(/fk_user_id/));
+
+    // Then: error text appears, NOT empty text
+    await waitFor(() => {
+      expect(screen.getByText("Could not load related records.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("No related records found.")).toBeNull();
   });
 });
