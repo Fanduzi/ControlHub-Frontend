@@ -40,8 +40,17 @@ These rules are fail-closed and not open for reinterpretation:
 4. **Projection boundary**: v1 permits only a single-table direct column,
    qualified direct column, or `*` that the server can expand against the
    governed schema exactly. Expressions, aggregates, joins, subqueries,
-   derived tables, ambiguous columns, JSON paths, UDF output, and constants
-   are `blocked`. No heuristic name matching is permitted.
+   derived tables, ambiguous columns, JSON paths, and UDF output are
+   `blocked`. No heuristic name matching is permitted.
+
+   **Literal-only no-FROM exemption**: Pure literal-only no-FROM SELECT
+   projections (e.g., `SELECT 1`, `SELECT 'text'`, `SELECT NULL`) are
+   intrinsically safe and returned as `raw_copy_allowed` without a
+   table-column policy. This narrowly includes AST literal nodes with
+   optional aliases. Non-literal expressions (functions, operators,
+   variables, subqueries, etc.) remain blocked. Target access, read-only
+   SQL guard, row cap, timeout, execution audit, and history remain
+   enforced for these queries.
 
 5. **Audit**: preserve the existing governed execution audit. No browser
    copy-audit endpoint exists: clipboard is a local browser action and
@@ -72,7 +81,6 @@ Any projection that cannot be resolved to a direct single-table column
 fails closed as `blocked` before SQL execution. This includes:
 
 - Expressions (`email || name`, `UPPER(col)`)
-- Constants (`SELECT 1`)
 - Aggregates (`COUNT(*)`, `SUM(amount)`)
 - Joins (explicit and implicit multi-table FROM)
 - Subqueries and derived tables
@@ -80,6 +88,12 @@ fails closed as `blocked` before SQL execution. This includes:
 - UDF output
 - Ambiguous column references
 - CTEs
+
+**Literal-only no-FROM exemption**: Pure literal-only no-FROM SELECT
+projections (e.g., `SELECT 1`, `SELECT 'text'`, `SELECT NULL`) are
+exempted as intrinsically safe and returned as `raw_copy_allowed` without
+a table-column policy. Non-literal FROM-less expressions (e.g.,
+`SELECT 1+1`, `SELECT NOW()`) remain blocked.
 
 ## Related-Record Behavior
 

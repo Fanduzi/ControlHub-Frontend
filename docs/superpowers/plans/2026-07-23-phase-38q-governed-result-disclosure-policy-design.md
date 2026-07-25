@@ -73,8 +73,16 @@ Browser Request (statement only)
 - Uses Vitess SQL parser (MySQL dialect).
 - Handles only: `StarExpr` (expanded via live schema metadata),
   `AliasedExpr` where inner expr is `ColName` (direct column).
+- **Literal-only no-FROM exemption**: Pure literal-only no-FROM SELECT
+  projections (e.g., `SELECT 1`, `SELECT 'text'`, `SELECT NULL`) return
+  columns with `raw_copy_allowed` without a table-column policy lookup.
+  Validates that all SELECT expressions are AST literal nodes (`*Literal`,
+  `*NullVal`, `*BoolVal`) with optional aliases. Non-literal expressions
+  (functions, operators, variables, subqueries, etc.) are rejected as
+  `errProjectionUnsupported`.
 - Rejects: multi-table FROM, CTEs, non-AliasedTableExpr, non-TableName
-  table expressions, and any non-ColName expression.
+  table expressions, and any non-ColName expression (except literal-only
+  no-FROM projections).
 - Returns `errProjectionUnsupported` for all unsupported forms.
 
 ### Masking (`internal/service/query_disclosure_mask.go`)
@@ -179,7 +187,8 @@ CREATE TABLE IF NOT EXISTS query_result_disclosure_policies (
 3. No heuristic name-based classification.
 4. No copy-audit endpoint.
 5. No export/download/copy-all/range-copy capability.
-6. Unsupported projections fail closed before SQL execution.
+6. Unsupported projections fail closed before SQL execution. Pure
+   literal-only no-FROM SELECTs are exempted as intrinsically safe.
 7. Admin-only policy CRUD at handler layer.
 8. Fixed error messages prevent raw value/SQL/DSN leaks.
 
