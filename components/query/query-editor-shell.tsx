@@ -14,6 +14,7 @@ import type {
   QueryExecutionFilter,
   QueryExecutionRecord,
   QueryResultCellValue,
+  QueryResultColumn,
   QueryExecutionStatus,
   RelatedRecordNavigationResponse,
   TablePreviewRequest,
@@ -2167,6 +2168,12 @@ function ResultTable({
     selectHeaderAt(col);
   }
 
+  // Defense-in-depth: check both displayMode and copyAllowed to fail closed
+  // on backend drift or bug (e.g., masked_no_copy + copyAllowed:true).
+  function isColumnCopyable(col: QueryResultColumn | undefined): boolean {
+    return col?.displayMode === "raw_copy_allowed" && col?.copyAllowed === true;
+  }
+
   function handleGridKeyDown(event: React.KeyboardEvent) {
     const { row, col } = activeCell;
 
@@ -2239,7 +2246,7 @@ function ResultTable({
   function copyButtonLabel(): string {
     if (selectedCell) {
       const column = columns[selectedCell.colIndex];
-      if (column && !column.copyAllowed) {
+      if (column && !isColumnCopyable(column)) {
         return t("result.copyNotAllowed");
       }
       return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
@@ -2261,7 +2268,7 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!selectedCell && !selectedHeader || (selectedCell ? !columns[selectedCell.colIndex]?.copyAllowed : false)}
+          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) : false)}
           onClick={() => void handleCopy()}
           aria-label={copyButtonLabel()}
           data-testid="copy-selection"
