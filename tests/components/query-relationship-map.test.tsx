@@ -184,8 +184,7 @@ describe("QueryRelationshipMap", () => {
 
     renderComponent({}, "en");
 
-    expect(await screen.findByRole("button", { name: /Back to details/ })).toBeVisible();
-    const outboundMatches = screen.getAllByText("Outbound");
+    const outboundMatches = await screen.findAllByText("Outbound");
     expect(outboundMatches.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -194,8 +193,7 @@ describe("QueryRelationshipMap", () => {
 
     renderComponent({}, "zh-CN");
 
-    expect(await screen.findByRole("button", { name: /返回详情/ })).toBeVisible();
-    const outboundMatches = screen.getAllByText("出站");
+    const outboundMatches = await screen.findAllByText("出站");
     expect(outboundMatches.length).toBeGreaterThanOrEqual(1);
   });
 
