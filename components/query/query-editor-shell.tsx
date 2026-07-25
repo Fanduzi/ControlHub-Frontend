@@ -2099,7 +2099,7 @@ function ResultTable({
         }
         // Exclude FK columns whose values are masked — never send masked
         // raw-protected values to construct a related-record request.
-        if (!columns[colIndex]!.copyAllowed) {
+        if (!isColumnCopyable(columns[colIndex]!)) {
           eligible = false;
           break;
         }
