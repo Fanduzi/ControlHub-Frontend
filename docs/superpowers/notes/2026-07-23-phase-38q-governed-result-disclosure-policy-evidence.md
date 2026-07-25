@@ -11,7 +11,7 @@
 - Frontend candidate: `ff8f4fedaef0681fc97d25c8bfb4a449cc8346d7`
 - Frontend repair: `40e8a23` (test stability fix on top of `8ab782b`)
 - Backend `origin/main`: `9de01f6d5a54d2e8867d5a823118443ba5fac8c5` (matches HEAD)
-- Frontend `origin/main`: pending after repair push
+- Frontend `origin/main`: `a3ba9640c7371965a4d4a95ac875f827645b7dba` (matches HEAD)
 
 ## Merge and Push
 
@@ -86,7 +86,7 @@ All runs executed against merged-root services:
 - Oracle review: P1 findings addressed in frontend commit `68ad559` (pane width default, related-record panel normalization, hydration lint)
 - Momus: no stored review artifact found; not available
 - Oracle final verdict artifact: no stored artifact found; P1 findings addressed per commit messages
-- Diff review: pending (Phase 4)
+- Diff review: only test file and evidence doc changed; test fix uses findAllByText for async readiness; no product behavior change
 
 ## CI Verification
 
@@ -94,7 +94,10 @@ All runs executed against merged-root services:
   - Required job `release-local-gates`: success
   - Job `release-docker-gates`: skipped (not required on main push)
   - Conclusion: success
-- Frontend CI: pending after repair push
+- Frontend CI: [Run 30164053039](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/30164053039)
+  - Required job `release-local`: success
+  - Job `release-e2e`: skipped (not required on main push)
+  - Conclusion: success
 
 ## Literal-Only No-FROM Exemption
 
