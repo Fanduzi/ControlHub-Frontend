@@ -2227,7 +2227,7 @@ function ResultTable({
     let text: string;
     if (selectedCell) {
       const column = columns[selectedCell.colIndex];
-      if (column && !column.copyAllowed) {
+      if (column && !isColumnCopyable(column)) {
         return;
       }
       text = getCellCopyText(selectedCell.value);
