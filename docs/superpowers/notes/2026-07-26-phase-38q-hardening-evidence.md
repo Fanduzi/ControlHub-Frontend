@@ -8,15 +8,16 @@
 - Backend base: `9de01f6` (Phase 38Q original implementation)
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
 - Backend merged: `4e55375` (docs closure commit)
-- Frontend merged: `b11d261` (final evidence update)
+- Frontend merged: `22f405a` (final evidence update)
 - Backend `origin/main`: `4e55375` (matches HEAD)
-- Frontend `origin/main`: `b11d261` (matches HEAD)
+- Frontend `origin/main`: `22f405a` (matches HEAD)
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
 - Backend push range: `9de01f6..4e55375` (4 commits)
-- Frontend push range: `ae3734b..b11d261` (10 commits)
+- Frontend push range: `ae3734b..22f405a` (11 commits)
+- Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits (`22f405a`) are documentation-only changes that do not affect code behavior.
 
 ## Backend Gates (SHA `4e55375`)
 
@@ -25,7 +26,7 @@
 | Format | `gofmt -d $(git diff --name-only 9de01f6...HEAD -- '*.go')` | PASS (no output) |
 | Vet | `go vet ./...` | PASS |
 | Build | `go build ./...` | PASS |
-| Unit | `go test -count=1 ./...` | PASS (1,133 passed in 10 packages) |
+| Unit | `go test -count=1 ./...` | PASS (1,130 passed in 10 packages) |
 
 ## Frontend Gates (SHA `e04ded8`)
 
@@ -43,6 +44,7 @@ All runs executed against merged-root services:
 - Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
+- Note: Subsequent commit `22f405a` is documentation-only; E2E results remain valid.
 
 | Run | Total | Passed | Failed | Skipped | Duration | Result |
 |-----|-------|--------|--------|---------|----------|--------|
@@ -78,12 +80,12 @@ All runs executed against merged-root services:
 ## CI Verification
 
 - Backend CI: Run `30192005645` — status: ok
-- Frontend CI: Run `30194102606` — status: ok
+- Frontend CI: Run `30194642721` — status: ok (on final SHA `22f405a`)
 
 ## Root State Verification
 
 - Backend HEAD = origin/main = `4e55375`
-- Frontend HEAD = origin/main = `b11d261`
+- Frontend HEAD = origin/main = `22f405a`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
