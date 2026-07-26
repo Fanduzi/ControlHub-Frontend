@@ -1709,6 +1709,11 @@ function normalizeExecuteResponse(
     if (typeof col?.name !== "string" || col.name.length === 0) {
       return { ok: false, error: "Invalid response: column missing name" };
     }
+    // Empty displayMode indicates a metadata query (SHOW TABLES, DESCRIBE, etc.)
+    // which doesn't go through disclosure policy. Skip disclosure validation.
+    if (col.displayMode === "") {
+      continue;
+    }
     if (!VALID_DISCLOSURE_MODES.has(col.displayMode)) {
       return { ok: false, error: "Invalid response: column has unknown disclosure mode" };
     }
