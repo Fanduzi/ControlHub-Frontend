@@ -9,15 +9,15 @@
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
 - Backend merged: `790c0c9` (gofmt fix)
 - Frontend code SHA: `b11d261` (last code change; E2E runs executed on this SHA)
-- Frontend final SHA: `f444ae7` (includes evidence documentation commits)
+- Frontend final SHA: `a8f958e` (includes evidence documentation commits)
 - Backend `origin/main`: `790c0c9` (matches HEAD)
-- Frontend `origin/main`: `f444ae7` (matches HEAD)
+- Frontend `origin/main`: `a8f958e` (matches HEAD)
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
 - Backend push range: `9de01f6..790c0c9` (6 commits)
-- Frontend push range: `ae3734b..f444ae7` (18 commits)
+- Frontend push range: `ae3734b..a8f958e` (19 commits)
 - Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior. The evidence file itself is a docs-only commit that changes the SHA.
 
 ## Backend Gates (SHA `4e55375`)
@@ -45,7 +45,7 @@ All runs executed against merged-root services:
 - Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `f444ae7`.
+- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `a8f958e`.
 
 | Run | Total | Passed | Failed | Skipped | Duration | Result |
 |-----|-------|--------|--------|---------|----------|--------|
@@ -81,12 +81,12 @@ All runs executed against merged-root services:
 ## CI Verification
 
 - Backend CI: Run `30197008627` — status: ok (on final SHA `790c0c9`)
-- Frontend CI: Run `30197487238` — status: ok (on final SHA `f444ae7`)
+- Frontend CI: Run `30197925704` — status: ok (on final SHA `a8f958e`)
 
 ## Root State Verification
 
 - Backend HEAD = origin/main = `790c0c9`
-- Frontend HEAD = origin/main = `f444ae7`
+- Frontend HEAD = origin/main = `a8f958e`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
