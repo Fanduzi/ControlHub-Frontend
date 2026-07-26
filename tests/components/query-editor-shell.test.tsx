@@ -842,6 +842,35 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
 
+  it("shows controlled error for masked_no_copy with non-masked value", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("secret", "VARCHAR", false, "masked_no_copy", false),
+      ],
+      rows: [["RAW_SECRET_VALUE"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/non-masked value/i)).toBeInTheDocument();
+    expect(screen.queryByText(/RAW_SECRET_VALUE/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
   it("shows controlled error for row width mismatch", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({

@@ -1697,6 +1697,7 @@ function ReadyWorksheet({
  * returns a controlled error message instead of allowing a TypeError crash.
  */
 const VALID_DISCLOSURE_MODES = new Set(["raw_copy_allowed", "masked_no_copy", "blocked"]);
+const MASKED_SENTINEL = "[MASKED]";
 
 function normalizeExecuteResponse(
   raw: QueryExecuteResponse,
@@ -1714,10 +1715,13 @@ function normalizeExecuteResponse(
     if (col.displayMode === "blocked") {
       return { ok: false, error: "Invalid response: successful result contains blocked column" };
     }
-    if (col.displayMode === "raw_copy_allowed" && !col.copyAllowed) {
+    if (typeof col.copyAllowed !== "boolean") {
+      return { ok: false, error: "Invalid response: copyAllowed must be a boolean" };
+    }
+    if (col.displayMode === "raw_copy_allowed" && col.copyAllowed !== true) {
       return { ok: false, error: "Invalid response: raw_copy_allowed column must have copyAllowed=true" };
     }
-    if (col.displayMode === "masked_no_copy" && col.copyAllowed) {
+    if (col.displayMode === "masked_no_copy" && col.copyAllowed !== false) {
       return { ok: false, error: "Invalid response: masked_no_copy column must have copyAllowed=false" };
     }
   }
@@ -1743,6 +1747,19 @@ function normalizeExecuteResponse(
     }
     if (row.length !== raw.columns.length) {
       return { ok: false, error: "Invalid response: row width does not match column count" };
+    }
+  }
+
+  // Validate masked_no_copy columns: non-null cells must equal [MASKED] sentinel
+  for (let colIdx = 0; colIdx < raw.columns.length; colIdx++) {
+    const col = raw.columns[colIdx];
+    if (col.displayMode === "masked_no_copy") {
+      for (let rowIdx = 0; rowIdx < raw.rows.length; rowIdx++) {
+        const cell = raw.rows[rowIdx][colIdx];
+        if (cell !== null && cell !== MASKED_SENTINEL) {
+          return { ok: false, error: "Invalid response: masked_no_copy column contains non-masked value" };
+        }
+      }
     }
   }
 
