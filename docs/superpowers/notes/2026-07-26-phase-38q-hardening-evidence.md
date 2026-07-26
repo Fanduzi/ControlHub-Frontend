@@ -7,17 +7,17 @@
 
 - Backend base: `9de01f6` (Phase 38Q original implementation)
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
-- Backend merged: `1fa5287` (gofmt fix)
+- Backend merged: `790c0c9` (gofmt fix)
 - Frontend code SHA: `b11d261` (last code change; E2E runs executed on this SHA)
-- Frontend final SHA: `e7ac116` (includes evidence documentation commits)
-- Backend `origin/main`: `1fa5287` (matches HEAD)
-- Frontend `origin/main`: `e7ac116` (matches HEAD)
+- Frontend final SHA: `465af75` (includes evidence documentation commits)
+- Backend `origin/main`: `790c0c9` (matches HEAD)
+- Frontend `origin/main`: `465af75` (matches HEAD)
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
-- Backend push range: `9de01f6..1fa5287` (5 commits)
-- Frontend push range: `ae3734b..e7ac116` (15 commits)
+- Backend push range: `9de01f6..790c0c9` (6 commits)
+- Frontend push range: `ae3734b..465af75` (16 commits)
 - Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior. The evidence file itself is a docs-only commit that changes the SHA.
 
 ## Backend Gates (SHA `4e55375`)
@@ -41,11 +41,11 @@
 ## E2E Runs (SHA `b11d261`)
 
 All runs executed against merged-root services:
-- Backend: `go run ./cmd/server` from `/Users/fan/GolangProjects/ControlHub` at SHA `1fa5287`
+- Backend: `go run ./cmd/server` from `/Users/fan/GolangProjects/ControlHub` at SHA `790c0c9`
 - Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `e7ac116`.
+- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `465af75`.
 
 | Run | Total | Passed | Failed | Skipped | Duration | Result |
 |-----|-------|--------|--------|---------|----------|--------|
@@ -80,13 +80,13 @@ All runs executed against merged-root services:
 
 ## CI Verification
 
-- Backend CI: Run `30195441967` — status: ok (on final SHA `1fa5287`)
-- Frontend CI: Run `30196187483` — status: ok (on final SHA `e7ac116`)
+- Backend CI: Run `30195441967` — status: ok (on final SHA `790c0c9`)
+- Frontend CI: Run `30196591508` — status: ok (on final SHA `465af75`)
 
 ## Root State Verification
 
-- Backend HEAD = origin/main = `1fa5287`
-- Frontend HEAD = origin/main = `e7ac116`
+- Backend HEAD = origin/main = `790c0c9`
+- Frontend HEAD = origin/main = `465af75`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
