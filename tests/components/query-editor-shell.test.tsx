@@ -1,3 +1,4 @@
+import type { ResultDisclosureMode } from "@/types/query-disclosure";
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -899,6 +900,37 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
     expect(screen.getByText(/row width/i)).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
+
+  it("rejects empty displayMode (metadata query bypass removed)", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        { name: "col1", databaseType: "VARCHAR", nullable: false, displayMode: "" as unknown as ResultDisclosureMode, copyAllowed: false },
+      ],
+      rows: [["value"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    // Empty displayMode is now rejected as unknown.
+    expect(screen.getByText(/unknown disclosure mode/i)).toBeInTheDocument();
+    expect(screen.queryByText(/value/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
 });
 
 describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
