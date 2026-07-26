@@ -8,15 +8,15 @@
 - Backend base: `9de01f6` (Phase 38Q original implementation)
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
 - Backend merged: `1fa5287` (gofmt fix)
-- Frontend merged: `b278936` (final evidence update)
+- Frontend merged: `551d89b` (final evidence update)
 - Backend `origin/main`: `1fa5287` (matches HEAD)
-- Frontend `origin/main`: `b278936` (matches HEAD)
+- Frontend `origin/main`: `551d89b` (matches HEAD)
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
 - Backend push range: `9de01f6..1fa5287` (5 commits)
-- Frontend push range: `ae3734b..b278936` (12 commits)
+- Frontend push range: `ae3734b..551d89b` (13 commits)
 - Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior.
 
 ## Backend Gates (SHA `4e55375`)
@@ -44,7 +44,7 @@ All runs executed against merged-root services:
 - Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- Note: Subsequent commits are documentation-only; E2E results remain valid.
+- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `551d89b`.
 
 | Run | Total | Passed | Failed | Skipped | Duration | Result |
 |-----|-------|--------|--------|---------|----------|--------|
@@ -79,13 +79,13 @@ All runs executed against merged-root services:
 
 ## CI Verification
 
-- Backend CI: Run `30192005645` — status: ok
-- Frontend CI: Run `30195038379` — status: ok (on final SHA `b278936`)
+- Backend CI: Run `30195441967` — status: ok (on final SHA `1fa5287`)
+- Frontend CI: Run `30195482438` — status: ok (on final SHA `551d89b`)
 
 ## Root State Verification
 
 - Backend HEAD = origin/main = `1fa5287`
-- Frontend HEAD = origin/main = `b278936`
+- Frontend HEAD = origin/main = `551d89b`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
