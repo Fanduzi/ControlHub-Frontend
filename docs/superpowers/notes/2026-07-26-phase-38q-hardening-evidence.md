@@ -1,67 +1,37 @@
-# Phase 38Q Disclosure Hardening - Evidence
+# Phase 38Q Disclosure Hardening — Evidence
 
-> This evidence note records verified results only. All claims below were
-> proved from the exact merged roots and tracked files on 2026-07-26.
+> This evidence note records verified acceptance snapshots.
+> It does not self-verify; final pushed SHA and CI status are
+> confirmed by an independent external verifier after push.
 
-## SHAs
+## Code Acceptance Snapshots
 
 - Backend base: `9de01f6` (Phase 38Q original implementation)
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
-- Backend merged: `790c0c9` (gofmt fix)
-- Frontend code SHA: `b11d261` (last code change; E2E runs executed on this SHA)
-- Frontend final SHA: `bf60a6c` (includes evidence documentation commits)
-- Backend `origin/main`: `790c0c9` (matches HEAD)
-- Frontend `origin/main`: `bf60a6c` (matches HEAD)
+- Backend code acceptance SHA: recorded after corrective branch merge
+- Frontend code acceptance SHA: recorded after corrective branch merge
 
-## Self-Referential SHA Limitation
+## P1 Fix: Metadata Disclosure Bypass (2026-07-26)
 
-This evidence file is a docs-only commit. Every time it is updated and committed,
-the frontend SHA changes. Therefore the SHA recorded here is always one commit
-behind the actual `HEAD = origin/main`. This is an inherent limitation of
-self-referential evidence files. The verifier should accept that:
-- The evidence file documents the state at the time of writing
-- Subsequent docs-only commits do not invalidate the evidence
-- The `b11d261...HEAD` diff contains only documentation changes
+**Problem**: Non-SELECT queries (SHOW, DESCRIBE) produced empty projection
+plans. Backend `Apply()` passed through columns with Go zero-value
+`displayMode: ""`. Frontend added `""` to `ResultDisclosureMode` and
+bypassed all validation for empty mode. This violated the locked three-state
+contract (`raw_copy_allowed | masked_no_copy | blocked`) and fail-closed
+design.
 
-## Merge and Push
+**Fix**:
+- Backend: `Preflight()` now returns `ErrQueryDisclosureBlocked` when
+  `len(projection.Columns) == 0`. `Apply()` defensively rejects empty plans.
+- Frontend: Removed `| ""` from `ResultDisclosureMode`. Removed empty-mode
+  bypass in `normalizeExecuteResponse`. Empty displayMode now triggers
+  "unknown disclosure mode" error.
+- Regression tests: backend (SHOW TABLES, DESCRIBE, etc. blocked; SELECT 1
+  still allowed), frontend (empty displayMode rejected, raw value not in DOM).
 
-- Merge type: fast-forward on both repos
-- Backend push range: `9de01f6..790c0c9` (6 commits)
-- Frontend push range: `ae3734b..bf60a6c` (36 commits)
-- Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior.
-
-## Backend Gates (SHA `4e55375`)
-
-| Gate | Command | Result |
-|------|---------|--------|
-| Format | `gofmt -d $(git diff --name-only 9de01f6...HEAD -- '*.go')` | PASS (no output) |
-| Vet | `go vet ./...` | PASS |
-| Build | `go build ./...` | PASS |
-| Unit | `go test -count=1 ./...` | PASS (1,130 passed in 10 packages) |
-
-## Frontend Gates (SHA `e04ded8`)
-
-| Gate | Command | Result |
-|------|---------|--------|
-| Typecheck | `npx tsc --noEmit -p tsconfig.json` | PASS (no errors) |
-| Lint | `npm run lint` | PASS (0 errors, 5 warnings unrelated) |
-| Unit | `npm run test` | PASS (1,214 tests passed) |
-| Build | `npm run build` | PASS (Next.js 16.2.3 Turbopack) |
-
-## E2E Runs (SHA `b11d261`)
-
-All runs executed against merged-root services:
-- Backend: `go run ./cmd/server` from `/Users/fan/GolangProjects/ControlHub` at SHA `790c0c9`
-- Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
-- MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
-- Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `bf60a6c`.
-
-| Run | Total | Passed | Failed | Skipped | Duration | Result |
-|-----|-------|--------|--------|---------|----------|--------|
-| 1 | 80 | 80 | 0 | 0 | 2.3m | PASS |
-| 2 | 80 | 80 | 0 | 0 | 2.3m | PASS |
-| 3 | 80 | 80 | 0 | 0 | 2.4m | PASS |
+**Locked decision**: All results without per-column valid disclosure decisions
+are blocked before execution. No fourth display mode. Metadata query support
+is a future non-goal requiring separate spec.
 
 ## Review Artifacts
 
@@ -69,58 +39,67 @@ All runs executed against merged-root services:
 - Backend: `2026-07-26-phase-38q-oracle-backend-review.md`
   - Scope: `f0c6d81...9de01f6`
   - Verdict: P1=1, P2=1 — Merge blocked
-  - SHA-256: `1a011780484872135c27371c2104e05710151215c680b3028efd8ed852bee739`
 - Frontend: `2026-07-26-phase-38q-oracle-frontend-review.md`
   - Scope: `7a7f6fb...ae3734b`
   - Verdict: P1=2, P2=1 — Merge blocked
-  - SHA-256: `c5e3fe0c507d0385bb6418097998ffce0ed6e1b24512620198225561ff5abfc0`
 
-### Post-repair Oracle Reviews (all findings addressed)
+### Post-repair Oracle Reviews
 - Backend: `2026-07-26-phase-38q-hardening-oracle-review.md`
-  - Scope: `9de01f6...9f4e33f`
-  - Verdict: PASS
-- Frontend: `2026-07-26-phase-38q-hardening-oracle-review.md`
-  - Scope: `ae3734b...9d3bebf`
-  - Verdict: PASS
+  - Scope: `9de01f6...<backend-candidate-head>`
+  - Verdict: to be recorded after final review
+- Frontend: `2026-07-26-phase-38q-hardening-oracle-frontend-review.md`
+  - Scope: `ae3734b...<frontend-candidate-head>`
+  - Verdict: to be recorded after final review
 
-### Momus Plan Review
-- `2026-07-26-phase-38q-hardening-momus-review.md`
-  - Plan: `.omo/plans/2026-07-26-phase-38q-disclosure-hardening-execution.md`
-  - Verdict: REJECT (2 blocking issues, both resolved)
+### Momus Review
+- Plan: Phase 38Q hardening plan
+- Initial verdict: REJECT (2 blocking issues)
+- Final verdict: to be re-executed and recorded
 
-## CI Verification
+## Backend Gates (to be recorded at candidate SHA)
 
-- Backend CI: Run `30197008627` — status: ok (on final SHA `790c0c9`)
-- Frontend CI: Run `30204092846` — status: ok (on final SHA `bf60a6c`)
+| Gate | Command | Result |
+|------|---------|--------|
+| Format | `gofmt -d $(git diff --name-only 9de01f6...HEAD -- '*.go')` | |
+| Vet | `go vet ./...` | |
+| Build | `go build ./...` | |
+| Unit | `go test -count=1 ./...` | |
+| OpenAPI | `make openapi-validate` | |
+| Whitespace | `git diff --check 9de01f6...HEAD` | |
 
-## Root State Verification
+## Frontend Gates (to be recorded at candidate SHA)
 
-- Backend HEAD = origin/main = `790c0c9`
-- Frontend HEAD = origin/main = `bf60a6c`
-- Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
-- Frontend: clean
+| Gate | Command | Result |
+|------|---------|--------|
+| Typecheck | `npx tsc --noEmit -p tsconfig.json` | |
+| Lint | `npm run lint` | |
+| Unit | `npm run test` | |
+| Build | `npm run build` | |
+| E2E preflight | `npm run check:e2e-preflight` | |
+| E2E governance | `npm run check:e2e-governance` | |
+| Whitespace | `git diff --check ae3734b...HEAD` | |
 
-## Changes Implemented
+## E2E Runs (to be recorded at merged-root SHA)
 
-### Backend
-1. Fixed `isNoTableProjection` to distinguish parser-synthesized dual from explicit dual
-2. Added `stripSQLComments` function to handle SQL comments in explicit dual detection
-3. Added mode validation in `buildDisclosurePlan` to reject invalid stored modes
-4. Added defensive validation in `Apply` to validate each ColumnDisclosure before copying rows
-5. Fixed `classifyExecutorError` to handle `ErrQueryDisclosureBlocked` (403 instead of 502)
+- Backend CWD: `/Users/fan/GolangProjects/ControlHub`
+- Frontend CWD: `/Users/fan/JsProjects/ControlHub`
+- Command: `npm run test:e2e -- e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
 
-### Frontend
-1. Extended `normalizeExecuteResponse` to validate disclosure contracts
-2. Added `MASKED_SENTINEL` validation for masked_no_copy columns
-3. Added exact boolean check for `copyAllowed`
-4. Updated `ExecuteErrorPanel` to not render raw server message for `query_result_disclosure_blocked`
-5. Created `query-disclosure-policies` settings route
-6. Updated `.gitignore` to unignore the settings route
-7. Added empty string to `ResultDisclosureMode` type for metadata queries
+| Run | Total | Passed | Failed | Skipped | Result |
+|-----|-------|--------|--------|---------|--------|
+| 1 | | | | | |
+| 2 | | | | | |
+| 3 | | | | | |
 
-## Independent Review
+## Backend Corrective Recovery
 
-- Oracle adversarial review: P1/P2 findings addressed (see post-repair reviews)
-- Momus plan review: REJECT (2 blocking issues, both resolved)
-- Route tracking: `git ls-files --error-unmatch 'app/(console)/settings/query-disclosure-policies/page.tsx'` returns exit 0
-- Diff review: only test file, evidence doc, and type fix changed; no product behavior change
+- WIP removal commit: restores `.gitignore` and `advisor-plans/README.md`
+  to pre-`4e55375` state. Momus artifact preserved.
+- `790c0c9` revert: removes broad gofmt scope drift (12 unrelated files).
+- User WIP restored to unstaged working tree after merge/push.
+
+## Finalization Status
+
+Merged; acceptance snapshot recorded. Finalization status is external —
+final pushed SHA, CI URL, and required job conclusion are verified by
+independent read-only verifier after push.

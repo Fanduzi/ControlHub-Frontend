@@ -2,7 +2,7 @@
 
 ## Status
 
-Merged; post-merge acceptance blocked. Cross-repository governance milestone following Phase 38P
+Merged; post-merge acceptance blocked. Repair in progress (metadata disclosure P1 fix). Cross-repository governance milestone following Phase 38P
 (backend `f0c6d81`, frontend `7a7f6fb`). Establishes a server-owned
 result-disclosure contract before any result-grid copy/navigation expansion.
 
@@ -79,7 +79,13 @@ These rules are fail-closed and not open for reinterpretation:
    SQL guard, row cap, timeout, execution audit, and history remain
    enforced for these queries.
 
-5. **Audit**: preserve the existing governed execution audit. No browser
+5. **Metadata/non-SELECT blocking**: non-SELECT statements (SHOW, DESCRIBE,
+   EXPLAIN, etc.) produce empty projection plans that cannot generate per-column
+   disclosure decisions. These are blocked at Preflight before execution.
+   Metadata query support requires a separate spec defining statement allowlist,
+   risk classification, server-side decision model, and test matrix.
+
+6. **Audit**: preserve the existing governed execution audit. No browser
    copy-audit endpoint exists: clipboard is a local browser action and
    cannot establish a trusted server-side exfiltration record.
 
@@ -156,6 +162,7 @@ future query engine must explicitly implement the disclosure boundary.
 - Credential/DSN exposure
 - Changes to Object Explorer, Explain, relationship-map, or history behavior
 - Query guard widening or write/DDL execution
+- Empty string or metadata-mode displayMode (P1 bypass, fixed 2026-07-26)
 
 ## Migration
 
