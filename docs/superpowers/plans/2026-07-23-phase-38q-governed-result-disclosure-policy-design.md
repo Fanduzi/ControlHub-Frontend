@@ -6,6 +6,32 @@ This design implements the locked product decision from the Phase 38Q spec.
 It establishes a server-owned result-disclosure boundary that governs every
 query result column before it reaches the browser.
 
+## Repair Status (Plan 014)
+
+Repair in progress. The following invariants are being enforced:
+
+1. **Strict no-FROM parser rule**: `isNoTableProjection` only checks
+   `len(statement.From) == 0`. `FROM dual` pseudo-table is not exempt.
+
+2. **Repository-read validation**: `buildDisclosurePlan` validates
+   `policy.Mode` via `ResultDisclosureMode.Validate()` before using it.
+   Invalid/blocked/unknown stored modes return `ErrQueryDisclosureBlocked`.
+
+3. **Defensive Apply validation**: `Apply` validates each `ColumnDisclosure`
+   before copying rows. Invalid mode/copy pairs, blocked mode, empty mode,
+   or unknown values cause rejection before any row values can be returned.
+
+4. **Disclosure error classification**: `classifyExecutorError` now handles
+   `ErrQueryDisclosureBlocked` and returns controlled 403 disclosure rejection
+   instead of 502.
+
+5. **Frontend admission gate**: `normalizeExecuteResponse` validates all
+   disclosure contracts. Violations replace response with localized generic
+   error.
+
+6. **Settings route tracking**: `/settings/query-disclosure-policies` must be
+   Git tracked with minimal `.gitignore` exception.
+
 ## Architecture
 
 ```

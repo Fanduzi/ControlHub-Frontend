@@ -65,3 +65,5 @@ advisor-plans/
 # E2E failure screenshots (Playwright root-level artifacts)
 query-*.png
 query-*/
+# Unignore the query-disclosure-policies settings route (tracked by Git)
+!app/(console)/settings/query-disclosure-policies/

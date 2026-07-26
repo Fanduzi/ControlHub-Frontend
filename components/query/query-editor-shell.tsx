@@ -1696,6 +1696,8 @@ function ReadyWorksheet({
  * For malformed responses (non-array rows/columns, inconsistent rowCount),
  * returns a controlled error message instead of allowing a TypeError crash.
  */
+const VALID_DISCLOSURE_MODES = new Set(["raw_copy_allowed", "masked_no_copy", "blocked"]);
+
 function normalizeExecuteResponse(
   raw: QueryExecuteResponse,
 ): { ok: true; response: QueryExecuteResponse } | { ok: false; error: string } {
@@ -1705,6 +1707,18 @@ function normalizeExecuteResponse(
   for (const col of raw.columns) {
     if (typeof col?.name !== "string" || col.name.length === 0) {
       return { ok: false, error: "Invalid response: column missing name" };
+    }
+    if (!VALID_DISCLOSURE_MODES.has(col.displayMode)) {
+      return { ok: false, error: "Invalid response: column has unknown disclosure mode" };
+    }
+    if (col.displayMode === "blocked") {
+      return { ok: false, error: "Invalid response: successful result contains blocked column" };
+    }
+    if (col.displayMode === "raw_copy_allowed" && !col.copyAllowed) {
+      return { ok: false, error: "Invalid response: raw_copy_allowed column must have copyAllowed=true" };
+    }
+    if (col.displayMode === "masked_no_copy" && col.copyAllowed) {
+      return { ok: false, error: "Invalid response: masked_no_copy column must have copyAllowed=false" };
     }
   }
 
@@ -1721,6 +1735,15 @@ function normalizeExecuteResponse(
 
   if (raw.rows.length !== raw.rowCount) {
     return { ok: false, error: "Invalid response: row count mismatch" };
+  }
+
+  for (const row of raw.rows) {
+    if (!Array.isArray(row)) {
+      return { ok: false, error: "Invalid response: row is not an array" };
+    }
+    if (row.length !== raw.columns.length) {
+      return { ok: false, error: "Invalid response: row width does not match column count" };
+    }
   }
 
   return { ok: true, response: raw };
@@ -2410,6 +2433,7 @@ function ResultCell({ value }: { value: QueryResultCellValue }) {
 
 function ExecuteErrorPanel({ error }: { error: QueryExecuteError }) {
   const t = useTranslations("queryWorkbench");
+  const isDisclosureBlocked = error.code === "query_result_disclosure_blocked";
 
   return (
     <div
@@ -2420,10 +2444,12 @@ function ExecuteErrorPanel({ error }: { error: QueryExecuteError }) {
         <TriangleAlert className="size-4 shrink-0" aria-hidden />
         {t(`error.${error.code}`)}
       </p>
-      <p className="text-sm text-muted-foreground">
-        <span className="font-medium">{t("error.detailLabel")}: </span>
-        {error.message}
-      </p>
+      {!isDisclosureBlocked && (
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium">{t("error.detailLabel")}: </span>
+          {error.message}
+        </p>
+      )}
     </div>
   );
 }

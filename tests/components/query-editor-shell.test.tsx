@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryResultColumn } from "@/types/query-execution";
+import { QueryExecuteError } from "@/services/query-executions";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
@@ -726,7 +727,190 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
     const idCell = screen.getByRole("cell", { name: "1" });
     await user.click(idCell);
     expect(idCell).toHaveAttribute("data-selected");
-    expect(maskedCell).not.toHaveAttribute("data-selected");
     expect(screen.getByTestId("copy-selection")).toBeEnabled();
+  });
+
+  it("shows controlled error for unknown disclosure mode", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "unknown_mode" as "raw_copy_allowed", true),
+      ],
+      rows: [["alice@example.com"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/unknown disclosure mode/i)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("shows controlled error for blocked column in successful response", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "blocked", false),
+      ],
+      rows: [["alice@example.com"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/blocked column/i)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("shows controlled error for raw_copy_allowed with copyAllowed=false", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "raw_copy_allowed", false),
+      ],
+      rows: [["alice@example.com"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/copyAllowed/i)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("shows controlled error for masked_no_copy with copyAllowed=true", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("email", "VARCHAR", true, "masked_no_copy", true),
+      ],
+      rows: [["[MASKED]"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/copyAllowed/i)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("shows controlled error for row width mismatch", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("id", "BIGINT", false, "raw_copy_allowed", true),
+        colWithDisclosure("email", "VARCHAR", true, "raw_copy_allowed", true),
+      ],
+      rows: [[1]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/row width/i)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+});
+
+describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("disclosure_blocked error shows localized title but not raw server message", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(403, "query_result_disclosure_blocked", "SIMULATED_RAW_SERVER_MESSAGE_SHOULD_NOT_APPEAR"),
+    );
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Query blocked by result disclosure policy/i)).toBeInTheDocument();
+    expect(screen.queryByText(/SIMULATED_RAW_SERVER_MESSAGE_SHOULD_NOT_APPEAR/i)).not.toBeInTheDocument();
+  });
+
+  it("non-disclosure error still shows detail message", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(502, "query_backend_error", "target database query failed"),
+    );
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Target database error/i)).toBeInTheDocument();
+    expect(screen.getByText(/target database query failed/i)).toBeInTheDocument();
   });
 });

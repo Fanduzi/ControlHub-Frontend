@@ -2,9 +2,36 @@
 
 ## Status
 
-Implemented. Cross-repository governance milestone following Phase 38P
+Repair in progress. Cross-repository governance milestone following Phase 38P
 (backend `f0c6d81`, frontend `7a7f6fb`). Establishes a server-owned
 result-disclosure contract before any result-grid copy/navigation expansion.
+
+### Repair Invariants (Plan 014)
+
+1. **Literal exemption is strictly no-FROM**: Only `len(statement.From) == 0`
+   receives `raw_copy_allowed` without a policy row. `SELECT 1 FROM dual`,
+   aliases, and qualified variants are rejected before SQL execution.
+
+2. **Invalid mode fail-closed**: `blocked`, empty mode, unknown values, and
+   mode/copy mismatches must return controlled disclosure rejection before
+   rows are returned. Valid modes: `raw_copy_allowed` requires
+   `copyAllowed=true`; `masked_no_copy` requires `copyAllowed=false`.
+
+3. **Browser contract validation**: Every returned column must have recognized
+   internally consistent decisions. No successful column may be `blocked`.
+   Every row width must equal columns. Non-null `masked_no_copy` cells must
+   equal `[MASKED]` sentinel. Violations replace whole response with localized
+   generic error.
+
+4. **Error rendering**: Disclosure errors display only localized fixed copy.
+   No `ApiError.message` or `details` may reach the UI for
+   `query_result_disclosure_blocked`.
+
+5. **Tracked settings route**: `/settings/query-disclosure-policies` must be
+   Git tracked, not merely present in one developer's ignored worktree.
+
+6. **502 diagnosis**: Execute/FK 502s require causal diagnosis. Policy blocks
+   return controlled 403 disclosure error, never 502.
 
 ## Decision
 
