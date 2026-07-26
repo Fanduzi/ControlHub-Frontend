@@ -322,30 +322,35 @@ test.describe("Query Workbench shell", () => {
     });
   });
 
-  test("a ready target runs SHOW TABLES and shows the result", async ({ page }) => {
+  test("SHOW TABLES is blocked by disclosure policy", async ({ page }) => {
     await openQueryWorkbench(page);
 
     const readyIndex = await findReadyOptionIndex(page);
     test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
+
+    // Track the execute URL for consumable error.
+    const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
 
     // Replace the default statement with SHOW TABLES.
     await clearAndType(page, "SHOW TABLES");
 
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // The backend executes SHOW TABLES and returns a result table.
-    // The result is rendered as an HTML <table>, not a grid.
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // Non-SELECT metadata queries are blocked by disclosure policy (fail-closed).
+    // The result should show a disclosure blocked error, not a result grid.
+    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/blocked by result disclosure policy/i)).toBeVisible();
+    await expect(page.getByRole("grid")).not.toBeVisible();
 
-    // The result should contain at least one cell with a table name.
-    const cells = page.getByRole("gridcell");
-    const cellCount = await cells.count();
-    expect(cellCount).toBeGreaterThan(0);
+    // The backend returns 403 for disclosure-blocked queries.
+    consumableHttpErrors = [
+      { method: "POST", url: expectedExecuteUrl, status: 403, consumeConsoleStatusEcho: true },
+    ];
   });
 
-  test("a ready target runs DESCRIBE and shows the result", async ({ page }) => {
+  test("DESCRIBE is blocked by disclosure policy", async ({ page }) => {
     await openQueryWorkbench(page);
 
     const readyIndex = await findReadyOptionIndex(page);
@@ -353,39 +358,21 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
-    // First, run SHOW TABLES to discover a table name.
-    await clearAndType(page, "SHOW TABLES");
+    const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
+
+    // DESCRIBE is a non-SELECT metadata query, blocked by disclosure policy.
+    await clearAndType(page, "DESCRIBE query_e2e_items");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Wait for the result table to show table names.
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // Non-SELECT metadata queries are blocked by disclosure policy (fail-closed).
+    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/blocked by result disclosure policy/i)).toBeVisible();
+    await expect(page.getByRole("grid")).not.toBeVisible();
 
-    // Get the first table name from a data cell (not a header).
-    const dataCells = page.getByRole("gridcell");
-    const cellCount = await dataCells.count();
-    test.skip(cellCount === 0, "SHOW TABLES returned no data cells");
-
-    const tableName = await dataCells.first().textContent();
-    test.skip(!tableName, "SHOW TABLES returned empty table name");
-
-    // Now run DESCRIBE on that table.
-    await clearAndType(page, `DESCRIBE ${tableName}`);
-    await page.getByRole("button", { name: /^run$/i }).click();
-
-    // Wait for the result table to update with DESCRIBE output.
-    // DESCRIBE returns columns: Field, Type, Null, Key, Default, Extra.
-    // We assert that at least one DESCRIBE-specific column header appears,
-    // which proves the DESCRIBE result replaced the SHOW TABLES result.
-    await expect(
-      page.getByRole("columnheader", { name: /Field|Type|Null|Key|Default|Extra/i }).first(),
-    ).toBeVisible({ timeout: 15_000 });
-
-    // Additionally verify at least one data row exists (a column definition).
-    const describeDataCells = page.getByRole("gridcell");
-    const describeCellCount = await describeDataCells.count();
-    expect(describeCellCount).toBeGreaterThan(0);
+    consumableHttpErrors = [
+      { method: "POST", url: expectedExecuteUrl, status: 403, consumeConsoleStatusEcho: true },
+    ];
   });
-
   test("an unsafe statement is rejected with a controlled validation message", async ({ page }) => {
     await openQueryWorkbench(page);
 
@@ -449,7 +436,7 @@ test.describe("Query Workbench shell", () => {
     await expect(page.getByText("select 1").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("query history records SHOW TABLES attempt", async ({ page }) => {
+  test("query history records SHOW TABLES blocked attempt", async ({ page }) => {
     await openQueryWorkbench(page);
 
     const readyIndex = await findReadyOptionIndex(page);
@@ -457,11 +444,18 @@ test.describe("Query Workbench shell", () => {
     if (readyIndex === null) return;
     await selectConnectionTarget(page, readyIndex);
 
+    const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
+
     await clearAndType(page, "SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // Wait for the result table to appear.
-    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+    // SHOW TABLES is blocked by disclosure policy. The blocked attempt
+    // should still be recorded in query history.
+    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
+
+    consumableHttpErrors = [
+      { method: "POST", url: expectedExecuteUrl, status: 403, consumeConsoleStatusEcho: true },
+    ];
 
     // Switch to history tab and verify the SHOW TABLES attempt is recorded.
     await page.getByRole("tab", { name: /query history/i }).click();
