@@ -8,15 +8,15 @@
 - Backend base: `9de01f6` (Phase 38Q original implementation)
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
 - Backend merged: `4e55375` (docs closure commit)
-- Frontend merged: `798c9c8` (evidence and spec status update)
+- Frontend merged: `9a6fa4e` (final evidence update)
 - Backend `origin/main`: `4e55375` (matches HEAD)
-- Frontend `origin/main`: `798c9c8` (matches HEAD)
+- Frontend `origin/main`: `9a6fa4e` (matches HEAD)
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
 - Backend push range: `9de01f6..4e55375` (4 commits)
-- Frontend push range: `ae3734b..798c9c8` (7 commits)
+- Frontend push range: `ae3734b..9a6fa4e` (8 commits)
 
 ## Backend Gates (SHA `4e55375`)
 
@@ -36,11 +36,11 @@
 | Unit | `npm run test` | PASS (1,214 tests passed) |
 | Build | `npm run build` | PASS (Next.js 16.2.3 Turbopack) |
 
-## E2E Runs (SHA `798c9c8`)
+## E2E Runs (SHA `9a6fa4e`)
 
 All runs executed against merged-root services:
 - Backend: `go run ./cmd/server` from `/Users/fan/GolangProjects/ControlHub` at SHA `4e55375`
-- Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `798c9c8`
+- Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `9a6fa4e`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
 
@@ -78,12 +78,12 @@ All runs executed against merged-root services:
 ## CI Verification
 
 - Backend CI: Run `30192005645` — status: ok
-- Frontend CI: Run `30193088173` — status: ok
+- Frontend CI: Run `30193436088` — status: ok
 
 ## Root State Verification
 
 - Backend HEAD = origin/main = `4e55375`
-- Frontend HEAD = origin/main = `798c9c8`
+- Frontend HEAD = origin/main = `9a6fa4e`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
