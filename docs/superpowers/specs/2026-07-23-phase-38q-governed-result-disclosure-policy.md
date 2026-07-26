@@ -2,7 +2,7 @@
 
 ## Status
 
-Repair in progress. Cross-repository governance milestone following Phase 38P
+Merged; post-merge acceptance blocked. Cross-repository governance milestone following Phase 38P
 (backend `f0c6d81`, frontend `7a7f6fb`). Establishes a server-owned
 result-disclosure contract before any result-grid copy/navigation expansion.
 
