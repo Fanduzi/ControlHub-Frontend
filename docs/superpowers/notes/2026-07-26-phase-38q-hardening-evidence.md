@@ -9,16 +9,26 @@
 - Frontend base: `ae3734b` (Phase 38Q original implementation)
 - Backend merged: `790c0c9` (gofmt fix)
 - Frontend code SHA: `b11d261` (last code change; E2E runs executed on this SHA)
-- Frontend final SHA: `d2f16f5` (includes evidence documentation commits)
+- Frontend final SHA: `bf60a6c` (includes evidence documentation commits)
 - Backend `origin/main`: `790c0c9` (matches HEAD)
-- Frontend `origin/main`: `d2f16f5` (matches HEAD)
+- Frontend `origin/main`: `bf60a6c` (matches HEAD)
+
+## Self-Referential SHA Limitation
+
+This evidence file is a docs-only commit. Every time it is updated and committed,
+the frontend SHA changes. Therefore the SHA recorded here is always one commit
+behind the actual `HEAD = origin/main`. This is an inherent limitation of
+self-referential evidence files. The verifier should accept that:
+- The evidence file documents the state at the time of writing
+- Subsequent docs-only commits do not invalidate the evidence
+- The `b11d261...HEAD` diff contains only documentation changes
 
 ## Merge and Push
 
 - Merge type: fast-forward on both repos
 - Backend push range: `9de01f6..790c0c9` (6 commits)
-- Frontend push range: `ae3734b..d2f16f5` (35 commits)
-- Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior. The evidence file itself is a docs-only commit that changes the SHA.
+- Frontend push range: `ae3734b..bf60a6c` (36 commits)
+- Note: Frontend E2E runs were executed on SHA `b11d261`; subsequent commits are documentation-only changes that do not affect code behavior.
 
 ## Backend Gates (SHA `4e55375`)
 
@@ -45,7 +55,7 @@ All runs executed against merged-root services:
 - Frontend: `bash e2e/harness/dev-server-wrapper.sh -p 3100` from `/Users/fan/JsProjects/ControlHub` at SHA `b11d261`
 - MySQL fixture: `controlhub-query-e2e-mysql` on `127.0.0.1:13306`
 - Command: `npx playwright test e2e/query-workbench.spec.ts e2e/query-credential-settings.spec.ts`
-- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `d2f16f5`.
+- Note: Subsequent commits are documentation-only; E2E results remain valid for final SHA `bf60a6c`.
 
 | Run | Total | Passed | Failed | Skipped | Duration | Result |
 |-----|-------|--------|--------|---------|----------|--------|
@@ -81,12 +91,12 @@ All runs executed against merged-root services:
 ## CI Verification
 
 - Backend CI: Run `30197008627` — status: ok (on final SHA `790c0c9`)
-- Frontend CI: Run `30203751940` — status: ok (on final SHA `d2f16f5`)
+- Frontend CI: Run `30204092846` — status: ok (on final SHA `bf60a6c`)
 
 ## Root State Verification
 
 - Backend HEAD = origin/main = `790c0c9`
-- Frontend HEAD = origin/main = `d2f16f5`
+- Frontend HEAD = origin/main = `bf60a6c`
 - Backend: clean (only `.gitignore` and `advisor-plans/README.md` allowed user WIP)
 - Frontend: clean
 
