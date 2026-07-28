@@ -37,7 +37,6 @@ jobs:
   release-e2e:
     name: release-e2e
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true'
     timeout-minutes: 25
     services:
       mysql:
@@ -64,6 +63,7 @@ jobs:
       NEXT_PUBLIC_API_BASE_URL: /__api
       CONTROLHUB_API_BASE_URL: http://localhost:8081
       CONTROLHUB_API_PROXY_URL: http://localhost:8081
+      CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO: "query_e2e_ro:ci_password@tcp(127.0.0.1:3306)/query_e2e?parseTime=true&charset=utf8mb4"
     steps:
       - name: Verify backend checkout token is configured
         env:
@@ -117,6 +117,11 @@ jobs:
       - name: Run backend migrations
         working-directory: ${{ env.BACKEND_DIR }}
         run: make migrate-up
+
+      - name: Seed query dev target
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          go run ./cmd/querydev
 
       - name: Start backend server
         working-directory: ${{ env.BACKEND_DIR }}
