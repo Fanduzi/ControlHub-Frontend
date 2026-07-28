@@ -114,6 +114,113 @@ jobs:
           echo "MySQL did not become ready."
           exit 1
 
+      - name: Create query_e2e databases and seed tables
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          CREATE DATABASE IF NOT EXISTS query_e2e;
+          CREATE DATABASE IF NOT EXISTS query_e2e_aux;
+
+          USE query_e2e;
+
+          CREATE TABLE IF NOT EXISTS query_e2e_items (
+            id bigint unsigned NOT NULL PRIMARY KEY,
+            name varchar(64) NOT NULL,
+            category varchar(32) NOT NULL,
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          INSERT INTO query_e2e_items (id, name, category) VALUES
+            (1, 'alpha', 'sample'), (2, 'beta', 'sample')
+          ON DUPLICATE KEY UPDATE name=VALUES(name), category=VALUES(category);
+
+          CREATE TABLE IF NOT EXISTS qe_explain_big (
+            id bigint unsigned NOT NULL PRIMARY KEY,
+            payload varchar(64) NOT NULL,
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB;
+          INSERT IGNORE INTO qe_explain_big (id, payload) VALUES
+            (1,'row-001'),(2,'row-002'),(3,'row-003'),(4,'row-004'),(5,'row-005'),
+            (6,'row-006'),(7,'row-007'),(8,'row-008'),(9,'row-009'),(10,'row-010'),
+            (11,'row-011'),(12,'row-012'),(13,'row-013'),(14,'row-014'),(15,'row-015'),
+            (16,'row-016'),(17,'row-017'),(18,'row-018'),(19,'row-019'),(20,'row-020'),
+            (21,'row-021'),(22,'row-022'),(23,'row-023'),(24,'row-024'),(25,'row-025'),
+            (26,'row-026'),(27,'row-027'),(28,'row-028'),(29,'row-029'),(30,'row-030'),
+            (31,'row-031'),(32,'row-032'),(33,'row-033'),(34,'row-034'),(35,'row-035'),
+            (36,'row-036'),(37,'row-037'),(38,'row-038'),(39,'row-039'),(40,'row-040'),
+            (41,'row-041'),(42,'row-042'),(43,'row-043'),(44,'row-044'),(45,'row-045'),
+            (46,'row-046'),(47,'row-047'),(48,'row-048'),(49,'row-049'),(50,'row-050'),
+            (51,'row-051'),(52,'row-052'),(53,'row-053'),(54,'row-054'),(55,'row-055'),
+            (56,'row-056'),(57,'row-057'),(58,'row-058'),(59,'row-059'),(60,'row-060'),
+            (61,'row-061'),(62,'row-062'),(63,'row-063'),(64,'row-064'),(65,'row-065'),
+            (66,'row-066'),(67,'row-067'),(68,'row-068'),(69,'row-069'),(70,'row-070'),
+            (71,'row-071'),(72,'row-072'),(73,'row-073'),(74,'row-074'),(75,'row-075'),
+            (76,'row-076'),(77,'row-077'),(78,'row-078'),(79,'row-079'),(80,'row-080'),
+            (81,'row-081'),(82,'row-082'),(83,'row-083'),(84,'row-084'),(85,'row-085'),
+            (86,'row-086'),(87,'row-087'),(88,'row-088'),(89,'row-089'),(90,'row-090'),
+            (91,'row-091'),(92,'row-092'),(93,'row-093'),(94,'row-094'),(95,'row-095'),
+            (96,'row-096'),(97,'row-097'),(98,'row-098'),(99,'row-099'),(100,'row-100');
+
+          USE query_e2e_aux;
+
+          CREATE TABLE IF NOT EXISTS schema_parent (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            parent_code varchar(32) NOT NULL,
+            label varchar(128) NOT NULL DEFAULT '',
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_schema_parent_code (parent_code),
+            KEY idx_schema_parent_label (label)
+          ) ENGINE=InnoDB;
+
+          CREATE TABLE IF NOT EXISTS schema_child (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            parent_id bigint unsigned NOT NULL,
+            child_name varchar(64) NOT NULL,
+            sort_order int NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            KEY idx_schema_child_parent (parent_id, sort_order),
+            CONSTRAINT fk_schema_child_parent FOREIGN KEY (parent_id) REFERENCES schema_parent (id) ON UPDATE CASCADE ON DELETE RESTRICT
+          ) ENGINE=InnoDB;
+          INSERT IGNORE INTO schema_parent (id, parent_code, label) VALUES
+            (1, 'P_ALPHA', 'Alpha Parent'), (2, 'P_BETA', 'Beta Parent');
+          INSERT IGNORE INTO schema_child (id, parent_id, child_name, sort_order) VALUES
+            (1, 1, 'child_a1', 1), (2, 1, 'child_a2', 2), (3, 2, 'child_b1', 1);
+
+          -- Pagination fixture: 26 tables for schema object page 2 tests
+          CREATE TABLE IF NOT EXISTS schema_zz_page_01 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_02 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_03 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_04 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_05 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_06 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_07 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_08 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_09 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_10 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_11 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_12 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_13 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_14 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_15 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_16 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_17 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_18 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_19 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_20 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_21 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_22 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_23 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_24 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_25 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+          CREATE TABLE IF NOT EXISTS schema_zz_page_26 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
+
+          CREATE OR REPLACE VIEW schema_parent_summary AS SELECT id, parent_code, label FROM schema_parent;
+
+          CREATE USER IF NOT EXISTS 'query_e2e_ro'@'%' IDENTIFIED BY 'ci_password';
+          GRANT SELECT ON query_e2e.* TO 'query_e2e_ro'@'%';
+          GRANT SELECT ON query_e2e_aux.* TO 'query_e2e_ro'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
       - name: Run backend migrations
         working-directory: ${{ env.BACKEND_DIR }}
         run: make migrate-up
@@ -124,6 +231,7 @@ jobs:
           QUERY_DEV_CREDENTIAL_REF: LOCAL_QUERY_RO
           QUERY_DEV_ALLOW_TARGET_FIXTURE: "true"
         run: go run ./cmd/querydev
+
       - name: Start backend server
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
