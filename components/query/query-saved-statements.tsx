@@ -48,11 +48,15 @@ import { cn } from "@/lib/utils";
 /** Returns true when viewport >= 768px (md breakpoint). SSR/test-safe (defaults true). */
 function useIsDesktop(): boolean {
   const query = useMemo(() => "(min-width: 768px)", []);
-  const [matches, setMatches] = useState(true);
+  const [matches, setMatches] = useState(() => {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(min-width: 768px)").matches;
+    }
+    return true;
+  });
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mql = window.matchMedia(query);
-    setMatches(mql.matches);
     const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
