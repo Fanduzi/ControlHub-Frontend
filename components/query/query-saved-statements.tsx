@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Edit, Loader2, Plus, Search, Trash2 } from "lucide-react";
 
@@ -45,6 +45,21 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
+/** Returns true when viewport >= 768px (md breakpoint). SSR/test-safe (defaults true). */
+function useIsDesktop(): boolean {
+  const query = useMemo(() => "(min-width: 768px)", []);
+  const [matches, setMatches] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
+    setMatches(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
 type QuerySavedStatementsProps = {
   targetResourceId: number;
   currentStatement: string;
@@ -85,6 +100,7 @@ export function QuerySavedStatements({
   className,
 }: QuerySavedStatementsProps) {
   const t = useTranslations("queryWorkbench.savedStatements");
+  const isDesktop = useIsDesktop();
   const [state, setState] = useState<SavedStatementsState>({
     status: "idle",
     items: [],
@@ -438,8 +454,9 @@ export function QuerySavedStatements({
       </AlertDialog>
 
       {/* Create dialog — desktop Dialog / mobile Sheet */}
+      {isDesktop ? (
       <Dialog open={createDialog.open} onOpenChange={handleCreateClose}>
-        <DialogContent className="sm:max-w-md hidden md:block">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {createDialog.scope === "personal"
@@ -467,8 +484,9 @@ export function QuerySavedStatements({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : (
       <Sheet open={createDialog.open} onOpenChange={handleCreateClose}>
-        <SheetContent side="bottom" className="md:hidden">
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>
               {createDialog.scope === "personal"
@@ -499,8 +517,10 @@ export function QuerySavedStatements({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      )}
 
       {/* Edit dialog — desktop Dialog / mobile Sheet */}
+      {isDesktop ? (
       <Dialog
         open={!!editDialog}
         onOpenChange={(open) => {
@@ -511,7 +531,7 @@ export function QuerySavedStatements({
           }
         }}
       >
-        <DialogContent className="sm:max-w-md hidden md:block">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("editTitle")}</DialogTitle>
             <DialogDescription>{t("editDescription")}</DialogDescription>
@@ -536,6 +556,7 @@ export function QuerySavedStatements({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : (
       <Sheet
         open={!!editDialog}
         onOpenChange={(open) => {
@@ -546,7 +567,7 @@ export function QuerySavedStatements({
           }
         }}
       >
-        <SheetContent side="bottom" className="md:hidden">
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>{t("editTitle")}</SheetTitle>
             <SheetDescription>{t("editDescription")}</SheetDescription>
@@ -571,6 +592,7 @@ export function QuerySavedStatements({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      )}
     </div>
   );
 }

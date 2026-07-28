@@ -1452,6 +1452,7 @@
       "scopeShared": "共享模板",
       "scopeImmutable": "（无法更改）",
       "cancel": "取消",
+      "confirmDelete": "删除",
       "save": "保存",
       "create": "创建",
       "createPersonalTitle": "保存为个人查询",

@@ -3015,3 +3015,215 @@ test.describe("Relationship map (Phase 38O)", () => {
     expect(relMapText).not.toMatch(/password[=:]/i);
   });
 });
+
+
+// ─── Phase 38R: Governed saved statements ───────────────────────────────────
+
+test.describe("Saved statements (Phase 38R)", () => {
+  let consumableHttpErrors: ConsumableHttpExpectation[] = [];
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+  const uniqueId = Date.now().toString(36);
+
+  test.beforeEach(async ({ page }) => {
+    consumableHttpErrors = [];
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [
+        /Fast Refresh/,
+        /HMR/,
+        /Download the React DevTools/,
+        /favicon/,
+        /Failed to load resource/,
+        /500/,
+        /Internal Server Error/,
+        /hydrat/i,
+      ],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `saved-stmts-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    let remainingNetwork = networkErrors;
+    let remainingConsole = consoleMessages;
+    for (const expected of consumableHttpErrors) {
+      remainingNetwork = takeExpectedNetworkError(remainingNetwork, {
+        method: expected.method,
+        url: expected.url,
+        status: expected.status,
+      });
+      if (expected.consumeConsoleStatusEcho) {
+        remainingConsole = takeExpectedConsoleStatusError(
+          remainingConsole,
+          expected.status,
+        );
+      }
+    }
+    assertClean(remainingConsole, remainingNetwork);
+  });
+
+  test("personal save, list, load, and delete flow (desktop EN)", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Switch to Saved sheets tab
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(/no saved queries yet|loading/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Click "Save personal" to open the create dialog
+    await page.locator('[aria-label*="Save current statement as personal"]').click();
+
+    // The create dialog title should appear
+    await expect(
+      page.getByText("Save as personal query").first(),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // Fill in a name using the visible input
+    const nameInput = page.getByLabel(/statement name/i).first();
+    const testName = `E2E test ${uniqueId}`;
+    await nameInput.fill(testName);
+
+    // Statement textarea should be pre-filled
+    const stmtTextarea = page.getByLabel(/sql statement/i).first();
+    const stmtValue = await stmtTextarea.inputValue();
+    expect(stmtValue.length).toBeGreaterThan(0);
+
+    // Submit
+    await page.getByRole("button", { name: /^create$/i }).first().click();
+
+    // The saved statement should appear in the list
+    await expect(page.getByText(testName).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Load the saved statement
+    await page
+      .getByRole("button", { name: new RegExp(`load e2e test ${uniqueId}`, "i") })
+      .first()
+      .click();
+
+    // Switch to Worksheet tab to verify the loaded statement
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect
+      .poll(() => getEditorContent(page), { timeout: 10_000 })
+      .toContain("select");
+
+    // Switch back to Saved sheets tab to delete
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(testName).first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await page
+      .getByRole("button", { name: new RegExp(`delete e2e test ${uniqueId}`, "i") })
+      .first()
+      .click();
+
+    // Confirm deletion
+    const deleteDialog = page.getByRole("alertdialog");
+    await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
+    await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
+
+    // Statement should be removed from list
+    await expect(page.getByText(testName).first()).toBeHidden({
+      timeout: 10_000,
+    });
+  });
+
+  test("saved statements create dialog opens at 375px mobile", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await page.setViewportSize({ width: 375, height: 812 });
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // Switch to Saved sheets tab
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(/no saved queries yet|loading/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Click Save personal
+    await page.locator('[aria-label*="Save current statement as personal"]').click();
+
+    // The create form should appear (Sheet at mobile viewport)
+    await expect(
+      page.getByText("Save as personal query").first(),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // Fill in name
+    const nameInput = page.getByLabel(/statement name/i).first();
+    await nameInput.fill("Mobile test query");
+
+    // Submit
+    await page.getByRole("button", { name: /^create$/i }).first().click();
+
+    // The saved statement should appear in the list
+    await expect(page.getByText("Mobile test query")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Clean up
+    await page
+      .getByRole("button", { name: /delete mobile test query/i })
+      .first()
+      .click();
+    const deleteDialog = page.getByRole("alertdialog");
+    await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
+    await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
+    await expect(page.getByText("Mobile test query").first()).toBeHidden({
+      timeout: 10_000,
+    });
+  });
+
+  test("saved statements panel shows zh-CN translations", async ({ page }) => {
+    // Set zh-CN locale cookie before navigation
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.locator('a[href="/query"]').first().click();
+    await expect(page).toHaveURL(/\/query/);
+
+    // Wait for the workbench to load with zh-CN locale
+    await expect(
+      page.getByRole("button", { name: /执行/i }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+
+    // The tab should show zh-CN label
+    await expect(
+      page.getByRole("tab", { name: /已保存脚本/i }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Click the tab
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+
+    // The save button should show zh-CN text
+    await expect(
+      page.getByRole("button", { name: /保存为个人/i }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+});
