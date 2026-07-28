@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, Edit, Loader2, Plus, Search, Trash2 } from "lucide-react";
 
 import type {
   QuerySavedStatementRecord,
@@ -11,6 +11,7 @@ import type {
 import {
   listSavedStatements,
   createSavedStatement,
+  updateSavedStatement,
   deleteSavedStatement,
   SavedStatementError,
 } from "@/services/query-saved-statements";
@@ -152,6 +153,30 @@ export function QuerySavedStatements({
     }
   }, [deleteDialog, targetResourceId, fetchStatements, state.page]);
 
+  // Edit statement
+  const [editDialog, setEditDialog] =
+    useState<QuerySavedStatementRecord | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editStatement, setEditStatement] = useState("");
+  const handleEditOpen = useCallback((item: QuerySavedStatementRecord) => {
+    setEditDialog(item);
+    setEditName(item.name);
+    setEditStatement(item.statement);
+  }, []);
+  const handleEditSave = useCallback(async () => {
+    if (!editDialog) return;
+    try {
+      await updateSavedStatement(targetResourceId, editDialog.id, {
+        name: editName,
+        statement: editStatement,
+      });
+      setEditDialog(null);
+      void fetchStatements(state.page);
+    } catch {
+      // Controlled error — toast or inline feedback can be added later.
+    }
+  }, [editDialog, editName, editStatement, targetResourceId, fetchStatements, state.page]);
+
   // Load statement into editor
   const handleLoad = useCallback(
     (statement: QuerySavedStatementRecord) => {
@@ -244,6 +269,14 @@ export function QuerySavedStatements({
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => handleEditOpen(item)}
+                  aria-label={t("editAriaLabel", { name: item.name })}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setDeleteDialog(item)}
                   aria-label={t("deleteAriaLabel", { name: item.name })}
                 >
@@ -300,6 +333,67 @@ export function QuerySavedStatements({
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleDelete()}>
               {t("confirmDelete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit dialog */}
+      <AlertDialog
+        open={!!editDialog}
+        onOpenChange={(open) => {
+          if (!open) setEditDialog(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("editTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("editDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium" htmlFor="edit-name">
+                {t("nameLabel")}
+              </label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={120}
+                aria-label={t("nameAriaLabel")}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium" htmlFor="edit-statement">
+                {t("statementLabel")}
+              </label>
+              <textarea
+                id="edit-statement"
+                value={editStatement}
+                onChange={(e) => setEditStatement(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                rows={4}
+                aria-label={t("statementAriaLabel")}
+              />
+            </div>
+            {editDialog && (
+              <div className="text-xs text-muted-foreground">
+                {t("scopeLabel")}:{" "}
+                <span className="font-medium">
+                  {editDialog.scope === "personal"
+                    ? t("scopePersonal")
+                    : t("scopeShared")}
+                </span>
+                <span className="ml-2">{t("scopeImmutable")}</span>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleEditSave()}>
+              {t("save")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
