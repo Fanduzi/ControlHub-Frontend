@@ -49,6 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { QueryGovernancePanel } from "@/components/query/query-governance-panel";
+import { QuerySavedStatements } from "@/components/query/query-saved-statements";
 import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
   clampEditorHeight,
@@ -79,11 +80,12 @@ type QueryEditorShellProps = {
   onPreviewConsumed?: () => void;
 };
 
-type WorksheetTab = "worksheet" | "history";
+type WorksheetTab = "worksheet" | "history" | "savedStatements";
 
 const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
   { id: "worksheet", labelKey: "editor.worksheetTab" },
   { id: "history", labelKey: "editor.historyTab" },
+  { id: "savedStatements", labelKey: "editor.savedSheetsTab" },
 ];
 
 const DEFAULT_STATEMENT = "select 1";
@@ -1366,6 +1368,17 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             ) ?? null}
             onOpenDetail={openHistoryDetail}
             onCloseDetail={closeHistoryDetail}
+          />
+        </div>
+      ) : activeTab === "savedStatements" ? (
+        <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
+          <QuerySavedStatements
+            targetResourceId={activeWorksheet.targetResourceId}
+            canManageSharedTemplates={false}
+            currentStatement={activeWorksheet.statement}
+            onStatementLoad={(statement) => {
+              updateActiveWorksheet({ statement });
+            }}
           />
         </div>
       ) : null}

@@ -1422,6 +1422,30 @@
         "warning": "Warning",
         "critical": "Critical"
       }
+    },
+    "savedStatements": {
+      "searchPlaceholder": "Search saved queries…",
+      "searchAriaLabel": "Search saved statements",
+      "createPersonalAriaLabel": "Save current statement as personal",
+      "createPersonal": "Save personal",
+      "createSharedAriaLabel": "Save current statement as shared template",
+      "createShared": "Create Shared",
+      "loading": "Loading...",
+      "empty": "No saved queries yet.",
+      "sharedBadge": "Shared",
+      "loadAriaLabel": "Load {name}",
+      "deleteAriaLabel": "Delete {name}",
+      "previous": "Previous",
+      "next": "Next",
+      "pageInfo": "Page {page} of {total}",
+      "confirmDeleteTitle": "Delete saved statement?",
+      "confirmDeleteDescription": "This will permanently delete \"{name}\".",
+      "cancel": "Cancel",
+      "confirmDelete": "Delete",
+      "defaultName": "Untitled query",
+      "error": {
+        "loadFailed": "Failed to load saved statements."
+      }
     }
   },
   "queryCredentialSettings": {

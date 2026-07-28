@@ -1422,6 +1422,30 @@
         "warning": "警告",
         "critical": "严重"
       }
+    },
+    "savedStatements": {
+      "searchPlaceholder": "搜索已保存的查询…",
+      "searchAriaLabel": "搜索已保存的语句",
+      "createPersonalAriaLabel": "将当前语句保存为个人查询",
+      "createPersonal": "保存为个人",
+      "createSharedAriaLabel": "将当前语句保存为共享模板",
+      "createShared": "保存为共享",
+      "loading": "加载中…",
+      "empty": "暂无已保存的查询。",
+      "sharedBadge": "共享",
+      "loadAriaLabel": "加载 {name}",
+      "deleteAriaLabel": "删除 {name}",
+      "previous": "上一页",
+      "next": "下一页",
+      "pageInfo": "第 {page} 页，共 {total} 页",
+      "confirmDeleteTitle": "删除已保存的语句？",
+      "confirmDeleteDescription": "将永久删除 \"{name}\"。",
+      "cancel": "取消",
+      "confirmDelete": "删除",
+      "defaultName": "未命名查询",
+      "error": {
+        "loadFailed": "加载已保存的语句失败。"
+      }
     }
   },
   "queryCredentialSettings": {
