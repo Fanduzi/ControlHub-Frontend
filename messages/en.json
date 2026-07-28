@@ -1454,9 +1454,17 @@
       "cancel": "Cancel",
       "confirmDelete": "Delete",
       "save": "Save",
+      "create": "Create",
+      "createPersonalTitle": "Save as personal query",
+      "createSharedTitle": "Create shared template",
+      "createDescription": "Provide a name and review the statement. Scope cannot be changed after creation.",
+      "namePlaceholder": "e.g. Recent orders",
       "defaultName": "Untitled query",
       "error": {
-        "loadFailed": "Failed to load saved statements."
+        "loadFailed": "Failed to load saved statements.",
+        "validationFailed": "The name or statement is invalid. Check the form and try again.",
+        "createFailed": "Failed to create saved statement.",
+        "updateFailed": "Failed to update saved statement."
       }
     }
   },

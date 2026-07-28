@@ -1452,11 +1452,18 @@
       "scopeShared": "共享模板",
       "scopeImmutable": "（无法更改）",
       "cancel": "取消",
-      "confirmDelete": "删除",
       "save": "保存",
+      "create": "创建",
+      "createPersonalTitle": "保存为个人查询",
+      "createSharedTitle": "创建共享模板",
+      "createDescription": "提供名称并检查语句。创建后无法更改作用域。",
+      "namePlaceholder": "例如：近期订单",
       "defaultName": "未命名查询",
       "error": {
-        "loadFailed": "加载已保存的语句失败。"
+        "loadFailed": "加载已保存的语句失败。",
+        "validationFailed": "名称或语句无效。请检查表单后重试。",
+        "createFailed": "创建已保存语句失败。",
+        "updateFailed": "更新已保存语句失败。"
       }
     }
   },

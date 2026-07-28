@@ -1374,7 +1374,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
           <QuerySavedStatements
             targetResourceId={activeWorksheet.targetResourceId}
-            canManageSharedTemplates={false}
             currentStatement={activeWorksheet.statement}
             onStatementLoad={(statement) => {
               updateActiveWorksheet({ statement });
