@@ -3023,7 +3023,10 @@ test.describe("Saved statements (Phase 38R)", () => {
   let consumableHttpErrors: ConsumableHttpExpectation[] = [];
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
-  const uniqueId = Date.now().toString(36);
+  // Generate a unique suffix per-test (not per-describe) for --repeat-each safety.
+  function uniqueSuffix(): string {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
 
   test.beforeEach(async ({ page }) => {
     consumableHttpErrors = [];
@@ -3071,8 +3074,7 @@ test.describe("Saved statements (Phase 38R)", () => {
   }) => {
     await openQueryWorkbench(page);
     const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
+    if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
 
     // Switch to Saved sheets tab
@@ -3091,7 +3093,8 @@ test.describe("Saved statements (Phase 38R)", () => {
 
     // Fill in a name using the visible input
     const nameInput = page.getByLabel(/statement name/i).first();
-    const testName = `E2E test ${uniqueId}`;
+    const testSuffix = uniqueSuffix();
+    const testName = `E2E test ${testSuffix}`;
     await nameInput.fill(testName);
 
     // Statement textarea should be pre-filled
@@ -3107,9 +3110,13 @@ test.describe("Saved statements (Phase 38R)", () => {
       timeout: 10_000,
     });
 
-    // Load the saved statement
+    // Load the saved statement — must be side-effect-free (no execute, explain,
+    // schema, history, or related-record requests).
+    const requestsDuringLoad: string[] = [];
+    const onRequest = (req: { url: () => string }) => requestsDuringLoad.push(req.url());
+    page.on("request", onRequest);
     await page
-      .getByRole("button", { name: new RegExp(`load e2e test ${uniqueId}`, "i") })
+      .getByRole("button", { name: new RegExp(`load e2e test ${testSuffix}`, "i") })
       .first()
       .click();
 
@@ -3119,13 +3126,38 @@ test.describe("Saved statements (Phase 38R)", () => {
       .poll(() => getEditorContent(page), { timeout: 10_000 })
       .toContain("select");
 
+    // Assert Load was side-effect-free: no execute, explain, schema, history,
+    // or related-record requests were fired.
+    page.off("request", onRequest);
+    const sideEffectUrls = requestsDuringLoad.filter(
+      (u) =>
+        u.includes("/execute") ||
+        u.includes("/explain") ||
+        u.includes("/schema/") ||
+        u.includes("/query-history") ||
+        u.includes("/related-record"),
+    );
+    expect(
+      sideEffectUrls,
+      `Load must not fire side-effect requests, but got: ${sideEffectUrls.join(", ")}`,
+    ).toHaveLength(0);
+
+    // Verify Run after Load still uses governed execution chain:
+    // Run button must be enabled (governed target is active) and the execute
+    // URL must point to the governed endpoint — no real execution needed.
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    const runBtn = page.getByRole("button", { name: /run|执行/i }).first();
+    await expect(runBtn).toBeEnabled({ timeout: 5_000 });
+    const executeUrl = await exactExecuteUrlForActiveTarget(page);
+    expect(executeUrl).toContain("/execute");
+
     // Switch back to Saved sheets tab to delete
     await page.getByRole("tab", { name: /saved sheets/i }).click();
     await expect(page.getByText(testName).first()).toBeVisible({
       timeout: 10_000,
     });
     await page
-      .getByRole("button", { name: new RegExp(`delete e2e test ${uniqueId}`, "i") })
+      .getByRole("button", { name: new RegExp(`delete e2e test ${testSuffix}`, "i") })
       .first()
       .click();
 
@@ -3146,8 +3178,7 @@ test.describe("Saved statements (Phase 38R)", () => {
     await openQueryWorkbench(page);
     await page.setViewportSize({ width: 375, height: 812 });
     const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
+    if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
 
     // Switch to Saved sheets tab
@@ -3166,25 +3197,30 @@ test.describe("Saved statements (Phase 38R)", () => {
 
     // Fill in name
     const nameInput = page.getByLabel(/statement name/i).first();
-    await nameInput.fill("Mobile test query");
+    const mobileTestName = `Mobile test ${Date.now().toString(36)}`;
+    await nameInput.fill(mobileTestName);
 
     // Submit
     await page.getByRole("button", { name: /^create$/i }).first().click();
 
     // The saved statement should appear in the list
-    await expect(page.getByText("Mobile test query")).toBeVisible({
+    await expect(page.getByText(mobileTestName)).toBeVisible({
       timeout: 10_000,
     });
 
-    // Clean up
+    // Clean up — wait for the DELETE API response before asserting removal.
+    const deleteResponse = page.waitForResponse(
+      (resp) => resp.request().method() === "DELETE" && resp.url().includes("/saved-statements/"),
+    );
     await page
-      .getByRole("button", { name: /delete mobile test query/i })
+      .getByRole("button", { name: new RegExp(`delete ${mobileTestName}`, "i") })
       .first()
       .click();
     const deleteDialog = page.getByRole("alertdialog");
     await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
     await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
-    await expect(page.getByText("Mobile test query").first()).toBeHidden({
+    await deleteResponse;
+    await expect(page.getByText(mobileTestName).first()).toBeHidden({
       timeout: 10_000,
     });
   });
@@ -3209,8 +3245,7 @@ test.describe("Saved statements (Phase 38R)", () => {
     ).toBeVisible({ timeout: 15_000 });
 
     const readyIndex = await findReadyOptionIndex(page);
-    test.skip(readyIndex === null, "no ready query target seeded");
-    if (readyIndex === null) return;
+    if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
 
     // The tab should show zh-CN label
