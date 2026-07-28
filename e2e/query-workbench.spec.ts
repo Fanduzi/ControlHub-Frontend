@@ -3143,13 +3143,27 @@ test.describe("Saved statements (Phase 38R)", () => {
     ).toHaveLength(0);
 
     // Verify Run after Load still uses governed execution chain:
-    // Run button must be enabled (governed target is active) and the execute
-    // URL must point to the governed endpoint — no real execution needed.
+    // Click Run, intercept the execute request, and verify it hits the governed
+    // endpoint with a valid response (disclosure applied, no raw leak).
     await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
     const runBtn = page.getByRole("button", { name: /run|执行/i }).first();
     await expect(runBtn).toBeEnabled({ timeout: 5_000 });
     const executeUrl = await exactExecuteUrlForActiveTarget(page);
-    expect(executeUrl).toContain("/execute");
+    expect(executeUrl, "execute URL must target governed endpoint").toContain("/execute");
+
+    // Actually click Run and verify the governed execution response.
+    const execResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes("/execute") && resp.request().method() === "POST",
+    );
+    await runBtn.click();
+    const execResponse = await execResponsePromise;
+    expect(execResponse.status(), "governed execute must return 200").toBe(200);
+    const execBody = await execResponse.json();
+    // The governed response must include columns and rows (disclosure applied),
+    // never raw server-side fields.
+    expect(execBody).toHaveProperty("columns");
+    expect(Array.isArray(execBody.columns)).toBe(true);
+    expect(execBody.columns.length).toBeGreaterThan(0);
 
     // Switch back to Saved sheets tab to delete
     await page.getByRole("tab", { name: /saved sheets/i }).click();
