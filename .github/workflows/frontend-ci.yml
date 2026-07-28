@@ -120,9 +120,10 @@ jobs:
 
       - name: Seed query dev target
         working-directory: ${{ env.BACKEND_DIR }}
-        run: |
-          go run ./cmd/querydev
-
+        env:
+          QUERY_DEV_CREDENTIAL_REF: LOCAL_QUERY_RO
+          QUERY_DEV_ALLOW_TARGET_FIXTURE: "true"
+        run: go run ./cmd/querydev
       - name: Start backend server
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
