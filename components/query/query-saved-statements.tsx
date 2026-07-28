@@ -183,7 +183,7 @@ export function QuerySavedStatements({
           <Plus className="mr-1 h-4 w-4" />
           {t("createPersonal")}
         </Button>
-        {canManageSharedTemplates && (
+        {state.canManageSharedTemplates && (
           <Button
             variant="outline"
             size="sm"
