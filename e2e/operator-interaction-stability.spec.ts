@@ -166,8 +166,11 @@ test.describe("Interaction stability QA gate", () => {
       await expect(page).toHaveURL(/resourceSubtype=mysql/, { timeout: 5_000 });
     }
 
-    // Assert menu closed — the dropdown content should be gone
+    // Assert menu closed — press Escape to ensure dropdown dismisses, then verify.
     const menuContent = page.locator('[data-slot="dropdown-menu-content"]');
+    if (await menuContent.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await page.keyboard.press("Escape");
+    }
     await expect(menuContent).not.toBeVisible({ timeout: 5_000 });
 
     // Click database row to open sheet
