@@ -2,8 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
   clampEditorHeight,
+  getPageSize,
   normalizeEditorTheme,
   parseStoredEditorHeight,
+  QUERY_RESULT_PAGE_SIZE_STORAGE_KEY,
+  QUERY_RESULT_PAGE_SIZES,
+  setPageSize,
 } from "@/lib/query-editor-preferences";
 
 describe("query editor preferences", () => {
@@ -34,53 +38,53 @@ describe("query editor preferences", () => {
 });
 
 describe("Phase 38S: page-size localStorage persistence", () => {
-  const STORAGE_KEY = "controlhub.query.pageSize";
-
   beforeEach(() => {
     localStorage.clear();
   });
 
   it("reads persisted page size from localStorage on mount", () => {
-    localStorage.setItem(STORAGE_KEY, "50");
+    localStorage.setItem(QUERY_RESULT_PAGE_SIZE_STORAGE_KEY, "50");
 
-    const stored = localStorage.getItem(STORAGE_KEY);
-    expect(stored).toBe("50");
+    expect(getPageSize()).toBe(50);
   });
 
-  it("falls back to default page size (25) when localStorage is empty", () => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    expect(stored).toBeNull();
+  it("falls back to default page size (10) when localStorage is empty", () => {
+    expect(getPageSize()).toBe(10);
   });
 
   it("persists page size to localStorage on change", () => {
-    localStorage.setItem(STORAGE_KEY, "100");
+    setPageSize(100);
 
-    expect(localStorage.getItem(STORAGE_KEY)).toBe("100");
+    expect(localStorage.getItem(QUERY_RESULT_PAGE_SIZE_STORAGE_KEY)).toBe("100");
+    expect(localStorage.length).toBe(1);
   });
 
   it("validates stored page size against allowed values [10, 25, 50, 100]", () => {
-    const allowedValues = [10, 25, 50, 100];
-
-    for (const value of allowedValues) {
-      localStorage.setItem(STORAGE_KEY, String(value));
-      const stored = Number(localStorage.getItem(STORAGE_KEY));
-      expect(allowedValues).toContain(stored);
+    for (const value of QUERY_RESULT_PAGE_SIZES) {
+      setPageSize(value);
+      expect(getPageSize()).toBe(value);
     }
   });
 
   it("ignores invalid stored page size and uses default", () => {
-    localStorage.setItem(STORAGE_KEY, "999");
+    localStorage.setItem(QUERY_RESULT_PAGE_SIZE_STORAGE_KEY, "999");
 
-    const stored = Number(localStorage.getItem(STORAGE_KEY));
-    const allowedValues = [10, 25, 50, 100];
-    const isValid = allowedValues.includes(stored);
-
-    expect(isValid).toBe(false);
+    expect(getPageSize()).toBe(10);
   });
 
-  it("page-size change in one tab is reflected via storage event", () => {
+  it("falls back to default when localStorage access fails", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+
+    expect(getPageSize()).toBe(10);
+
+    getItem.mockRestore();
+  });
+
+  it("uses the preference key for storage events", () => {
     const event = new StorageEvent("storage", {
-      key: STORAGE_KEY,
+      key: QUERY_RESULT_PAGE_SIZE_STORAGE_KEY,
       newValue: "50",
       oldValue: "25",
     });

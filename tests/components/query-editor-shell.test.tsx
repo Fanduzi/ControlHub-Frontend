@@ -992,10 +992,8 @@ describe("Phase 38S: paging controls in result panel", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      rowCount: 25,
-      cursor: null,
-      hasMore: true,
-      requestId: "req-001",
+       rowCount: 2,
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1020,10 +1018,8 @@ describe("Phase 38S: paging controls in result panel", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      rowCount: 25,
-      cursor: null,
-      hasMore: true,
-      requestId: "req-002",
+       rowCount: 2,
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1041,9 +1037,7 @@ describe("Phase 38S: paging controls in result panel", () => {
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
       rowCount: 2,
-      cursor: null,
-      hasMore: false,
-      requestId: "req-003",
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1060,10 +1054,8 @@ describe("Phase 38S: paging controls in result panel", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      rowCount: 25,
-      cursor: null,
-      hasMore: true,
-      requestId: "req-004",
+       rowCount: 2,
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1076,22 +1068,18 @@ describe("Phase 38S: paging controls in result panel", () => {
     expect(prevButton).toBeDisabled();
   });
 
-  it("clicking Next sends cursor from previous response", async () => {
+  it("clicking Next sends the next page with the same statement and max rows", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget
       .mockResolvedValueOnce({
         ...buildExecuteResponse(),
-        rowCount: 25,
-        cursor: null,
-        hasMore: true,
-        requestId: "req-p1",
+       rowCount: 2,
+         pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
       } as QueryExecuteResponse)
       .mockResolvedValueOnce({
         ...buildExecuteResponse(),
-        rowCount: 5,
-        cursor: "page2-cursor",
-        hasMore: false,
-        requestId: "req-p2",
+       rowCount: 2,
+         pagination: { page: 2, pageSize: 10, hasPreviousPage: true, hasNextPage: false },
       } as QueryExecuteResponse);
     renderReady();
 
@@ -1106,9 +1094,12 @@ describe("Phase 38S: paging controls in result panel", () => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
     });
 
-    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).toHaveProperty("cursor");
+    const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
+    expect(request).toMatchObject({
+      statement: "select 1",
+      maxRows: 10,
+      pagination: { page: 2, pageSize: 10 },
+    });
   });
 
   it("page-size change resets to page 1 and re-executes", async () => {
@@ -1116,17 +1107,13 @@ describe("Phase 38S: paging controls in result panel", () => {
     mockExecuteQueryTarget
       .mockResolvedValueOnce({
         ...buildExecuteResponse(),
-        rowCount: 25,
-        cursor: null,
-        hasMore: true,
-        requestId: "req-before",
+       rowCount: 2,
+         pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
       } as QueryExecuteResponse)
       .mockResolvedValueOnce({
         ...buildExecuteResponse(),
-        rowCount: 10,
-        cursor: null,
-        hasMore: true,
-        requestId: "req-after",
+       rowCount: 2,
+         pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
       } as QueryExecuteResponse);
     renderReady();
 
@@ -1143,10 +1130,12 @@ describe("Phase 38S: paging controls in result panel", () => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
     });
 
-    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body.pageSize).toBe(10);
-    expect(body).not.toHaveProperty("cursor");
+    const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
+    expect(request).toMatchObject({
+      maxRows: 10,
+      pagination: { page: 1, pageSize: 10 },
+    });
+    expect(request).not.toHaveProperty("cursor");
   });
 
   it("paging controls are NOT rendered for metadata responses", async () => {
@@ -1184,12 +1173,10 @@ describe("Phase 38S: paging controls in result panel", () => {
     mockExecuteQueryTarget
       .mockReturnValueOnce(firstPromise as ReturnType<typeof executeQueryTarget>)
       .mockResolvedValueOnce({
-        ...buildExecuteResponse(),
-        rows: [[99, "fresh-data"]],
-        rowCount: 1,
-        cursor: null,
-        hasMore: false,
-        requestId: "req-fresh",
+         ...buildExecuteResponse(),
+         rows: [[99, "fresh-data"]],
+         rowCount: 1,
+         pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
       } as QueryExecuteResponse);
     renderReady();
 
@@ -1208,9 +1195,7 @@ describe("Phase 38S: paging controls in result panel", () => {
       ...buildExecuteResponse(),
       rows: [[42, "stale-data"]],
       rowCount: 1,
-      cursor: null,
-      hasMore: false,
-      requestId: "req-stale",
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
     } as QueryExecuteResponse);
 
     await waitFor(() => {
@@ -1223,10 +1208,8 @@ describe("Phase 38S: paging controls in result panel", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      rowCount: 25,
-      cursor: null,
-      hasMore: true,
-      requestId: "req-no-slice",
+      rowCount: 2,
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1235,8 +1218,8 @@ describe("Phase 38S: paging controls in result panel", () => {
       expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
-    const [, init] = mockExecuteQueryTarget.mock.calls[0]!;
-    const body = JSON.parse((init as RequestInit).body as string);
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    const body = request as { statement: string };
     expect(body.statement).not.toMatch(/\bLIMIT\b/i);
     expect(body.statement).not.toMatch(/\bOFFSET\b/i);
   });
@@ -1256,9 +1239,7 @@ describe("Phase 38S: paging reset triggers", () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValue({
       ...buildExecuteResponse(),
-      cursor: null,
-      hasMore: false,
-      requestId: "req-reset",
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1276,18 +1257,16 @@ describe("Phase 38S: paging reset triggers", () => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
     });
 
-    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).not.toHaveProperty("cursor");
+    const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
+    expect(request.pagination).toEqual({ page: 1, pageSize: 10 });
+    expect(request).not.toHaveProperty("cursor");
   });
 
   it("changing maxRows resets paging to page 1", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValue({
       ...buildExecuteResponse(),
-      cursor: null,
-      hasMore: false,
-      requestId: "req-maxrows-reset",
+       pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
     } as QueryExecuteResponse);
     renderReady();
 
@@ -1305,9 +1284,9 @@ describe("Phase 38S: paging reset triggers", () => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
     });
 
-    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).not.toHaveProperty("cursor");
+    const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
+    expect(request.pagination).toEqual({ page: 1, pageSize: 10 });
+    expect(request).not.toHaveProperty("cursor");
   });
 });
 

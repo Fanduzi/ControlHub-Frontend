@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronRight, Database, Table2, View } from "lucide-react";
+import { ChevronRight, Database, Search, Table2, Trash2, View } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { objectIdentityKey, schemaObjectGroupId } from "@/lib/query-object-identity";
@@ -61,6 +61,34 @@ export function QueryObjectTree({
   onDraftQueryChange,
 }: QueryObjectTreeProps) {
   const t = useTranslations("queryWorkbench");
+  const debounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const timers = debounceTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+    };
+  }, []);
+
+  const handleInputChange = (database: string, value: string) => {
+    onDraftQueryChange?.(database, value);
+    const existingTimer = debounceTimers.current.get(database);
+    if (existingTimer) clearTimeout(existingTimer);
+    const timer = setTimeout(() => {
+      onSearch?.(database, value);
+      debounceTimers.current.delete(database);
+    }, 250);
+    debounceTimers.current.set(database, timer);
+  };
+
+  const handleClear = (database: string) => {
+    const existingTimer = debounceTimers.current.get(database);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      debounceTimers.current.delete(database);
+    }
+    onClearSearch?.(database);
+  };
 
   return (
     <div>
@@ -71,7 +99,6 @@ export function QueryObjectTree({
           const objects = listing?.items ?? objectsByDatabase.get(database) ?? [];
           const isLoading = listing?.status === "loading" || loadingDatabases.has(database);
           const isError = listing?.status === "error";
-          const showClear = Boolean(listing);
           const groupId = schemaObjectGroupId(database);
 
           return (
@@ -87,7 +114,14 @@ export function QueryObjectTree({
                   size="sm"
                   className="w-full justify-start"
                   aria-expanded={expanded}
-                  onClick={() => onDatabaseToggle(database)}
+                  onClick={() => {
+                    const pendingTimer = debounceTimers.current.get(database);
+                    if (pendingTimer) {
+                      clearTimeout(pendingTimer);
+                      debounceTimers.current.delete(database);
+                    }
+                    onDatabaseToggle(database);
+                  }}
                 >
                   <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
                   <Database className="size-3.5 text-primary" aria-hidden />
@@ -97,45 +131,34 @@ export function QueryObjectTree({
               {expanded ? (
                 <li role="none" className="ml-4 border-l border-border pl-2">
                   {onSearch && onDraftQueryChange ? (
-                    <form
-                      className="space-y-2 pb-2"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const formData = new FormData(event.currentTarget);
-                        const query = String(formData.get("object-search") ?? "");
-                        onSearch(database, query);
-                      }}
-                    >
+                    <div className="space-y-2 pb-2">
                       <label htmlFor={`schema-search-${database}`} className="text-xs font-medium">
                         {t("schema.searchObjectsLabel", { database })}
                       </label>
-                      <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
                         <input
                           id={`schema-search-${database}`}
                           name="object-search"
                           value={listing?.draftQuery ?? ""}
                           placeholder={t("schema.searchObjectsPlaceholder")}
-                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onChange={(event) => onDraftQueryChange(database, event.target.value)}
+                          className="w-full rounded-md border border-input bg-background pl-7 pr-8 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onChange={(event) => handleInputChange(database, event.target.value)}
                         />
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="submit" variant="outline" size="sm" aria-label={t("schema.searchObjects", { database })}>
-                            {t("schema.searchObjects", { database })}
+                        {(listing?.draftQuery ?? "").length > 0 && onClearSearch ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-1 top-1/2 size-6 -translate-y-1/2 p-0"
+                            aria-label={t("schema.clearObjectSearch", { database })}
+                            onClick={() => handleClear(database)}
+                          >
+                            <Trash2 className="size-3" aria-hidden />
                           </Button>
-                          {showClear && onClearSearch ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              aria-label={t("schema.clearObjectSearch", { database })}
-                              onClick={() => onClearSearch(database)}
-                            >
-                              {t("schema.clearObjectSearch", { database })}
-                            </Button>
-                          ) : null}
-                        </div>
+                        ) : null}
                       </div>
-                    </form>
+                    </div>
                   ) : null}
                   {isLoading ? <p className="py-2 text-xs text-muted-foreground">{t("schema.loadingObjects")}</p> : null}
                   {isError ? (

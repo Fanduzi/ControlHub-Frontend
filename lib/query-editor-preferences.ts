@@ -50,3 +50,38 @@ export function parseStoredEditorHeight(value: string | null): number | null {
 
   return Math.round(parsed);
 }
+
+export const QUERY_RESULT_PAGE_SIZE_STORAGE_KEY = "controlhub.query.result-page-size";
+export const QUERY_RESULT_PAGE_SIZES = [10, 25, 50, 100] as const;
+
+const DEFAULT_PAGE_SIZE = QUERY_RESULT_PAGE_SIZES[0];
+const VALID_PAGE_SIZES = new Set<number>(QUERY_RESULT_PAGE_SIZES);
+
+export function getPageSize(): number {
+  try {
+    if (typeof window === "undefined") {
+      return DEFAULT_PAGE_SIZE;
+    }
+
+    const stored = localStorage.getItem(QUERY_RESULT_PAGE_SIZE_STORAGE_KEY);
+    if (stored !== null) {
+      const parsed = Number(stored);
+      if (VALID_PAGE_SIZES.has(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // no-excuse-ok: catch — localStorage failures use the safe default.
+  }
+  return DEFAULT_PAGE_SIZE;
+}
+
+export function setPageSize(value: number): void {
+  if (!VALID_PAGE_SIZES.has(value)) return;
+  try {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(QUERY_RESULT_PAGE_SIZE_STORAGE_KEY, String(value));
+  } catch {
+    // no-excuse-ok: catch — localStorage failures must not block execution.
+  }
+}

@@ -1187,6 +1187,12 @@
       "query_explain_not_supported": "Explain is not supported for this target",
       "query_result_disclosure_blocked": "Query blocked by result disclosure policy"
     },
+    "paging": {
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "page": "Page {page}",
+      "pageSize": "Page size"
+    },
     "history": {
       "title": "Query history",
       "loading": "Loading history…",

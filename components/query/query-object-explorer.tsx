@@ -90,6 +90,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const objectControllers = useRef(new Map<string, AbortController>());
   const detailControllers = useRef(new Map<string, AbortController>());
   const activeObjectRequests = useRef(new Map<string, ActiveObjectRequest>());
+  const objectSearchTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const expandedObjectsRef = useRef<ReadonlySet<string>>(new Set());
   const inspectorKeyRef = useRef<string | null>(null);
 
@@ -108,11 +109,25 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const abortAllRequests = useCallback(() => {
     databaseController.current?.abort();
     databaseController.current = null;
+    for (const timer of objectSearchTimers.current.values()) clearTimeout(timer);
+    objectSearchTimers.current.clear();
     for (const controller of objectControllers.current.values()) controller.abort();
     objectControllers.current.clear();
     activeObjectRequests.current.clear();
     for (const controller of detailControllers.current.values()) controller.abort();
     detailControllers.current.clear();
+  }, []);
+
+  const cancelObjectWork = useCallback((database: string) => {
+    const timer = objectSearchTimers.current.get(database);
+    if (timer) {
+      clearTimeout(timer);
+      objectSearchTimers.current.delete(database);
+    }
+    objectControllers.current.get(database)?.abort();
+    objectControllers.current.delete(database);
+    activeObjectRequests.current.delete(database);
+    objectGenerations.current.set(database, (objectGenerations.current.get(database) ?? 0) + 1);
   }, []);
 
   const isActiveObjectRequest = useCallback((token: ActiveObjectRequest): boolean => {
@@ -393,6 +408,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     (database: string) => {
       const next = new Set(expandedDatabases);
       if (next.has(database)) {
+        cancelObjectWork(database);
         next.delete(database);
       } else {
         next.add(database);
@@ -402,7 +418,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       }
       setExpandedDatabases(next);
     },
-    [expandedDatabases, objectListings, startObjectRequest],
+    [cancelObjectWork, expandedDatabases, objectListings, startObjectRequest],
   );
 
   const loadObjectDetail = useCallback(
@@ -477,26 +493,39 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     });
   }, [inspectTriggerElement]);
 
-  const updateDraftQuery = useCallback((database: string, draftQuery: string) => {
-    setObjectListings((listings) => {
-      const next = new Map(listings);
-      const listing = next.get(database);
-      if (listing) next.set(database, { ...listing, draftQuery });
-      return next;
-    });
-  }, []);
+  const updateDraftQuery = useCallback(
+    (database: string, draftQuery: string) => {
+      cancelObjectWork(database);
+      setObjectListings((listings) => {
+        const next = new Map(listings);
+        const listing = next.get(database);
+        if (listing) next.set(database, { ...listing, draftQuery });
+        return next;
+      });
+    },
+    [cancelObjectWork],
+  );
 
   const searchObjects = useCallback(
     (database: string, query: string) => {
       const submittedQuery = query.trim();
-      startObjectRequest({ database, draftQuery: query, submittedQuery, page: 1, replace: true, preserveItems: false });
+      cancelObjectWork(database);
+      const timer = setTimeout(() => {
+        objectSearchTimers.current.delete(database);
+        if (targetId !== currentTargetIdRef.current || explorerGeneration.current < 1) return;
+        startObjectRequest({ database, draftQuery: query, submittedQuery, page: 1, replace: true, preserveItems: false });
+      }, 250);
+      objectSearchTimers.current.set(database, timer);
     },
-    [startObjectRequest],
+    [cancelObjectWork, startObjectRequest, targetId],
   );
 
   const clearSearch = useCallback(
-    (database: string) => startObjectRequest({ database, draftQuery: "", submittedQuery: "", page: 1, replace: true, preserveItems: false }),
-    [startObjectRequest],
+    (database: string) => {
+      cancelObjectWork(database);
+      startObjectRequest({ database, draftQuery: "", submittedQuery: "", page: 1, replace: true, preserveItems: false });
+    },
+    [cancelObjectWork, startObjectRequest],
   );
 
   const loadMoreObjects = useCallback(

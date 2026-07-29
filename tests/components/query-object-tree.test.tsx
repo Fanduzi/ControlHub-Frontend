@@ -117,22 +117,16 @@ describe("QueryObjectTree accessibility structure", () => {
     expect(dbItem.contains(ownedGroup!)).toBe(false);
 
     const search = screen.getByRole("textbox", { name: /search objects in db1/i });
-    const searchButton = screen.getByRole("button", { name: /search objects in db1/i });
-    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
     const loadMore = screen.getByRole("button", { name: /load more objects in db1/i });
     const retry = screen.getByRole("button", { name: /retry loading objects in db1/i });
 
     for (const treeitem of within(tree).getAllByRole("treeitem")) {
       expect(treeitem).not.toContainElement(search);
-      expect(treeitem).not.toContainElement(searchButton);
-      expect(treeitem).not.toContainElement(clearButton);
       expect(treeitem).not.toContainElement(loadMore);
       expect(treeitem).not.toContainElement(retry);
     }
 
     expect(ownedGroup!.contains(search)).toBe(false);
-    expect(ownedGroup!.contains(searchButton)).toBe(false);
-    expect(ownedGroup!.contains(clearButton)).toBe(false);
     expect(ownedGroup!.contains(loadMore)).toBe(false);
     expect(ownedGroup!.contains(retry)).toBe(false);
   });
@@ -157,16 +151,14 @@ describe("QueryObjectTree accessibility structure", () => {
 
   it("P3-2: EN control accessible names include database", () => {
     renderTree({ locale: "en", databases: ["db1"] });
-    expect(screen.getByRole("button", { name: "Search objects in db1" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Clear search in db1" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /search objects in db1/i })).toBeVisible();
     expect(screen.getByRole("button", { name: "Load more objects in db1" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry loading objects in db1" })).toBeVisible();
   });
 
   it("P3-2: ZH control accessible names include database", () => {
     renderTree({ locale: "zh-CN", databases: ["db1"] });
-    expect(screen.getByRole("button", { name: "搜索 db1 中的对象" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "清除 db1 中的搜索" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /搜索 db1 中的对象/i })).toBeVisible();
     expect(screen.getByRole("button", { name: "加载更多 db1 中的对象" })).toBeVisible();
     expect(screen.getByRole("button", { name: "重试加载 db1 中的对象" })).toBeVisible();
   });
@@ -176,30 +168,28 @@ describe("QueryObjectTree accessibility structure", () => {
     const input = screen.getByRole("textbox", { name: /search objects in db1/i });
     expect(input).toBeVisible();
     expect(input.className).toContain("w-full");
-
-    const form = input.closest("form");
-    expect(form).not.toBeNull();
-    const controlsRow = form!.querySelector(".flex.flex-wrap.gap-2");
-    expect(controlsRow).not.toBeNull();
-    expect(controlsRow!.contains(input)).toBe(false);
   });
 
   it("P2-3: search controls remain outside every treeitem", () => {
     renderTree({ databases: ["db1"] });
     const tree = screen.getByRole("tree");
     const search = screen.getByRole("textbox", { name: /search objects in db1/i });
-    const searchButton = screen.getByRole("button", { name: /search objects in db1/i });
-    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
 
     for (const treeitem of within(tree).getAllByRole("treeitem")) {
       expect(treeitem).not.toContainElement(search);
-      expect(treeitem).not.toContainElement(searchButton);
-      expect(treeitem).not.toContainElement(clearButton);
     }
   });
 });
 
 describe("Phase 38S: debounced search in QueryObjectTree", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("search input triggers debounced search after 250ms delay", async () => {
     const onSearch = vi.fn();
     renderTree({ databases: ["db1"], onSearch });
@@ -247,10 +237,13 @@ describe("Phase 38S: debounced search in QueryObjectTree", () => {
     const onSearch = vi.fn();
     renderTree({ databases: ["db1"], onSearch, onClearSearch });
 
-    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
 
     const { default: userEvent } = await import("@testing-library/user-event");
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(searchInput, "test");
+
+    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
     await user.click(clearButton);
 
     expect(onClearSearch).toHaveBeenCalledWith("db1");

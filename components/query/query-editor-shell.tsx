@@ -10,6 +10,7 @@ import type { EditorView } from "@codemirror/view";
 import type { QueryTarget } from "@/types/query-target";
 import type {
   ExplainResponse,
+  QueryExecutePaginationResponse,
   QueryExecuteResponse,
   QueryExecutionFilter,
   QueryExecutionRecord,
@@ -35,6 +36,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -57,6 +65,9 @@ import {
   normalizeEditorTheme,
   parseStoredEditorHeight,
   QUERY_EDITOR_HEIGHT_STORAGE_KEY,
+  getPageSize,
+  setPageSize as persistPageSize,
+  QUERY_RESULT_PAGE_SIZES,
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
@@ -89,7 +100,7 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
 ];
 
 const DEFAULT_STATEMENT = "select 1";
-const DEFAULT_MAX_ROWS = 100;
+const DEFAULT_MAX_ROWS = 10;
 const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "success",
   "rejected",
@@ -229,6 +240,8 @@ type LocalWorksheet = {
   previewProvenance: PreviewProvenance | null;
   relatedRecords: RelatedRecordsState;
   explain: ExplainState;
+  currentPage: number;
+  resultPagination: QueryExecutePaginationResponse | null;
 };
 
 function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
@@ -249,6 +262,8 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     previewProvenance: null,
     relatedRecords: { status: "idle", generation: 0 },
     explain: createExplainState(),
+    currentPage: 1,
+    resultPagination: null,
   };
 }
 
@@ -275,6 +290,8 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     previewProvenance: null,
     relatedRecords: { status: "idle", generation: 0 },
     explain: createExplainState(),
+    currentPage: 1,
+    resultPagination: null,
   };
 }
 
@@ -285,6 +302,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
+  const [pageSize, setPageSizeState] = useState<number>(QUERY_RESULT_PAGE_SIZES[0]);
   const [loadedDatabases, setLoadedDatabases] = useState<readonly string[]>([]);
   const [loadedObjects, setLoadedObjects] = useState<readonly ObjectSummary[]>([]);
   const [retargetDialog, setRetargetDialog] = useState<{
@@ -370,6 +388,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               previewProvenance: null,
               relatedRecords: { status: "idle", generation: ws.relatedRecords.generation + 1 },
               explain: invalidateExplainState(ws.explain),
+              currentPage: 1,
+              resultPagination: null,
             }
           : ws,
       ),
@@ -814,6 +834,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }, []);
 
+  useEffect(() => {
+    setPageSizeState(getPageSize());
+  }, []);
+
   function handleEditorResizePointerDown(
     event: ReactPointerEvent<HTMLButtonElement>,
   ) {
@@ -949,9 +973,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       const response = await executeQueryTarget(targetId, {
         statement: activeWorksheet.statement,
         maxRows: activeWorksheet.maxRows,
+        pagination: { page: 1, pageSize },
       });
 
-      guardedUpdateWorksheet(worksheetId, requestId, { result: response });
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: response,
+        currentPage: response.pagination?.page ?? 1,
+        resultPagination: response.pagination ?? null,
+      });
     } catch (caught) {
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
@@ -960,6 +989,126 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
       void refreshHistory(worksheetId);
+    }
+  }
+
+  async function handleNextPage() {
+    const result = activeWorksheet.result;
+    const pagination = activeWorksheet.resultPagination;
+    if (!result || !pagination?.hasNextPage || activeWorksheet.isExecuting) return;
+
+    const worksheetId = activeWorksheetId;
+    const targetId = activeWorksheet.targetResourceId;
+    const requestId = crypto.randomUUID();
+    const nextPage = activeWorksheet.currentPage + 1;
+
+    updateActiveWorksheet({
+      isExecuting: true,
+      error: null,
+      requestId,
+    });
+
+    try {
+      const response = await executeQueryTarget(targetId, {
+        statement: activeWorksheet.statement,
+        maxRows: activeWorksheet.maxRows,
+        pagination: { page: nextPage, pageSize },
+      });
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: response,
+        currentPage: response.pagination?.page ?? nextPage,
+        resultPagination: response.pagination ?? null,
+      });
+    } catch (caught) {
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: null,
+        error: caught instanceof QueryExecuteError ? caught : null,
+      });
+    } finally {
+      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
+    }
+  }
+
+  async function handlePreviousPage() {
+    const pagination = activeWorksheet.resultPagination;
+    if (
+      !pagination ||
+      activeWorksheet.currentPage <= 1 ||
+      !pagination.hasPreviousPage ||
+      activeWorksheet.isExecuting
+    ) return;
+
+    const worksheetId = activeWorksheetId;
+    const targetId = activeWorksheet.targetResourceId;
+    const requestId = crypto.randomUUID();
+    const prevPage = activeWorksheet.currentPage - 1;
+
+    updateActiveWorksheet({
+      isExecuting: true,
+      error: null,
+      requestId,
+    });
+
+    try {
+      const response = await executeQueryTarget(targetId, {
+        statement: activeWorksheet.statement,
+        maxRows: activeWorksheet.maxRows,
+        pagination: { page: prevPage, pageSize },
+      });
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: response,
+        currentPage: response.pagination?.page ?? prevPage,
+        resultPagination: response.pagination ?? null,
+      });
+    } catch (caught) {
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: null,
+        error: caught instanceof QueryExecuteError ? caught : null,
+      });
+    } finally {
+      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
+    }
+  }
+
+  async function handlePageSizeChange(newSize: number) {
+    if (activeWorksheet.isExecuting) return;
+
+    const validPageSize = QUERY_RESULT_PAGE_SIZES.find((value) => value === newSize);
+    if (validPageSize === undefined) return;
+
+    persistPageSize(validPageSize);
+    setPageSizeState(validPageSize);
+
+    const worksheetId = activeWorksheetId;
+    const targetId = activeWorksheet.targetResourceId;
+    const requestId = crypto.randomUUID();
+
+    updateActiveWorksheet({
+      isExecuting: true,
+      error: null,
+      requestId,
+      currentPage: 1,
+      resultPagination: null,
+    });
+
+    try {
+      const response = await executeQueryTarget(targetId, {
+        statement: activeWorksheet.statement,
+        maxRows: activeWorksheet.maxRows,
+        pagination: { page: 1, pageSize: validPageSize },
+      });
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: response,
+        currentPage: response.pagination?.page ?? 1,
+        resultPagination: response.pagination ?? null,
+      });
+    } catch (caught) {
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: null,
+        error: caught instanceof QueryExecuteError ? caught : null,
+      });
+    } finally {
+      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
     }
   }
 
@@ -1078,6 +1227,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 generation: worksheet.relatedRecords.generation + 1,
               },
               explain: invalidateExplainState(worksheet.explain),
+              currentPage: 1,
+              resultPagination: null,
             }
           : {}),
       });
@@ -1280,11 +1431,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                   isDirty: true,
                   previewProvenance: null,
                   relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
-                  explain: invalidateExplainState(activeWorksheet.explain),
+                   explain: invalidateExplainState(activeWorksheet.explain),
+                   currentPage: 1,
+                   resultPagination: null,
                 });
               }}
               maxRows={activeWorksheet.maxRows}
-              onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value })}
+              onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value, currentPage: 1, resultPagination: null })}
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
@@ -1314,6 +1467,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               relatedRecords={activeWorksheet.relatedRecords}
               onRelatedRecordsNavigate={handleRelatedRecordsNavigate}
               onCloseRelatedRecords={handleCloseRelatedRecords}
+              currentPage={activeWorksheet.currentPage}
+              resultPagination={activeWorksheet.resultPagination}
+              pageSize={pageSize}
+              onNextPage={handleNextPage}
+              onPreviousPage={handlePreviousPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           </div>
         ) : (
@@ -1376,7 +1535,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             targetResourceId={activeWorksheet.targetResourceId}
             currentStatement={activeWorksheet.statement}
             onStatementLoad={(statement) => {
-              updateActiveWorksheet({ statement });
+              updateActiveWorksheet({ statement, currentPage: 1, resultPagination: null });
             }}
           />
         </div>
@@ -1489,6 +1648,12 @@ function ReadyWorksheet({
   relatedRecords,
   onRelatedRecordsNavigate,
   onCloseRelatedRecords,
+  currentPage,
+  resultPagination,
+  pageSize,
+  onNextPage,
+  onPreviousPage,
+  onPageSizeChange,
 }: {
   worksheetId: string;
   statement: string;
@@ -1521,6 +1686,12 @@ function ReadyWorksheet({
   relatedRecords: RelatedRecordsState;
   onRelatedRecordsNavigate: (foreignKey: string, localValues: readonly string[]) => void;
   onCloseRelatedRecords: () => void;
+  currentPage: number;
+  resultPagination: QueryExecutePaginationResponse | null;
+  pageSize: number;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
+  onPageSizeChange: (value: number) => void;
 }) {
   const t = useTranslations("queryWorkbench");
   const { namespace, columnFetcher } = useWorksheetSchemaAdapter(
@@ -1673,6 +1844,49 @@ function ReadyWorksheet({
               relatedRecordsTriggerRef={relatedRecordsTriggerRef}
               onRelatedRecordsIneligible={onCloseRelatedRecords}
             />
+            {resultPagination && (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3" data-testid="result-paging">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label={t("paging.previousPage")}
+                  disabled={isExecuting || currentPage <= 1 || !resultPagination.hasPreviousPage}
+                  onClick={onPreviousPage}
+                >
+                  {t("paging.previousPage")}
+                </Button>
+                <span className="min-w-16 text-center text-xs text-muted-foreground" aria-live="polite">
+                  {t("paging.page", { page: currentPage })}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label={t("paging.nextPage")}
+                  disabled={isExecuting || !resultPagination.hasNextPage}
+                  onClick={onNextPage}
+                >
+                  {t("paging.nextPage")}
+                </Button>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => onPageSizeChange(Number(value))}
+                  disabled={isExecuting}
+                >
+                  <SelectTrigger size="sm" aria-label={t("paging.pageSize")} className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {QUERY_RESULT_PAGE_SIZES.map((size) => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {relatedRecords.status !== "idle" && (
               <RelatedRecordsPanel
                 state={relatedRecords}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -344,7 +344,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     expect(mockGetSchemaObjects.mock.calls.length).toBe(callsBefore);
   });
 
-  it("submits search with server q parameter on Search button click", async () => {
+  it("debounces search with the server q parameter", async () => {
     const user = userEvent.setup();
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
@@ -369,8 +369,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "filtered");
 
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
-
     await waitFor(() => {
       expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2);
       expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
@@ -383,7 +381,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     expect(screen.queryByText("obj_0")).not.toBeInTheDocument();
   });
 
-  it("submits search on Enter key press", async () => {
+  it("does not submit search on Enter key press", async () => {
     const user = userEvent.setup();
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
@@ -407,13 +405,8 @@ describe("QueryObjectExplorer search and pagination", () => {
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "searched{Enter}");
-
-    await waitFor(() => {
-      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2);
-      expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
-        1, expect.objectContaining({ database: "db1", q: "searched", page: 1 }),
-      );
-    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(1);
   });
 
   it("trims whitespace-only search and submits without q", async () => {
@@ -435,8 +428,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     const callsBefore = mockGetSchemaObjects.mock.calls.length;
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "   ");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
-
     await waitFor(() => {
       expect(mockGetSchemaObjects.mock.calls.length).toBe(callsBefore + 1);
     });
@@ -475,7 +466,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Search first
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "filtered");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
     await waitFor(() => expect(screen.getByText("filtered")).toBeVisible());
 
     // Clear
@@ -671,7 +661,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Submit a search before page 2 resolves
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "searched");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
     await waitFor(() => expect(screen.getByText("searched")).toBeVisible());
 
     // Now resolve page 2 for the old unfiltered listing
@@ -714,7 +703,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Search
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "searched");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
     await waitFor(() => expect(screen.getByText("searched")).toBeVisible());
 
     // No detail, definition, or related-record requests should have been made
@@ -802,7 +790,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Search that removes visible_table
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "other");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     // visible_table should be gone, Inspector should close
     await waitFor(() => {
@@ -832,9 +819,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     await screen.findByRole("button", { name: "db1" });
     await expandDatabase(user, "db1");
 
-    // Search input, Search button, Clear button, and Load more should NOT be inside a treeitem
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
-    const searchButton = screen.getByRole("button", { name: /Search objects in /i });
     const clearButton = screen.getByRole("button", { name: /Clear search in /i });
     const loadMore = screen.getByRole("button", { name: /Load more objects in /i });
 
@@ -842,7 +827,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     const treeitems = screen.getAllByRole("treeitem");
     for (const treeitem of treeitems) {
       expect(treeitem).not.toContainElement(searchInput);
-      expect(treeitem).not.toContainElement(searchButton);
       expect(treeitem).not.toContainElement(clearButton);
       expect(treeitem).not.toContainElement(loadMore);
     }
@@ -1008,7 +992,6 @@ describe("QueryObjectExplorer search and pagination", () => {
 
     const searchInput = await screen.findByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "schema_zz_page_26");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     await waitFor(() => expect(screen.getByText("schema_zz_page_26")).toBeVisible());
 
@@ -1058,7 +1041,7 @@ describe("QueryObjectExplorer search and pagination", () => {
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "filtered_only");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
+    await waitFor(() => expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: /Clear search in /i }));
 
     await waitFor(() => expect(screen.getByText("obj_0")).toBeVisible());
@@ -1106,10 +1089,9 @@ describe("QueryObjectExplorer search and pagination", () => {
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.clear(searchInput);
     await user.type(searchInput, "first");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
+    await waitFor(() => expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2));
     await user.clear(searchInput);
     await user.type(searchInput, "second");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     resolveSecond({
       targetResourceId: 1, database: "db1",
@@ -1130,7 +1112,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     });
   });
 
-  it("submits live form value even when listing.draftQuery state has not committed yet", async () => {
+  it("does not render a submit form for object search", async () => {
     const user = userEvent.setup();
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
@@ -1141,11 +1123,6 @@ describe("QueryObjectExplorer search and pagination", () => {
       .mockResolvedValueOnce({
         targetResourceId: 1, database: "db1", items: buildObjects("db1", 5),
         pageInfo: { page: 1, pageSize: 25, totalItems: 5, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
-      })
-      .mockResolvedValueOnce({
-        targetResourceId: 1, database: "db1",
-        items: [{ database: "db1", name: "live_form_hit", kind: "table" }],
-        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
       });
 
     renderExplorer();
@@ -1153,20 +1130,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     await expandDatabase(user, "db1");
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
-    searchInput.focus();
-    await user.click(searchInput);
-    await user.type(searchInput, "live_form_hit");
-    const form = searchInput.closest("form");
-    expect(form).not.toBeNull();
-    form!.requestSubmit();
-
-    await waitFor(() => {
-      expect(mockGetSchemaObjects).toHaveBeenCalledWith(
-        1,
-        expect.objectContaining({ database: "db1", q: "live_form_hit", page: 1 }),
-      );
-    });
-    await waitFor(() => expect(screen.getByText("live_form_hit")).toBeVisible());
+    expect(searchInput.closest("form")).toBeNull();
   });
 
   it("renders server search results that do not text-match q (no client filter)", async () => {
@@ -1193,7 +1157,6 @@ describe("QueryObjectExplorer search and pagination", () => {
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "query_token");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     await waitFor(() => {
       expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
@@ -1330,7 +1293,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.clear(searchInput);
     await user.type(searchInput, "will_fail");
-    await user.click(screen.getByRole("button", { name: "Search objects in db1" }));
+    await waitFor(() => expect(mockGetSchemaObjects).toHaveBeenCalledTimes(3));
 
     await waitFor(() => {
       expect(screen.queryByText("hidden_after_search — Inspector")).not.toBeInTheDocument();
@@ -1423,7 +1386,6 @@ describe("QueryObjectExplorer search and pagination", () => {
     await waitFor(() => expect(screen.getByText("obj_29")).toBeVisible());
     expect(searchInput).toHaveValue("latest_draft_hit");
 
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
     await waitFor(() => {
       expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
         1,
@@ -1439,8 +1401,9 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
     vi.clearAllMocks();
   });
 
-  it("debounced search after 250ms sends request with AbortSignal", async () => {
-    const user = userEvent.setup();
+  it("does not request a search before the 250ms debounce", async () => {
+    vi.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
       items: [{ name: "db1", isDefault: true }],
@@ -1457,18 +1420,23 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
     await expandDatabase(user, "db1");
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
-    await user.type(searchInput, "debounced");
+    const callsBeforeSearch = mockGetSchemaObjects.mock.calls.length;
+    fireEvent.change(searchInput, { target: { value: "debounced" } });
 
-    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(1);
+    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
+    vi.advanceTimersByTime(249);
+    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
 
-    await waitFor(() => {
-      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2);
-    }, { timeout: 500 });
+    vi.advanceTimersByTime(1);
+    await Promise.resolve();
+    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
 
+    vi.advanceTimersByTime(250);
     expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
       1,
       expect.objectContaining({ database: "db1", q: "debounced", page: 1 }),
     );
+    vi.useRealTimers();
   });
 
   it("typing more within 250ms aborts the previous debounce timer", async () => {
@@ -1533,11 +1501,9 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "first_query");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     await user.clear(searchInput);
     await user.type(searchInput, "second_query");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
 
     await waitFor(() => {
       expect(screen.getByText("fresh_result")).toBeVisible();
@@ -1583,7 +1549,6 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "filtered");
-    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
     await waitFor(() => expect(screen.getByText("filtered_hit")).toBeVisible());
 
     await user.click(screen.getByRole("button", { name: /Clear search in /i }));
