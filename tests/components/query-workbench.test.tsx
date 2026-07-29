@@ -2045,7 +2045,8 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
-      maxRows: 100,
+      maxRows: 10,
+      pagination: { page: 1, pageSize: 10 },
     });
   });
 
@@ -2347,7 +2348,8 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
-      maxRows: 100,
+      maxRows: 10,
+      pagination: { page: 1, pageSize: 10 },
     });
   });
 });
