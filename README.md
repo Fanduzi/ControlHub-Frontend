@@ -90,6 +90,13 @@ The page-size preference is stored locally under
 `controlhub.query.result-page-size`. Supported values are 10, 25, 50, and 100.
 This preference contains no query data or connection details.
 
+### Schema explorer object search
+
+Object search in the schema explorer is debounced auto-search: typing in the
+search input triggers a server-side `q` search 250ms after the last keystroke.
+There is no submit button. A clear icon appears while the input is non-empty
+and resets the listing to the unfiltered first page.
+
 ## Verification
 
 ```bash

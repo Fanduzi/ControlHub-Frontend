@@ -2156,7 +2156,6 @@ test.describe("Schema explorer search and pagination", () => {
 
     const searchInput = explorer.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
     await expect(searchInput).toBeVisible();
-    await searchInput.fill("schema_zz_page_26");
 
     const searchResponse = page.waitForResponse(
       (resp) =>
@@ -2165,7 +2164,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "Search objects in query_e2e_aux" }).click();
+    await searchInput.fill("schema_zz_page_26");
     await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
@@ -2248,7 +2247,6 @@ test.describe("Schema explorer search and pagination", () => {
     const searchInput = sheet.getByRole("textbox", { name: /search objects in query_e2e_aux/i });
     await expect(searchInput).toBeVisible();
 
-    await searchInput.fill("schema_zz_page_26");
     const searchResponse = page.waitForResponse(
       (resp) =>
         resp.url().includes("/schema/objects") &&
@@ -2256,7 +2254,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await sheet.getByRole("button", { name: "Search objects in query_e2e_aux" }).click();
+    await searchInput.fill("schema_zz_page_26");
     await searchResponse;
 
     await expect(sheet.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
@@ -2315,7 +2313,6 @@ test.describe("Schema explorer search and pagination", () => {
     const searchInput = explorer.getByRole("textbox", { name: /搜索 query_e2e_aux 中的对象/i });
     await expect(searchInput).toBeVisible();
 
-    await searchInput.fill("schema_zz_page_26");
     const searchResponse = page.waitForResponse(
       (resp) =>
         resp.url().includes("/schema/objects") &&
@@ -2323,7 +2320,7 @@ test.describe("Schema explorer search and pagination", () => {
         resp.ok(),
       { timeout: 15_000 },
     );
-    await explorer.getByRole("button", { name: "搜索 query_e2e_aux 中的对象" }).click();
+    await searchInput.fill("schema_zz_page_26");
     await searchResponse;
 
     await expect(explorer.getByText("schema_zz_page_26")).toBeVisible({ timeout: 10_000 });
