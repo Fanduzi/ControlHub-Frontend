@@ -614,3 +614,107 @@ describe("QueryObjectInspector", () => {
     expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
   });
 });
+
+describe("Phase 38S: DDL is read-only highlighted CodeMirror", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("DDL definition renders in a CodeMirror editor instead of plain pre", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(255)\n);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    await waitFor(() => {
+      const codeMirror = document.querySelector(".cm-editor");
+      expect(codeMirror).toBeInTheDocument();
+    });
+
+    const definitionText = screen.queryByText(/CREATE TABLE test_table/);
+    expect(definitionText).toBeInTheDocument();
+    expect(definitionText!.closest("pre")).not.toBeInTheDocument();
+  });
+
+  it("DDL CodeMirror editor is read-only with no execution controls", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    await waitFor(() => {
+      const codeMirror = document.querySelector(".cm-editor");
+      expect(codeMirror).toBeInTheDocument();
+      expect(codeMirror).toHaveAttribute("aria-readonly", "true");
+    });
+
+    expect(screen.queryByRole("button", { name: /^run$/i })).not.toBeInTheDocument();
+  });
+
+  it("DDL CodeMirror does not trigger an execute request on render", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    await waitFor(() => {
+      expect(document.querySelector(".cm-editor")).toBeInTheDocument();
+    });
+
+    expect(mockGetTableDefinition).toHaveBeenCalledTimes(1);
+  });
+
+  it("DDL CodeMirror has SQL syntax highlighting applied", async () => {
+    mockGetTableDefinition.mockResolvedValue({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (\n  id INT PRIMARY KEY\n);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+
+    const viewDefButton = screen.getByTestId("view-definition-button");
+    await user.click(viewDefButton);
+
+    await waitFor(() => {
+      const codeMirror = document.querySelector(".cm-editor");
+      expect(codeMirror).toBeInTheDocument();
+      const syntaxHighlight = codeMirror!.querySelector(".cm-keyword, .cm-typeName, .cm-property");
+      expect(syntaxHighlight).toBeInTheDocument();
+    });
+  });
+});

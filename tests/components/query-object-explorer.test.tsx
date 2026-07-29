@@ -1433,3 +1433,188 @@ describe("QueryObjectExplorer search and pagination", () => {
     await waitFor(() => expect(screen.getByText("latest_draft_hit")).toBeVisible());
   });
 });
+
+describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("debounced search after 250ms sends request with AbortSignal", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: "db1",
+      items: [{ name: "db1", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 1, database: "db1",
+      items: [{ database: "db1", name: "debounced_hit", kind: "table" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "db1" });
+    await expandDatabase(user, "db1");
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+    await user.type(searchInput, "debounced");
+
+    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2);
+    }, { timeout: 500 });
+
+    expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ database: "db1", q: "debounced", page: 1 }),
+    );
+  });
+
+  it("typing more within 250ms aborts the previous debounce timer", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: "db1",
+      items: [{ name: "db1", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 1, database: "db1",
+      items: [{ database: "db1", name: "final_hit", kind: "table" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "db1" });
+    await expandDatabase(user, "db1");
+
+    const callsBefore = mockGetSchemaObjects.mock.calls.length;
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+
+    await user.type(searchInput, "ab");
+    await user.type(searchInput, "cd");
+    await user.type(searchInput, "ef");
+
+    await waitFor(() => {
+      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBefore + 1);
+    }, { timeout: 500 });
+
+    expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ q: "abcdef" }),
+    );
+  });
+
+  it("stale search response is rejected when a newer search has started", async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (value: unknown) => void;
+    const firstPromise = new Promise((resolve) => { resolveFirst = resolve; });
+
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: "db1",
+      items: [{ name: "db1", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects
+      .mockResolvedValueOnce({
+        targetResourceId: 1, database: "db1", items: buildObjects("db1", 5),
+        pageInfo: { page: 1, pageSize: 25, totalItems: 5, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      })
+      .mockReturnValueOnce(firstPromise as ReturnType<typeof getSchemaObjects>)
+      .mockResolvedValueOnce({
+        targetResourceId: 1, database: "db1",
+        items: [{ database: "db1", name: "fresh_result", kind: "table" }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "db1" });
+    await expandDatabase(user, "db1");
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+    await user.type(searchInput, "first_query");
+    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "second_query");
+    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("fresh_result")).toBeVisible();
+    });
+
+    resolveFirst({
+      targetResourceId: 1, database: "db1",
+      items: [{ database: "db1", name: "stale_first_result", kind: "table" }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("stale_first_result")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("fresh_result")).toBeVisible();
+  });
+
+  it("clear resets search input and triggers immediate unfiltered request", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: "db1",
+      items: [{ name: "db1", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects
+      .mockResolvedValueOnce({
+        targetResourceId: 1, database: "db1", items: buildObjects("db1", 5),
+        pageInfo: { page: 1, pageSize: 25, totalItems: 5, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      })
+      .mockResolvedValueOnce({
+        targetResourceId: 1, database: "db1",
+        items: [{ database: "db1", name: "filtered_hit", kind: "table" }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      })
+      .mockResolvedValueOnce({
+        targetResourceId: 1, database: "db1", items: buildObjects("db1", 5),
+        pageInfo: { page: 1, pageSize: 25, totalItems: 5, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "db1" });
+    await expandDatabase(user, "db1");
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+    await user.type(searchInput, "filtered");
+    await user.click(screen.getByRole("button", { name: /Search objects in /i }));
+    await waitFor(() => expect(screen.getByText("filtered_hit")).toBeVisible());
+
+    await user.click(screen.getByRole("button", { name: /Clear search in /i }));
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("");
+      expect(screen.getByText("obj_0")).toBeVisible();
+    });
+  });
+
+  it("EN and zh-CN accessible names for search controls include database", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: "mydb",
+      items: [{ name: "mydb", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 1, database: "mydb", items: [],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    const { rerender } = render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryObjectExplorer targetId={1} store={new QuerySchemaStore()} onPreviewRequest={vi.fn()} />
+      </NextIntlClientProvider>,
+    );
+    await screen.findByRole("button", { name: "mydb" });
+    await user.click(screen.getByRole("button", { name: "mydb" }));
+
+    expect(screen.getByRole("textbox", { name: /search objects in mydb/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /clear search in mydb/i })).toBeInTheDocument();
+  });
+});

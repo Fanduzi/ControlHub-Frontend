@@ -975,3 +975,383 @@ describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
     expect(screen.getByText(/target database query failed/i)).toBeInTheDocument();
   });
 });
+
+// ─── Phase 38S: Governed result paging UX contract ────────────────────────
+
+describe("Phase 38S: paging controls in result panel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("renders page-size selector with values [10, 25, 50, 100]", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 25,
+      cursor: null,
+      hasMore: true,
+      requestId: "req-001",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const pageSizeTrigger = screen.getByRole("combobox", { name: /page size/i });
+    expect(pageSizeTrigger).toBeInTheDocument();
+
+    await user.click(pageSizeTrigger);
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "10" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "25" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "50" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "100" })).toBeInTheDocument();
+    });
+  });
+
+  it("renders Next page button enabled when hasMore=true", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 25,
+      cursor: null,
+      hasMore: true,
+      requestId: "req-002",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const nextButton = screen.getByRole("button", { name: /next page/i });
+    expect(nextButton).toBeEnabled();
+  });
+
+  it("renders Next page button disabled when hasMore=false", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 2,
+      cursor: null,
+      hasMore: false,
+      requestId: "req-003",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const nextButton = screen.getByRole("button", { name: /next page/i });
+    expect(nextButton).toBeDisabled();
+  });
+
+  it("renders Previous page button disabled on page 1", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 25,
+      cursor: null,
+      hasMore: true,
+      requestId: "req-004",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const prevButton = screen.getByRole("button", { name: /previous page/i });
+    expect(prevButton).toBeDisabled();
+  });
+
+  it("clicking Next sends cursor from previous response", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        rowCount: 25,
+        cursor: null,
+        hasMore: true,
+        requestId: "req-p1",
+      } as QueryExecuteResponse)
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        rowCount: 5,
+        cursor: "page2-cursor",
+        hasMore: false,
+        requestId: "req-p2",
+      } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+
+    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toHaveProperty("cursor");
+  });
+
+  it("page-size change resets to page 1 and re-executes", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        rowCount: 25,
+        cursor: null,
+        hasMore: true,
+        requestId: "req-before",
+      } as QueryExecuteResponse)
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        rowCount: 10,
+        cursor: null,
+        hasMore: true,
+        requestId: "req-after",
+      } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const pageSizeTrigger = screen.getByRole("combobox", { name: /page size/i });
+    await user.click(pageSizeTrigger);
+    await user.click(screen.getByRole("option", { name: "10" }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+
+    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.pageSize).toBe(10);
+    expect(body).not.toHaveProperty("cursor");
+  });
+
+  it("paging controls are NOT rendered for metadata responses", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "table_name", databaseType: "VARCHAR", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: true }],
+      rows: [["orders"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 5,
+      limitApplied: 100,
+      executedAt: "2026-07-29T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: /next page/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /previous page/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /page size/i })).not.toBeInTheDocument();
+  });
+
+  it("stale response is rejected when requestId does not match latest request", async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (value: unknown) => void;
+    const firstPromise = new Promise((resolve) => { resolveFirst = resolve; });
+
+    mockExecuteQueryTarget
+      .mockReturnValueOnce(firstPromise as ReturnType<typeof executeQueryTarget>)
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        rows: [[99, "fresh-data"]],
+        rowCount: 1,
+        cursor: null,
+        hasMore: false,
+        requestId: "req-fresh",
+      } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    const statementInput = screen.getByRole("textbox");
+    await user.clear(statementInput);
+    await user.type(statementInput, "select 2");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("fresh-data")).toBeInTheDocument();
+    });
+
+    resolveFirst({
+      ...buildExecuteResponse(),
+      rows: [[42, "stale-data"]],
+      rowCount: 1,
+      cursor: null,
+      hasMore: false,
+      requestId: "req-stale",
+    } as QueryExecuteResponse);
+
+    await waitFor(() => {
+      expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("fresh-data")).toBeInTheDocument();
+  });
+
+  it("does NOT mutate SQL or slice rows client-side for paging", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 25,
+      cursor: null,
+      hasMore: true,
+      requestId: "req-no-slice",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const [, init] = mockExecuteQueryTarget.mock.calls[0]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.statement).not.toMatch(/\bLIMIT\b/i);
+    expect(body.statement).not.toMatch(/\bOFFSET\b/i);
+  });
+});
+
+describe("Phase 38S: paging reset triggers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("changing statement resets paging to page 1", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      ...buildExecuteResponse(),
+      cursor: null,
+      hasMore: false,
+      requestId: "req-reset",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const statementInput = screen.getByRole("textbox");
+    await user.clear(statementInput);
+    await user.type(statementInput, "select * from different_table");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+
+    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).not.toHaveProperty("cursor");
+  });
+
+  it("changing maxRows resets paging to page 1", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      ...buildExecuteResponse(),
+      cursor: null,
+      hasMore: false,
+      requestId: "req-maxrows-reset",
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.type(maxRowsInput, "50");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+
+    const [, init] = mockExecuteQueryTarget.mock.calls[1]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).not.toHaveProperty("cursor");
+  });
+});
+
+describe("Phase 38S: DDL is read-only highlighted CodeMirror", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("DDL statement renders in a read-only CodeMirror editor, not a plain pre", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [{ name: "Create Table", databaseType: "TEXT", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: true }],
+      rows: [["CREATE TABLE orders (\n  id BIGINT PRIMARY KEY\n);"]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 5,
+      limitApplied: 100,
+      executedAt: "2026-07-29T10:00:00Z",
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const ddlCell = screen.getByRole("cell", { name: /CREATE TABLE/i });
+    await user.click(ddlCell);
+
+    await waitFor(() => {
+      const codeMirror = document.querySelector(".cm-editor");
+      expect(codeMirror).toBeInTheDocument();
+      expect(codeMirror).toHaveAttribute("aria-readonly", "true");
+    });
+
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeDisabled();
+  });
+});

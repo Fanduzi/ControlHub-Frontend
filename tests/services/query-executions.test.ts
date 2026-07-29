@@ -479,3 +479,181 @@ describe("query-executions module surface", () => {
     );
   });
 });
+
+// ─── Phase 38S: Governed result paging contract ────────────────────────────
+
+describe("Phase 38S: governed result paging request shape", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sends exact pagination request body with cursor and pageSize", async () => {
+    // Contract: executeQueryTarget must accept {statement, maxRows, cursor, pageSize}
+    // and send cursor + pageSize in the POST body for page-N requests.
+    mockApiClient.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      cursor: "eyJvZmZzZXQiOjEwMH0=",
+      hasMore: true,
+    });
+
+    await executeQueryTarget(22, {
+      statement: "select * from orders",
+      maxRows: 100,
+      cursor: "eyJvZmZzZXQiOjEwMH0=",
+      pageSize: 25,
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).toEqual({
+      statement: "select * from orders",
+      maxRows: 100,
+      cursor: "eyJvZmZzZXQiOjEwMH0=",
+      pageSize: 25,
+    });
+  });
+
+  it("sends legacy request body without pagination fields when none provided", async () => {
+    // Contract: backward compat — omitting cursor/pageSize produces the Phase 37 shape.
+    mockApiClient.mockResolvedValueOnce(buildExecuteResponse());
+
+    await executeQueryTarget(22, { statement: "select 1" });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    const body = requestBody(init);
+    expect(body).toEqual({ statement: "select 1" });
+    expect(body).not.toHaveProperty("cursor");
+    expect(body).not.toHaveProperty("pageSize");
+    expect(body).not.toHaveProperty("pageToken");
+    expect(body).not.toHaveProperty("offset");
+  });
+
+  it("returns response with cursor, hasMore, and requestId fields", async () => {
+    // Contract: paged response extends QueryExecuteResponse with paging metadata.
+    const pagedResponse = {
+      ...buildExecuteResponse(),
+      cursor: "eyJvZmZzZXQiOjI1fQ==",
+      hasMore: true,
+      requestId: "req-abc-123",
+    };
+    mockApiClient.mockResolvedValueOnce(pagedResponse);
+
+    const result = await executeQueryTarget(22, {
+      statement: "select * from orders",
+      maxRows: 100,
+      pageSize: 25,
+    });
+
+    expect(result).toHaveProperty("cursor");
+    expect(result).toHaveProperty("hasMore");
+    expect(result).toHaveProperty("requestId");
+    expect((result as Record<string, unknown>).hasMore).toBe(true);
+    expect(typeof (result as Record<string, unknown>).requestId).toBe("string");
+  });
+
+  it("page 1 response has cursor=null and hasMore=true when more rows exist", async () => {
+    // Contract: first page returns cursor=null (use initial request), hasMore signals continuation.
+    mockApiClient.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 25,
+      cursor: null,
+      hasMore: true,
+      requestId: "req-001",
+    });
+
+    const result = await executeQueryTarget(22, {
+      statement: "select * from big_table",
+      pageSize: 25,
+    });
+
+    expect((result as Record<string, unknown>).cursor).toBeNull();
+    expect((result as Record<string, unknown>).hasMore).toBe(true);
+  });
+
+  it("last page response has hasMore=false", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      rowCount: 5,
+      cursor: null,
+      hasMore: false,
+      requestId: "req-002",
+    });
+
+    const result = await executeQueryTarget(22, {
+      statement: "select * from small_table",
+      pageSize: 25,
+    });
+
+    expect((result as Record<string, unknown>).hasMore).toBe(false);
+  });
+
+  it("pageSize values [10, 25, 50, 100] are all accepted without error", async () => {
+    // Contract: the allowed page-size values must all round-trip without validation errors.
+    const allowedSizes = [10, 25, 50, 100];
+
+    for (const size of allowedSizes) {
+      mockApiClient.mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        cursor: null,
+        hasMore: false,
+        requestId: `req-size-${size}`,
+      });
+
+      await expect(
+        executeQueryTarget(22, { statement: "select 1", pageSize: size }),
+      ).resolves.toBeDefined();
+
+      const [, init] = mockApiClient.mock.calls[mockApiClient.mock.calls.length - 1]!;
+      expect(requestBody(init)).toHaveProperty("pageSize", size);
+    }
+  });
+
+  it("never sends client-side row slicing or SQL mutation", async () => {
+    // Contract: the frontend must NOT append LIMIT/OFFSET or slice rows client-side.
+    mockApiClient.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      cursor: null,
+      hasMore: false,
+      requestId: "req-no-mutate",
+    });
+
+    await executeQueryTarget(22, {
+      statement: "select * from orders",
+      pageSize: 25,
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    const body = requestBody(init);
+    // Statement must be sent verbatim — no LIMIT, OFFSET, or ROWS appended
+    expect(body.statement).toBe("select * from orders");
+    expect(String(body.statement)).not.toMatch(/\bLIMIT\b/i);
+    expect(String(body.statement)).not.toMatch(/\bOFFSET\b/i);
+    expect(String(body.statement)).not.toMatch(/\bFETCH\b/i);
+  });
+});
+
+describe("Phase 38S: governed result paging QueryExecuteRequest type surface", () => {
+  it("QueryExecuteRequest type accepts cursor and pageSize fields", () => {
+    // This test exercises the type contract. If cursor/pageSize are missing from
+    // the type, TypeScript compilation will fail (not a runtime test, but the
+    // import + assignment below validates the shape exists at compile time).
+    const request: import("@/types/query-execution").QueryExecuteRequest = {
+      statement: "select 1",
+      cursor: "abc",
+      pageSize: 25,
+    };
+    expect(request.cursor).toBe("abc");
+    expect(request.pageSize).toBe(25);
+  });
+
+  it("QueryExecuteResponse type accepts cursor, hasMore, and requestId fields", () => {
+    const response: import("@/types/query-execution").QueryExecuteResponse = {
+      ...buildExecuteResponse(),
+      cursor: "next-page-token",
+      hasMore: true,
+      requestId: "req-123",
+    };
+    expect((response as Record<string, unknown>).cursor).toBe("next-page-token");
+    expect((response as Record<string, unknown>).hasMore).toBe(true);
+    expect((response as Record<string, unknown>).requestId).toBe("req-123");
+  });
+});

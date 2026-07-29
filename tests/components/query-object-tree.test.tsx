@@ -198,3 +198,98 @@ describe("QueryObjectTree accessibility structure", () => {
     }
   });
 });
+
+describe("Phase 38S: debounced search in QueryObjectTree", () => {
+  it("search input triggers debounced search after 250ms delay", async () => {
+    const onSearch = vi.fn();
+    renderTree({ databases: ["db1"], onSearch });
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(searchInput, "orders");
+
+    expect(onSearch).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(250);
+
+    expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch).toHaveBeenCalledWith("db1", "orders");
+  });
+
+  it("debounce resets on each keystroke within 250ms window", async () => {
+    const onSearch = vi.fn();
+    renderTree({ databases: ["db1"], onSearch });
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(searchInput, "o");
+
+    vi.advanceTimersByTime(200);
+    expect(onSearch).not.toHaveBeenCalled();
+
+    await user.type(searchInput, "r");
+    vi.advanceTimersByTime(200);
+    expect(onSearch).not.toHaveBeenCalled();
+
+    await user.type(searchInput, "d");
+    vi.advanceTimersByTime(250);
+
+    expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch).toHaveBeenCalledWith("db1", "ord");
+  });
+
+  it("clear button resets input and triggers immediate unfiltered search", async () => {
+    const onClearSearch = vi.fn();
+    const onSearch = vi.fn();
+    renderTree({ databases: ["db1"], onSearch, onClearSearch });
+
+    const clearButton = screen.getByRole("button", { name: /clear search in db1/i });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(clearButton);
+
+    expect(onClearSearch).toHaveBeenCalledWith("db1");
+  });
+
+  it("debounced search is aborted when component unmounts", async () => {
+    const onSearch = vi.fn();
+    const { unmount } = renderTree({ databases: ["db1"], onSearch });
+
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(searchInput, "test");
+
+    unmount();
+
+    vi.advanceTimersByTime(300);
+
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("EN accessible name for search input includes database name", () => {
+    renderTree({ locale: "en", databases: ["my_db"] });
+    expect(screen.getByRole("textbox", { name: /search objects in my_db/i })).toBeInTheDocument();
+  });
+
+  it("zh-CN accessible name for search input includes database name", () => {
+    renderTree({ locale: "zh-CN", databases: ["my_db"] });
+    expect(screen.getByRole("textbox", { name: /搜索 my_db 中的对象/i })).toBeInTheDocument();
+  });
+
+  it("search controls are outside every treeitem role", () => {
+    renderTree({ databases: ["db1"] });
+    const tree = screen.getByRole("tree");
+    const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+
+    for (const treeitem of within(tree).getAllByRole("treeitem")) {
+      expect(treeitem).not.toContainElement(searchInput);
+    }
+  });
+});
