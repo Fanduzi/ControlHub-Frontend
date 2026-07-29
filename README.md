@@ -65,8 +65,30 @@ The backend must be running and serving the following endpoints:
 - `GET /environments` — environment list
 - `GET /owners` — owner list
 - `GET /roles` — role list
+- `POST /query-targets/{id}/execute` — governed read-only execution with optional result paging for SELECT statements
 
 All endpoints use JSON with camelCase field names. See the OpenAPI spec at `internal/openapi/openapi.yaml` in the backend repository for the full contract.
+
+### Governed query result paging
+
+The query workbench sends the optional `pagination` object on
+`POST /query-targets/{id}/execute` for bare `SELECT` statements. It sends a
+1-based `page` and a `pageSize` of 10, 25, 50, or 100. The server owns the page
+window and effective row cap, and applies governance again for every page. The
+browser never rewrites SQL.
+
+The page response reports the page, page size, and adjacent-page flags. It does
+not provide totals or snapshot identifiers. Each page is a fresh execution.
+Result rows are not persisted, and the frontend does not assume a stable
+snapshot between page requests.
+
+`SHOW`, `DESCRIBE`, and typed `EXPLAIN` remain single-response metadata
+statements. Supplying pagination does not split those responses or add page
+navigation metadata.
+
+The page-size preference is stored locally under
+`controlhub.query.result-page-size`. Supported values are 10, 25, 50, and 100.
+This preference contains no query data or connection details.
 
 ## Verification
 
@@ -83,3 +105,4 @@ npm run lint
 - Resource `profile` content is fetched from `GET /resources/{id}/profile` and normalized into frontend-friendly string values in `lib/view-models.ts`
 - The backend does not provide `actorName`, `targetResourceName`, `ownerName`, or `environmentName` in its endpoints
 - Supporting dictionaries (resourceType, lifecycleStatus, healthStatus values) are local static data in `services/settings.ts`
+- Result paging is a server-governed request contract. The UI stores only the local page-size preference and never stores result snapshots or result rows as a paging mechanism.
