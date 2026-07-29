@@ -31,6 +31,8 @@ export type SqlCodeEditorProps = {
   onEditorView?: (view: EditorView) => void;
   ariaLabel?: string;
   disabled?: boolean;
+  /** Read-only mode: no editing, no completion, no shortcuts, aria-readonly on root. */
+  readOnly?: boolean;
   className?: string;
   themePreference?: QueryEditorThemePreference;
   height?: number;
@@ -227,6 +229,7 @@ export function SqlCodeEditorClient({
   onEditorView,
   ariaLabel,
   disabled = false,
+  readOnly = false,
   className,
   themePreference = "system",
   height,
@@ -253,47 +256,54 @@ export function SqlCodeEditorClient({
         ? MySQL
         : StandardSQL;
 
-    const shortcuts = Prec.highest(
-      keymap.of([
-        {
-          key: "Mod-Enter",
-          run: () => {
-            onRun?.();
-            return true;
-          },
-          preventDefault: true,
-        },
-        {
-          key: "Mod-Shift-f",
-          run: () => {
-            onFormat?.();
-            return true;
-          },
-          preventDefault: true,
-        },
-      ]),
-    );
-
-    const completionExtension = autocompletion({
-      override: [sqlCompletionSource],
-      activateOnTyping: true,
-      defaultKeymap: true,
-    });
-
-    // Apply aria-label to the contenteditable .cm-content element
-    const ariaExtension = ariaLabel
-      ? EditorView.contentAttributes.of({ "aria-label": ariaLabel })
-      : [];
-
-    return [
+    const extensions: Extension[] = [
       sql({ dialect }),
-      shortcuts,
       layoutTheme,
       syntaxThemes[resolvedTheme],
-      completionExtension,
-      ariaExtension,
     ];
-  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel]);
+
+    if (!readOnly) {
+      extensions.push(
+        Prec.highest(
+          keymap.of([
+            {
+              key: "Mod-Enter",
+              run: () => {
+                onRun?.();
+                return true;
+              },
+              preventDefault: true,
+            },
+            {
+              key: "Mod-Shift-f",
+              run: () => {
+                onFormat?.();
+                return true;
+              },
+              preventDefault: true,
+            },
+          ]),
+        ),
+      );
+      extensions.push(
+        autocompletion({
+          override: [sqlCompletionSource],
+          activateOnTyping: true,
+          defaultKeymap: true,
+        }),
+      );
+    }
+
+    if (ariaLabel) {
+      extensions.push(EditorView.contentAttributes.of({ "aria-label": ariaLabel }));
+    }
+
+    if (readOnly) {
+      extensions.push(EditorView.editorAttributes.of({ "aria-readonly": "true" }));
+    }
+
+    return extensions;
+  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel, readOnly]);
 
   return (
     <CodeMirror
@@ -304,15 +314,15 @@ export function SqlCodeEditorClient({
       extensions={extensions}
       onChange={onChange}
       onCreateEditor={handleCreateEditor}
-      editable={!disabled}
-      readOnly={disabled}
+      editable={!disabled && !readOnly}
+      readOnly={disabled || readOnly}
       aria-label={ariaLabel}
       basicSetup={{
-        lineNumbers: true,
-        foldGutter: true,
-        highlightActiveLine: true,
+        lineNumbers: !readOnly,
+        foldGutter: !readOnly,
+        highlightActiveLine: !readOnly,
         bracketMatching: true,
-        closeBrackets: true,
+        closeBrackets: !readOnly,
         autocompletion: false,
       }}
     />

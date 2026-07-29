@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { QueryRelationshipMap } from "@/components/query/query-relationship-map";
+import { SqlCodeEditorClient } from "@/components/query/sql-code-editor-client";
 import { getTableDefinition } from "@/services/query-schema";
 import {
   Dialog,
@@ -332,9 +333,13 @@ function DefinitionSection({
       <h3 className="mb-2 text-sm font-medium text-foreground">
         {t("schema.definitionTitle")}
       </h3>
-      <div className="overflow-x-auto rounded border border-border bg-muted/30 p-3">
-        <pre className="whitespace-pre text-xs text-foreground">{state.response.definition}</pre>
-      </div>
+      <SqlCodeEditorClient
+        value={state.response.definition}
+        onChange={() => {}}
+        engine={state.response.dialect}
+        readOnly
+        ariaLabel={t("schema.definitionTitle")}
+      />
       {state.response.truncated && (
         <TruncatedNotice message={t("schema.definitionTruncated")} />
       )}

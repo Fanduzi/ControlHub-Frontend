@@ -17,6 +17,35 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+const SQL_KEYWORDS = /\b(CREATE|TABLE|INT|PRIMARY|KEY|AUTO_INCREMENT|VARCHAR|NOT|NULL|DEFAULT|INDEX|UNIQUE|ENGINE|CHARSET)\b/g;
+
+vi.mock("@uiw/react-codemirror", () => {
+  const { createElement: h, Fragment } = require("react");
+
+  return {
+    default: function MockCodeMirror({ value, readOnly, editable }: {
+      value?: string;
+      readOnly?: boolean;
+      editable?: boolean;
+      extensions?: unknown[];
+    }) {
+      const isReadOnly = readOnly === true || editable === false;
+      const hasKeywords = SQL_KEYWORDS.test(value ?? "");
+      return h("div", {
+        className: "cm-editor",
+        ...(isReadOnly ? { "aria-readonly": "true" } : {}),
+      },
+        h("div", { className: "cm-scroller" },
+          h("div", { className: "cm-content", role: "textbox" },
+            h("span", { className: "cm-line" }, value ?? ""),
+            hasKeywords ? h("span", { className: "cm-keyword", "aria-hidden": "true" }) : null,
+          ),
+        ),
+      );
+    },
+  };
+});
+
 vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn(),
   getSchemaDatabases: vi.fn(),
