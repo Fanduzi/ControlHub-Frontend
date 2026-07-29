@@ -112,6 +112,9 @@ export async function executeQueryTarget(
   const body: QueryExecuteRequest = {
     statement: input.statement,
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
+    ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
+    ...(input.pageSize !== undefined ? { pageSize: input.pageSize } : {}),
+    ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };
 
   try {
