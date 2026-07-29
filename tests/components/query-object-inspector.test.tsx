@@ -17,10 +17,10 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-const SQL_KEYWORDS = /\b(CREATE|TABLE|INT|PRIMARY|KEY|AUTO_INCREMENT|VARCHAR|NOT|NULL|DEFAULT|INDEX|UNIQUE|ENGINE|CHARSET)\b/g;
+const SQL_KEYWORDS = /\b(CREATE|TABLE|INT|PRIMARY|KEY|AUTO_INCREMENT|VARCHAR|NOT|NULL|DEFAULT|INDEX|UNIQUE|ENGINE|CHARSET)\b/;
 
-vi.mock("@uiw/react-codemirror", () => {
-  const { createElement: h, Fragment } = require("react");
+vi.mock("@uiw/react-codemirror", async () => {
+  const { createElement: h } = await vi.importActual<typeof import("react")>("react");
 
   return {
     default: function MockCodeMirror({ value, readOnly, editable }: {

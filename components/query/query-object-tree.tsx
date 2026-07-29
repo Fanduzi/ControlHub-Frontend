@@ -2,7 +2,7 @@
 
 import { ChevronRight, Database, Search, Table2, Trash2, View } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
 import { objectIdentityKey, schemaObjectGroupId } from "@/lib/query-object-identity";
@@ -61,32 +61,13 @@ export function QueryObjectTree({
   onDraftQueryChange,
 }: QueryObjectTreeProps) {
   const t = useTranslations("queryWorkbench");
-  const debounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    const timers = debounceTimers.current;
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-    };
-  }, []);
 
   const handleInputChange = (database: string, value: string) => {
     onDraftQueryChange?.(database, value);
-    const existingTimer = debounceTimers.current.get(database);
-    if (existingTimer) clearTimeout(existingTimer);
-    const timer = setTimeout(() => {
-      onSearch?.(database, value);
-      debounceTimers.current.delete(database);
-    }, 250);
-    debounceTimers.current.set(database, timer);
+    onSearch?.(database, value);
   };
 
   const handleClear = (database: string) => {
-    const existingTimer = debounceTimers.current.get(database);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-      debounceTimers.current.delete(database);
-    }
     onClearSearch?.(database);
   };
 
@@ -114,14 +95,7 @@ export function QueryObjectTree({
                   size="sm"
                   className="w-full justify-start"
                   aria-expanded={expanded}
-                  onClick={() => {
-                    const pendingTimer = debounceTimers.current.get(database);
-                    if (pendingTimer) {
-                      clearTimeout(pendingTimer);
-                      debounceTimers.current.delete(database);
-                    }
-                    onDatabaseToggle(database);
-                  }}
+                  onClick={() => onDatabaseToggle(database)}
                 >
                   <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
                   <Database className="size-3.5 text-primary" aria-hidden />

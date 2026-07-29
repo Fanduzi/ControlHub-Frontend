@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn(),
@@ -140,7 +140,10 @@ async function expandDatabase(user: ReturnType<typeof userEvent.setup>, database
 
 describe("QueryObjectExplorer search and pagination", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockGetObjectDetails.mockReset();
+    mockGetSchemaDatabases.mockReset();
+    mockGetSchemaObjects.mockReset();
+    mockGetTableDefinition.mockReset();
   });
 
   // --- Database pagination ---
@@ -600,7 +603,12 @@ describe("QueryObjectExplorer search and pagination", () => {
         items: [{ name: "db1", isDefault: true }],
         pageInfo: { page: 1, pageSize: 25, totalItems: 2, totalPages: 2, hasNextPage: true, hasPreviousPage: false },
       })
-      .mockReturnValueOnce(page2Promise as unknown as ReturnType<typeof getSchemaDatabases>);
+      .mockReturnValueOnce(page2Promise as unknown as ReturnType<typeof getSchemaDatabases>)
+      .mockResolvedValueOnce({
+        targetResourceId: 2, defaultDatabase: null,
+        items: [],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+      });
 
     const { rerender } = renderExplorer(1);
     await screen.findByRole("button", { name: "db1" });
@@ -820,6 +828,8 @@ describe("QueryObjectExplorer search and pagination", () => {
     await expandDatabase(user, "db1");
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
+    await user.type(searchInput, "filter");
+    await waitFor(() => expect(screen.getByRole("button", { name: /Clear search in /i })).toBeVisible());
     const clearButton = screen.getByRole("button", { name: /Clear search in /i });
     const loadMore = screen.getByRole("button", { name: /Load more objects in /i });
 
@@ -1309,7 +1319,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     expect(screen.getByText("keep_me")).toBeVisible();
   });
 
-  it("P2-2: append success preserves live draft typed during Load more", async () => {
+  it("P2-2: typing a search cancels a pending Load more append", async () => {
     const user = userEvent.setup();
     let resolvePage2!: (value: unknown) => void;
     const page2Promise = new Promise((resolve) => {
@@ -1383,7 +1393,6 @@ describe("QueryObjectExplorer search and pagination", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByText("obj_29")).toBeVisible());
     expect(searchInput).toHaveValue("latest_draft_hit");
 
     await waitFor(() => {
@@ -1393,17 +1402,24 @@ describe("QueryObjectExplorer search and pagination", () => {
       );
     });
     await waitFor(() => expect(screen.getByText("latest_draft_hit")).toBeVisible());
+    expect(screen.queryByText("obj_29")).not.toBeInTheDocument();
   });
 });
 
 describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockGetObjectDetails.mockReset();
+    mockGetSchemaDatabases.mockReset();
+    mockGetSchemaObjects.mockReset();
+    mockGetTableDefinition.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("does not request a search before the 250ms debounce", async () => {
-    vi.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
       items: [{ name: "db1", isDefault: true }],
@@ -1421,22 +1437,26 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     const callsBeforeSearch = mockGetSchemaObjects.mock.calls.length;
-    fireEvent.change(searchInput, { target: { value: "debounced" } });
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(searchInput, { target: { value: "debounced" } });
 
-    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
-    vi.advanceTimersByTime(249);
-    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
+      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
+      await act(async () => {
+        vi.advanceTimersByTime(249);
+      });
+      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
 
-    vi.advanceTimersByTime(1);
-    await Promise.resolve();
-    expect(mockGetSchemaObjects).toHaveBeenCalledTimes(callsBeforeSearch);
-
-    vi.advanceTimersByTime(250);
-    expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
-      1,
-      expect.objectContaining({ database: "db1", q: "debounced", page: 1 }),
-    );
-    vi.useRealTimers();
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(
+        1,
+        expect.objectContaining({ database: "db1", q: "debounced", page: 1 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("typing more within 250ms aborts the previous debounce timer", async () => {
@@ -1501,6 +1521,12 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
 
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
     await user.type(searchInput, "first_query");
+    await waitFor(() => {
+      expect(mockGetSchemaObjects).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ database: "db1", q: "first_query", page: 1 }),
+      );
+    });
 
     await user.clear(searchInput);
     await user.type(searchInput, "second_query");
@@ -1571,7 +1597,7 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
       pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
     });
 
-    const { rerender } = render(
+    render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <QueryObjectExplorer targetId={1} store={new QuerySchemaStore()} onPreviewRequest={vi.fn()} />
       </NextIntlClientProvider>,
@@ -1580,6 +1606,7 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
     await user.click(screen.getByRole("button", { name: "mydb" }));
 
     expect(screen.getByRole("textbox", { name: /search objects in mydb/i })).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: /search objects in mydb/i }), "orders");
     expect(screen.getByRole("button", { name: /clear search in mydb/i })).toBeInTheDocument();
   });
 });

@@ -349,6 +349,24 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateWorksheetById(activeWorksheetId, patch);
   }
 
+  function replaceActiveStatement(statement: string, formatError: string | null = null) {
+    updateActiveWorksheet({
+      statement,
+      formatError,
+      isDirty: true,
+      isExecuting: false,
+      requestId: crypto.randomUUID(),
+      previewProvenance: null,
+      relatedRecords: {
+        status: "idle",
+        generation: activeWorksheet.relatedRecords.generation + 1,
+      },
+      explain: invalidateExplainState(activeWorksheet.explain),
+      currentPage: 1,
+      resultPagination: null,
+    });
+  }
+
   function guardedUpdateWorksheet(
     worksheetId: string,
     requestId: string,
@@ -1426,15 +1444,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
               onStatementChange={(value) => {
-                updateActiveWorksheet({
-                  statement: value,
-                  isDirty: true,
-                  previewProvenance: null,
-                  relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
-                   explain: invalidateExplainState(activeWorksheet.explain),
-                   currentPage: 1,
-                   resultPagination: null,
-                });
+                replaceActiveStatement(value);
               }}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value, currentPage: 1, resultPagination: null })}
@@ -1535,7 +1545,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             targetResourceId={activeWorksheet.targetResourceId}
             currentStatement={activeWorksheet.statement}
             onStatementLoad={(statement) => {
-              updateActiveWorksheet({ statement, currentPage: 1, resultPagination: null });
+              replaceActiveStatement(statement);
             }}
           />
         </div>

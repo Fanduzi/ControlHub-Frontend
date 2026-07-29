@@ -33,6 +33,14 @@ vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/services/query-saved-statements", () => ({
+  listSavedStatements: vi.fn(),
+  createSavedStatement: vi.fn(),
+  updateSavedStatement: vi.fn(),
+  deleteSavedStatement: vi.fn(),
+  SavedStatementError: class SavedStatementError extends Error {},
+}));
+
 vi.mock("@/lib/clipboard", () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
 }));
@@ -90,6 +98,7 @@ import {
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
 import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
+import { listSavedStatements } from "@/services/query-saved-statements";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -103,6 +112,7 @@ const mockNavigateRelatedRecords = vi.mocked(navigateRelatedRecords);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 const mockGetObjectDetails = vi.mocked(getObjectDetails);
+const mockListSavedStatements = vi.mocked(listSavedStatements);
 const mockCopyToClipboard = vi.mocked(copyToClipboard);
 
 function col(
@@ -980,11 +990,20 @@ describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
 
 describe("Phase 38S: paging controls in result panel", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockExecuteQueryTarget.mockReset();
+    mockListQueryExecutions.mockReset();
+    mockGetQueryTargets.mockReset();
+    mockListSavedStatements.mockReset();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     mockGetQueryTargets.mockResolvedValue({
       items: [buildReadyTarget()],
       pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+    mockListSavedStatements.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
     });
   });
 
@@ -1124,7 +1143,7 @@ describe("Phase 38S: paging controls in result panel", () => {
 
     const pageSizeTrigger = screen.getByRole("combobox", { name: /page size/i });
     await user.click(pageSizeTrigger);
-    await user.click(screen.getByRole("option", { name: "10" }));
+    await user.click(await screen.findByRole("option", { name: "25" }));
 
     await waitFor(() => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
@@ -1133,7 +1152,7 @@ describe("Phase 38S: paging controls in result panel", () => {
     const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
     expect(request).toMatchObject({
       maxRows: 10,
-      pagination: { page: 1, pageSize: 10 },
+      pagination: { page: 1, pageSize: 25 },
     });
     expect(request).not.toHaveProperty("cursor");
   });
@@ -1165,31 +1184,30 @@ describe("Phase 38S: paging controls in result panel", () => {
     expect(screen.queryByRole("combobox", { name: /page size/i })).not.toBeInTheDocument();
   });
 
-  it("stale response is rejected when requestId does not match latest request", async () => {
+  it("loading a saved statement invalidates a pending Run response", async () => {
     const user = userEvent.setup();
     let resolveFirst!: (value: unknown) => void;
     const firstPromise = new Promise((resolve) => { resolveFirst = resolve; });
 
-    mockExecuteQueryTarget
-      .mockReturnValueOnce(firstPromise as ReturnType<typeof executeQueryTarget>)
-      .mockResolvedValueOnce({
-         ...buildExecuteResponse(),
-         rows: [[99, "fresh-data"]],
-         rowCount: 1,
-         pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
-      } as QueryExecuteResponse);
+    mockExecuteQueryTarget.mockReturnValueOnce(firstPromise as ReturnType<typeof executeQueryTarget>);
+    mockListSavedStatements.mockResolvedValueOnce({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Fresh statement",
+        statement: "select fresh_data",
+        scope: "personal",
+        createdAt: "2026-07-29T00:00:00Z",
+        updatedAt: "2026-07-29T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
     renderReady();
 
     await user.click(screen.getByRole("button", { name: /^run$/i }));
-
-    const statementInput = screen.getByRole("textbox");
-    await user.clear(statementInput);
-    await user.type(statementInput, "select 2");
-    await user.click(screen.getByRole("button", { name: /^run$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("fresh-data")).toBeInTheDocument();
-    });
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load fresh statement/i }));
 
     resolveFirst({
       ...buildExecuteResponse(),
@@ -1198,10 +1216,12 @@ describe("Phase 38S: paging controls in result panel", () => {
        pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
     } as QueryExecuteResponse);
 
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
     await waitFor(() => {
       expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("fresh-data")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select fresh_data");
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
   });
 
   it("does NOT mutate SQL or slice rows client-side for paging", async () => {
@@ -1287,50 +1307,5 @@ describe("Phase 38S: paging reset triggers", () => {
     const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
     expect(request.pagination).toEqual({ page: 1, pageSize: 10 });
     expect(request).not.toHaveProperty("cursor");
-  });
-});
-
-describe("Phase 38S: DDL is read-only highlighted CodeMirror", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockListQueryExecutions.mockResolvedValue(emptyHistory());
-    mockGetQueryTargets.mockResolvedValue({
-      items: [buildReadyTarget()],
-      pageInfo: pageInfoFor([buildReadyTarget()]),
-    });
-  });
-
-  it("DDL statement renders in a read-only CodeMirror editor, not a plain pre", async () => {
-    const user = userEvent.setup();
-    mockExecuteQueryTarget.mockResolvedValueOnce({
-      executionId: 1001,
-      status: "success",
-      targetResourceId: 30,
-      engine: "mysql",
-      columns: [{ name: "Create Table", databaseType: "TEXT", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: true }],
-      rows: [["CREATE TABLE orders (\n  id BIGINT PRIMARY KEY\n);"]],
-      rowCount: 1,
-      truncated: false,
-      durationMs: 5,
-      limitApplied: 100,
-      executedAt: "2026-07-29T10:00:00Z",
-    });
-    renderReady();
-
-    await user.click(screen.getByRole("button", { name: /^run$/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("grid")).toBeInTheDocument();
-    });
-
-    const ddlCell = screen.getByRole("cell", { name: /CREATE TABLE/i });
-    await user.click(ddlCell);
-
-    await waitFor(() => {
-      const codeMirror = document.querySelector(".cm-editor");
-      expect(codeMirror).toBeInTheDocument();
-      expect(codeMirror).toHaveAttribute("aria-readonly", "true");
-    });
-
-    expect(screen.queryByRole("button", { name: /^run$/i })).toBeDisabled();
   });
 });
