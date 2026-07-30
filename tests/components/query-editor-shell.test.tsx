@@ -1116,7 +1116,7 @@ describe("Phase 38S: paging controls in result panel", () => {
     const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
     expect(request).toMatchObject({
       statement: "select 1",
-      maxRows: 10,
+      maxRows: 100,
       pagination: { page: 2, pageSize: 10 },
     });
   });
@@ -1151,7 +1151,7 @@ describe("Phase 38S: paging controls in result panel", () => {
 
     const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
     expect(request).toMatchObject({
-      maxRows: 10,
+      maxRows: 100,
       pagination: { page: 1, pageSize: 25 },
     });
     expect(request).not.toHaveProperty("cursor");
@@ -1248,6 +1248,7 @@ describe("Phase 38S: paging controls in result panel", () => {
 describe("Phase 38S: paging reset triggers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     mockGetQueryTargets.mockResolvedValue({
       items: [buildReadyTarget()],
@@ -1307,5 +1308,72 @@ describe("Phase 38S: paging reset triggers", () => {
     const [, request] = mockExecuteQueryTarget.mock.calls[1]!;
     expect(request.pagination).toEqual({ page: 1, pageSize: 10 });
     expect(request).not.toHaveProperty("cursor");
+  });
+});
+
+describe("Phase 38S repair: maxRows default and persistence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("runs with default maxRows 100 so the default page size can page forward", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
+    } as QueryExecuteResponse);
+    renderReady();
+
+    expect(screen.getByRole("spinbutton", { name: /max rows/i })).toHaveValue(100);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    expect(request).toMatchObject({
+      maxRows: 100,
+      pagination: { page: 1, pageSize: 10 },
+    });
+  });
+
+  it("persists a changed maxRows to localStorage", async () => {
+    const user = userEvent.setup();
+    renderReady();
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.type(maxRowsInput, "250");
+
+    expect(window.localStorage.getItem("controlhub.query.max-rows")).toBe("250");
+  });
+
+  it("restores the persisted maxRows on mount and sends it with Run", async () => {
+    window.localStorage.setItem("controlhub.query.max-rows", "250");
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
+    } as QueryExecuteResponse);
+    renderReady();
+
+    await waitFor(() => {
+      expect(screen.getByRole("spinbutton", { name: /max rows/i })).toHaveValue(250);
+    });
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    expect(request).toMatchObject({ maxRows: 250 });
   });
 });

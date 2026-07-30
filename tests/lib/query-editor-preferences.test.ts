@@ -2,11 +2,14 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
   clampEditorHeight,
+  getMaxRows,
   getPageSize,
   normalizeEditorTheme,
   parseStoredEditorHeight,
+  QUERY_MAX_ROWS_STORAGE_KEY,
   QUERY_RESULT_PAGE_SIZE_STORAGE_KEY,
   QUERY_RESULT_PAGE_SIZES,
+  setMaxRows,
   setPageSize,
 } from "@/lib/query-editor-preferences";
 
@@ -92,5 +95,46 @@ describe("Phase 38S: page-size localStorage persistence", () => {
     window.dispatchEvent(event);
 
     expect(event.newValue).toBe("50");
+  });
+});
+
+describe("Phase 38S: maxRows localStorage persistence", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("defaults to 100 total released rows when localStorage is empty", () => {
+    expect(getMaxRows()).toBe(100);
+  });
+
+  it("persists maxRows to its own storage key on change", () => {
+    setMaxRows(250);
+
+    expect(localStorage.getItem(QUERY_MAX_ROWS_STORAGE_KEY)).toBe("250");
+    expect(getMaxRows()).toBe(250);
+  });
+
+  it("rejects non-positive, fractional, and beyond-hard-cap values", () => {
+    for (const invalid of [0, -5, 2.5, 501, Number.NaN]) {
+      setMaxRows(invalid);
+      expect(localStorage.getItem(QUERY_MAX_ROWS_STORAGE_KEY)).toBeNull();
+    }
+  });
+
+  it("ignores invalid stored maxRows and uses the default", () => {
+    for (const stored of ["0", "-1", "abc", "501", "2.5"]) {
+      localStorage.setItem(QUERY_MAX_ROWS_STORAGE_KEY, stored);
+      expect(getMaxRows()).toBe(100);
+    }
+  });
+
+  it("falls back to the default when localStorage access fails", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+
+    expect(getMaxRows()).toBe(100);
+
+    getItem.mockRestore();
   });
 });

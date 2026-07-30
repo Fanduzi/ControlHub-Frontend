@@ -85,3 +85,42 @@ export function setPageSize(value: number): void {
     // no-excuse-ok: catch — localStorage failures must not block execution.
   }
 }
+
+export const QUERY_MAX_ROWS_STORAGE_KEY = "controlhub.query.max-rows";
+export const DEFAULT_QUERY_MAX_ROWS = 100;
+// Mirrors the backend guard's HardMaxRows; larger values would be clamped
+// server-side anyway, so they are not worth persisting.
+const MAX_QUERY_MAX_ROWS = 500;
+
+function isValidMaxRows(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= MAX_QUERY_MAX_ROWS;
+}
+
+export function getMaxRows(): number {
+  try {
+    if (typeof window === "undefined") {
+      return DEFAULT_QUERY_MAX_ROWS;
+    }
+
+    const stored = localStorage.getItem(QUERY_MAX_ROWS_STORAGE_KEY);
+    if (stored !== null) {
+      const parsed = Number(stored);
+      if (isValidMaxRows(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // no-excuse-ok: catch — localStorage failures use the safe default.
+  }
+  return DEFAULT_QUERY_MAX_ROWS;
+}
+
+export function setMaxRows(value: number): void {
+  if (!isValidMaxRows(value)) return;
+  try {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(QUERY_MAX_ROWS_STORAGE_KEY, String(value));
+  } catch {
+    // no-excuse-ok: catch — localStorage failures must not block execution.
+  }
+}

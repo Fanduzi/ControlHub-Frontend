@@ -65,6 +65,8 @@ import {
   normalizeEditorTheme,
   parseStoredEditorHeight,
   QUERY_EDITOR_HEIGHT_STORAGE_KEY,
+  getMaxRows,
+  setMaxRows as persistMaxRows,
   getPageSize,
   setPageSize as persistPageSize,
   QUERY_RESULT_PAGE_SIZES,
@@ -100,7 +102,7 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
 ];
 
 const DEFAULT_STATEMENT = "select 1";
-const DEFAULT_MAX_ROWS = 10;
+const DEFAULT_MAX_ROWS = 100;
 const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "success",
   "rejected",
@@ -278,7 +280,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     name: `Worksheet ${index}`,
     targetResourceId,
     statement: DEFAULT_STATEMENT,
-    maxRows: DEFAULT_MAX_ROWS,
+    maxRows: getMaxRows(),
     isExecuting: false,
     result: null,
     error: null,
@@ -854,6 +856,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   useEffect(() => {
     setPageSizeState(getPageSize());
+  }, []);
+
+  // Restore the persisted maxRows preference after hydration, before any
+  // execution can happen.
+  useEffect(() => {
+    const storedMaxRows = getMaxRows();
+    setWorksheets((previous) =>
+      previous.map((ws) => ({ ...ws, maxRows: storedMaxRows })),
+    );
   }, []);
 
   function handleEditorResizePointerDown(
@@ -1447,7 +1458,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 replaceActiveStatement(value);
               }}
               maxRows={activeWorksheet.maxRows}
-              onMaxRowsChange={(value) => updateActiveWorksheet({ maxRows: value, currentPage: 1, resultPagination: null })}
+              onMaxRowsChange={(value) => {
+                persistMaxRows(value);
+                updateActiveWorksheet({ maxRows: value, currentPage: 1, resultPagination: null });
+              }}
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}

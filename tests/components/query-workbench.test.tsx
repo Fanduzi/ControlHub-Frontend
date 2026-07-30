@@ -675,7 +675,7 @@ describe("QueryWorkbench execution (ready target)", () => {
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
-      maxRows: 10,
+      maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
     });
     // The actor must never appear in the request arguments.
@@ -2046,7 +2046,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
-      maxRows: 10,
+      maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
     });
   });
@@ -2349,7 +2349,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
     expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, {
       statement: "select 1",
-      maxRows: 10,
+      maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
     });
   });
