@@ -166,10 +166,11 @@ test.describe("Interaction stability QA gate", () => {
       await expect(page).toHaveURL(/resourceSubtype=mysql/, { timeout: 5_000 });
     }
 
-    // Assert menu closed — press Escape to ensure dropdown dismisses, then verify.
+    // Multi-select options keep the menu open. Toggle its own trigger to close
+    // the active menu without depending on which element owns keyboard focus.
     const menuContent = page.locator('[data-slot="dropdown-menu-content"]');
     if (await menuContent.isVisible({ timeout: 1_000 }).catch(() => false)) {
-      await page.keyboard.press("Escape");
+      await engineTrigger.click();
     }
     await expect(menuContent).not.toBeVisible({ timeout: 5_000 });
 

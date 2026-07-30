@@ -41,14 +41,19 @@ export async function assertAccentIsPurple(page: Page): Promise<void> {
 }
 
 export async function assertNoResidualOverlays(page: Page): Promise<void> {
-  const dialogs = await page.locator('[role="dialog"]').count();
-  expect(dialogs, "No [role=dialog] residue").toBe(0);
-
-  const overlays = await page.locator('[data-slot="sheet-overlay"]').count();
-  expect(overlays, "No sheet-overlay residue").toBe(0);
-
-  const inertElements = await page.locator("[inert]").count();
-  expect(inertElements, "No [inert] residue").toBe(0);
+  // Base UI keeps exit-transition nodes mounted briefly after a Sheet closes.
+  // Wait for their removal so this assertion verifies residue, not animation timing.
+  await expect(
+    page.locator('[role="dialog"]'),
+    "No [role=dialog] residue",
+  ).toHaveCount(0, { timeout: 5_000 });
+  await expect(
+    page.locator('[data-slot="sheet-overlay"]'),
+    "No sheet-overlay residue",
+  ).toHaveCount(0, { timeout: 5_000 });
+  await expect(page.locator("[inert]"), "No [inert] residue").toHaveCount(0, {
+    timeout: 5_000,
+  });
 }
 
 export async function assertRowClickOpensSheet(page: Page): Promise<void> {
