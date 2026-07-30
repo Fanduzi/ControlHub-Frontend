@@ -487,33 +487,48 @@ describe("Phase 38S: governed result paging request shape", () => {
     vi.clearAllMocks();
   });
 
-  it("sends exact pagination request body with cursor and pageSize", async () => {
-    // Contract: executeQueryTarget must accept {statement, maxRows, cursor, pageSize}
-    // and send cursor + pageSize in the POST body for page-N requests.
+  it("sends exact pagination request body with page and pageSize", async () => {
+    // Contract: executeQueryTarget accepts {statement, maxRows, pagination} and
+    // sends the structured pagination object in the POST body for page-N requests.
     mockApiClient.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      cursor: "eyJvZmZzZXQiOjEwMH0=",
-      hasMore: true,
+      pagination: { page: 2, pageSize: 25, hasPreviousPage: true, hasNextPage: true },
     });
 
     await executeQueryTarget(22, {
       statement: "select * from orders",
       maxRows: 100,
-      cursor: "eyJvZmZzZXQiOjEwMH0=",
-      pageSize: 25,
+      pagination: { page: 2, pageSize: 25 },
     });
 
     const [, init] = mockApiClient.mock.calls[0]!;
     expect(requestBody(init)).toEqual({
       statement: "select * from orders",
       maxRows: 100,
-      cursor: "eyJvZmZzZXQiOjEwMH0=",
-      pageSize: 25,
+      pagination: { page: 2, pageSize: 25 },
     });
   });
 
+  it("never sends phantom cursor or top-level pageSize fields", async () => {
+    // Contract: the wire body contains only statement/maxRows/pagination — the
+    // cursor-style fields were never part of the backend contract.
+    mockApiClient.mockResolvedValueOnce(buildExecuteResponse());
+
+    await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+      pagination: { page: 1, pageSize: 10 },
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    const body = requestBody(init);
+    expect(Object.keys(body).sort()).toEqual(["maxRows", "pagination", "statement"]);
+    expect(body).not.toHaveProperty("cursor");
+    expect(body).not.toHaveProperty("pageSize");
+  });
+
   it("sends legacy request body without pagination fields when none provided", async () => {
-    // Contract: backward compat — omitting cursor/pageSize produces the Phase 37 shape.
+    // Contract: backward compat — omitting pagination produces the Phase 37 shape.
     mockApiClient.mockResolvedValueOnce(buildExecuteResponse());
 
     await executeQueryTarget(22, { statement: "select 1" });
@@ -527,63 +542,60 @@ describe("Phase 38S: governed result paging request shape", () => {
     expect(body).not.toHaveProperty("offset");
   });
 
-  it("returns response with cursor, hasMore, and requestId fields", async () => {
-    // Contract: paged response extends QueryExecuteResponse with paging metadata.
+  it("returns structured pagination response metadata unchanged", async () => {
+    // Contract: paged response extends QueryExecuteResponse with a pagination object.
     const pagedResponse = {
       ...buildExecuteResponse(),
-      cursor: "eyJvZmZzZXQiOjI1fQ==",
-      hasMore: true,
-      requestId: "req-abc-123",
+      pagination: { page: 2, pageSize: 25, hasPreviousPage: true, hasNextPage: true },
     };
     mockApiClient.mockResolvedValueOnce(pagedResponse);
 
     const result = await executeQueryTarget(22, {
       statement: "select * from orders",
       maxRows: 100,
-      pageSize: 25,
+      pagination: { page: 2, pageSize: 25 },
     });
 
-    expect(result).toHaveProperty("cursor");
-    expect(result).toHaveProperty("hasMore");
-    expect(result).toHaveProperty("requestId");
-    expect((result as Record<string, unknown>).hasMore).toBe(true);
-    expect(typeof (result as Record<string, unknown>).requestId).toBe("string");
+    expect(result.pagination).toEqual({
+      page: 2,
+      pageSize: 25,
+      hasPreviousPage: true,
+      hasNextPage: true,
+    });
+    expect(result).not.toHaveProperty("cursor");
+    expect(result).not.toHaveProperty("hasMore");
+    expect(result).not.toHaveProperty("requestId");
   });
 
-  it("page 1 response has cursor=null and hasMore=true when more rows exist", async () => {
-    // Contract: first page returns cursor=null (use initial request), hasMore signals continuation.
+  it("first page response has hasPreviousPage=false and hasNextPage=true when more rows exist", async () => {
     mockApiClient.mockResolvedValueOnce({
       ...buildExecuteResponse(),
       rowCount: 25,
-      cursor: null,
-      hasMore: true,
-      requestId: "req-001",
+      pagination: { page: 1, pageSize: 25, hasPreviousPage: false, hasNextPage: true },
     });
 
     const result = await executeQueryTarget(22, {
       statement: "select * from big_table",
-      pageSize: 25,
+      pagination: { page: 1, pageSize: 25 },
     });
 
-    expect((result as Record<string, unknown>).cursor).toBeNull();
-    expect((result as Record<string, unknown>).hasMore).toBe(true);
+    expect(result.pagination?.hasPreviousPage).toBe(false);
+    expect(result.pagination?.hasNextPage).toBe(true);
   });
 
-  it("last page response has hasMore=false", async () => {
+  it("last page response has hasNextPage=false", async () => {
     mockApiClient.mockResolvedValueOnce({
       ...buildExecuteResponse(),
       rowCount: 5,
-      cursor: null,
-      hasMore: false,
-      requestId: "req-002",
+      pagination: { page: 1, pageSize: 25, hasPreviousPage: false, hasNextPage: false },
     });
 
     const result = await executeQueryTarget(22, {
       statement: "select * from small_table",
-      pageSize: 25,
+      pagination: { page: 1, pageSize: 25 },
     });
 
-    expect((result as Record<string, unknown>).hasMore).toBe(false);
+    expect(result.pagination?.hasNextPage).toBe(false);
   });
 
   it("pageSize values [10, 25, 50, 100] are all accepted without error", async () => {
@@ -593,17 +605,18 @@ describe("Phase 38S: governed result paging request shape", () => {
     for (const size of allowedSizes) {
       mockApiClient.mockResolvedValueOnce({
         ...buildExecuteResponse(),
-        cursor: null,
-        hasMore: false,
-        requestId: `req-size-${size}`,
+        pagination: { page: 1, pageSize: size, hasPreviousPage: false, hasNextPage: false },
       });
 
       await expect(
-        executeQueryTarget(22, { statement: "select 1", pageSize: size }),
+        executeQueryTarget(22, {
+          statement: "select 1",
+          pagination: { page: 1, pageSize: size },
+        }),
       ).resolves.toBeDefined();
 
       const [, init] = mockApiClient.mock.calls[mockApiClient.mock.calls.length - 1]!;
-      expect(requestBody(init)).toHaveProperty("pageSize", size);
+      expect(requestBody(init)).toHaveProperty("pagination", { page: 1, pageSize: size });
     }
   });
 
@@ -611,14 +624,12 @@ describe("Phase 38S: governed result paging request shape", () => {
     // Contract: the frontend must NOT append LIMIT/OFFSET or slice rows client-side.
     mockApiClient.mockResolvedValueOnce({
       ...buildExecuteResponse(),
-      cursor: null,
-      hasMore: false,
-      requestId: "req-no-mutate",
+      pagination: { page: 1, pageSize: 25, hasPreviousPage: false, hasNextPage: false },
     });
 
     await executeQueryTarget(22, {
       statement: "select * from orders",
-      pageSize: 25,
+      pagination: { page: 1, pageSize: 25 },
     });
 
     const [, init] = mockApiClient.mock.calls[0]!;
@@ -632,28 +643,52 @@ describe("Phase 38S: governed result paging request shape", () => {
 });
 
 describe("Phase 38S: governed result paging QueryExecuteRequest type surface", () => {
-  it("QueryExecuteRequest type accepts cursor and pageSize fields", () => {
-    // This test exercises the type contract. If cursor/pageSize are missing from
-    // the type, TypeScript compilation will fail (not a runtime test, but the
-    // import + assignment below validates the shape exists at compile time).
+  it("QueryExecuteRequest type accepts a structured pagination field", () => {
+    // Type contract: paging is expressed only through the pagination object.
+    // If the field is missing from the type, TypeScript compilation fails.
     const request: import("@/types/query-execution").QueryExecuteRequest = {
       statement: "select 1",
-      cursor: "abc",
-      pageSize: 25,
+      pagination: { page: 2, pageSize: 25 },
     };
-    expect(request.cursor).toBe("abc");
-    expect(request.pageSize).toBe(25);
+    expect(request.pagination).toEqual({ page: 2, pageSize: 25 });
   });
 
-  it("QueryExecuteResponse type accepts cursor, hasMore, and requestId fields", () => {
+  it("QueryExecuteResponse type accepts structured pagination metadata", () => {
     const response: import("@/types/query-execution").QueryExecuteResponse = {
       ...buildExecuteResponse(),
-      cursor: "next-page-token",
-      hasMore: true,
-      requestId: "req-123",
+      pagination: { page: 1, pageSize: 25, hasPreviousPage: false, hasNextPage: true },
     };
-    expect((response as Record<string, unknown>).cursor).toBe("next-page-token");
-    expect((response as Record<string, unknown>).hasMore).toBe(true);
-    expect((response as Record<string, unknown>).requestId).toBe("req-123");
+    expect(response.pagination).toEqual({
+      page: 1,
+      pageSize: 25,
+      hasPreviousPage: false,
+      hasNextPage: true,
+    });
+  });
+
+  it("rejects the phantom cursor wire fields at the type level", () => {
+    // These assignments must be type errors: the backend contract has no
+    // cursor-style paging. If the phantom fields reappear on the types, the
+    // expect-error directives below become unused and tsc fails.
+    const badCursorRequest: import("@/types/query-execution").QueryExecuteRequest = {
+      statement: "select 1",
+      // @ts-expect-error QueryExecuteRequest has no `cursor` field
+      cursor: "abc",
+    };
+    const badPageSizeRequest: import("@/types/query-execution").QueryExecuteRequest = {
+      statement: "select 1",
+      // @ts-expect-error QueryExecuteRequest has no top-level `pageSize` field
+      pageSize: 25,
+    };
+    const badResponse: import("@/types/query-execution").QueryExecuteResponse = {
+      ...buildExecuteResponse(),
+      // @ts-expect-error QueryExecuteResponse has no `cursor`/`hasMore`/`requestId`
+      cursor: "next",
+      hasMore: true,
+      requestId: "req-1",
+    };
+    expect(badCursorRequest.statement).toBe("select 1");
+    expect(badPageSizeRequest.statement).toBe("select 1");
+    expect(badResponse.executionId).toBe(1001);
   });
 });

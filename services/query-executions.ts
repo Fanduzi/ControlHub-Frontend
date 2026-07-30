@@ -101,9 +101,9 @@ function toQueryExecuteError(error: unknown): QueryExecuteError {
 
 /**
  * Execute a single guarded SELECT against a ready query target. Posts only
- * `statement` and an optional `maxRows` — never `actorUserId` or credentials.
- * Resolves with the backend execution response, or rejects with a controlled
- * `QueryExecuteError`.
+ * `statement`, an optional `maxRows` release cap, and an optional structured
+ * `pagination` object — never `actorUserId` or credentials. Resolves with the
+ * backend execution response, or rejects with a controlled `QueryExecuteError`.
  */
 export async function executeQueryTarget(
   targetResourceId: number,
@@ -112,8 +112,6 @@ export async function executeQueryTarget(
   const body: QueryExecuteRequest = {
     statement: input.statement,
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
-    ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
-    ...(input.pageSize !== undefined ? { pageSize: input.pageSize } : {}),
     ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };
 

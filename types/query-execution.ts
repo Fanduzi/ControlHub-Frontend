@@ -31,19 +31,18 @@ export type QueryExecutePaginationResponse = {
 };
 
 /**
- * Request body for `POST /query-targets/{id}/execute`. Only `statement` and an
- * optional `maxRows` cap are ever sent. The actor is derived from the verified
- * Bearer token on the server — it must never appear here.
+ * Request body for `POST /query-targets/{id}/execute`. Only `statement`, an
+ * optional `maxRows` cap, and an optional structured `pagination` object are
+ * ever sent. The actor is derived from the verified Bearer token on the
+ * server — it must never appear here.
  *
- * Phase 38S adds optional cursor-based paging fields (`cursor`, `pageSize`)
- * and a structured `pagination` object for page-number paging. All paging
- * fields are omitted from the wire body when not supplied.
+ * Phase 38S adds the optional `pagination` object for page-number paging.
+ * `maxRows` remains the overall row-release cap across all pages; it is
+ * omitted from the wire body when not supplied, as is `pagination`.
  */
 export type QueryExecuteRequest = {
   statement: string;
   maxRows?: number;
-  cursor?: string;
-  pageSize?: number;
   pagination?: QueryExecutePaginationRequest;
 };
 
@@ -66,10 +65,9 @@ export type QueryResultColumn = {
 export type QueryResultCellValue = string | number | boolean | null;
 
 /**
- * Response body for `POST /query-targets/{id}/execute`. Phase 38S adds optional
- * cursor-based paging metadata (`cursor`, `hasMore`, `requestId`) and a
- * structured `pagination` object for page-number paging. All paging fields are
- * absent in non-paged responses.
+ * Response body for `POST /query-targets/{id}/execute`. Phase 38S adds an
+ * optional structured `pagination` object for page-number paging. The field
+ * is absent in non-paged responses.
  */
 export type QueryExecuteResponse = {
   executionId: number;
@@ -83,9 +81,6 @@ export type QueryExecuteResponse = {
   durationMs: number;
   limitApplied: number;
   executedAt: string;
-  cursor?: string | null;
-  hasMore?: boolean;
-  requestId?: string;
   pagination?: QueryExecutePaginationResponse;
 };
 
