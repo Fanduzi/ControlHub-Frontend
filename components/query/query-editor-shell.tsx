@@ -62,7 +62,9 @@ import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
   clampEditorHeight,
   DEFAULT_QUERY_EDITOR_HEIGHT,
+  DEFAULT_QUERY_MAX_ROWS,
   normalizeEditorTheme,
+  normalizeMaxRows,
   parseStoredEditorHeight,
   QUERY_EDITOR_HEIGHT_STORAGE_KEY,
   getMaxRows,
@@ -102,7 +104,6 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
 ];
 
 const DEFAULT_STATEMENT = "select 1";
-const DEFAULT_MAX_ROWS = 100;
 const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "success",
   "rejected",
@@ -253,7 +254,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     name: "Worksheet 1",
     targetResourceId,
     statement: DEFAULT_STATEMENT,
-    maxRows: DEFAULT_MAX_ROWS,
+    maxRows: DEFAULT_QUERY_MAX_ROWS,
     isExecuting: false,
     result: null,
     error: null,
@@ -763,7 +764,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
     const quotedDb = `\`${request.database.replace(/`/g, "``")}\``;
     const quotedTable = `\`${request.table.replace(/`/g, "``")}\``;
-    const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_MAX_ROWS}`;
+    const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_QUERY_MAX_ROWS}`;
 
     const newWs: LocalWorksheet = {
       ...createWorksheet(worksheetsRef.current.length + 1, request.targetId),
@@ -1464,11 +1465,17 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               }}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => {
-                persistMaxRows(value);
+                // Normalize before any state or storage write: invalid edits
+                // (cleared input, fractions, out-of-range) are no-ops.
+                const next = normalizeMaxRows(value, activeWorksheet.maxRows);
+                if (next === activeWorksheet.maxRows) {
+                  return;
+                }
+                persistMaxRows(next);
                 // Invalidate any in-flight Run: a response produced under the
                 // old maxRows must not render under the new setting.
                 updateActiveWorksheet({
-                  maxRows: value,
+                  maxRows: next,
                   requestId: crypto.randomUUID(),
                   isExecuting: false,
                   currentPage: 1,
@@ -1747,6 +1754,17 @@ function ReadyWorksheet({
   const explainLoading = explainState.status === "loading";
   const explainButtonDisabled = !explainEnabled || isExecuting || explainLoading;
 
+  // The input shows a raw draft so users can clear/retype freely; only valid
+  // values are committed upward, so worksheet state never holds an invalid cap.
+  // Render-time adjustment (not an effect) resyncs the draft when the
+  // committed value or worksheet changes.
+  const [maxRowsDraft, setMaxRowsDraft] = useState(() => String(maxRows));
+  const [draftSource, setDraftSource] = useState({ worksheetId, maxRows });
+  if (draftSource.worksheetId !== worksheetId || draftSource.maxRows !== maxRows) {
+    setDraftSource({ worksheetId, maxRows });
+    setMaxRowsDraft(String(maxRows));
+  }
+
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
@@ -1783,8 +1801,13 @@ function ReadyWorksheet({
           <Input
             type="number"
             min={1}
-            value={maxRows}
-            onChange={(event) => onMaxRowsChange(Number(event.target.value))}
+            max={500}
+            step={1}
+            value={maxRowsDraft}
+            onChange={(event) => {
+              setMaxRowsDraft(event.target.value);
+              onMaxRowsChange(Number(event.target.value));
+            }}
             aria-label={t("editor.maxRowsLabel")}
             className="h-8 w-20"
           />

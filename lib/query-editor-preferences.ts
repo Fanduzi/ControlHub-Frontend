@@ -96,6 +96,21 @@ function isValidMaxRows(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= MAX_QUERY_MAX_ROWS;
 }
 
+// Narrow normalizer: worksheet state and Run requests must only ever carry a
+// finite integer in 1..500, so invalid edits fall back instead of propagating.
+export function normalizeMaxRows(
+  value: unknown,
+  fallback: number = DEFAULT_QUERY_MAX_ROWS,
+): number {
+  if (typeof value === "number" && isValidMaxRows(value)) {
+    return value;
+  }
+  if (isValidMaxRows(fallback)) {
+    return fallback;
+  }
+  return DEFAULT_QUERY_MAX_ROWS;
+}
+
 export function getMaxRows(): number {
   try {
     if (typeof window === "undefined") {

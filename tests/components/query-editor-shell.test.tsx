@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryResultColumn } from "@/types/query-execution";
 import { QueryExecuteError } from "@/services/query-executions";
+import { DEFAULT_QUERY_MAX_ROWS } from "@/lib/query-editor-preferences";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
@@ -1468,5 +1469,102 @@ describe("Phase 38S repair: worksheet-scoped pageSize and in-flight invalidation
     });
     expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+});
+
+describe("Phase 38T: worksheet maxRows is valid by construction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("running with a cleared max-rows input still sends the last valid maxRows", async () => {
+    // Contract: Number("") === 0 from a cleared input must never reach the
+    // worksheet state, localStorage, or the execute request.
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
+    } as QueryExecuteResponse);
+    renderReady();
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    expect(request.maxRows).toBe(DEFAULT_QUERY_MAX_ROWS);
+    expect(window.localStorage.getItem("controlhub.query.max-rows")).toBeNull();
+  });
+
+  it("an over-cap entry never produces a maxRows above 500 and still resets paging", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
+    } as QueryExecuteResponse);
+    renderReady();
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.type(maxRowsInput, "501");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    expect(Number.isInteger(request.maxRows)).toBe(true);
+    expect(request.maxRows).toBeGreaterThanOrEqual(1);
+    expect(request.maxRows).toBeLessThanOrEqual(500);
+    expect(request.pagination).toEqual({ page: 1, pageSize: 10 });
+    const stored = window.localStorage.getItem("controlhub.query.max-rows");
+    expect(stored === null || (Number.isInteger(Number(stored)) && Number(stored) <= 500 && Number(stored) >= 1)).toBe(true);
+  });
+
+  it("invalid and fractional entries never reach the execute request", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
+    } as QueryExecuteResponse);
+    renderReady();
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.type(maxRowsInput, "2.5");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    const [, request] = mockExecuteQueryTarget.mock.calls[0]!;
+    expect(Number.isNaN(request.maxRows)).toBe(false);
+    expect(Number.isInteger(request.maxRows)).toBe(true);
+    expect(request.maxRows).toBeGreaterThanOrEqual(1);
+    expect(request.maxRows).toBeLessThanOrEqual(500);
+  });
+
+  it("initial and newly-created worksheets share the single exported default", async () => {
+    const user = userEvent.setup();
+    renderReady();
+
+    expect(screen.getByRole("spinbutton", { name: /max rows/i })).toHaveValue(
+      DEFAULT_QUERY_MAX_ROWS,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+
+    expect(screen.getByRole("spinbutton", { name: /max rows/i })).toHaveValue(
+      DEFAULT_QUERY_MAX_ROWS,
+    );
   });
 });

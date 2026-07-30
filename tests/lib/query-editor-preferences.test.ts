@@ -2,9 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
   clampEditorHeight,
+  DEFAULT_QUERY_MAX_ROWS,
   getMaxRows,
   getPageSize,
   normalizeEditorTheme,
+  normalizeMaxRows,
   parseStoredEditorHeight,
   QUERY_MAX_ROWS_STORAGE_KEY,
   QUERY_RESULT_PAGE_SIZE_STORAGE_KEY,
@@ -136,5 +138,32 @@ describe("Phase 38S: maxRows localStorage persistence", () => {
     expect(getMaxRows()).toBe(100);
 
     getItem.mockRestore();
+  });
+});
+
+describe("Phase 38T: maxRows normalization", () => {
+  it("returns finite integers within 1..500 unchanged", () => {
+    expect(normalizeMaxRows(1)).toBe(1);
+    expect(normalizeMaxRows(250)).toBe(250);
+    expect(normalizeMaxRows(500)).toBe(500);
+  });
+
+  it("falls back to the default for NaN, empty conversion, fractions, non-positive, and over-cap values", () => {
+    // Number("") === 0 is what a cleared number input produces.
+    for (const invalid of [Number.NaN, Number(""), 2.5, 0, -5, 501, Number.POSITIVE_INFINITY]) {
+      expect(normalizeMaxRows(invalid)).toBe(DEFAULT_QUERY_MAX_ROWS);
+    }
+  });
+
+  it("prefers a valid fallback over the default", () => {
+    expect(normalizeMaxRows(Number.NaN, 50)).toBe(50);
+    expect(normalizeMaxRows(501, 50)).toBe(50);
+    expect(normalizeMaxRows(0, 500)).toBe(500);
+  });
+
+  it("ignores an invalid fallback and uses the default", () => {
+    expect(normalizeMaxRows(Number.NaN, 0)).toBe(DEFAULT_QUERY_MAX_ROWS);
+    expect(normalizeMaxRows(Number.NaN, 501)).toBe(DEFAULT_QUERY_MAX_ROWS);
+    expect(normalizeMaxRows(Number.NaN, 2.5)).toBe(DEFAULT_QUERY_MAX_ROWS);
   });
 });
