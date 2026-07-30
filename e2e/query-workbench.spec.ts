@@ -3273,3 +3273,275 @@ test.describe("Saved statements (Phase 38R)", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 });
+
+test.describe("Governed result paging (Phase 38S)", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  const PAGING_STATEMENT = "select id, payload from qe_explain_big order by id";
+
+  type ExecuteBody = {
+    statement?: string;
+    maxRows?: number;
+    pagination?: { page: number; pageSize: number };
+  };
+
+  function waitForExecuteRequest(page: Page) {
+    return page.waitForRequest(
+      (req) => req.method() === "POST" && req.url().includes("/execute"),
+    );
+  }
+
+  function resultCell(page: Page, text: string) {
+    return page.locator("td").filter({ hasText: new RegExp(`^${text}$`) });
+  }
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [
+        /Fast Refresh/,
+        /HMR/,
+        /Download the React DevTools/,
+      ],
+      allowedWarnings: [
+        /was preloaded using link preload but not used/,
+      ],
+    });
+    networkErrors = collectNetworkErrors(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `paging-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop EN: default maxRows 100 and pageSize 10 page forward with Next", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    // Locked default: maxRows 100 so the default page size can page forward.
+    await expect(
+      page.getByRole("spinbutton", { name: "Max rows" }),
+    ).toHaveValue("100");
+
+    await clearAndType(page, PAGING_STATEMENT);
+    const firstRequest = waitForExecuteRequest(page);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const firstBody = (await firstRequest).postDataJSON() as ExecuteBody;
+    expect(firstBody.maxRows).toBe(100);
+    expect(firstBody.pagination).toEqual({ page: 1, pageSize: 10 });
+    expect(firstBody.statement).toBe(PAGING_STATEMENT);
+
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+    await expect(resultCell(page, "row-010")).toBeVisible();
+    await expect(resultCell(page, "row-011")).toHaveCount(0);
+
+    const paging = page.getByTestId("result-paging");
+    await expect(paging).toBeVisible();
+    await expect(paging.getByText("Page 1")).toBeVisible();
+    await expect(paging.getByRole("button", { name: "Previous page" })).toBeDisabled();
+
+    const nextRequest = waitForExecuteRequest(page);
+    await paging.getByRole("button", { name: "Next page" }).click();
+    const nextBody = (await nextRequest).postDataJSON() as ExecuteBody;
+    expect(nextBody.maxRows).toBe(100);
+    expect(nextBody.pagination).toEqual({ page: 2, pageSize: 10 });
+    expect(nextBody.statement).toBe(PAGING_STATEMENT);
+
+    await expect(resultCell(page, "row-011")).toBeVisible({ timeout: 30_000 });
+    await expect(resultCell(page, "row-001")).toHaveCount(0);
+    await expect(paging.getByText("Page 2")).toBeVisible();
+    await expect(paging.getByRole("button", { name: "Previous page" })).toBeEnabled();
+  });
+
+  test("375px mobile EN: paging controls work at mobile width", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "en", domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await clearAndType(page, PAGING_STATEMENT);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+
+    const paging = page.getByTestId("result-paging");
+    await expect(paging).toBeVisible();
+    await expect(paging.getByRole("button", { name: "Next page" })).toBeEnabled();
+    await expect(paging.getByRole("combobox", { name: "Page size" })).toBeVisible();
+
+    const nextRequest = waitForExecuteRequest(page);
+    await paging.getByRole("button", { name: "Next page" }).click();
+    const nextBody = (await nextRequest).postDataJSON() as ExecuteBody;
+    expect(nextBody.pagination).toEqual({ page: 2, pageSize: 10 });
+
+    await expect(resultCell(page, "row-011")).toBeVisible({ timeout: 30_000 });
+    await expect(paging.getByText("Page 2")).toBeVisible();
+  });
+
+  test("desktop EN: page size switch re-executes and persists across reload", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await clearAndType(page, PAGING_STATEMENT);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+
+    const paging = page.getByTestId("result-paging");
+    await paging.getByRole("combobox", { name: "Page size" }).click();
+    const switchRequest = waitForExecuteRequest(page);
+    await page.getByRole("option", { name: "50", exact: true }).click();
+    const switchBody = (await switchRequest).postDataJSON() as ExecuteBody;
+    expect(switchBody.pagination).toEqual({ page: 1, pageSize: 50 });
+
+    await expect(resultCell(page, "row-050")).toBeVisible({ timeout: 30_000 });
+    await expect(resultCell(page, "row-051")).toHaveCount(0);
+
+    // Reload: the preference must survive and drive the next Run.
+    await page.reload();
+    await expect(page.getByRole("button", { name: /^(run|执行)$/i })).toBeEnabled({
+      timeout: 15_000,
+    });
+    await clearAndType(page, PAGING_STATEMENT);
+    const reloadRequest = waitForExecuteRequest(page);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const reloadBody = (await reloadRequest).postDataJSON() as ExecuteBody;
+    expect(reloadBody.pagination).toEqual({ page: 1, pageSize: 50 });
+
+    await expect(resultCell(page, "row-050")).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByTestId("result-paging").getByRole("combobox", { name: "Page size" }),
+    ).toContainText("50");
+  });
+
+  test("desktop EN: table definition renders as read-only highlighted SQL", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    const auxDb = explorer.getByRole("treeitem", { name: "query_e2e_aux" });
+    await expect(auxDb).toBeVisible({ timeout: 15_000 });
+    await auxDb.click();
+
+    const childTable = explorer.getByRole("treeitem", { name: "schema_child" });
+    await expect(childTable).toBeVisible({ timeout: 10_000 });
+    await childTable.click();
+
+    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    await expect(inspectButton).toBeVisible({ timeout: 10_000 });
+    await inspectButton.click();
+
+    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    await expect(inspector).toBeVisible();
+    await inspector.getByTestId("view-definition-button").click();
+
+    // The DDL renders inside a read-only CodeMirror editor, not a plain <pre>.
+    const definitionEditor = inspector.locator(".cm-editor");
+    await expect(definitionEditor).toBeVisible({ timeout: 15_000 });
+    await expect(definitionEditor).toHaveAttribute("aria-readonly", "true");
+    await expect(definitionEditor.locator(".cm-content")).toHaveAttribute(
+      "contenteditable",
+      "false",
+    );
+    await expect(inspector.getByText(/CREATE TABLE/)).toBeVisible();
+  });
+
+  test("desktop EN: loading a saved statement resets paging state and Run starts fresh", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    // Save the default `select 1` statement first.
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await page.locator('[aria-label*="Save current statement as personal"]').click();
+    const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const savedName = `Paging invalidation ${suffix}`;
+    await page.getByLabel(/statement name/i).first().fill(savedName);
+    await page.getByRole("button", { name: /^create$/i }).first().click();
+    await expect(page.getByText(savedName).first()).toBeVisible({ timeout: 10_000 });
+
+    // Run a paged query and move to page 2.
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await clearAndType(page, PAGING_STATEMENT);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+    const paging = page.getByTestId("result-paging");
+    await paging.getByRole("button", { name: "Next page" }).click();
+    await expect(resultCell(page, "row-011")).toBeVisible({ timeout: 30_000 });
+    await expect(paging.getByText("Page 2")).toBeVisible();
+
+    // Load the saved statement: paging state must reset and Run stays usable.
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await page
+      .getByRole("button", { name: new RegExp(`load paging invalidation ${suffix}`, "i") })
+      .first()
+      .click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect.poll(() => getEditorContent(page), { timeout: 10_000 }).toContain("select 1");
+    await expect(page.getByTestId("result-paging")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^run$/i })).toBeEnabled();
+
+    // A fresh Run executes the loaded statement from page 1.
+    const freshRequest = waitForExecuteRequest(page);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const freshBody = (await freshRequest).postDataJSON() as ExecuteBody;
+    expect(freshBody.statement).toContain("select 1");
+    expect(freshBody.pagination?.page).toBe(1);
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // Cleanup: delete the saved statement so the test is repeatable.
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await page
+      .getByRole("button", { name: new RegExp(`delete paging invalidation ${suffix}`, "i") })
+      .first()
+      .click();
+    const deleteDialog = page.getByRole("alertdialog");
+    await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
+    await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
+    await expect(page.getByText(savedName)).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test("zh-CN: paging controls are localized with no MISSING_MESSAGE errors", async ({ page }) => {
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "zh-CN", domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await ensureReadyTargetSelected(page);
+
+    await clearAndType(page, PAGING_STATEMENT);
+    await page.getByRole("button", { name: /^执行$/ }).click();
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+
+    const paging = page.getByTestId("result-paging");
+    await expect(paging).toBeVisible();
+    await expect(paging.getByRole("button", { name: "上一页" })).toBeVisible();
+    await expect(paging.getByRole("combobox", { name: "每页行数" })).toBeVisible();
+    await expect(paging.getByText("第 1 页")).toBeVisible();
+
+    const nextRequest = waitForExecuteRequest(page);
+    await paging.getByRole("button", { name: "下一页" }).click();
+    const nextBody = (await nextRequest).postDataJSON() as ExecuteBody;
+    expect(nextBody.pagination).toEqual({ page: 2, pageSize: 10 });
+    await expect(resultCell(page, "row-011")).toBeVisible({ timeout: 30_000 });
+    await expect(paging.getByText("第 2 页")).toBeVisible();
+
+    const missingMessages = consoleMessages.filter((message) =>
+      message.text.includes("MISSING_MESSAGE"),
+    );
+    expect(missingMessages).toHaveLength(0);
+  });
+});
