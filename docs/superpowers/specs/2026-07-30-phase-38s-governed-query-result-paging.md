@@ -28,11 +28,17 @@ locally, and request every page through the existing governed execute endpoint.
 - The backend rejects non-positive pages, unsupported page sizes, integer
   offset overflow, and a page whose offset is at or beyond the effective row
   cap.
+- `maxRows` is the total governed row-release cap for the statement, not a
+  per-page value. The guard clamps the requested value through its default and
+  the absolute `HardMaxRows` cap before computing any page window, so paging
+  can never release more rows in total than the effective cap allows.
 - `pagination` is valid only for a parser-approved bare `SELECT`. Metadata
   statements retain their existing single-response behavior and do not return
   pagination metadata.
 - A paginated SELECT response contains only server-computed
-  `{page, pageSize, hasPreviousPage, hasNextPage}`. It never exposes a total
+  `{page, pageSize, hasPreviousPage, hasNextPage}`. The returned `pageSize` is
+  the effective server-granted window, which may be smaller than the requested
+  page size on the final page before the row cap. It never exposes a total
   row count, snapshot token, cursor, DSN, credential, or disclosure internals.
 - A client-provided `LIMIT` or `OFFSET` never controls the result window. The
   backend AST guard owns `LIMIT pageSize + 1 OFFSET (page - 1) * pageSize`.
@@ -45,10 +51,15 @@ locally, and request every page through the existing governed execute endpoint.
 - Run starts at page 1 using the selected page size. Previous and Next appear
   only when a SELECT response includes pagination metadata.
 - Changing page size re-executes page 1. Changing statement text or max rows
-  resets paging to page 1.
+  resets paging to page 1. Changing max rows also invalidates any in-flight
+  Run by rotating the worksheet request id, so a response produced under the
+  old max rows is never rendered under the new setting.
 - The selected page size is stored only in browser local storage under
   `controlhub.query.result-page-size`; it is not persisted to the backend or
-  query history.
+  query history. The page size is worksheet-scoped state: each worksheet keeps
+  its own selection, and new worksheets seed from the stored preference.
+- Max rows defaults to `100` and is stored only in browser local storage under
+  `controlhub.query.max-rows`, mirroring the page-size preference.
 - Paging controls are disabled while a request is in flight. The frontend must
   not slice, cache, or fabricate result pages client-side.
 - Replacing a worksheet statement, including loading a saved statement,

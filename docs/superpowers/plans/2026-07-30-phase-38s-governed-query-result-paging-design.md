@@ -26,9 +26,12 @@ allows the service to derive `hasNextPage` without a count query.
 ## Backend State and Boundaries
 
 `QueryExecutePaginationRequest` carries a 1-based page and a finite page-size
-allowlist. `ValidatePagination` checks input shape and arithmetic overflow;
-`ValidatePaginationPage` also rejects an offset beyond the effective governed
-row cap. The handler rejects invalid input before service execution.
+allowlist. `ValidatePagination` checks input shape and arithmetic overflow at
+the handler boundary. `GuardPaginatedSelect` then clamps the requested max
+rows through the guard default and the absolute `HardMaxRows` cap, and its
+pagination window rejects any offset at or beyond the effective cap and
+truncates the final page so paging never releases more rows in total than the
+cap allows. The response `pageSize` reports that effective window.
 
 The execution service preserves the normal chain for every valid page. A
 metadata statement returns the existing non-paginated response. Page metadata
@@ -39,18 +42,23 @@ pageability from result rows or statement text.
 
 ```text
 worksheet
-  statement, maxRows
+  statement, maxRows, pageSize
   currentPage, resultPagination
   requestId, isExecuting
   result, error
 
 browser local storage
   controlhub.query.result-page-size
+  controlhub.query.max-rows
 ```
 
 `QueryEditorShell` owns worksheet state. Run, Previous, Next, and page-size
 change each create a new request id and call the same governed execute service.
 The response may update a worksheet only when its request id still matches.
+Changing max rows also rotates the request id, so a response produced under
+the previous max rows is discarded rather than rendered under the new setting.
+Page size is worksheet-scoped: each worksheet keeps its own selection, and new
+worksheets seed from the stored preference. Max rows defaults to `100`.
 
 `replaceActiveStatement` is the central statement-change path used by editing
 and saved-statement loading. It keeps existing result/history data inert, but
