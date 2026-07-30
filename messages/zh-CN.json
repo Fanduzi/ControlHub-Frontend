@@ -619,10 +619,8 @@
     "next": "下一页",
     "nextShort": "下一页",
     "page": "第 {page} 页",
-    "pageIndicator": "第 {page} 页，共 {total} 页",
     "pageSize": "每页行数",
-    "pageSizeOption": "每页 {pageSize} 条",
-    "freshExecution": "重新执行"
+    "pageSizeOption": "每页 {pageSize} 条"
   },
   "mutations": {
     "profileSection": "运行时属性",
@@ -982,11 +980,9 @@
     },
     "filters": {
       "search": "搜索目标、引擎或主机",
-      "searchControlLabel": "搜索目标",
       "engine": "全部引擎",
       "queryKind": "全部类型",
-      "readiness": "全部就绪状态",
-      "ddlControlLabel": "DDL / DML 筛选"
+      "readiness": "全部就绪状态"
     },
     "context": {
       "title": "连接上下文",

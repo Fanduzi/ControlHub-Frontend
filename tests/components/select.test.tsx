@@ -125,36 +125,4 @@ describe("Phase 38S: Paging i18n labels", () => {
 
     expect(screen.getByRole("combobox", { name: "每页行数" })).toBeInTheDocument();
   });
-
-  it("EN: pagination.pageIndicator formats correctly", () => {
-    const indicator = enMessages.pagination.pageIndicator
-      .replace("{page}", "3")
-      .replace("{total}", "10");
-    expect(indicator).toBe("Page 3 of 10");
-  });
-
-  it("zh-CN: pagination.pageIndicator formats correctly", () => {
-    const indicator = zhCNMessages.pagination.pageIndicator
-      .replace("{page}", "3")
-      .replace("{total}", "10");
-    expect(indicator).toBe("第 3 页，共 10 页");
-  });
-
-  it("EN: pagination.freshExecution label exists", () => {
-    expect(enMessages.pagination.freshExecution).toBe("Fresh execution");
-  });
-
-  it("zh-CN: pagination.freshExecution label exists", () => {
-    expect(zhCNMessages.pagination.freshExecution).toBe("重新执行");
-  });
-
-  it("EN: search and DDL control labels exist", () => {
-    expect(enMessages.queryWorkbench.filters.searchControlLabel).toBe("Search targets");
-    expect(enMessages.queryWorkbench.filters.ddlControlLabel).toBe("DDL / DML filter");
-  });
-
-  it("zh-CN: search and DDL control labels exist", () => {
-    expect(zhCNMessages.queryWorkbench.filters.searchControlLabel).toBe("搜索目标");
-    expect(zhCNMessages.queryWorkbench.filters.ddlControlLabel).toBe("DDL / DML 筛选");
-  });
 });

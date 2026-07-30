@@ -619,10 +619,8 @@
     "next": "Next page",
     "nextShort": "Next",
     "page": "Page {page}",
-    "pageIndicator": "Page {page} of {total}",
     "pageSize": "Rows per page",
-    "pageSizeOption": "{pageSize} / page",
-    "freshExecution": "Fresh execution"
+    "pageSizeOption": "{pageSize} / page"
   },
   "mutations": {
     "profileSection": "Runtime Profile",
@@ -982,11 +980,9 @@
     },
     "filters": {
       "search": "Search target, engine, or host",
-      "searchControlLabel": "Search targets",
       "engine": "All engines",
       "queryKind": "All kinds",
-      "readiness": "All readiness",
-      "ddlControlLabel": "DDL / DML filter"
+      "readiness": "All readiness"
     },
     "context": {
       "title": "Connection context",
