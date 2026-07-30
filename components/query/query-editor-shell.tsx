@@ -243,6 +243,7 @@ type LocalWorksheet = {
   relatedRecords: RelatedRecordsState;
   explain: ExplainState;
   currentPage: number;
+  pageSize: number;
   resultPagination: QueryExecutePaginationResponse | null;
 };
 
@@ -265,6 +266,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     relatedRecords: { status: "idle", generation: 0 },
     explain: createExplainState(),
     currentPage: 1,
+    pageSize: QUERY_RESULT_PAGE_SIZES[0],
     resultPagination: null,
   };
 }
@@ -293,6 +295,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     relatedRecords: { status: "idle", generation: 0 },
     explain: createExplainState(),
     currentPage: 1,
+    pageSize: getPageSize(),
     resultPagination: null,
   };
 }
@@ -304,7 +307,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
-  const [pageSize, setPageSizeState] = useState<number>(QUERY_RESULT_PAGE_SIZES[0]);
   const [loadedDatabases, setLoadedDatabases] = useState<readonly string[]>([]);
   const [loadedObjects, setLoadedObjects] = useState<readonly ObjectSummary[]>([]);
   const [retargetDialog, setRetargetDialog] = useState<{
@@ -854,12 +856,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }, []);
 
+  // Restore the persisted paging preferences after hydration, before any
+  // execution can happen. Both are per-worksheet state seeded from storage.
   useEffect(() => {
-    setPageSizeState(getPageSize());
+    const storedPageSize = getPageSize();
+    setWorksheets((previous) =>
+      previous.map((ws) => ({ ...ws, pageSize: storedPageSize })),
+    );
   }, []);
 
-  // Restore the persisted maxRows preference after hydration, before any
-  // execution can happen.
   useEffect(() => {
     const storedMaxRows = getMaxRows();
     setWorksheets((previous) =>
@@ -1002,7 +1007,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       const response = await executeQueryTarget(targetId, {
         statement: activeWorksheet.statement,
         maxRows: activeWorksheet.maxRows,
-        pagination: { page: 1, pageSize },
+        pagination: { page: 1, pageSize: activeWorksheet.pageSize },
       });
 
       guardedUpdateWorksheet(worksheetId, requestId, {
@@ -1041,7 +1046,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       const response = await executeQueryTarget(targetId, {
         statement: activeWorksheet.statement,
         maxRows: activeWorksheet.maxRows,
-        pagination: { page: nextPage, pageSize },
+        pagination: { page: nextPage, pageSize: activeWorksheet.pageSize },
       });
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
@@ -1082,7 +1087,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       const response = await executeQueryTarget(targetId, {
         statement: activeWorksheet.statement,
         maxRows: activeWorksheet.maxRows,
-        pagination: { page: prevPage, pageSize },
+        pagination: { page: prevPage, pageSize: activeWorksheet.pageSize },
       });
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
@@ -1106,7 +1111,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (validPageSize === undefined) return;
 
     persistPageSize(validPageSize);
-    setPageSizeState(validPageSize);
 
     const worksheetId = activeWorksheetId;
     const targetId = activeWorksheet.targetResourceId;
@@ -1117,6 +1121,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       error: null,
       requestId,
       currentPage: 1,
+      pageSize: validPageSize,
       resultPagination: null,
     });
 
@@ -1460,7 +1465,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => {
                 persistMaxRows(value);
-                updateActiveWorksheet({ maxRows: value, currentPage: 1, resultPagination: null });
+                // Invalidate any in-flight Run: a response produced under the
+                // old maxRows must not render under the new setting.
+                updateActiveWorksheet({
+                  maxRows: value,
+                  requestId: crypto.randomUUID(),
+                  isExecuting: false,
+                  currentPage: 1,
+                  resultPagination: null,
+                });
               }}
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
@@ -1493,7 +1506,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onCloseRelatedRecords={handleCloseRelatedRecords}
               currentPage={activeWorksheet.currentPage}
               resultPagination={activeWorksheet.resultPagination}
-              pageSize={pageSize}
+              pageSize={activeWorksheet.pageSize}
               onNextPage={handleNextPage}
               onPreviousPage={handlePreviousPage}
               onPageSizeChange={handlePageSizeChange}

@@ -1377,3 +1377,96 @@ describe("Phase 38S repair: maxRows default and persistence", () => {
     expect(request).toMatchObject({ maxRows: 250 });
   });
 });
+
+describe("Phase 38S repair: worksheet-scoped pageSize and in-flight invalidation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+  });
+
+  it("worksheet A keeps pageSize 10 after worksheet B switches to 50", async () => {
+    // Regression: pageSize must be per-worksheet state, not shell-global.
+    // A executed at pageSize 10; B changes to 50; back on A, Next page must
+    // send page 2 with pageSize 10 — B's choice must not leak into A.
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValue({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
+    } as QueryExecuteResponse);
+
+    renderReady();
+
+    // Worksheet A: run at default pageSize 10.
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // Worksheet B: run, then change page size to 50.
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      pagination: { page: 1, pageSize: 50, hasPreviousPage: false, hasNextPage: true },
+    } as QueryExecuteResponse);
+    await user.click(screen.getByRole("combobox", { name: /page size/i }));
+    await user.click(await screen.findByRole("option", { name: "50" }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(3);
+    });
+    const [, bRequest] = mockExecuteQueryTarget.mock.calls[2]!;
+    expect(bRequest.pagination).toEqual({ page: 1, pageSize: 50 });
+
+    // Back to worksheet A: Next page must still use A's pageSize 10.
+    await user.click(screen.getByRole("tab", { name: "Worksheet 1" }));
+    mockExecuteQueryTarget.mockResolvedValueOnce({
+      ...buildExecuteResponse(),
+      pagination: { page: 2, pageSize: 10, hasPreviousPage: true, hasNextPage: false },
+    } as QueryExecuteResponse);
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(4);
+    });
+
+    const [, aNextRequest] = mockExecuteQueryTarget.mock.calls[3]!;
+    expect(aNextRequest.pagination).toEqual({ page: 2, pageSize: 10 });
+  });
+
+  it("changing maxRows invalidates a pending Run response", async () => {
+    // Contract: editing maxRows mid-flight swaps the worksheet requestId so
+    // the stale response is dropped instead of rendering under new settings.
+    const user = userEvent.setup();
+    let resolveFirst!: (value: unknown) => void;
+    const firstPromise = new Promise((resolve) => { resolveFirst = resolve; });
+    mockExecuteQueryTarget.mockReturnValueOnce(firstPromise as ReturnType<typeof executeQueryTarget>);
+
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    const maxRowsInput = screen.getByRole("spinbutton", { name: /max rows/i });
+    await user.clear(maxRowsInput);
+    await user.type(maxRowsInput, "50");
+
+    resolveFirst({
+      ...buildExecuteResponse(),
+      rows: [[42, "stale-data"]],
+      rowCount: 1,
+      pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: false },
+    } as QueryExecuteResponse);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+    });
+    expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+});
