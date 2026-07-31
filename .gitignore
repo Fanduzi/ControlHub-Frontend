@@ -61,6 +61,7 @@ next-env.d.ts
 
 # Local advisor handoff plans
 advisor-plans/
+/plans/
 
 # E2E failure screenshots (Playwright root-level artifacts)
 query-*.png
