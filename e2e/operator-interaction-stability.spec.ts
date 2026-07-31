@@ -157,22 +157,30 @@ test.describe("Interaction stability QA gate", () => {
     await expect(engineTrigger).toBeVisible();
     await engineTrigger.click();
 
+    // The menu popup is portaled and animates in; wait for it instead of
+    // immediate isVisible() checks, which race with the mount on slow ticks.
+    const menuContent = page.locator('[data-slot="dropdown-menu-content"]');
+    await expect(menuContent).toBeVisible({ timeout: 5_000 });
+
     const mysqlOption = page
       .locator('[data-slot="dropdown-menu-checkbox-item"]')
       .filter({ hasText: /mysql/i });
-    if (await mysqlOption.isVisible()) {
-      await mysqlOption.click();
-      // Wait for URL to update
-      await expect(page).toHaveURL(/resourceSubtype=mysql/, { timeout: 5_000 });
-    }
+    await expect(mysqlOption).toBeVisible();
+    await mysqlOption.click();
 
-    // Multi-select options keep the menu open. Toggle its own trigger to close
-    // the active menu without depending on which element owns keyboard focus.
-    const menuContent = page.locator('[data-slot="dropdown-menu-content"]');
-    if (await menuContent.isVisible({ timeout: 1_000 }).catch(() => false)) {
-      await engineTrigger.click();
-    }
+    // Selecting an option closes the menu (MultiSelectFilter sets open=false
+    // on toggle) and applies the filter to the URL.
     await expect(menuContent).not.toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/resourceSubtype=mysql/, { timeout: 5_000 });
+
+    // The URL updates before the RSC re-render commits. Wait until the table
+    // shows only mysql rows so the row click below cannot race with the
+    // re-render swapping row nodes mid-click.
+    const dataRows = page.locator("table tbody tr");
+    await expect(dataRows.first()).toBeVisible({ timeout: 10_000 });
+    await expect(dataRows.filter({ hasNotText: /mysql/i })).toHaveCount(0, {
+      timeout: 10_000,
+    });
 
     // Click database row to open sheet
     await assertRowClickOpensSheet(page);
