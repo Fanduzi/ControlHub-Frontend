@@ -212,3 +212,14 @@ describe("Phase 38U: parseMaxRowsDraft", () => {
     expect(parseMaxRowsDraft("NaN")).toEqual({ valid: false });
   });
 });
+
+describe("Phase 38U: localStorage harness isolation", () => {
+  it("writes a sentinel that the following test must not inherit", () => {
+    localStorage.setItem(QUERY_MAX_ROWS_STORAGE_KEY, "250");
+    expect(localStorage.getItem(QUERY_MAX_ROWS_STORAGE_KEY)).toBe("250");
+  });
+
+  it("starts with no sentinel from the previous test", () => {
+    expect(localStorage.getItem(QUERY_MAX_ROWS_STORAGE_KEY)).toBeNull();
+  });
+});
