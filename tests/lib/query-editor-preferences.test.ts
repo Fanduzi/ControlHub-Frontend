@@ -7,6 +7,7 @@ import {
   getPageSize,
   normalizeEditorTheme,
   normalizeMaxRows,
+  parseMaxRowsDraft,
   parseStoredEditorHeight,
   QUERY_MAX_ROWS_STORAGE_KEY,
   QUERY_RESULT_PAGE_SIZE_STORAGE_KEY,
@@ -165,5 +166,49 @@ describe("Phase 38T: maxRows normalization", () => {
     expect(normalizeMaxRows(Number.NaN, 0)).toBe(DEFAULT_QUERY_MAX_ROWS);
     expect(normalizeMaxRows(Number.NaN, 501)).toBe(DEFAULT_QUERY_MAX_ROWS);
     expect(normalizeMaxRows(Number.NaN, 2.5)).toBe(DEFAULT_QUERY_MAX_ROWS);
+  });
+});
+
+describe("Phase 38U: parseMaxRowsDraft", () => {
+  it("accepts finite integers in 1..500", () => {
+    expect(parseMaxRowsDraft("1")).toEqual({ valid: true, value: 1 });
+    expect(parseMaxRowsDraft("100")).toEqual({ valid: true, value: 100 });
+    expect(parseMaxRowsDraft("250")).toEqual({ valid: true, value: 250 });
+    expect(parseMaxRowsDraft("500")).toEqual({ valid: true, value: 500 });
+  });
+
+  it("trims whitespace before validating", () => {
+    expect(parseMaxRowsDraft(" 50 ")).toEqual({ valid: true, value: 50 });
+    expect(parseMaxRowsDraft("\t250\n")).toEqual({ valid: true, value: 250 });
+  });
+
+  it("rejects empty strings", () => {
+    expect(parseMaxRowsDraft("")).toEqual({ valid: false });
+  });
+
+  it("rejects zero and negative values", () => {
+    expect(parseMaxRowsDraft("0")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("-1")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("-500")).toEqual({ valid: false });
+  });
+
+  it("rejects values above 500", () => {
+    expect(parseMaxRowsDraft("501")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("999")).toEqual({ valid: false });
+  });
+
+  it("rejects fractional values", () => {
+    expect(parseMaxRowsDraft("2.5")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("1.1")).toEqual({ valid: false });
+  });
+
+  it("rejects non-numeric text", () => {
+    expect(parseMaxRowsDraft("abc")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("100abc")).toEqual({ valid: false });
+  });
+
+  it("rejects Infinity and NaN text", () => {
+    expect(parseMaxRowsDraft("Infinity")).toEqual({ valid: false });
+    expect(parseMaxRowsDraft("NaN")).toEqual({ valid: false });
   });
 });

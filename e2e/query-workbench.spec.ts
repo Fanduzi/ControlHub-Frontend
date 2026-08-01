@@ -3544,4 +3544,48 @@ test.describe("Governed result paging (Phase 38S)", () => {
     );
     expect(missingMessages).toHaveLength(0);
   });
+
+  test("desktop EN: invalid max rows value blocks execution and valid correction runs with exact cap", async ({ page }) => {
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+
+    const maxRowsInput = page.getByRole("spinbutton", { name: "Max rows" });
+    await expect(maxRowsInput).toHaveValue("100");
+
+    const safeStatement = "select id, name from query_e2e_items order by id";
+    await clearAndType(page, safeStatement);
+
+    const firstRequest = waitForExecuteRequest(page);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const firstBody = (await firstRequest).postDataJSON() as ExecuteBody;
+    expect(firstBody.maxRows).toBe(100);
+    expect(firstBody.pagination).toEqual({ page: 1, pageSize: 10 });
+    await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+
+    await maxRowsInput.click();
+    await maxRowsInput.fill("");
+    await expect(maxRowsInput).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText("Enter a value between 1 and 500")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^run$/i })).toBeDisabled();
+
+    let executeCount = 0;
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().includes("/execute")) {
+        executeCount += 1;
+      }
+    });
+    await page.waitForTimeout(500);
+    expect(executeCount).toBe(0);
+
+    await maxRowsInput.fill("250");
+    await expect(maxRowsInput).not.toHaveAttribute("aria-invalid");
+    await expect(page.getByText("Enter a value between 1 and 500")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^run$/i })).toBeEnabled();
+
+    const correctedRequest = waitForExecuteRequest(page);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const correctedBody = (await correctedRequest).postDataJSON() as ExecuteBody;
+    expect(correctedBody.maxRows).toBe(250);
+    expect(correctedBody.pagination).toEqual({ page: 1, pageSize: 10 });
+  });
 });

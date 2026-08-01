@@ -90,7 +90,7 @@ export const QUERY_MAX_ROWS_STORAGE_KEY = "controlhub.query.max-rows";
 export const DEFAULT_QUERY_MAX_ROWS = 100;
 // Mirrors the backend guard's HardMaxRows; larger values would be clamped
 // server-side anyway, so they are not worth persisting.
-const MAX_QUERY_MAX_ROWS = 500;
+export const MAX_QUERY_MAX_ROWS = 500;
 
 function isValidMaxRows(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= MAX_QUERY_MAX_ROWS;
@@ -138,4 +138,27 @@ export function setMaxRows(value: number): void {
   } catch {
     // no-excuse-ok: catch — localStorage failures must not block execution.
   }
+}
+
+// Phase 38U: explicit max-rows draft validation
+
+export type MaxRowsDraftResult =
+  | { valid: true; value: number }
+  | { valid: false };
+
+/**
+ * Parse a raw number-input string for the max-rows field.  Returns a valid
+ * result with the parsed integer only when the draft is a finite integer in
+ * 1..500; otherwise returns `{ valid: false }`.
+ *
+ * Side-effect-free: must not write storage or choose a fallback.
+ */
+export function parseMaxRowsDraft(raw: string): MaxRowsDraftResult {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { valid: false };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return { valid: false };
+  if (!Number.isInteger(n)) return { valid: false };
+  if (n < 1 || n > MAX_QUERY_MAX_ROWS) return { valid: false };
+  return { valid: true, value: n };
 }

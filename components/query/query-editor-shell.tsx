@@ -65,6 +65,7 @@ import {
   DEFAULT_QUERY_MAX_ROWS,
   normalizeEditorTheme,
   normalizeMaxRows,
+  parseMaxRowsDraft,
   parseStoredEditorHeight,
   QUERY_EDITOR_HEIGHT_STORAGE_KEY,
   getMaxRows,
@@ -1765,10 +1766,13 @@ function ReadyWorksheet({
     setMaxRowsDraft(String(maxRows));
   }
 
+  const draftResult = parseMaxRowsDraft(maxRowsDraft);
+  const canRun = runEnabled && draftResult.valid;
+
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-        <Button ref={runButtonRef} type="button" size="sm" disabled={!runEnabled} onClick={onRun}>
+        <Button ref={runButtonRef} type="button" size="sm" disabled={!canRun} onClick={onRun}>
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
         </Button>
@@ -1806,11 +1810,21 @@ function ReadyWorksheet({
             value={maxRowsDraft}
             onChange={(event) => {
               setMaxRowsDraft(event.target.value);
-              onMaxRowsChange(Number(event.target.value));
+              const result = parseMaxRowsDraft(event.target.value);
+              if (result.valid) {
+                onMaxRowsChange(result.value);
+              }
             }}
             aria-label={t("editor.maxRowsLabel")}
+            aria-invalid={!draftResult.valid || undefined}
+            aria-describedby={!draftResult.valid ? "max-rows-range-error" : undefined}
             className="h-8 w-20"
           />
+          {!draftResult.valid && (
+            <p id="max-rows-range-error" role="alert" className="ml-1 text-xs text-rose-600 dark:text-rose-400">
+              {t("editor.maxRowsRangeError")}
+            </p>
+          )}
         </label>
         <span className="ml-auto text-xs text-muted-foreground">
           {isExecuting ? t("editor.runReady") : t("editor.ready")}
@@ -1827,7 +1841,7 @@ function ReadyWorksheet({
           value={statement}
           onChange={onStatementChange}
           engine={engine}
-          onRun={onRun}
+          onRun={canRun ? onRun : undefined}
           onFormat={onFormat}
           onEditorView={onEditorView}
           ariaLabel={t("editor.statementLabel")}
