@@ -108,6 +108,20 @@ One scenario:
 4. Correct to valid value and run.
 5. Assert real `POST /query-targets/{id}/execute` carries the exact valid `maxRows` and page-1 pagination.
 
+### Test Harness (`tests/setup.ts`)
+
+The Phase 38U candidate requires the conditional `localStorage` shim because
+the targeted jsdom environment can expose `globalThis.localStorage` without a
+usable `getItem` method. Removing it produced `16 passed, 60 failed` in the
+focused suite, including `window.localStorage.getItem is not a function` from
+existing query tests. This is a test-environment dependency only; no runtime
+storage behavior changes.
+
+The shim installs only when the native object is unusable and the global
+Vitest `beforeEach` clears storage before every test. The focused isolation
+regression writes a max-rows sentinel in one test and verifies the next test
+starts without it, defining the no-leak contract for this global setup.
+
 ## Implementation Sequence
 
 1. Add `parseMaxRowsDraft` to `lib/query-editor-preferences.ts` and its unit tests.
@@ -121,3 +135,4 @@ One scenario:
    - Add `aria-invalid` and `aria-describedby` to the Input.
 4. Replace old tests with new validation tests.
 5. Add E2E scenario.
+6. Retain the documented conditional test-harness shim and its isolation regression.

@@ -99,6 +99,26 @@ Both locales must contain the key. Missing keys must not produce console errors.
 - No new API field.
 - No changes to unrelated E2E suites.
 
+## Approved Test-Harness Dependency
+
+`tests/setup.ts` remains explicitly approved Phase 38U scope because this
+candidate's jsdom environment exposes `globalThis.localStorage` without a
+usable `getItem` method during the targeted component suite. Removing the
+conditional shim produced a focused RED result (`16 passed, 60 failed`) with
+`window.localStorage.getItem is not a function` in existing query tests. The
+shim is therefore required by the current test environment, not by product
+runtime behavior.
+
+The harness contract is deliberately narrow:
+
+- Install the Map-backed Storage implementation only when jsdom does not
+  expose a usable `localStorage.getItem` function.
+- Clear `localStorage` in the global Vitest `beforeEach`, so one test cannot
+  inherit preference state from another test or test file in the same worker.
+- Keep production storage behavior and storage keys unchanged.
+- The paired `Phase 38U: localStorage harness isolation` tests write a sentinel
+  in one test and require it to be absent in the next test.
+
 ## Done Criteria
 
 - [ ] The visible draft and committed execution cap can never disagree silently.
@@ -107,4 +127,5 @@ Both locales must contain the key. Missing keys must not produce console errors.
 - [ ] Correcting to a valid value preserves Phase 38S/38T page reset and request-id invalidation behavior.
 - [ ] EN and zh-CN messages are complete and accessible names/errors are covered.
 - [ ] Targeted tests, full gates, and the focused real-browser scenario pass with no skips.
-- [ ] No file outside Scope changes; no backend behavior changes.
+- [ ] `tests/setup.ts` is retained only for the documented jsdom dependency and isolation contract; no other file outside Scope changes.
+- [ ] No backend behavior or product contract changes.
