@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
 import { getAuthToken } from "./api.helpers";
@@ -3552,8 +3552,15 @@ test.describe("Governed result paging (Phase 38S)", () => {
     const maxRowsInput = page.getByRole("spinbutton", { name: "Max rows" });
     await expect(maxRowsInput).toHaveValue("100");
 
-    const safeStatement = "select id, name from query_e2e_items order by id";
+    const safeStatement = PAGING_STATEMENT;
     await clearAndType(page, safeStatement);
+
+    const executeRequests: PlaywrightRequest[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/execute")) {
+        executeRequests.push(request);
+      }
+    });
 
     const firstRequest = waitForExecuteRequest(page);
     await page.getByRole("button", { name: /^run$/i }).click();
@@ -3561,23 +3568,20 @@ test.describe("Governed result paging (Phase 38S)", () => {
     expect(firstBody.maxRows).toBe(100);
     expect(firstBody.pagination).toEqual({ page: 1, pageSize: 10 });
     await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
+    expect(executeRequests).toHaveLength(1);
 
-    await maxRowsInput.click();
-    await maxRowsInput.fill("");
+    await maxRowsInput.fill("501");
+    await expect(maxRowsInput).toHaveValue("501");
     await expect(maxRowsInput).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByText("Enter a value between 1 and 500")).toBeVisible();
     await expect(page.getByRole("button", { name: /^run$/i })).toBeDisabled();
 
-    let executeCount = 0;
-    page.on("request", (req) => {
-      if (req.method() === "POST" && req.url().includes("/execute")) {
-        executeCount += 1;
-      }
-    });
-    await page.waitForTimeout(500);
-    expect(executeCount).toBe(0);
+    await getEditor(page).click();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
+    await expect.poll(() => executeRequests.length).toBe(1);
 
-    await maxRowsInput.fill("250");
+    await maxRowsInput.fill("100");
+    await expect(maxRowsInput).toHaveValue("100");
     await expect(maxRowsInput).not.toHaveAttribute("aria-invalid");
     await expect(page.getByText("Enter a value between 1 and 500")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^run$/i })).toBeEnabled();
@@ -3585,7 +3589,8 @@ test.describe("Governed result paging (Phase 38S)", () => {
     const correctedRequest = waitForExecuteRequest(page);
     await page.getByRole("button", { name: /^run$/i }).click();
     const correctedBody = (await correctedRequest).postDataJSON() as ExecuteBody;
-    expect(correctedBody.maxRows).toBe(250);
+    expect(correctedBody.maxRows).toBe(100);
     expect(correctedBody.pagination).toEqual({ page: 1, pageSize: 10 });
+    expect(executeRequests).toHaveLength(2);
   });
 });
