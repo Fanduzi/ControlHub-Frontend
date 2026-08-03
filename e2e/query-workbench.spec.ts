@@ -3577,7 +3577,7 @@ test.describe("Governed result paging (Phase 38S)", () => {
     await maxRowsInput.fill("501");
     await expect(maxRowsInput).toHaveValue("501");
     await expect(maxRowsInput).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByText("Enter a value between 1 and 500")).toBeVisible();
+    await expect(page.getByText("Enter a whole number from 1 to 500")).toBeVisible();
     await expect(page.getByRole("button", { name: /^run$/i })).toBeDisabled();
     await expect(paging.getByRole("button", { name: "Previous page" })).toBeDisabled();
     await expect(paging.getByRole("button", { name: "Next page" })).toBeDisabled();
@@ -3590,7 +3590,7 @@ test.describe("Governed result paging (Phase 38S)", () => {
     await maxRowsInput.fill("100");
     await expect(maxRowsInput).toHaveValue("100");
     await expect(maxRowsInput).not.toHaveAttribute("aria-invalid");
-    await expect(page.getByText("Enter a value between 1 and 500")).toHaveCount(0);
+    await expect(page.getByText("Enter a whole number from 1 to 500")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^run$/i })).toBeEnabled();
     await expect(paging).toHaveCount(0);
 

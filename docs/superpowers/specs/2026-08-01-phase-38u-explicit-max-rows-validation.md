@@ -26,7 +26,7 @@ Phase 38T prevents invalid max-row values from reaching worksheet state, local s
 
 When the visible draft is invalid (empty, fractional, zero, negative, non-numeric text, or `>500`):
 
-1. Show one localized inline range error: "Enter a value between 1 and 500" (EN) / "请输入 1 到 500 之间的值" (zh-CN).
+1. Show one localized inline range error: "Enter a whole number from 1 to 500" (EN) / "请输入 1 到 500 之间的整数。" (zh-CN).
 2. Mark the input `aria-invalid="true"`.
 3. Link the error via `aria-describedby`.
 4. Expose `role="alert"` on the error element.
@@ -63,7 +63,7 @@ When the draft is corrected to a valid integer:
 
 | Key | EN | zh-CN |
 |-----|----|-------|
-| `queryWorkbench.editor.maxRowsRangeError` | Enter a value between 1 and 500 | 请输入 1 到 500 之间的值 |
+| `queryWorkbench.editor.maxRowsRangeError` | Enter a whole number from 1 to 500 | 请输入 1 到 500 之间的整数。 |
 
 Both locales must contain the key. Missing keys must not produce console errors.
 

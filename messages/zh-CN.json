@@ -1113,7 +1113,7 @@
       "statementLabel": "语句",
       "statementPlaceholder": "输入一条只读 SQL 语句（如 SELECT … 或 SHOW TABLES）",
       "maxRowsLabel": "最大行数",
-      "maxRowsRangeError": "请输入 1 到 500 之间的值",
+      "maxRowsRangeError": "请输入 1 到 500 之间的整数。",
       "runReady": "执行",
       "ready": "就绪",
       "format": "格式化",

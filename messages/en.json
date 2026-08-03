@@ -1113,7 +1113,7 @@
       "statementLabel": "Statement",
       "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",
-      "maxRowsRangeError": "Enter a value between 1 and 500",
+      "maxRowsRangeError": "Enter a whole number from 1 to 500",
       "runReady": "Run",
       "ready": "Ready",
       "format": "Format",

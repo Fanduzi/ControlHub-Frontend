@@ -1611,6 +1611,11 @@ describe("Phase 38U: explicit max-rows validation blocks execution for invalid d
 
     expect(maxRowsInput).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toBeInTheDocument();
+    if (raw === "2.5") {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /^Enter a whole number from 1 to 500$/,
+      );
+    }
     expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
   });
 
