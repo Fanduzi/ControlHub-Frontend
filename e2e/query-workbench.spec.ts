@@ -3569,12 +3569,19 @@ test.describe("Governed result paging (Phase 38S)", () => {
     expect(firstBody.pagination).toEqual({ page: 1, pageSize: 10 });
     await expect(resultCell(page, "row-001")).toBeVisible({ timeout: 30_000 });
     expect(executeRequests).toHaveLength(1);
+    const paging = page.getByTestId("result-paging");
+    await expect(paging).toBeVisible();
+    await expect(paging.getByRole("button", { name: "Next page" })).toBeEnabled();
+    await expect(paging.getByRole("combobox", { name: "Page size" })).toBeEnabled();
 
     await maxRowsInput.fill("501");
     await expect(maxRowsInput).toHaveValue("501");
     await expect(maxRowsInput).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByText("Enter a value between 1 and 500")).toBeVisible();
     await expect(page.getByRole("button", { name: /^run$/i })).toBeDisabled();
+    await expect(paging.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    await expect(paging.getByRole("button", { name: "Next page" })).toBeDisabled();
+    await expect(paging.getByRole("combobox", { name: "Page size" })).toBeDisabled();
 
     await getEditor(page).click();
     await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
@@ -3585,6 +3592,7 @@ test.describe("Governed result paging (Phase 38S)", () => {
     await expect(maxRowsInput).not.toHaveAttribute("aria-invalid");
     await expect(page.getByText("Enter a value between 1 and 500")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^run$/i })).toBeEnabled();
+    await expect(paging).toHaveCount(0);
 
     const correctedRequest = waitForExecuteRequest(page);
     await page.getByRole("button", { name: /^run$/i }).click();

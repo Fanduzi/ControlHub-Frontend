@@ -46,6 +46,7 @@ const canRun = runEnabled && draftResult.valid;
 
 - `canRun` gates both the toolbar Run button and the `SqlCodeEditor` `onRun` callback.
 - `SqlCodeEditor` receives `onRun={canRun ? onRun : undefined}` — passing `undefined` disables the keyboard shortcut.
+- `draftResult.valid` also disables Previous, Next, and page-size result paging controls. The parent shell receives the active worksheet's validity signal and defensively rejects all four `executeQueryTarget` handlers when the signal is invalid.
 
 ### Error Rendering
 

@@ -30,7 +30,7 @@ When the visible draft is invalid (empty, fractional, zero, negative, non-numeri
 2. Mark the input `aria-invalid="true"`.
 3. Link the error via `aria-describedby`.
 4. Expose `role="alert"` on the error element.
-5. **Disable** both the toolbar Run button **and** the SQL editor keyboard Run shortcut (`Cmd/Ctrl+Enter`).
+5. **Disable** both the toolbar Run button **and** the SQL editor keyboard Run shortcut (`Cmd/Ctrl+Enter`), plus Previous, Next, and page-size result paging actions.
 6. **Zero** `/execute` requests — neither button click nor keyboard shortcut may fire an execute.
 7. Do **not** clamp, rewrite, or silently normalize the visible invalid draft while typing.
 
@@ -71,7 +71,7 @@ Both locales must contain the key. Missing keys must not produce console errors.
 
 1. The visible draft and the committed execution cap can never disagree silently.
 2. An invalid visible draft always has an inline error and blocks Run.
-3. Toolbar and keyboard Run cannot invoke `executeQueryTarget` while the draft is invalid.
+3. Toolbar, keyboard Run, and result paging actions cannot invoke `executeQueryTarget` while the draft is invalid.
 4. Only finite integers in `1..500` reach worksheet `maxRows`, local storage, or an execute request.
 5. Correcting to a valid value preserves Phase 38S/38T page reset and request-id invalidation behavior.
 

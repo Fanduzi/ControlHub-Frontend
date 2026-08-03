@@ -325,11 +325,22 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     createInitialWorksheet(activeTarget.resourceId),
   ]);
   const [activeWorksheetId, setActiveWorksheetId] = useState(INITIAL_WORKSHEET_ID);
+  const activeMaxRowsDraftValidityRef = useRef({
+    worksheetId: INITIAL_WORKSHEET_ID,
+    valid: true,
+  });
   const editorViewRef = useRef<EditorView | null>(null);
   const editorHeightRef = useRef(editorHeight);
   editorHeightRef.current = editorHeight;
 
   const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
+
+  useEffect(() => {
+    activeMaxRowsDraftValidityRef.current = {
+      worksheetId: activeWorksheetId,
+      valid: true,
+    };
+  }, [activeWorksheetId]);
 
   const targetsById = useMemo(
     () => new Map(targets.map((t) => [t.resourceId, t])),
@@ -342,6 +353,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? activeTarget;
   const actions = worksheetTarget.availableActions;
   const canExecute = actions.run === true;
+
+  function activeMaxRowsDraftIsValid(): boolean {
+    const tracked = activeMaxRowsDraftValidityRef.current;
+    return tracked.worksheetId !== activeWorksheetId || tracked.valid;
+  }
 
   function updateWorksheetById(worksheetId: string, patch: Partial<LocalWorksheet>) {
     setWorksheets((previous) =>
@@ -982,7 +998,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   async function handleRun() {
-    if (!runEnabled) {
+    if (!runEnabled || !activeMaxRowsDraftIsValid()) {
       return;
     }
 
@@ -1031,7 +1047,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   async function handleNextPage() {
     const result = activeWorksheet.result;
     const pagination = activeWorksheet.resultPagination;
-    if (!result || !pagination?.hasNextPage || activeWorksheet.isExecuting) return;
+    if (!activeMaxRowsDraftIsValid() || !result || !pagination?.hasNextPage || activeWorksheet.isExecuting) return;
 
     const worksheetId = activeWorksheetId;
     const targetId = activeWorksheet.targetResourceId;
@@ -1068,6 +1084,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   async function handlePreviousPage() {
     const pagination = activeWorksheet.resultPagination;
     if (
+      !activeMaxRowsDraftIsValid() ||
       !pagination ||
       activeWorksheet.currentPage <= 1 ||
       !pagination.hasPreviousPage ||
@@ -1107,7 +1124,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   async function handlePageSizeChange(newSize: number) {
-    if (activeWorksheet.isExecuting) return;
+    if (!activeMaxRowsDraftIsValid() || activeWorksheet.isExecuting) return;
 
     const validPageSize = QUERY_RESULT_PAGE_SIZES.find((value) => value === newSize);
     if (validPageSize === undefined) return;
@@ -1466,12 +1483,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               }}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => {
-                // Normalize before any state or storage write: invalid edits
-                // (cleared input, fractions, out-of-range) are no-ops.
                 const next = normalizeMaxRows(value, activeWorksheet.maxRows);
-                if (next === activeWorksheet.maxRows) {
-                  return;
-                }
                 persistMaxRows(next);
                 // Invalidate any in-flight Run: a response produced under the
                 // old maxRows must not render under the new setting.
@@ -1482,6 +1494,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                   currentPage: 1,
                   resultPagination: null,
                 });
+              }}
+              onMaxRowsDraftValidityChange={(valid) => {
+                activeMaxRowsDraftValidityRef.current = {
+                  worksheetId: activeWorksheetId,
+                  valid,
+                };
               }}
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
@@ -1667,6 +1685,7 @@ function ReadyWorksheet({
   onStatementChange,
   maxRows,
   onMaxRowsChange,
+  onMaxRowsDraftValidityChange,
   runEnabled,
   isExecuting,
   onRun,
@@ -1705,6 +1724,7 @@ function ReadyWorksheet({
   onStatementChange: (value: string) => void;
   maxRows: number;
   onMaxRowsChange: (value: number) => void;
+  onMaxRowsDraftValidityChange: (valid: boolean) => void;
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
@@ -1811,6 +1831,7 @@ function ReadyWorksheet({
             onChange={(event) => {
               setMaxRowsDraft(event.target.value);
               const result = parseMaxRowsDraft(event.target.value);
+              onMaxRowsDraftValidityChange(result.valid);
               if (result.valid) {
                 onMaxRowsChange(result.value);
               }
@@ -1925,7 +1946,7 @@ function ReadyWorksheet({
                   size="sm"
                   variant="outline"
                   aria-label={t("paging.previousPage")}
-                  disabled={isExecuting || currentPage <= 1 || !resultPagination.hasPreviousPage}
+                  disabled={!draftResult.valid || isExecuting || currentPage <= 1 || !resultPagination.hasPreviousPage}
                   onClick={onPreviousPage}
                 >
                   {t("paging.previousPage")}
@@ -1938,7 +1959,7 @@ function ReadyWorksheet({
                   size="sm"
                   variant="outline"
                   aria-label={t("paging.nextPage")}
-                  disabled={isExecuting || !resultPagination.hasNextPage}
+                  disabled={!draftResult.valid || isExecuting || !resultPagination.hasNextPage}
                   onClick={onNextPage}
                 >
                   {t("paging.nextPage")}
@@ -1946,7 +1967,7 @@ function ReadyWorksheet({
                 <Select
                   value={String(pageSize)}
                   onValueChange={(value) => onPageSizeChange(Number(value))}
-                  disabled={isExecuting}
+                  disabled={!draftResult.valid || isExecuting}
                 >
                   <SelectTrigger size="sm" aria-label={t("paging.pageSize")} className="w-24">
                     <SelectValue />
