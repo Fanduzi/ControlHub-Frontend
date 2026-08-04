@@ -31,17 +31,17 @@ checked-in source of truth.
 
 The `check:runtime` script reads `.tool-versions`, validates its `nodejs`
 entry, compares it with `process.versions.node`, prints expected and actual
-versions, and exits non-zero on mismatch or invalid configuration. `npm run
-dev`, `npm run build`, and `npm run release:local` invoke this check before
-Next.js, Turbopack, tests, or other release work begins.
+versions, and exits non-zero on mismatch or invalid configuration. `npm start`,
+`npm run dev`, `npm run build`, and `npm run release:local` invoke this check
+before Next.js, Turbopack, tests, or other release work begins.
 
 ## Failure and Recovery
 
 An unsupported runtime fails with a controlled diagnostic naming the expected
 `22.22.0` version and the actual active Node version. Missing or malformed
 `.tool-versions` fails closed with a controlled configuration error rather
-than silently accepting the current PATH runtime. A direct build under Node
-25 therefore stops at the runtime check and must not reach a Next.js or
+than silently accepting the current PATH runtime. A direct start or build under
+Node 25 therefore stops at the runtime check and must not reach a Next.js or
 Turbopack error.
 
 After selecting the locked runtime, reinstall dependencies to repair any
@@ -69,6 +69,7 @@ npm run check:runtime
 | Surface | Node `22.22.0` | Node `25.9.0` / invalid config |
 | --- | --- | --- |
 | `npm run check:runtime` | Exit 0; print expected and actual `22.22.0` | Non-zero; controlled mismatch/configuration diagnostic |
+| `npm start` | Runtime check passes before Next starts | Runtime check fails before Next starts |
 | `npm run dev` | Runtime check passes before Next starts | Runtime check fails before Next starts |
 | `npm run build` | Build proceeds and passes release validation | `prebuild` fails before Next/Turbopack starts |
 | `npm run release:local` | Runtime check is first gate; all local gates pass | Runtime check stops the command before release gates |

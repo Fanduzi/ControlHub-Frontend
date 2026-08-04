@@ -20,8 +20,8 @@ configuration fails closed with a controlled configuration error. The guard
 does not install packages, mutate files, use the network, or bypass a failing
 command.
 
-Expose the guard as `check:runtime`. `predev` and `prebuild` protect direct
-developer commands through npm lifecycle hooks. `release:local` calls
+Expose the guard as `check:runtime`. `prestart`, `predev`, and `prebuild`
+protect direct developer commands through npm lifecycle hooks. `release:local` calls
 `npm run check:runtime` as its first command, before E2E preflight, typecheck,
 lint, tests, or build.
 
@@ -58,6 +58,7 @@ because the Phase 38V allowed-file list contains no runtime test file.
 | Node `25.9.0` plus `npm run check:runtime` | Non-zero controlled message includes expected `22.22.0` and actual `25.9.0` |
 | Missing `.tool-versions` | Non-zero controlled configuration error; no PATH fallback |
 | Malformed `.tool-versions` | Non-zero controlled configuration error; no silent acceptance |
+| Node `25.9.0` plus `npm start` | `prestart` stops the command before Next/Turbopack output |
 | Node `25.9.0` plus `npm run build` | `prebuild` stops the command before Next/Turbopack output |
 | Node `22.22.0` plus `npm run check:runtime` | Exit 0 and report both versions |
 | Node `22.22.0` plus `npm ci` | Exit 0 with no `package-lock.json` diff |
@@ -70,7 +71,7 @@ because the Phase 38V allowed-file list contains no runtime test file.
 1. Confirm the clean isolated worktree starts at the exact `origin/main` base.
 2. Write and diff-check this design and the runtime specification.
 3. Add the smallest allowed runtime guard slice and capture controlled RED
-   failures for drift, invalid configuration, and prebuild ordering.
+   failures for drift, invalid configuration, and prestart/prebuild ordering.
 4. Add the exact version source, package scripts, engine declaration, README
    guidance, and CI wiring.
 5. Run all Node `22.22.0` gates, then run only the Node 25 fast-fail probes.

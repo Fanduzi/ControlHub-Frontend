@@ -44,8 +44,9 @@ runtime-specific artifacts:
 ASDF_NODEJS_VERSION=22.22.0 npm ci
 ```
 
-Run `npm run check:runtime` before diagnosing a build failure. Unsupported
-Node versions fail before Next.js and Turbopack start.
+The `prestart`, `predev`, and `prebuild` hooks run `npm run check:runtime`.
+Unsupported Node versions fail before `npm start`, `npm run dev`, or
+`npm run build` reaches Next.js or Turbopack.
 
 ```bash
 npm ci
