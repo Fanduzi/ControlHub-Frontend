@@ -22,8 +22,33 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 
 ## Local development
 
+### Node runtime
+
+The frontend requires Node `22.22.0`. The root `.tool-versions` file is the
+single checked-in version source used by local asdf and frontend CI; do not add
+another Node version file.
+
+Select the locked runtime before installing dependencies:
+
 ```bash
-npm install
+asdf install nodejs 22.22.0
+asdf local nodejs 22.22.0
+node --version
+npm run check:runtime
+```
+
+After switching Node versions, use a clean lockfile install to repair local
+runtime-specific artifacts:
+
+```bash
+ASDF_NODEJS_VERSION=22.22.0 npm ci
+```
+
+Run `npm run check:runtime` before diagnosing a build failure. Unsupported
+Node versions fail before Next.js and Turbopack start.
+
+```bash
+npm ci
 ```
 
 The frontend connects to the ControlHub backend API. Set the environment variable to point to your backend:
