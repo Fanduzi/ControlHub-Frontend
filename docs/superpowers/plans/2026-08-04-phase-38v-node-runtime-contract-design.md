@@ -25,6 +25,10 @@ protect direct developer commands through npm lifecycle hooks. `release:local` c
 `npm run check:runtime` as its first command, before E2E preflight, typecheck,
 lint, tests, or build.
 
+Keep the CLI entry point separate from imported helpers: direct execution runs
+the file-backed check, while importing the module only exposes the pure runtime
+contract evaluator and performs no I/O, logging, or exit-code mutation.
+
 ## CI Wiring
 
 Keep the existing checkout order, cache behavior, secrets, backend checkout,
@@ -50,12 +54,17 @@ dependency, lockfile changes, or any Next/font/Turbopack workaround.
 
 ## Test-First Acceptance
 
-The runtime guard is exercised through CLI checks rather than a new test file,
-because the Phase 38V allowed-file list contains no runtime test file.
+The runtime guard is exercised by the focused Vitest suite
+`tests/scripts/check-node-runtime.test.ts` plus direct CLI checks. The suite
+uses the pure evaluator for deterministic configuration and mismatch cases,
+then runs the real script from an unrelated current working directory and
+imports it in a child process to prove the script-root and main-entry
+boundaries.
 
 | Check | Expected result |
 | --- | --- |
 | Node `25.9.0` plus `npm run check:runtime` | Non-zero controlled message includes expected `22.22.0` and actual `25.9.0` |
+| Runtime guard Vitest suite | Valid, mismatch, missing, empty, malformed, duplicate, extra-token, CWD, and import cases pass without network or Node 25 |
 | Missing `.tool-versions` | Non-zero controlled configuration error; no PATH fallback |
 | Malformed `.tool-versions` | Non-zero controlled configuration error; no silent acceptance |
 | Node `25.9.0` plus `npm start` | `prestart` stops the command before Next/Turbopack output |

@@ -35,6 +35,11 @@ versions, and exits non-zero on mismatch or invalid configuration. `npm start`,
 `npm run dev`, `npm run build`, and `npm run release:local` invoke this check
 before Next.js, Turbopack, tests, or other release work begins.
 
+The guard's pure contract evaluator is covered by
+`tests/scripts/check-node-runtime.test.ts`. Direct execution alone reads
+`.tool-versions` relative to the script and preserves the CLI output and exit
+status; importing the module does not run the CLI flow or mutate its exit code.
+
 ## Failure and Recovery
 
 An unsupported runtime fails with a controlled diagnostic naming the expected
@@ -64,6 +69,16 @@ npm run check:runtime
 - No Node upgrade or CI action major-version upgrade.
 - No backend, Docker fixture, product behavior, or unrelated WIP changes.
 
+## Automated Regression Coverage
+
+The dependency-free Vitest suite verifies the locked version success path,
+expected/actual runtime mismatch diagnostics, missing and malformed
+`.tool-versions` configurations, duplicate entries, extra tokens, script-root
+resolution from an unrelated current working directory, and side-effect-free
+module import. Mismatch cases pass the runtime version as data to the pure
+evaluator, so the regression suite does not require Node 25 or any environment
+override.
+
 ## Acceptance Matrix
 
 | Surface | Node `22.22.0` | Node `25.9.0` / invalid config |
@@ -73,6 +88,7 @@ npm run check:runtime
 | `npm run dev` | Runtime check passes before Next starts | Runtime check fails before Next starts |
 | `npm run build` | Build proceeds and passes release validation | `prebuild` fails before Next/Turbopack starts |
 | `npm run release:local` | Runtime check is first gate; all local gates pass | Runtime check stops the command before release gates |
+| Runtime guard Vitest suite | All contract cases pass without network or version switching | A guard/parser/import regression fails the focused suite |
 | CI `release-local` | Setup Node from `.tool-versions`; check passes | CI cannot silently select a competing version |
 | CI `release-e2e` | Setup Node from `.tool-versions`; check passes | CI cannot silently select a competing version |
 | Dependencies | `npm ci` leaves the lockfile unchanged | No install is attempted by the runtime guard |
