@@ -378,6 +378,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateWorksheetById(activeWorksheetId, patch);
   }
 
+  const activateWorksheet = useCallback((worksheetId: string) => {
+    if (worksheetId === activeWorksheetId) return;
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === activeWorksheetId ? { ...ws, parameterValues: {} } : ws,
+      ),
+    );
+    setActiveWorksheetId(worksheetId);
+  }, [activeWorksheetId]);
+
   function replaceActiveStatement(
     statement: string,
     parameters: readonly QuerySavedStatementParameterDefinition[] = [],
@@ -422,7 +432,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const newIndex = worksheets.length + 1;
     const newWs = createWorksheet(newIndex, activeTarget.resourceId);
     setWorksheets((previous) => [...previous, newWs]);
-    setActiveWorksheetId(newWs.id);
+    activateWorksheet(newWs.id);
   }
 
   function executeRetarget(worksheetId: string, newTargetId: number) {
@@ -773,11 +783,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     newWorksheets.push(newWs);
     worksheetsRef.current = newWorksheets;
     setWorksheets(newWorksheets);
-    setActiveWorksheetId(newWs.id);
+    activateWorksheet(newWs.id);
 
     // Do not fetch history on target-switch worksheet creation. History loads
     // on first History-tab open (or after a successful run for that worksheet).
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, activeWorksheetId]);
+  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, activeWorksheetId, activateWorksheet]);
 
   // Consume preview events from Object Explorer. Creates a new worksheet with
   // a generated qualified statement and stores provenance. Never auto-executes.
@@ -816,8 +826,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const newWorksheets = [...worksheetsRef.current, newWs];
     worksheetsRef.current = newWorksheets;
     setWorksheets(newWorksheets);
-    setActiveWorksheetId(newWs.id);
-  }, [pendingPreviewEvent, onPreviewConsumed, activeTarget.resourceId]);
+    activateWorksheet(newWs.id);
+  }, [pendingPreviewEvent, onPreviewConsumed, activeTarget.resourceId, activateWorksheet]);
 
   useEffect(() => {
     const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
@@ -1365,7 +1375,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 className="px-3 py-1.5 text-sm cursor-pointer"
                 onClick={() => {
                   if (ws.id !== activeWorksheetId) {
-                    setActiveWorksheetId(ws.id);
+                    activateWorksheet(ws.id);
                   }
                 }}
                 onKeyDown={(e) => {
@@ -1374,17 +1384,17 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                   if (e.key === "ArrowRight") {
                     e.preventDefault();
                     const next = tabs[(currentIndex + 1) % tabs.length]!;
-                    setActiveWorksheetId(next);
+                    activateWorksheet(next);
                   } else if (e.key === "ArrowLeft") {
                     e.preventDefault();
                     const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]!;
-                    setActiveWorksheetId(prev);
+                    activateWorksheet(prev);
                   } else if (e.key === "Home") {
                     e.preventDefault();
-                    setActiveWorksheetId(tabs[0]!);
+                    activateWorksheet(tabs[0]!);
                   } else if (e.key === "End") {
                     e.preventDefault();
-                    setActiveWorksheetId(tabs[tabs.length - 1]!);
+                    activateWorksheet(tabs[tabs.length - 1]!);
                   }
                 }}
                 onDoubleClick={() => startRename(ws.id, ws.name)}
@@ -1745,7 +1755,7 @@ function WorksheetParameterInputs({
                 id={`param-value-${worksheetId}-${param.name}`}
                 value={parameterValues[param.name] ?? ""}
                 onChange={(e) => onParameterValueChange(param.name, e.target.value)}
-                aria-label={`${param.name} value`}
+                aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">—</option>
@@ -1760,7 +1770,7 @@ function WorksheetParameterInputs({
                 value={parameterValues[param.name] ?? ""}
                 onChange={(e) => onParameterValueChange(param.name, e.target.value)}
                 placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
-                aria-label={`${param.name} value`}
+                aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
                 className="h-8 flex-1 text-xs"
               />
             )}

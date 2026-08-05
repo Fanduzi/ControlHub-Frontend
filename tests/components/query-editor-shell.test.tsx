@@ -105,6 +105,7 @@ import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
 import type { QueryExecuteResponse, QueryExecutionCursorPage } from "@/types/query-execution";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
@@ -180,9 +181,10 @@ function buildReadyTarget(overrides: DeepPartial<QueryTarget> = {}): QueryTarget
 function renderReady(
   target: QueryTarget = buildReadyTarget(),
   messages: Record<string, unknown> = enMessages,
+  locale = "en",
 ) {
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <QueryWorkbench
         targets={[target]}
         pageInfo={pageInfoFor([target])}
@@ -1224,6 +1226,61 @@ describe("Phase 38S: paging controls in result panel", () => {
     });
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select fresh_data");
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+  });
+
+  it("clears parameter values when returning to a worksheet", async () => {
+    const user = userEvent.setup();
+    mockListSavedStatements.mockResolvedValueOnce({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Parameterized statement",
+        statement: "select :status",
+        scope: "personal",
+        parameters: [{ name: "status", type: "string" }],
+        createdAt: "2026-07-29T00:00:00Z",
+        updatedAt: "2026-07-29T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load parameterized statement/i }));
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+
+    const parameterInput = screen.getByLabelText("status value");
+    await user.type(parameterInput, "secret-value");
+    await user.click(screen.getByRole("button", { name: "Add worksheet" }));
+    await user.click(screen.getByRole("tab", { name: /Worksheet 1/ }));
+
+    expect(screen.getByLabelText("status value")).toHaveValue("");
+  });
+
+  it("localizes loaded parameter value labels", async () => {
+    const user = userEvent.setup();
+    mockListSavedStatements.mockResolvedValueOnce({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Parameterized statement",
+        statement: "select :status",
+        scope: "personal",
+        parameters: [{ name: "status", type: "string" }],
+        createdAt: "2026-07-29T00:00:00Z",
+        updatedAt: "2026-07-29T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+    renderReady(buildReadyTarget(), zhMessages, "zh-CN");
+
+    await user.click(screen.getByRole("tab", { name: /已保存脚本/i }));
+    await user.click(await screen.findByRole("button", { name: /加载 Parameterized statement/i }));
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/i }));
+
+    expect(screen.getByLabelText("status 参数值")).toBeInTheDocument();
   });
 
   it("does NOT mutate SQL or slice rows client-side for paging", async () => {
