@@ -510,7 +510,7 @@ export function QuerySavedStatements({
       </Dialog>
       ) : (
       <Sheet open={createDialog.open} onOpenChange={handleCreateClose}>
-        <SheetContent side="bottom">
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>
               {createDialog.scope === "personal"
@@ -595,7 +595,7 @@ export function QuerySavedStatements({
           }
         }}
       >
-        <SheetContent side="bottom">
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{t("editTitle")}</SheetTitle>
             <SheetDescription>{t("editDescription")}</SheetDescription>

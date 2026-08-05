@@ -331,6 +331,28 @@ describe("QuerySavedStatements", () => {
     expect(screen.getByText("No parameters defined")).toBeInTheDocument();
   });
 
+  it("keeps the mobile multi-parameter form scrollable", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    for (let i = 0; i < 20; i++) {
+      await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    }
+    const sheet = screen.getByRole("dialog");
+    expect(sheet.className).toContain("max-h-[90vh]");
+    expect(sheet.className).toContain("overflow-y-auto");
+    vi.unstubAllGlobals();
+  });
+
   it("loads parameters into edit dialog from saved statement", async () => {
     const params: QuerySavedStatementParameterDefinition[] = [
       { name: "status", type: "boolean" },
