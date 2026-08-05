@@ -1482,6 +1482,7 @@
       "parameterNameEmpty": "参数名称不能为空",
       "parameterNameDuplicate": "参数名称重复",
       "parameterNameInvalid": "使用有效的标识符（字母、数字、下划线）",
+      "parameterTooMany": "最多允许 {max} 个参数",
       "error": {
         "loadFailed": "加载已保存的语句失败。",
         "validationFailed": "名称或语句无效。请检查表单后重试。",

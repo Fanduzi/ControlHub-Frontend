@@ -1482,6 +1482,7 @@
       "parameterNameEmpty": "Parameter name cannot be empty",
       "parameterNameDuplicate": "Duplicate parameter name",
       "parameterNameInvalid": "Use a valid identifier (letters, digits, underscores)",
+      "parameterTooMany": "Maximum {max} parameters allowed",
       "error": {
         "loadFailed": "Failed to load saved statements.",
         "validationFailed": "The name or statement is invalid. Check the form and try again.",
