@@ -3131,7 +3131,7 @@ test.describe("Saved statements (Phase 38R)", () => {
         u.includes("/execute") ||
         u.includes("/explain") ||
         u.includes("/schema/") ||
-        u.includes("/query-history") ||
+        /\/query-targets\/[^/]+\/executions/.test(u) ||
         u.includes("/related-record"),
     );
     expect(
@@ -3352,7 +3352,7 @@ async function exerciseParameterizedTemplateLoad(
   page.off("request", onRequest);
   expect(
     requestsDuringLoad.filter((url) =>
-      /\/execute|\/explain|\/schema\/|\/query-history|\/related-record|\/disclosure/.test(url),
+      /\/execute|\/explain|\/schema\/|\/query-targets\/[^/]+\/executions|\/related-record|\/disclosure/.test(url),
     ),
   ).toHaveLength(0);
 
