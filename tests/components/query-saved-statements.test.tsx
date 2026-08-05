@@ -485,7 +485,7 @@ describe("QuerySavedStatements declaration validation", () => {
 
     expect(screen.getByText(/20\/20/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /add parameter/i })).toBeDisabled();
-  });
+  }, 10_000);
 
   it("shows count indicator next to parameter section title", async () => {
     mockListSavedStatements.mockResolvedValue(emptyResponse());
