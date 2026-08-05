@@ -13,6 +13,28 @@ import type { PageInfo } from "@/types/resource";
 export type QuerySavedStatementScope = "personal" | "shared_template";
 
 /**
+ * Supported parameter type identifiers. Mirrors the backend enum exactly.
+ * The frontend uses these to render typed input controls and validate
+ * parameter value formats before sending requests.
+ */
+export type QuerySavedStatementParameterType =
+  | "string"
+  | "integer"
+  | "decimal"
+  | "boolean";
+
+/**
+ * A single typed parameter declaration for a saved statement template.
+ * `name` is a valid SQL identifier fragment (no control characters,
+ * trimmed, non-empty, <= 64 code points). `type` determines the
+ * expected value format.
+ */
+export type QuerySavedStatementParameterDefinition = {
+  readonly name: string;
+  readonly type: QuerySavedStatementParameterType;
+};
+
+/**
  * A saved statement record. Statement text is authorized user content —
  * never leak it into error messages, console logs, or unauthorized DOM.
  */
@@ -22,6 +44,7 @@ export type QuerySavedStatementRecord = {
   readonly name: string;
   readonly statement: string;
   readonly scope: QuerySavedStatementScope;
+  readonly parameters: readonly QuerySavedStatementParameterDefinition[];
   readonly createdAt: string;
   readonly updatedAt: string;
 };
@@ -35,13 +58,14 @@ export type QuerySavedStatementListResponse = {
 
 /**
  * Request body for `POST /query-targets/{id}/saved-statements`.
- * Only `name`, `statement`, and `scope` are ever sent.
+ * Only `name`, `statement`, `scope`, and `parameters` are ever sent.
  * Never send actor, owner, role, credentials, DSNs, or browser state.
  */
 export type QuerySavedStatementCreateRequest = {
   readonly name: string;
   readonly statement: string;
   readonly scope: QuerySavedStatementScope;
+  readonly parameters: readonly QuerySavedStatementParameterDefinition[];
 };
 
 /**
@@ -51,4 +75,5 @@ export type QuerySavedStatementCreateRequest = {
 export type QuerySavedStatementUpdateRequest = {
   readonly name: string;
   readonly statement: string;
+  readonly parameters: readonly QuerySavedStatementParameterDefinition[];
 };

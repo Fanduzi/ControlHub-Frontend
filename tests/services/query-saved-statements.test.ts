@@ -84,12 +84,13 @@ describe("createSavedStatement", () => {
       name: "test",
       statement: "SELECT 1",
       scope: "personal",
+      parameters: [],
     });
     expect(mockApiClient).toHaveBeenCalledWith(
       "/query-targets/22/saved-statements",
       {
         method: "POST",
-        body: JSON.stringify({ name: "test", statement: "SELECT 1", scope: "personal" }),
+        body: JSON.stringify({ name: "test", statement: "SELECT 1", scope: "personal", parameters: [] }),
       },
     );
   });
@@ -100,14 +101,33 @@ describe("createSavedStatement", () => {
       name: "test",
       statement: "SELECT 1",
       scope: "personal",
+      parameters: [],
     });
     const body = requestBody();
-    expect(body).toEqual({ name: "test", statement: "SELECT 1", scope: "personal" });
+    expect(body).toEqual({ name: "test", statement: "SELECT 1", scope: "personal", parameters: [] });
     expect(body).not.toHaveProperty("actorUserId");
     expect(body).not.toHaveProperty("ownerUserId");
     expect(body).not.toHaveProperty("role");
     expect(body).not.toHaveProperty("credentials");
     expect(body).not.toHaveProperty("dsn");
+  });
+
+  it("includes parameter definitions in create payload", async () => {
+    mockApiClient.mockResolvedValueOnce({ id: 1 });
+    await createSavedStatement(22, {
+      name: "template",
+      statement: "SELECT * FROM orders WHERE status = :status",
+      scope: "shared_template",
+      parameters: [
+        { name: "status", type: "string" },
+        { name: "min_id", type: "integer" },
+      ],
+    });
+    const body = requestBody();
+    expect(body.parameters).toEqual([
+      { name: "status", type: "string" },
+      { name: "min_id", type: "integer" },
+    ]);
   });
 });
 
@@ -116,23 +136,34 @@ describe("updateSavedStatement", () => {
 
   it("PUTs to /query-targets/:id/saved-statements/:statementId", async () => {
     mockApiClient.mockResolvedValueOnce(undefined);
-    await updateSavedStatement(22, 5, { name: "updated", statement: "SELECT 2" });
+    await updateSavedStatement(22, 5, { name: "updated", statement: "SELECT 2", parameters: [] });
     expect(mockApiClient).toHaveBeenCalledWith(
       "/query-targets/22/saved-statements/5",
       {
         method: "PUT",
-        body: JSON.stringify({ name: "updated", statement: "SELECT 2" }),
+        body: JSON.stringify({ name: "updated", statement: "SELECT 2", parameters: [] }),
       },
     );
   });
 
   it("never sends scope on update", async () => {
     mockApiClient.mockResolvedValueOnce(undefined);
-    await updateSavedStatement(22, 5, { name: "updated", statement: "SELECT 2" });
+    await updateSavedStatement(22, 5, { name: "updated", statement: "SELECT 2", parameters: [] });
     const body = requestBody();
     expect(body).not.toHaveProperty("scope");
     expect(body).not.toHaveProperty("ownerUserId");
     expect(body).not.toHaveProperty("role");
+  });
+
+  it("includes parameter definitions in update payload", async () => {
+    mockApiClient.mockResolvedValueOnce(undefined);
+    await updateSavedStatement(22, 5, {
+      name: "template",
+      statement: "SELECT * FROM t WHERE id = :id",
+      parameters: [{ name: "id", type: "integer" }],
+    });
+    const body = requestBody();
+    expect(body.parameters).toEqual([{ name: "id", type: "integer" }]);
   });
 });
 

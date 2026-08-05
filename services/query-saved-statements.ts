@@ -79,8 +79,8 @@ export async function listSavedStatements(
 }
 
 /**
- * Create a saved statement. Posts only `name`, `statement`, and `scope` —
- * never actor, owner, role, credentials, or DSNs.
+ * Create a saved statement. Posts only `name`, `statement`, `scope`, and
+ * `parameters` — never actor, owner, role, credentials, or DSNs.
  */
 export async function createSavedStatement(
   targetResourceId: number,
@@ -90,6 +90,7 @@ export async function createSavedStatement(
     name: input.name,
     statement: input.statement,
     scope: input.scope,
+    parameters: input.parameters,
   };
 
   try {
@@ -106,8 +107,8 @@ export async function createSavedStatement(
 }
 
 /**
- * Update a saved statement. Posts only `name` and `statement` — scope is
- * immutable and never sent on update.
+ * Update a saved statement. Posts `name`, `statement`, and `parameters`.
+ * Scope is immutable and never sent on update.
  */
 export async function updateSavedStatement(
   targetResourceId: number,
@@ -117,6 +118,7 @@ export async function updateSavedStatement(
   const body: QuerySavedStatementUpdateRequest = {
     name: input.name,
     statement: input.statement,
+    parameters: input.parameters,
   };
 
   try {
