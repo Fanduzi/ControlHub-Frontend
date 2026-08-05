@@ -3272,7 +3272,100 @@ test.describe("Saved statements (Phase 38R)", () => {
       page.getByRole("button", { name: /保存为个人/i }),
     ).toBeVisible({ timeout: 10_000 });
   });
+
+  test("desktop EN: parameterized personal template loads typed form", async ({ page }) => {
+    await exerciseParameterizedTemplateLoad(page, { locale: "en" });
+  });
+
+  test("375px EN: parameterized personal template loads typed form", async ({ page }) => {
+    await exerciseParameterizedTemplateLoad(page, {
+      locale: "en",
+      viewport: { width: 375, height: 812 },
+    });
+  });
+
+  test("desktop zh-CN: parameterized personal template loads typed form", async ({ page }) => {
+    await exerciseParameterizedTemplateLoad(page, { locale: "zh-CN" });
+  });
 });
+
+async function exerciseParameterizedTemplateLoad(
+  page: Page,
+  options: {
+    locale: "en" | "zh-CN";
+    viewport?: { width: number; height: number };
+  },
+): Promise<void> {
+  if (options.locale === "en") {
+    await openQueryWorkbench(page);
+  } else {
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: options.locale, domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+  }
+  if (options.viewport) await page.setViewportSize(options.viewport);
+
+  const readyIndex = await findReadyOptionIndex(page);
+  if (readyIndex === null) throw noReadyTargetFixtureError();
+  await selectConnectionTarget(page, readyIndex);
+  await page.getByRole("tab", { name: options.locale === "en" ? /saved sheets/i : /已保存脚本/i }).click();
+
+  const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const savedName = `Parameterized ${suffix}`;
+  await page
+    .getByRole("button", {
+      name: options.locale === "en" ? /Save current statement as personal/i : /将当前语句保存为个人查询/,
+    })
+    .click();
+  await page.getByLabel(options.locale === "en" ? /statement name/i : /语句名称/i).first().fill(savedName);
+  await page.getByLabel(options.locale === "en" ? /SQL statement/i : /SQL 语句/i).first().fill("SELECT :status AS status");
+  await page.getByRole("button", { name: options.locale === "en" ? /add parameter/i : /添加参数/i }).first().click();
+  await page.getByTestId("parameter-row-0").locator("input").fill("status");
+
+  const createRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && /saved-statements$/.test(request.url()),
+  );
+  await page.getByRole("button", { name: options.locale === "en" ? /^create$/i : /^创建$/ }).first().click();
+  expect((await createRequest).postDataJSON()).toMatchObject({
+    name: savedName,
+    statement: "SELECT :status AS status",
+    parameters: [{ name: "status", type: "string" }],
+  });
+  await expect(page.getByText(savedName).first()).toBeVisible({ timeout: 10_000 });
+
+  const requestsDuringLoad: string[] = [];
+  const onRequest = (request: { url: () => string }) => requestsDuringLoad.push(request.url());
+  page.on("request", onRequest);
+  await page
+    .getByRole("button", {
+      name: new RegExp(`${options.locale === "en" ? "load" : "加载"} ${savedName}`, "i"),
+    })
+    .first()
+    .click();
+  await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+  await expect(page.getByLabel("status value")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(options.locale === "en" ? "Parameters" : "参数").first()).toBeVisible();
+  page.off("request", onRequest);
+  expect(
+    requestsDuringLoad.filter((url) =>
+      /\/execute|\/explain|\/schema\/|\/query-history|\/related-record|\/disclosure/.test(url),
+    ),
+  ).toHaveLength(0);
+
+  await page.getByRole("tab", { name: options.locale === "en" ? /saved sheets/i : /已保存脚本/i }).click();
+  await page
+    .getByRole("button", {
+      name: new RegExp(`${options.locale === "en" ? "delete" : "删除"} ${savedName}`, "i"),
+    })
+    .first()
+    .click();
+  const deleteDialog = page.getByRole("alertdialog");
+  await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
+  await deleteDialog.first().getByRole("button", { name: options.locale === "en" ? /^delete$/i : /^删除$/ }).click();
+  await expect(page.getByText(savedName)).toHaveCount(0, { timeout: 10_000 });
+}
 
 test.describe("Governed result paging (Phase 38S)", () => {
   let consoleMessages: ConsoleMessage[];
