@@ -391,6 +391,25 @@ describe("QuerySavedStatements declaration validation", () => {
     expect(submitButtons.some((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
   });
 
+  it("disables create submit when parameter name has surrounding whitespace", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    await user.type(screen.getAllByPlaceholderText("e.g. status")[0]!, " status");
+
+    expect(screen.getAllByRole("button", { name: /^Create$/i }).some((button) =>
+      (button as HTMLButtonElement).disabled,
+    )).toBe(true);
+  });
+
   it("disables create submit when parameter names are duplicated", async () => {
     mockListSavedStatements.mockResolvedValue(emptyResponse());
     const user = userEvent.setup();
