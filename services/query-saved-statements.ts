@@ -28,6 +28,12 @@ export type SavedStatementErrorCode =
   | "forbidden"
   | "internal_error";
 
+function sanitizeParameterDefinitions(
+  parameters: QuerySavedStatementCreateRequest["parameters"],
+): QuerySavedStatementCreateRequest["parameters"] {
+  return parameters?.map(({ name, type }) => ({ name, type })) ?? [];
+}
+
 const STATUS_TO_ERROR_CODE: Readonly<Record<number, SavedStatementErrorCode>> = {
   400: "validation_failed",
   403: "forbidden",
@@ -90,7 +96,7 @@ export async function createSavedStatement(
     name: input.name,
     statement: input.statement,
     scope: input.scope,
-    parameters: input.parameters,
+    parameters: sanitizeParameterDefinitions(input.parameters),
   };
 
   try {
@@ -118,7 +124,7 @@ export async function updateSavedStatement(
   const body: QuerySavedStatementUpdateRequest = {
     name: input.name,
     statement: input.statement,
-    parameters: input.parameters,
+    parameters: sanitizeParameterDefinitions(input.parameters),
   };
 
   try {

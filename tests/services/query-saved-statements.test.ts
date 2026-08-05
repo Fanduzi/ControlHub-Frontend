@@ -129,6 +129,17 @@ describe("createSavedStatement", () => {
       { name: "min_id", type: "integer" },
     ]);
   });
+
+  it("strips protected and unknown fields from nested create parameters", async () => {
+    mockApiClient.mockResolvedValueOnce({ id: 1 });
+    await createSavedStatement(22, {
+      name: "template",
+      statement: "SELECT :status",
+      scope: "personal",
+      parameters: [{ name: "status", type: "string", value: "secret" } as never],
+    });
+    expect(requestBody().parameters).toEqual([{ name: "status", type: "string" }]);
+  });
 });
 
 describe("updateSavedStatement", () => {
@@ -164,6 +175,16 @@ describe("updateSavedStatement", () => {
     });
     const body = requestBody();
     expect(body.parameters).toEqual([{ name: "id", type: "integer" }]);
+  });
+
+  it("strips protected and unknown fields from nested update parameters", async () => {
+    mockApiClient.mockResolvedValueOnce(undefined);
+    await updateSavedStatement(22, 5, {
+      name: "template",
+      statement: "SELECT :id",
+      parameters: [{ name: "id", type: "integer", value: "42" } as never],
+    });
+    expect(requestBody().parameters).toEqual([{ name: "id", type: "integer" }]);
   });
 });
 
