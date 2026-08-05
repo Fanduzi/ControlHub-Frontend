@@ -1440,6 +1440,8 @@
       "loading": "Loading...",
       "empty": "No saved queries yet.",
       "sharedBadge": "Shared",
+      "parameterizedBadge": "Parameterized",
+      "parameterValueAriaLabel": "{name} value",
       "loadAriaLabel": "Load {name}",
       "editAriaLabel": "Edit {name}",
       "deleteAriaLabel": "Delete {name}",

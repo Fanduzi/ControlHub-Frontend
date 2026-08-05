@@ -1440,6 +1440,8 @@
       "loading": "加载中…",
       "empty": "暂无已保存的查询。",
       "sharedBadge": "共享",
+      "parameterizedBadge": "参数化",
+      "parameterValueAriaLabel": "{name} 参数值",
       "loadAriaLabel": "加载 {name}",
       "editAriaLabel": "编辑 {name}",
       "deleteAriaLabel": "删除 {name}",
