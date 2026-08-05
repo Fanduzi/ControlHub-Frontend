@@ -662,6 +662,11 @@ function SavedStatementRow({
               {t("sharedBadge")}
             </span>
           )}
+          {item.parameters.length > 0 && (
+            <span className="rounded bg-secondary px-1 text-xs">
+              {t("parameterizedBadge")}
+            </span>
+          )}
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {item.statement}

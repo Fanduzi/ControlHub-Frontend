@@ -110,12 +110,16 @@ describe("QuerySavedStatements", () => {
 
   it("shows saved statements", async () => {
     mockListSavedStatements.mockResolvedValue(
-      singleItemResponse({ name: "Recent orders" }),
+      singleItemResponse({
+        name: "Recent orders",
+        parameters: [{ name: "status", type: "string" }],
+      }),
     );
     renderComponent();
     await waitFor(() => {
       expect(screen.getByText("Recent orders")).toBeInTheDocument();
     });
+    expect(screen.getByText("Parameterized")).toBeInTheDocument();
   });
 
   it("shows shared badge for shared_template", async () => {
