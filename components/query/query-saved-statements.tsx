@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Edit, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, Edit, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 
 import type {
   QuerySavedStatementRecord,
   QuerySavedStatementScope,
+  QuerySavedStatementParameterDefinition,
+  QuerySavedStatementParameterType,
 } from "@/types/query-saved-statement";
 import {
   listSavedStatements,
@@ -67,7 +69,10 @@ function useIsDesktop(): boolean {
 type QuerySavedStatementsProps = {
   targetResourceId: number;
   currentStatement: string;
-  onStatementLoad: (statement: string) => void;
+  onStatementLoad: (
+    statement: string,
+    parameters: readonly QuerySavedStatementParameterDefinition[],
+  ) => void;
   className?: string;
 };
 
@@ -191,6 +196,7 @@ export function QuerySavedStatements({
   });
   const [createName, setCreateName] = useState("");
   const [createStatement, setCreateStatement] = useState("");
+  const [createParameters, setCreateParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreateOpen = useCallback(
@@ -200,6 +206,7 @@ export function QuerySavedStatements({
     ) => {
       setCreateName("");
       setCreateStatement(currentStatement);
+      setCreateParameters([]);
       setCreateError(null);
       setCreateDialog({ open: true, scope, triggerRef });
     },
@@ -223,6 +230,7 @@ export function QuerySavedStatements({
         name: createName.trim(),
         statement: createStatement.trim(),
         scope: createDialog.scope,
+        parameters: createParameters,
       });
       setCreateDialog((prev) => ({ ...prev, open: false }));
       restoreFocus(createDialog.triggerRef);
@@ -241,6 +249,7 @@ export function QuerySavedStatements({
   }, [
     createName,
     createStatement,
+    createParameters,
     createDialog.scope,
     createDialog.triggerRef,
     targetResourceId,
@@ -268,6 +277,7 @@ export function QuerySavedStatements({
   const [editDialog, setEditDialog] = useState<EditDialogState>(null);
   const [editName, setEditName] = useState("");
   const [editStatement, setEditStatement] = useState("");
+  const [editParameters, setEditParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
 
   const handleEditOpen = useCallback(
@@ -278,6 +288,7 @@ export function QuerySavedStatements({
       setEditDialog({ item, triggerRef });
       setEditName(item.name);
       setEditStatement(item.statement);
+      setEditParameters(item.parameters);
       setEditError(null);
     },
     [],
@@ -300,6 +311,7 @@ export function QuerySavedStatements({
       await updateSavedStatement(targetResourceId, editDialog.item.id, {
         name: editName.trim(),
         statement: editStatement.trim(),
+        parameters: editParameters,
       });
       const triggerRef = editDialog.triggerRef;
       setEditDialog(null);
@@ -316,12 +328,12 @@ export function QuerySavedStatements({
         setEditError(t("error.updateFailed"));
       }
     }
-  }, [editDialog, editName, editStatement, targetResourceId, fetchStatements, state.page, restoreFocus, t]);
+  }, [editDialog, editName, editStatement, editParameters, targetResourceId, fetchStatements, state.page, restoreFocus, t]);
 
   // Load statement into editor
   const handleLoad = useCallback(
     (statement: QuerySavedStatementRecord) => {
-      onStatementLoad(statement.statement);
+      onStatementLoad(statement.statement, statement.parameters);
     },
     [onStatementLoad],
   );
@@ -474,6 +486,8 @@ export function QuerySavedStatements({
             onNameChange={setCreateName}
             statement={createStatement}
             onStatementChange={setCreateStatement}
+            parameters={createParameters}
+            onParametersChange={setCreateParameters}
             scope={createDialog.scope}
             error={createError}
             t={t}
@@ -504,6 +518,8 @@ export function QuerySavedStatements({
             onNameChange={setCreateName}
             statement={createStatement}
             onStatementChange={setCreateStatement}
+            parameters={createParameters}
+            onParametersChange={setCreateParameters}
             scope={createDialog.scope}
             error={createError}
             t={t}
@@ -545,6 +561,8 @@ export function QuerySavedStatements({
             onNameChange={setEditName}
             statement={editStatement}
             onStatementChange={setEditStatement}
+            parameters={editParameters}
+            onParametersChange={setEditParameters}
             scope={editDialog?.item.scope ?? "personal"}
             error={editError}
             t={t}
@@ -581,6 +599,8 @@ export function QuerySavedStatements({
             onNameChange={setEditName}
             statement={editStatement}
             onStatementChange={setEditStatement}
+            parameters={editParameters}
+            onParametersChange={setEditParameters}
             scope={editDialog?.item.scope ?? "personal"}
             error={editError}
             t={t}
@@ -679,6 +699,8 @@ function CreateEditForm({
   onNameChange,
   statement,
   onStatementChange,
+  parameters,
+  onParametersChange,
   scope,
   error,
   t,
@@ -687,6 +709,8 @@ function CreateEditForm({
   onNameChange: (value: string) => void;
   statement: string;
   onStatementChange: (value: string) => void;
+  parameters: readonly QuerySavedStatementParameterDefinition[];
+  onParametersChange: (value: readonly QuerySavedStatementParameterDefinition[]) => void;
   scope: QuerySavedStatementScope;
   error: string | null;
   t: (key: string, values?: Record<string, string>) => string;
@@ -720,6 +744,11 @@ function CreateEditForm({
           aria-label={t("statementAriaLabel")}
         />
       </div>
+      <ParameterDeclarationsForm
+        parameters={parameters}
+        onParametersChange={onParametersChange}
+        t={t}
+      />
       <div className="text-xs text-muted-foreground">
         {t("scopeLabel")}:{" "}
         <span className="font-medium">
@@ -732,6 +761,134 @@ function CreateEditForm({
           {error}
         </div>
       )}
+    </div>
+  );
+}
+
+const PARAMETER_TYPE_OPTIONS: readonly QuerySavedStatementParameterType[] = [
+  "string",
+  "integer",
+  "decimal",
+  "boolean",
+];
+
+const VALID_PARAM_NAME_RE = /^[a-z][a-z0-9_]*$/;
+const MAX_PARAM_NAME_LENGTH = 64;
+
+function ParameterDeclarationsForm({
+  parameters,
+  onParametersChange,
+  t,
+}: {
+  parameters: readonly QuerySavedStatementParameterDefinition[];
+  onParametersChange: (value: readonly QuerySavedStatementParameterDefinition[]) => void;
+  t: (key: string, values?: Record<string, string>) => string;
+}) {
+  function handleAdd() {
+    onParametersChange([...parameters, { name: "", type: "string" }]);
+  }
+
+  function handleRemove(index: number) {
+    onParametersChange(parameters.filter((_, i) => i !== index));
+  }
+
+  function handleNameChange(index: number, value: string) {
+    onParametersChange(
+      parameters.map((p, i) => (i === index ? { ...p, name: value } : p)),
+    );
+  }
+
+  function handleTypeChange(index: number, value: QuerySavedStatementParameterType) {
+    onParametersChange(
+      parameters.map((p, i) => (i === index ? { ...p, type: value } : p)),
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium">{t("parametersSectionTitle")}</label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleAdd}
+          aria-label={t("addParameter")}
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          {t("addParameter")}
+        </Button>
+      </div>
+      {parameters.length === 0 && (
+        <p className="text-xs text-muted-foreground">{t("noParameters")}</p>
+      )}
+      {parameters.map((param, index) => {
+        const nameEmpty = param.name.trim().length === 0;
+        const nameInvalid = !nameEmpty && !VALID_PARAM_NAME_RE.test(param.name);
+        const nameTooLong = param.name.length > MAX_PARAM_NAME_LENGTH;
+        const duplicateName =
+          !nameEmpty &&
+          parameters.filter((p) => p.name === param.name).length > 1;
+        const hasError = nameEmpty || nameInvalid || nameTooLong || duplicateName;
+
+        return (
+          <div
+            key={index}
+            className="flex items-start gap-2"
+            data-testid={`parameter-row-${index}`}
+          >
+            <div className="flex-1 space-y-0.5">
+              <Input
+                value={param.name}
+                onChange={(e) => handleNameChange(index, e.target.value)}
+                placeholder={t("parameterNamePlaceholder")}
+                maxLength={MAX_PARAM_NAME_LENGTH}
+                aria-label={t("parameterNameLabel")}
+                aria-invalid={hasError || undefined}
+                className="h-8 text-xs"
+              />
+              {hasError && (
+                <p className="text-[11px] text-destructive" role="alert">
+                  {nameEmpty
+                    ? t("parameterNameEmpty")
+                    : nameInvalid
+                      ? t("parameterNameInvalid")
+                      : duplicateName
+                        ? t("parameterNameDuplicate")
+                        : ""}
+                </p>
+              )}
+            </div>
+            <select
+              value={param.type}
+              onChange={(e) =>
+                handleTypeChange(
+                  index,
+                  e.target.value as QuerySavedStatementParameterType,
+                )
+              }
+              aria-label={t("parameterTypeLabel")}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {PARAMETER_TYPE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {t(`parameterType${opt.charAt(0).toUpperCase()}${opt.slice(1)}`)}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRemove(index)}
+              aria-label={t("removeParameter")}
+              className="h-8 w-8 shrink-0 p-0"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }

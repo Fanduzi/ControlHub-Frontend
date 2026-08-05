@@ -4,7 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QuerySavedStatements } from "@/components/query/query-saved-statements";
-import type { QuerySavedStatementScope } from "@/types/query-saved-statement";
+import type {
+  QuerySavedStatementScope,
+  QuerySavedStatementParameterDefinition,
+} from "@/types/query-saved-statement";
 import {
   listSavedStatements,
   createSavedStatement,
@@ -62,7 +65,7 @@ function emptyResponse(canManage = false) {
   };
 }
 
-function singleItemResponse(overrides?: { name?: string; scope?: QuerySavedStatementScope }) {
+function singleItemResponse(overrides?: { name?: string; scope?: QuerySavedStatementScope; parameters?: readonly QuerySavedStatementParameterDefinition[] }) {
   return {
     items: [
       {
@@ -71,6 +74,7 @@ function singleItemResponse(overrides?: { name?: string; scope?: QuerySavedState
         name: overrides?.name ?? "Test query",
         statement: "SELECT id FROM orders",
         scope: (overrides?.scope ?? "personal") as QuerySavedStatementScope,
+        parameters: overrides?.parameters ?? [],
         createdAt: "2026-07-28T00:00:00Z",
         updatedAt: "2026-07-28T00:00:00Z",
       },
@@ -123,6 +127,7 @@ describe("QuerySavedStatements", () => {
           name: "Template",
           statement: "SELECT 1",
           scope: "shared_template",
+          parameters: [],
           createdAt: "2026-07-28T00:00:00Z",
           updatedAt: "2026-07-28T00:00:00Z",
         },
@@ -143,7 +148,7 @@ describe("QuerySavedStatements", () => {
     });
   });
 
-  it("calls onStatementLoad when load button clicked", async () => {
+  it("calls onStatementLoad with statement and parameters when load button clicked", async () => {
     const onStatementLoad = vi.fn();
     mockListSavedStatements.mockResolvedValue(singleItemResponse());
     const user = userEvent.setup();
@@ -154,7 +159,7 @@ describe("QuerySavedStatements", () => {
     await user.click(
       screen.getByRole("button", { name: /load test query/i }),
     );
-    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders");
+    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders", []);
   });
 
   it("shows create shared button only when server says canManageSharedTemplates", async () => {
@@ -193,6 +198,7 @@ describe("QuerySavedStatements", () => {
       name: "New",
       statement: "SELECT id FROM users",
       scope: "personal",
+      parameters: [],
       createdAt: "2026-07-28T00:00:00Z",
       updatedAt: "2026-07-28T00:00:00Z",
     });
@@ -259,8 +265,88 @@ describe("QuerySavedStatements", () => {
     await user.click(
       screen.getByRole("button", { name: /load test query/i }),
     );
-    // Only onStatementLoad should be called; no side-effect endpoints
     expect(onStatementLoad).toHaveBeenCalledTimes(1);
-    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders");
+    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders", []);
+  });
+
+  it("calls onStatementLoad with parameters from saved statement", async () => {
+    const onStatementLoad = vi.fn();
+    const params: QuerySavedStatementParameterDefinition[] = [
+      { name: "status", type: "string" },
+      { name: "min_id", type: "integer" },
+    ];
+    mockListSavedStatements.mockResolvedValue(
+      singleItemResponse({ parameters: params }),
+    );
+    const user = userEvent.setup();
+    renderComponent({ onStatementLoad });
+    await waitFor(() => {
+      expect(screen.getByText("Test query")).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByRole("button", { name: /load test query/i }),
+    );
+    expect(onStatementLoad).toHaveBeenCalledWith(
+      "SELECT id FROM orders",
+      params,
+    );
+  });
+
+  it("shows parameter declarations form in create dialog", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("Parameter declarations")).toBeInTheDocument();
+    });
+    expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+  });
+
+  it("adds and removes parameter rows in create dialog", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    expect(screen.queryByText("No parameters defined")).not.toBeInTheDocument();
+    const paramInputs = screen.getAllByPlaceholderText("e.g. status");
+    expect(paramInputs.length).toBeGreaterThanOrEqual(1);
+    const typeSelects = screen.getAllByRole("combobox", { name: /type/i });
+    expect(typeSelects.length).toBeGreaterThanOrEqual(1);
+    await user.click(screen.getAllByRole("button", { name: /remove parameter/i })[0]!);
+    expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+  });
+
+  it("loads parameters into edit dialog from saved statement", async () => {
+    const params: QuerySavedStatementParameterDefinition[] = [
+      { name: "status", type: "boolean" },
+    ];
+    mockListSavedStatements.mockResolvedValue(
+      singleItemResponse({ parameters: params }),
+    );
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("Test query")).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByRole("button", { name: /edit test query/i }),
+    );
+    await waitFor(() => {
+      const paramInputs = screen.getAllByPlaceholderText("e.g. status");
+      expect(paramInputs.some((el) => (el as HTMLInputElement).value === "status")).toBe(true);
+    });
+    const typeSelects = screen.getAllByRole("combobox", { name: /type/i });
+    expect(typeSelects.some((el) => (el as HTMLSelectElement).value === "boolean")).toBe(true);
   });
 });
