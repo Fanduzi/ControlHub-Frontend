@@ -3345,7 +3345,9 @@ async function exerciseParameterizedTemplateLoad(
     .first()
     .click();
   await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
-  await expect(page.getByLabel("status value")).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByLabel(options.locale === "en" ? "status value" : "status 参数值"),
+  ).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(options.locale === "en" ? "Parameters" : "参数").first()).toBeVisible();
   page.off("request", onRequest);
   expect(
