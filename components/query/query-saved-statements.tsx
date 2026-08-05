@@ -900,9 +900,11 @@ function ParameterDeclarationsForm({
                     ? t("parameterNameEmpty")
                     : nameInvalid
                       ? t("parameterNameInvalid")
-                      : duplicateName
-                        ? t("parameterNameDuplicate")
-                        : ""}
+                      : nameTooLong
+                        ? t("parameterNameTooLong")
+                        : duplicateName
+                          ? t("parameterNameDuplicate")
+                          : ""}
                 </p>
               )}
             </div>
