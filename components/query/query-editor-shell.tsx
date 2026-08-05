@@ -20,6 +20,7 @@ import type {
   RelatedRecordNavigationResponse,
   TablePreviewRequest,
 } from "@/types/query-execution";
+import type { QuerySavedStatementParameterDefinition } from "@/types/query-saved-statement";
 import {
   executeQueryTarget,
   explainQueryTarget,
@@ -232,6 +233,7 @@ type LocalWorksheet = {
   name: string;
   targetResourceId: number;
   statement: string;
+  parameters: readonly QuerySavedStatementParameterDefinition[];
   maxRows: number;
   isExecuting: boolean;
   result: QueryExecuteResponse | null;
@@ -255,6 +257,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     name: "Worksheet 1",
     targetResourceId,
     statement: DEFAULT_STATEMENT,
+    parameters: [],
     maxRows: DEFAULT_QUERY_MAX_ROWS,
     isExecuting: false,
     result: null,
@@ -284,6 +287,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     name: `Worksheet ${index}`,
     targetResourceId,
     statement: DEFAULT_STATEMENT,
+    parameters: [],
     maxRows: getMaxRows(),
     isExecuting: false,
     result: null,
@@ -371,9 +375,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateWorksheetById(activeWorksheetId, patch);
   }
 
-  function replaceActiveStatement(statement: string, formatError: string | null = null) {
+  function replaceActiveStatement(
+    statement: string,
+    parameters: readonly QuerySavedStatementParameterDefinition[] = [],
+    formatError: string | null = null,
+  ) {
     updateActiveWorksheet({
       statement,
+      parameters: [...parameters],
       formatError,
       isDirty: true,
       isExecuting: false,
@@ -1597,8 +1606,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           <QuerySavedStatements
             targetResourceId={activeWorksheet.targetResourceId}
             currentStatement={activeWorksheet.statement}
-            onStatementLoad={(statement) => {
-              replaceActiveStatement(statement);
+            onStatementLoad={(statement, parameters) => {
+              replaceActiveStatement(statement, parameters);
             }}
           />
         </div>

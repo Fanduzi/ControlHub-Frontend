@@ -1198,6 +1198,7 @@ describe("Phase 38S: paging controls in result panel", () => {
         name: "Fresh statement",
         statement: "select fresh_data",
         scope: "personal",
+        parameters: [],
         createdAt: "2026-07-29T00:00:00Z",
         updatedAt: "2026-07-29T00:00:00Z",
       }],
