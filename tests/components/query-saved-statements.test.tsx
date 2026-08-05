@@ -350,3 +350,139 @@ describe("QuerySavedStatements", () => {
     expect(typeSelects.some((el) => (el as HTMLSelectElement).value === "boolean")).toBe(true);
   });
 });
+
+describe("QuerySavedStatements declaration validation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("disables create submit when parameter name is empty", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+
+    const submitButtons = screen.getAllByRole("button", { name: /^Create$/i });
+    expect(submitButtons.some((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("disables create submit when parameter name is invalid", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+
+    const nameInput = screen.getAllByPlaceholderText("e.g. status")[0]!;
+    await user.type(nameInput, "Invalid Name!");
+
+    const submitButtons = screen.getAllByRole("button", { name: /^Create$/i });
+    expect(submitButtons.some((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("disables create submit when parameter names are duplicated", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+
+    const nameInputs = screen.getAllByPlaceholderText("e.g. status");
+    await user.type(nameInputs[0]!, "status");
+    await user.type(nameInputs[1]!, "status");
+
+    const submitButtons = screen.getAllByRole("button", { name: /^Create$/i });
+    expect(submitButtons.some((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("enables create submit when all declarations are valid", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    mockCreateSavedStatement.mockResolvedValue({
+      id: 99,
+      targetResourceId: 22,
+      name: "Test",
+      statement: "SELECT 1",
+      scope: "personal",
+      parameters: [],
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+
+    const nameInput = screen.getAllByPlaceholderText("e.g. status")[0]!;
+    await user.type(nameInput, "valid_name");
+
+    const stmtNameInput = screen.getByLabelText("Statement name");
+    await user.type(stmtNameInput, "My query");
+
+    const submitButtons = screen.getAllByRole("button", { name: /^Create$/i });
+    expect(submitButtons.some((btn) => !(btn as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("add parameter button is disabled at 20 parameters", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+
+    for (let i = 0; i < 20; i++) {
+      await user.click(screen.getByRole("button", { name: /add parameter/i }));
+      const nameInputs = screen.getAllByPlaceholderText("e.g. status");
+      await user.type(nameInputs[nameInputs.length - 1]!, `p${i}`);
+    }
+
+    expect(screen.getByText(/20\/20/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add parameter/i })).toBeDisabled();
+  });
+
+  it("shows count indicator next to parameter section title", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/0\/20/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    expect(screen.getByText(/1\/20/)).toBeInTheDocument();
+  });
+});

@@ -199,6 +199,8 @@ export function QuerySavedStatements({
   const [createParameters, setCreateParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const createHasDeclarationErrors = hasDeclarationErrors(createParameters);
+
   const handleCreateOpen = useCallback(
     (
       scope: QuerySavedStatementScope,
@@ -279,6 +281,7 @@ export function QuerySavedStatements({
   const [editStatement, setEditStatement] = useState("");
   const [editParameters, setEditParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
+  const editHasDeclarationErrors = hasDeclarationErrors(editParameters);
 
   const handleEditOpen = useCallback(
     (
@@ -496,7 +499,7 @@ export function QuerySavedStatements({
             <Button variant="outline" onClick={() => handleCreateClose(false)}>
               {t("cancel")}
             </Button>
-            <Button onClick={() => void handleCreateSubmit()}>
+            <Button onClick={() => void handleCreateSubmit()} disabled={createHasDeclarationErrors || createName.trim().length === 0}>
               {t("create")}
             </Button>
           </DialogFooter>
@@ -531,7 +534,7 @@ export function QuerySavedStatements({
             >
               {t("cancel")}
             </Button>
-            <Button onClick={() => void handleCreateSubmit()}>
+            <Button onClick={() => void handleCreateSubmit()} disabled={createHasDeclarationErrors || createName.trim().length === 0}>
               {t("create")}
             </Button>
           </SheetFooter>
@@ -574,7 +577,7 @@ export function QuerySavedStatements({
             >
               {t("cancel")}
             </Button>
-            <Button onClick={() => void handleEditSave()}>{t("save")}</Button>
+            <Button onClick={() => void handleEditSave()} disabled={editHasDeclarationErrors || editName.trim().length === 0}>{t("save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -612,7 +615,7 @@ export function QuerySavedStatements({
             >
               {t("cancel")}
             </Button>
-            <Button onClick={() => void handleEditSave()}>{t("save")}</Button>
+            <Button onClick={() => void handleEditSave()} disabled={editHasDeclarationErrors || editName.trim().length === 0}>{t("save")}</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -774,6 +777,14 @@ const PARAMETER_TYPE_OPTIONS: readonly QuerySavedStatementParameterType[] = [
 
 const VALID_PARAM_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const MAX_PARAM_NAME_LENGTH = 64;
+const MAX_SAVED_STATEMENT_PARAMETERS = 20;
+
+function hasDeclarationErrors(parameters: readonly QuerySavedStatementParameterDefinition[]): boolean {
+  if (parameters.length > MAX_SAVED_STATEMENT_PARAMETERS) return true;
+  const names = parameters.map((p) => p.name.trim());
+  return names.some((name) => name.length === 0 || !VALID_PARAM_NAME_RE.test(name) || name.length > MAX_PARAM_NAME_LENGTH)
+    || new Set(names).size !== names.length;
+}
 
 function ParameterDeclarationsForm({
   parameters,
@@ -807,18 +818,29 @@ function ParameterDeclarationsForm({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium">{t("parametersSectionTitle")}</label>
+        <label className="text-sm font-medium">
+          {t("parametersSectionTitle")}
+          <span className="ml-1 text-xs text-muted-foreground">
+            ({parameters.length}/{MAX_SAVED_STATEMENT_PARAMETERS})
+          </span>
+        </label>
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={handleAdd}
+          disabled={parameters.length >= MAX_SAVED_STATEMENT_PARAMETERS}
           aria-label={t("addParameter")}
         >
           <Plus className="mr-1 h-3 w-3" />
           {t("addParameter")}
         </Button>
       </div>
+      {parameters.length > MAX_SAVED_STATEMENT_PARAMETERS && (
+        <p className="text-[11px] text-destructive" role="alert">
+          {t("parameterTooMany", { max: String(MAX_SAVED_STATEMENT_PARAMETERS) })}
+        </p>
+      )}
       {parameters.length === 0 && (
         <p className="text-xs text-muted-foreground">{t("noParameters")}</p>
       )}
