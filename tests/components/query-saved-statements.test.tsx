@@ -485,4 +485,34 @@ describe("QuerySavedStatements declaration validation", () => {
     await user.click(screen.getByRole("button", { name: /add parameter/i }));
     expect(screen.getByText(/1\/20/)).toBeInTheDocument();
   });
+
+  it("deleting a middle row preserves the remaining rows values", async () => {
+    mockListSavedStatements.mockResolvedValue(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("No saved queries yet.")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Save personal"));
+    await waitFor(() => {
+      expect(screen.getByText("No parameters defined")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+    await user.click(screen.getByRole("button", { name: /add parameter/i }));
+
+    const nameInputs = screen.getAllByPlaceholderText("e.g. status");
+    await user.type(nameInputs[0]!, "alpha");
+    await user.type(nameInputs[1]!, "beta");
+    await user.type(nameInputs[2]!, "gamma");
+
+    const removeButtons = screen.getAllByRole("button", { name: /remove parameter/i });
+    await user.click(removeButtons[1]!);
+
+    const remainingInputs = screen.getAllByPlaceholderText("e.g. status");
+    expect(remainingInputs).toHaveLength(2);
+    expect(remainingInputs[0]).toHaveValue("alpha");
+    expect(remainingInputs[1]).toHaveValue("gamma");
+  });
 });

@@ -795,21 +795,46 @@ function ParameterDeclarationsForm({
   onParametersChange: (value: readonly QuerySavedStatementParameterDefinition[]) => void;
   t: (key: string, values?: Record<string, string>) => string;
 }) {
+  const [rowKeys, setRowKeys] = useState<string[]>(() =>
+    parameters.map(() => crypto.randomUUID()),
+  );
+
+  // Detect external parameter resets (dialog open with pre-existing params)
+  // vs internal changes (add/remove/edit initiated by this component).
+  // Refs are safe inside effects; the selfInitiated flag prevents false resets
+  // when onParametersChange triggers a re-render with a new parameters array.
+  const selfInitiatedRef = useRef(false);
+  const prevParamsRef = useRef(parameters);
+  useEffect(() => {
+    if (prevParamsRef.current !== parameters && !selfInitiatedRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRowKeys(parameters.map(() => crypto.randomUUID()));
+    }
+    selfInitiatedRef.current = false;
+    prevParamsRef.current = parameters;
+  }, [parameters]);
+
   function handleAdd() {
+    selfInitiatedRef.current = true;
     onParametersChange([...parameters, { name: "", type: "string" }]);
+    setRowKeys((prev) => [...prev, crypto.randomUUID()]);
   }
 
   function handleRemove(index: number) {
+    selfInitiatedRef.current = true;
     onParametersChange(parameters.filter((_, i) => i !== index));
+    setRowKeys((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleNameChange(index: number, value: string) {
+    selfInitiatedRef.current = true;
     onParametersChange(
       parameters.map((p, i) => (i === index ? { ...p, name: value } : p)),
     );
   }
 
   function handleTypeChange(index: number, value: QuerySavedStatementParameterType) {
+    selfInitiatedRef.current = true;
     onParametersChange(
       parameters.map((p, i) => (i === index ? { ...p, type: value } : p)),
     );
@@ -855,7 +880,7 @@ function ParameterDeclarationsForm({
 
         return (
           <div
-            key={index}
+            key={rowKeys[index]}
             className="flex items-start gap-2"
             data-testid={`parameter-row-${index}`}
           >

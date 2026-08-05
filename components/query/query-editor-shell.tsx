@@ -878,9 +878,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
 
   function handleParameterValueChange(name: string, value: string) {
-    updateActiveWorksheet({
-      parameterValues: { ...activeWorksheet.parameterValues, [name]: value },
-    });
+    setWorksheets((previous) =>
+      previous.map((ws) =>
+        ws.id === activeWorksheetId
+          ? { ...ws, parameterValues: { ...ws.parameterValues, [name]: value } }
+          : ws,
+      ),
+    );
   }
 
   const editorThemePreference = normalizeEditorTheme(
@@ -1704,6 +1708,69 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   );
 }
 
+function WorksheetParameterInputs({
+  worksheetId,
+  parameters,
+  parameterValues,
+  onParameterValueChange,
+  t,
+}: {
+  worksheetId: string;
+  parameters: readonly QuerySavedStatementParameterDefinition[];
+  parameterValues: Record<string, string>;
+  onParameterValueChange: (name: string, value: string) => void;
+  t: (key: string, values?: Record<string, string>) => string;
+}) {
+  if (parameters.length === 0) return null;
+
+  return (
+    <div className="border-b border-border bg-muted/20 p-3">
+      <label className="mb-2 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {t("savedStatements.parametersLabel")}
+      </label>
+      <div className="space-y-2">
+        {parameters.map((param) => (
+          <div key={param.name} className="flex items-center gap-2">
+            <label
+              htmlFor={`param-value-${worksheetId}-${param.name}`}
+              className="w-32 shrink-0 truncate text-xs font-medium text-foreground"
+            >
+              {param.name}
+              <span className="ml-1 text-muted-foreground">
+                ({t(`savedStatements.parameterType${param.type.charAt(0).toUpperCase()}${param.type.slice(1)}`)})
+              </span>
+            </label>
+            {param.type === "boolean" ? (
+              <select
+                id={`param-value-${worksheetId}-${param.name}`}
+                value={parameterValues[param.name] ?? ""}
+                onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                aria-label={`${param.name} value`}
+                className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">—</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            ) : (
+              <Input
+                id={`param-value-${worksheetId}-${param.name}`}
+                type={param.type === "integer" || param.type === "decimal" ? "number" : "text"}
+                step={param.type === "integer" ? "1" : param.type === "decimal" ? "any" : undefined}
+                value={parameterValues[param.name] ?? ""}
+                onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
+                aria-label={`${param.name} value`}
+                className="h-8 flex-1 text-xs"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ReadyWorksheet({
   worksheetId,
   statement,
@@ -1948,52 +2015,13 @@ function ReadyWorksheet({
         )}
       </div>
 
-      {parameters.length > 0 && (
-        <div className="border-b border-border bg-muted/20 p-3">
-          <label className="mb-2 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t("savedStatements.parametersLabel")}
-          </label>
-          <div className="space-y-2">
-            {parameters.map((param) => (
-              <div key={param.name} className="flex items-center gap-2">
-                <label
-                  htmlFor={`param-value-${worksheetId}-${param.name}`}
-                  className="w-32 shrink-0 truncate text-xs font-medium text-foreground"
-                >
-                  {param.name}
-                  <span className="ml-1 text-muted-foreground">
-                    ({t(`savedStatements.parameterType${param.type.charAt(0).toUpperCase()}${param.type.slice(1)}`)})
-                  </span>
-                </label>
-                {param.type === "boolean" ? (
-                  <select
-                    id={`param-value-${worksheetId}-${param.name}`}
-                    value={parameterValues[param.name] ?? ""}
-                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
-                    aria-label={`${param.name} value`}
-                    className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">—</option>
-                    <option value="true">true</option>
-                    <option value="false">false</option>
-                  </select>
-                ) : (
-                  <Input
-                    id={`param-value-${worksheetId}-${param.name}`}
-                    type={param.type === "integer" || param.type === "decimal" ? "number" : "text"}
-                    step={param.type === "integer" ? "1" : param.type === "decimal" ? "any" : undefined}
-                    value={parameterValues[param.name] ?? ""}
-                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
-                    placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
-                    aria-label={`${param.name} value`}
-                    className="h-8 flex-1 text-xs"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <WorksheetParameterInputs
+        worksheetId={worksheetId}
+        parameters={parameters}
+        parameterValues={parameterValues}
+        onParameterValueChange={onParameterValueChange}
+        t={t}
+      />
 
       <div className="p-3">
         {error ? (
