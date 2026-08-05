@@ -234,6 +234,7 @@ type LocalWorksheet = {
   targetResourceId: number;
   statement: string;
   parameters: readonly QuerySavedStatementParameterDefinition[];
+  parameterValues: Record<string, string>;
   maxRows: number;
   isExecuting: boolean;
   result: QueryExecuteResponse | null;
@@ -258,6 +259,7 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     targetResourceId,
     statement: DEFAULT_STATEMENT,
     parameters: [],
+    parameterValues: {},
     maxRows: DEFAULT_QUERY_MAX_ROWS,
     isExecuting: false,
     result: null,
@@ -288,6 +290,7 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     targetResourceId,
     statement: DEFAULT_STATEMENT,
     parameters: [],
+    parameterValues: {},
     maxRows: getMaxRows(),
     isExecuting: false,
     result: null,
@@ -383,7 +386,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateActiveWorksheet({
       statement,
       parameters: [...parameters],
+      parameterValues: {},
       formatError,
+      result: null,
+      error: null,
       isDirty: true,
       isExecuting: false,
       requestId: crypto.randomUUID(),
@@ -870,6 +876,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }, [activeWorksheet.targetResourceId, activeWorksheet.activeDatabase, worksheetTarget.availableActions.run]);
 
   const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
+
+  function handleParameterValueChange(name: string, value: string) {
+    updateActiveWorksheet({
+      parameterValues: { ...activeWorksheet.parameterValues, [name]: value },
+    });
+  }
+
   const editorThemePreference = normalizeEditorTheme(
     theme === "system" ? resolvedTheme ?? "system" : theme,
   );
@@ -1490,6 +1503,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onStatementChange={(value) => {
                 replaceActiveStatement(value);
               }}
+              parameters={activeWorksheet.parameters}
+              parameterValues={activeWorksheet.parameterValues}
+              onParameterValueChange={handleParameterValueChange}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => {
                 const next = normalizeMaxRows(value, activeWorksheet.maxRows);
@@ -1692,6 +1708,9 @@ function ReadyWorksheet({
   worksheetId,
   statement,
   onStatementChange,
+  parameters,
+  parameterValues,
+  onParameterValueChange,
   maxRows,
   onMaxRowsChange,
   onMaxRowsDraftValidityChange,
@@ -1731,6 +1750,9 @@ function ReadyWorksheet({
   worksheetId: string;
   statement: string;
   onStatementChange: (value: string) => void;
+  parameters: readonly QuerySavedStatementParameterDefinition[];
+  parameterValues: Record<string, string>;
+  onParameterValueChange: (name: string, value: string) => void;
   maxRows: number;
   onMaxRowsChange: (value: number) => void;
   onMaxRowsDraftValidityChange: (valid: boolean) => void;
@@ -1925,6 +1947,53 @@ function ReadyWorksheet({
           </div>
         )}
       </div>
+
+      {parameters.length > 0 && (
+        <div className="border-b border-border bg-muted/20 p-3">
+          <label className="mb-2 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {t("savedStatements.parametersLabel")}
+          </label>
+          <div className="space-y-2">
+            {parameters.map((param) => (
+              <div key={param.name} className="flex items-center gap-2">
+                <label
+                  htmlFor={`param-value-${worksheetId}-${param.name}`}
+                  className="w-32 shrink-0 truncate text-xs font-medium text-foreground"
+                >
+                  {param.name}
+                  <span className="ml-1 text-muted-foreground">
+                    ({t(`savedStatements.parameterType${param.type.charAt(0).toUpperCase()}${param.type.slice(1)}`)})
+                  </span>
+                </label>
+                {param.type === "boolean" ? (
+                  <select
+                    id={`param-value-${worksheetId}-${param.name}`}
+                    value={parameterValues[param.name] ?? ""}
+                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                    aria-label={`${param.name} value`}
+                    className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">—</option>
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <Input
+                    id={`param-value-${worksheetId}-${param.name}`}
+                    type={param.type === "integer" || param.type === "decimal" ? "number" : "text"}
+                    step={param.type === "integer" ? "1" : param.type === "decimal" ? "any" : undefined}
+                    value={parameterValues[param.name] ?? ""}
+                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                    placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
+                    aria-label={`${param.name} value`}
+                    className="h-8 flex-1 text-xs"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="p-3">
         {error ? (

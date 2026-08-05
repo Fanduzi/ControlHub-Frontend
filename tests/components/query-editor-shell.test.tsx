@@ -1722,3 +1722,116 @@ describe("Phase 38U: explicit max-rows validation blocks execution for invalid d
     );
   });
 });
+
+// ─── Phase P1: Loaded template parameter form ─────────────────────────────
+
+describe("Phase P1: loaded template parameter form rendering", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+    mockListSavedStatements.mockResolvedValue({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Param template",
+        statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        scope: "personal" as const,
+        parameters: [
+          { name: "status", type: "string" as const },
+          { name: "min_id", type: "integer" as const },
+        ],
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+  });
+
+  it("renders typed parameter form after loading a statement with declarations", async () => {
+    const user = userEvent.setup();
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load param template/i }));
+
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+
+    expect(screen.getByText("Parameters")).toBeInTheDocument();
+    const statusInput = screen.getByLabelText("status value");
+    expect(statusInput).toBeInTheDocument();
+    expect(statusInput.tagName).toBe("INPUT");
+
+    const minIdInput = screen.getByLabelText("min_id value");
+    expect(minIdInput).toBeInTheDocument();
+    expect(minIdInput).toHaveAttribute("type", "number");
+  });
+
+  it("does not render parameter form when loaded statement has no declarations", async () => {
+    mockListSavedStatements.mockResolvedValueOnce({
+      items: [{
+        id: 99,
+        targetResourceId: 30,
+        name: "Static query",
+        statement: "SELECT 1",
+        scope: "personal" as const,
+        parameters: [],
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+    const user = userEvent.setup();
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load static query/i }));
+
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+
+    expect(screen.queryByText("Parameters")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("SELECT 1");
+  });
+
+  it("loading a statement with parameters clears stale result and error", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse({ rows: [[42, "stale-data"]], rowCount: 1 }),
+    );
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByText("stale-data")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load param template/i }));
+
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+    expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+  });
+
+  it("loading a saved statement does not fire execute, explain, or schema requests", async () => {
+    const user = userEvent.setup();
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load param template/i }));
+
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue(
+      "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+    );
+  });
+});
