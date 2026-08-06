@@ -1,3 +1,7 @@
+// input: @testing-library/react, @/components/query/query-saved-statements, @/services/query-saved-statements (mocked)
+// output: Vitest component tests for QuerySavedStatements (CRUD, shared-template affordance gate, parameterized templates)
+// pos: unit-level behavioral tests for the saved-statements UI component
+// note: if this file changes, update header and tests/components/README.md
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -150,6 +154,84 @@ describe("QuerySavedStatements", () => {
     await waitFor(() => {
       expect(screen.getByText("Shared")).toBeInTheDocument();
     });
+  });
+
+  it("hides Edit/Delete for shared_template when canManageSharedTemplates is false", async () => {
+    mockListSavedStatements.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          targetResourceId: 22,
+          name: "Template",
+          statement: "SELECT 1",
+          scope: "shared_template",
+          parameters: [],
+          createdAt: "2026-07-28T00:00:00Z",
+          updatedAt: "2026-07-28T00:00:00Z",
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      canManageSharedTemplates: false,
+    });
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("Template")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: /load template/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /edit template/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /delete template/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Edit/Delete for shared_template when canManageSharedTemplates is true", async () => {
+    mockListSavedStatements.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          targetResourceId: 22,
+          name: "Template",
+          statement: "SELECT 1",
+          scope: "shared_template",
+          parameters: [],
+          createdAt: "2026-07-28T00:00:00Z",
+          updatedAt: "2026-07-28T00:00:00Z",
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      canManageSharedTemplates: true,
+    });
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText("Template")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: /load template/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /edit template/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /delete template/i }),
+    ).toBeInTheDocument();
   });
 
   it("calls onStatementLoad with statement and parameters when load button clicked", async () => {

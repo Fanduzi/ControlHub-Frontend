@@ -1,3 +1,7 @@
+// input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
+// output: QuerySavedStatements component (list, create, edit, delete saved statements; shared-template affordance gate)
+// pos: UI component for managing saved query statements within the query workbench
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -409,6 +413,7 @@ export function QuerySavedStatements({
             <SavedStatementRow
               key={item.id}
               item={item}
+              canManageSharedTemplates={state.canManageSharedTemplates}
               onLoad={handleLoad}
               onEdit={handleEditOpen}
               onDelete={(item, triggerRef) =>
@@ -631,12 +636,14 @@ export function QuerySavedStatements({
 /** Row for a single saved statement in the list. */
 function SavedStatementRow({
   item,
+  canManageSharedTemplates,
   onLoad,
   onEdit,
   onDelete,
   t,
 }: {
   item: QuerySavedStatementRecord;
+  canManageSharedTemplates: boolean;
   onLoad: (item: QuerySavedStatementRecord) => void;
   onEdit: (
     item: QuerySavedStatementRecord,
@@ -680,24 +687,28 @@ function SavedStatementRow({
         >
           <Copy className="h-4 w-4" />
         </Button>
-        <Button
-          ref={editRef}
-          variant="ghost"
-          size="sm"
-          onClick={() => onEdit(item, editRef)}
-          aria-label={t("editAriaLabel", { name: item.name })}
-        >
-          <Edit className="h-4 w-4" />
-        </Button>
-        <Button
-          ref={deleteRef}
-          variant="ghost"
-          size="sm"
-          onClick={() => onDelete(item, deleteRef)}
-          aria-label={t("deleteAriaLabel", { name: item.name })}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {(item.scope !== "shared_template" || canManageSharedTemplates) && (
+          <>
+            <Button
+              ref={editRef}
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(item, editRef)}
+              aria-label={t("editAriaLabel", { name: item.name })}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              ref={deleteRef}
+              variant="ghost"
+              size="sm"
+              onClick={() => onDelete(item, deleteRef)}
+              aria-label={t("deleteAriaLabel", { name: item.name })}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
