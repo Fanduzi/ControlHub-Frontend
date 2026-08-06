@@ -1,3 +1,7 @@
+// input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance)
+// pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
+// note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
@@ -4159,5 +4163,215 @@ test.describe("Phase 38W-3: governed template execution", () => {
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
     await dialog.first().getByRole("button", { name: /^删除$/ }).click();
     await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
+  });
+});
+
+// ─── Issue #5: shared-template mutation affordance ──────────────────────────
+
+test.describe("Saved statements shared template affordance (Issue #5)", () => {
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  const SHARED_TEMPLATE_NAME = "E2E shared template";
+
+  test.beforeAll(async () => {
+    await checkBackendHealth();
+
+    const token = await getAuthToken();
+    const targetsRes = await fetch(`${PROBE_API_BASE}/query-targets`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!targetsRes.ok) return;
+    const targetsBody = (await targetsRes.json()) as {
+      items?: Array<{ resourceId: number; availableActions?: { run?: boolean } }>;
+    };
+    const readyTarget = (targetsBody.items ?? []).find(
+      (t) => t.availableActions?.run === true,
+    );
+    if (!readyTarget) return;
+
+    const listRes = await fetch(
+      `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/saved-statements`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!listRes.ok) return;
+    const listBody = (await listRes.json()) as {
+      items?: Array<{ id: number; name: string; scope: string }>;
+    };
+    const existing = (listBody.items ?? []).find(
+      (s) => s.name === SHARED_TEMPLATE_NAME && s.scope === "shared_template",
+    );
+    if (existing) return;
+
+    await fetch(
+      `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/saved-statements`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: SHARED_TEMPLATE_NAME,
+          statement: "SELECT 1",
+          scope: "shared_template",
+          parameters: [],
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+  });
+
+  test.beforeEach(async ({ page }) => {
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [
+        /Fast Refresh/,
+        /HMR/,
+        /Download the React DevTools/,
+      ],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `shared-tpl-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("desktop EN: authorized manager sees Load, Edit, Delete for shared_template", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(SHARED_TEMPLATE_NAME).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      page.getByRole("button", { name: new RegExp(`load ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`edit ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`delete ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+  });
+
+  test("375px mobile EN: authorized manager sees Load, Edit, Delete for shared_template", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(SHARED_TEMPLATE_NAME).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      page.getByRole("button", { name: new RegExp(`load ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`edit ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`delete ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+  });
+
+  test("desktop zh-CN: authorized manager sees localized Load, Edit, Delete for shared_template", async ({
+    page,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+    await expect(
+      page.getByText(SHARED_TEMPLATE_NAME).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      page.getByRole("button", { name: new RegExp(`加载 ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`编辑 ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`删除 ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+  });
+
+  test("non-manager editor: Load visible, Edit/Delete absent for shared_template", async ({
+    page,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await page.goto("/login");
+    await page.locator("#email").fill("editor@example.com");
+    await page.locator("#password").fill("secret123");
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+
+    await page.locator('a[href="/query"]').first().click();
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(SHARED_TEMPLATE_NAME).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      page.getByRole("button", { name: new RegExp(`load ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: new RegExp(`edit ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: new RegExp(`delete ${SHARED_TEMPLATE_NAME}`, "i") }),
+    ).toHaveCount(0);
   });
 });
