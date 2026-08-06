@@ -997,6 +997,40 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     });
   }
 
+  /** Apply the outcome of one worksheet page under the requestId stale guard.
+   * Shared by Run and every paging action so template and ordinary errors are
+   * wired identically. */
+  async function applyWorksheetPage(
+    worksheetId: string,
+    requestId: string,
+    targetId: number,
+    page: number,
+    pageSize: number,
+    maxRows: number,
+    templateStatementId: number | null,
+  ): Promise<void> {
+    try {
+      const response = await executeWorksheetPage(targetId, page, pageSize, maxRows);
+      if (!response) return;
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: response,
+        currentPage: response.pagination?.page ?? page,
+        resultPagination: response.pagination ?? null,
+      });
+    } catch (caught) {
+      const templateError = caught instanceof QueryExecuteError ? caught : null;
+      guardedUpdateWorksheet(worksheetId, requestId, {
+        result: null,
+        error: templateError,
+        ...(templateStatementId !== null
+          ? { templateFieldErrors: templateError?.details ?? {} }
+          : {}),
+      });
+    } finally {
+      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
+    }
+  }
+
   const editorThemePreference = normalizeEditorTheme(
     theme === "system" ? resolvedTheme ?? "system" : theme,
   );
@@ -1159,27 +1193,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     });
 
     const templateStatementId = activeWorksheet.templateStatementId;
-    try {
-      const response = await executeWorksheetPage(targetId, 1, activeWorksheet.pageSize, activeWorksheet.maxRows);
-      if (!response) return;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: response,
-        currentPage: response.pagination?.page ?? 1,
-        resultPagination: response.pagination ?? null,
-      });
-    } catch (caught) {
-      const templateError = caught instanceof QueryExecuteError ? caught : null;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: null,
-        error: templateError,
-        ...(templateStatementId !== null
-          ? { templateFieldErrors: templateError?.details ?? {} }
-          : {}),
-      });
-    } finally {
-      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-      void refreshHistory(worksheetId);
-    }
+    await applyWorksheetPage(worksheetId, requestId, targetId, 1, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
+    void refreshHistory(worksheetId);
   }
 
   async function handleNextPage() {
@@ -1200,26 +1215,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     });
 
     const templateStatementId = activeWorksheet.templateStatementId;
-    try {
-      const response = await executeWorksheetPage(targetId, nextPage, activeWorksheet.pageSize, activeWorksheet.maxRows);
-      if (!response) return;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: response,
-        currentPage: response.pagination?.page ?? nextPage,
-        resultPagination: response.pagination ?? null,
-      });
-    } catch (caught) {
-      const templateError = caught instanceof QueryExecuteError ? caught : null;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: null,
-        error: templateError,
-        ...(templateStatementId !== null
-          ? { templateFieldErrors: templateError?.details ?? {} }
-          : {}),
-      });
-    } finally {
-      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-    }
+    await applyWorksheetPage(worksheetId, requestId, targetId, nextPage, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
   }
 
   async function handlePreviousPage() {
@@ -1245,26 +1241,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     });
 
     const templateStatementId = activeWorksheet.templateStatementId;
-    try {
-      const response = await executeWorksheetPage(targetId, prevPage, activeWorksheet.pageSize, activeWorksheet.maxRows);
-      if (!response) return;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: response,
-        currentPage: response.pagination?.page ?? prevPage,
-        resultPagination: response.pagination ?? null,
-      });
-    } catch (caught) {
-      const templateError = caught instanceof QueryExecuteError ? caught : null;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: null,
-        error: templateError,
-        ...(templateStatementId !== null
-          ? { templateFieldErrors: templateError?.details ?? {} }
-          : {}),
-      });
-    } finally {
-      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-    }
+    await applyWorksheetPage(worksheetId, requestId, targetId, prevPage, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
   }
 
   async function handlePageSizeChange(newSize: number) {
@@ -1290,26 +1267,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     });
 
     const templateStatementId = activeWorksheet.templateStatementId;
-    try {
-      const response = await executeWorksheetPage(targetId, 1, validPageSize, activeWorksheet.maxRows);
-      if (!response) return;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: response,
-        currentPage: response.pagination?.page ?? 1,
-        resultPagination: response.pagination ?? null,
-      });
-    } catch (caught) {
-      const templateError = caught instanceof QueryExecuteError ? caught : null;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: null,
-        error: templateError,
-        ...(templateStatementId !== null
-          ? { templateFieldErrors: templateError?.details ?? {} }
-          : {}),
-      });
-    } finally {
-      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-    }
+    await applyWorksheetPage(worksheetId, requestId, targetId, 1, validPageSize, activeWorksheet.maxRows, templateStatementId);
   }
 
   async function handleExplain() {
