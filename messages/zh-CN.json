@@ -1486,6 +1486,12 @@
       "parameterNameInvalid": "使用有效的标识符（字母、数字、下划线）",
       "parameterNameTooLong": "参数名称不能超过 64 个字符",
       "parameterTooMany": "最多允许 {max} 个参数",
+      "templateModeBanner": "模板模式",
+      "templateModeHint": "运行将执行已保存的模板。编辑 SQL 将退出模板模式。",
+      "templateValueMissing": "此字段为必填项",
+      "templateValueInvalid": "值与预期类型不匹配",
+      "templateValueOversized": "值超出最大大小限制",
+      "templateValueUnknown": "未知参数",
       "error": {
         "loadFailed": "加载已保存的语句失败。",
         "validationFailed": "名称或语句无效。请检查表单后重试。",

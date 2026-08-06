@@ -475,6 +475,7 @@ describe("query-executions module surface", () => {
         "explainQueryTarget",
         "listQueryExecutions",
         "navigateRelatedRecords",
+        "toQueryExecuteError",
       ].sort(),
     );
   });

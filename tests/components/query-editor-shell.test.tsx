@@ -39,6 +39,7 @@ vi.mock("@/services/query-saved-statements", () => ({
   createSavedStatement: vi.fn(),
   updateSavedStatement: vi.fn(),
   deleteSavedStatement: vi.fn(),
+  executeSavedStatementTemplate: vi.fn(),
   SavedStatementError: class SavedStatementError extends Error {},
 }));
 
@@ -99,7 +100,7 @@ import {
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
 import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
-import { listSavedStatements } from "@/services/query-saved-statements";
+import { listSavedStatements, executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -115,6 +116,7 @@ const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 const mockGetObjectDetails = vi.mocked(getObjectDetails);
 const mockListSavedStatements = vi.mocked(listSavedStatements);
+const mockExecuteSavedStatementTemplate = vi.mocked(executeSavedStatementTemplate);
 const mockCopyToClipboard = vi.mocked(copyToClipboard);
 
 function col(
@@ -1874,7 +1876,8 @@ describe("Phase P1: loaded template parameter form rendering", () => {
     await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
     expect(screen.queryByText("stale-data")).not.toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+    // Template mode with empty values: Run stays disabled until values are entered.
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
   });
 
   it("loading a saved statement does not fire execute, explain, or schema requests", async () => {
@@ -1890,5 +1893,243 @@ describe("Phase P1: loaded template parameter form rendering", () => {
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue(
       "SELECT * FROM orders WHERE status = :status AND id > :min_id",
     );
+  });
+});
+
+describe("Phase 38W-3: template execution through the governed route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockExecuteSavedStatementTemplate.mockReset();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget()],
+      pageInfo: pageInfoFor([buildReadyTarget()]),
+    });
+    mockListSavedStatements.mockResolvedValue({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Param template",
+        statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        scope: "personal" as const,
+        parameters: [
+          { name: "status", type: "string" as const },
+          { name: "min_id", type: "integer" as const },
+        ],
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+  });
+
+  async function loadTemplate(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /saved sheets/i }));
+    await user.click(await screen.findByRole("button", { name: /load param template/i }));
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/ }));
+  }
+
+  async function fillTemplateValues(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText("status value"), "paid");
+    await user.type(screen.getByLabelText("min_id value"), "5");
+  }
+
+  it("runs a loaded template through the saved-statement execute route with typed values", async () => {
+    mockExecuteSavedStatementTemplate.mockResolvedValueOnce(buildExecuteResponse());
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+    await fillTemplateValues(user);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledWith(
+      30,
+      42,
+      expect.objectContaining({
+        values: { status: "paid", min_id: 5 },
+        pagination: { page: 1, pageSize: 10 },
+      }),
+    );
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+
+  it("stays disabled until every required value is entered", async () => {
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
+    await user.type(screen.getByLabelText("status value"), "paid");
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
+    await user.type(screen.getByLabelText("min_id value"), "5");
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+  });
+
+  it("hides Explain in template mode so placeholder SQL never reaches the explain route", async () => {
+    const user = userEvent.setup();
+    renderReady(buildReadyTarget({
+      availableActions: { run: true, explain: true, export: false, saveSheet: false, requestAccess: false },
+    }));
+    await loadTemplate(user);
+
+    expect(screen.queryByRole("button", { name: /explain/i })).not.toBeInTheDocument();
+
+    // Exiting template mode (by editing SQL) restores the Explain control.
+    const editor = screen.getByRole("textbox", { name: /statement/i });
+    await user.type(editor, " WHERE 1 = 1");
+    expect(screen.getByRole("button", { name: /explain/i })).toBeEnabled();
+  });
+
+  it("editing the SQL exits template mode and restores the ordinary run route", async () => {
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+
+    const editor = screen.getByRole("textbox", { name: /statement/i });
+    await user.type(editor, " WHERE 1 = 1");
+    expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    expect(mockExecuteSavedStatementTemplate).not.toHaveBeenCalled();
+  });
+
+  it("pages a template through the saved-statement execute route", async () => {
+    mockExecuteSavedStatementTemplate
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        pagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
+      })
+      .mockResolvedValueOnce({
+        ...buildExecuteResponse(),
+        pagination: { page: 2, pageSize: 10, hasPreviousPage: true, hasNextPage: false },
+      });
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /next page/i })).toBeEnabled();
+    });
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => {
+      expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledTimes(2);
+    });
+    expect(mockExecuteSavedStatementTemplate).toHaveBeenLastCalledWith(
+      30,
+      42,
+      expect.objectContaining({
+        values: { status: "paid", min_id: 5 },
+        pagination: { page: 2, pageSize: 10 },
+      }),
+    );
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+
+  it("shows localized accessible field errors and retains entered values", async () => {
+    mockExecuteSavedStatementTemplate.mockRejectedValueOnce(
+      new QueryExecuteError(400, "validation_failed", "template parameter validation failed", {
+        status: "invalid",
+      }),
+    );
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    const statusInput = screen.getByLabelText("status value");
+    await waitFor(() => {
+      expect(screen.getByText("Value does not match the expected type")).toBeInTheDocument();
+    });
+    expect(statusInput).toHaveAttribute("aria-invalid", "true");
+    expect(statusInput).toHaveAttribute("aria-describedby");
+    // Entered values are retained after the controlled execution error.
+    expect(statusInput).toHaveValue("paid");
+    expect(screen.getByLabelText("min_id value")).toHaveValue(5);
+
+    // Editing the value clears the field error and the generic error panel.
+    await user.clear(statusInput);
+    await user.type(statusInput, "pending");
+    expect(screen.queryByText("Value does not match the expected type")).not.toBeInTheDocument();
+    expect(statusInput).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("drops stale template responses after a value change", async () => {
+    let resolveFirst!: (value: QueryExecuteResponse) => void;
+    mockExecuteSavedStatementTemplate.mockReturnValueOnce(
+      new Promise<QueryExecuteResponse>((resolve) => { resolveFirst = resolve; }),
+    );
+    mockExecuteSavedStatementTemplate.mockResolvedValueOnce(
+      buildExecuteResponse({ rows: [[7, "latest"]], rowCount: 1 }),
+    );
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledTimes(1);
+    });
+
+    // Changing a value invalidates the in-flight template run.
+    await user.clear(screen.getByLabelText("min_id value"));
+    await user.type(screen.getByLabelText("min_id value"), "9");
+    resolveFirst(buildExecuteResponse({ rows: [[1, "stale"]], rowCount: 1 }));
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByText("latest")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("stale")).not.toBeInTheDocument();
+  });
+
+  it("clears template values when switching worksheets", async () => {
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    expect(screen.getByLabelText("status value")).toHaveValue("paid");
+
+    // A new worksheet starts without a template form; returning to the
+    // template worksheet shows the form with values cleared.
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+    await user.click(screen.getByRole("tab", { name: /Worksheet 1/ }));
+    expect(screen.getByLabelText("status value")).toHaveValue("");
+  });
+
+  it("renders template-mode field errors in zh-CN", async () => {
+    // The backend re-reads the latest template; a declaration added after the
+    // form rendered surfaces a per-field "missing" error.
+    mockExecuteSavedStatementTemplate.mockRejectedValueOnce(
+      new QueryExecuteError(400, "validation_failed", "template parameter validation failed", {
+        status: "missing",
+      }),
+    );
+    const user = userEvent.setup();
+    renderReady(buildReadyTarget(), zhMessages, "zh-CN");
+    await user.click(screen.getByRole("tab", { name: /已保存脚本/i }));
+    await user.click(await screen.findByRole("button", { name: /加载 param template/i }));
+    await user.click(screen.getByRole("tab", { name: /^Worksheet$/i }));
+    await user.type(screen.getByLabelText("status 参数值"), "paid");
+    await user.type(screen.getByLabelText("min_id 参数值"), "5");
+    await user.click(screen.getByRole("button", { name: /^执行$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("此字段为必填项")).toBeInTheDocument();
+    });
   });
 });

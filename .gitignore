@@ -68,3 +68,5 @@ query-*.png
 query-*/
 # Unignore the query-disclosure-policies settings route (tracked by Git)
 !app/(console)/settings/query-disclosure-policies/
+# E2E failure screenshots (Phase 38W-3 template execution)
+tpl-*.png

@@ -1,6 +1,9 @@
 import { apiClient, ApiError } from "@/services/api-client";
+import { toQueryExecuteError } from "@/services/query-executions";
+import type { QueryExecuteResponse } from "@/types/query-execution";
 import type {
   QuerySavedStatementCreateRequest,
+  QuerySavedStatementExecuteRequest,
   QuerySavedStatementListResponse,
   QuerySavedStatementRecord,
   QuerySavedStatementUpdateRequest,
@@ -137,6 +140,40 @@ export async function updateSavedStatement(
     );
   } catch (error) {
     throw toSavedStatementError(error);
+  }
+}
+
+/**
+ * Execute a saved statement (static or parameterized template) through the
+ * governed chain. Posts only typed `values`, an optional `maxRows` cap, and
+ * an optional governed `pagination` object — never SQL text, parameter
+ * declarations, actor identity, role, credentials, or DSNs. The server
+ * re-reads and authorizes the latest saved statement for every execution and
+ * page. Resolves with the existing execute envelope, or rejects with a
+ * controlled `QueryExecuteError` carrying per-parameter field codes in
+ * `details` (missing/unknown/invalid/oversized).
+ */
+export async function executeSavedStatementTemplate(
+  targetResourceId: number,
+  statementId: number,
+  input: QuerySavedStatementExecuteRequest,
+): Promise<QueryExecuteResponse> {
+  const body: QuerySavedStatementExecuteRequest = {
+    values: input.values,
+    ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
+    ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
+  };
+
+  try {
+    return await apiClient<QueryExecuteResponse>(
+      `/query-targets/${targetResourceId}/saved-statements/${statementId}/execute`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
+  } catch (error) {
+    throw toQueryExecuteError(error);
   }
 }
 

@@ -3697,3 +3697,467 @@ test.describe("Governed result paging (Phase 38S)", () => {
     expect(executeRequests).toHaveLength(2);
   });
 });
+
+// ─── Phase 38W-3: Governed template execution ───────────────────────────────
+
+test.describe("Phase 38W-3: governed template execution", () => {
+  let consumableHttpErrors: ConsumableHttpExpectation[] = [];
+  let consoleMessages: ConsoleMessage[];
+  let networkErrors: string[];
+
+  function uniqueSuffix(): string {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  const TEMPLATE_STATEMENT =
+    "SELECT id, payload FROM qe_explain_big WHERE id > :minimum_id ORDER BY id";
+
+  test.beforeEach(async ({ page }) => {
+    consumableHttpErrors = [];
+    // Precise base guard only; expected 400/403 echoes are consumed one-shot
+    // via consumableHttpErrors, never a broad allowlist.
+    consoleMessages = collectConsoleMessages(page, {
+      allowedErrors: [
+        /Fast Refresh/,
+        /HMR/,
+        /Download the React DevTools/,
+      ],
+      allowedWarnings: [/was preloaded using link preload but not used/],
+    });
+    networkErrors = collectNetworkErrors(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const screenshotPath = `tpl-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    }
+    let remainingNetwork = networkErrors;
+    let remainingConsole = consoleMessages;
+    for (const expected of consumableHttpErrors) {
+      remainingNetwork = takeExpectedNetworkError(remainingNetwork, {
+        method: expected.method,
+        url: expected.url,
+        status: expected.status,
+      });
+      if (expected.consumeConsoleStatusEcho) {
+        remainingConsole = takeExpectedConsoleStatusError(
+          remainingConsole,
+          expected.status,
+        );
+      }
+    }
+    assertClean(remainingConsole, remainingNetwork);
+  });
+
+  async function openReadyWorksheet(page: Page): Promise<string> {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    const targetId = new URL(page.url()).searchParams.get("targetId");
+    if (!targetId || !/^\d+$/.test(targetId)) throw noReadyTargetFixtureError();
+    return targetId;
+  }
+
+  async function createPersonalTemplate(
+    page: Page,
+    options: { name: string; statement: string; paramName: string; paramType: "string" | "integer" },
+  ): Promise<void> {
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await page.locator('[aria-label*="Save current statement as personal"]').click();
+    await expect(page.getByText("Save as personal query").first()).toBeVisible({ timeout: 5_000 });
+    await page.getByLabel(/statement name/i).first().fill(options.name);
+    await page.getByLabel(/SQL statement/i).first().fill(options.statement);
+    await page.getByRole("button", { name: /add parameter/i }).first().click();
+    const row = page.getByTestId("parameter-row-0");
+    await row.locator("input").fill(options.paramName);
+    if (options.paramType !== "string") {
+      await row.getByLabel(/type/i).selectOption(options.paramType);
+    }
+    await page.getByRole("button", { name: /^create$/i }).first().click();
+    await expect(page.getByText(options.name).first()).toBeVisible({ timeout: 10_000 });
+  }
+
+  async function loadTemplate(page: Page, name: string): Promise<void> {
+    await page.getByRole("button", { name: new RegExp(`load ${name}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByLabel("minimum_id value")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+  }
+
+  async function deleteTemplate(page: Page, name: string): Promise<void> {
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await page.getByRole("button", { name: new RegExp(`delete ${name}`, "i") }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
+    await dialog.first().getByRole("button", { name: /^delete$/i }).click();
+    await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
+  }
+
+  /** Fill the template form and wait for the template-execute request. */
+  async function runTemplate(
+    page: Page,
+    value: string,
+  ): Promise<PlaywrightRequest> {
+    await page.getByLabel("minimum_id value").fill(value);
+    const request = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    return request;
+  }
+
+  test("successful typed template execution uses the saved-statement execute route", async ({ page }) => {
+    const targetId = await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template exec ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    const requestsDuringRun: string[] = [];
+    const onRequest = (req: PlaywrightRequest) => requestsDuringRun.push(req.url());
+    page.on("request", onRequest);
+    const request = await runTemplate(page, "0");
+    page.off("request", onRequest);
+    const runUrl = new URL(request.url());
+    expect(runUrl.pathname).toMatch(/\/query-targets\/\d+\/saved-statements\/\d+\/execute$/);
+    expect(runUrl.searchParams.get("targetId")).toBeNull();
+
+    const body = request.postDataJSON() as {
+      values?: Record<string, unknown>;
+      maxRows?: number;
+      pagination?: { page: number; pageSize: number };
+      statement?: string;
+      parameters?: unknown;
+    };
+    expect(body.values).toEqual({ minimum_id: 0 });
+    expect(body.maxRows).toBeGreaterThan(0);
+    expect(body.pagination).toEqual({ page: 1, pageSize: 10 });
+    expect(body.statement).toBeUndefined();
+    expect(body.parameters).toBeUndefined();
+
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("row-001").first()).toBeVisible();
+    // The ordinary execute route must never be used while in template mode.
+    expect(
+      requestsDuringRun.filter((url) =>
+        /\/query-targets\/\d+\/execute$/.test(new URL(url).pathname),
+      ),
+    ).toHaveLength(0);
+
+    await deleteTemplate(page, name);
+    expect(targetId).toMatch(/^\d+$/);
+  });
+
+  test("controlled field validation shows a localized error without leaking the value", async ({ page }) => {
+    await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template invalid ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    // A non-integer number passes client conversion but must be rejected by the
+    // server's typed-value validation.
+    await page.getByLabel("minimum_id value").fill("1.5");
+    const request = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const invalidRequest = await request;
+    const body = invalidRequest.postDataJSON() as { values?: Record<string, unknown> };
+    expect(body.values).toEqual({ minimum_id: 1.5 });
+    consumableHttpErrors = [
+      { method: "POST", url: invalidRequest.url(), status: 400, consumeConsoleStatusEcho: true },
+    ];
+
+    await expect(page.getByText("Value does not match the expected type").first()).toBeVisible({
+      timeout: 10_000,
+    });
+    // The controlled error never echoes the supplied value or SQL; the value
+    // stays only in the input (retained for repair).
+    await expect(page.getByLabel("minimum_id value")).toHaveValue("1.5");
+    const errorArea = page.locator('[role="alert"]').filter({ hasText: "Value does not match" });
+    await expect(errorArea).not.toContainText("1.5");
+    await expect(errorArea).not.toContainText("qe_explain_big");
+    await expect(page.getByRole("grid")).not.toBeVisible();
+
+    await deleteTemplate(page, name);
+  });
+
+  test("template load is inert: no execute/explain/schema/history/related/disclosure requests", async ({ page }) => {
+    await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template inert ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+
+    const requestsDuringLoad: string[] = [];
+    const onRequest = (request: PlaywrightRequest) => requestsDuringLoad.push(request.url());
+    page.on("request", onRequest);
+    await loadTemplate(page, name);
+    page.off("request", onRequest);
+
+    expect(
+      requestsDuringLoad.filter((url) =>
+        /\/execute|\/explain|\/schema\/|\/query-targets\/[^/]+\/executions|\/related-record|\/disclosure/.test(url),
+      ),
+    ).toHaveLength(0);
+
+    await deleteTemplate(page, name);
+  });
+
+  test("template pagination stays on the template-execute route for every page", async ({ page }) => {
+    await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template pages ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    await runTemplate(page, "0");
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /next page/i })).toBeEnabled({ timeout: 10_000 });
+
+    const nextRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    const requestsDuringNext: string[] = [];
+    const onRequest = (req: PlaywrightRequest) => requestsDuringNext.push(req.url());
+    page.on("request", onRequest);
+    await page.getByRole("button", { name: /next page/i }).click();
+    const body = (await nextRequest).postDataJSON() as {
+      values?: Record<string, unknown>;
+      pagination?: { page: number; pageSize: number };
+    };
+    page.off("request", onRequest);
+    expect(body.values).toEqual({ minimum_id: 0 });
+    expect(body.pagination).toEqual({ page: 2, pageSize: 10 });
+
+    await expect(page.getByText("Page 2").first()).toBeVisible({ timeout: 10_000 });
+    // Template paging never falls back to the ordinary execute route.
+    expect(
+      requestsDuringNext.filter((url) =>
+        /\/query-targets\/\d+\/execute$/.test(new URL(url).pathname),
+      ),
+    ).toHaveLength(0);
+
+    await deleteTemplate(page, name);
+  });
+
+  test("a later disclosure-policy change blocks a subsequent template page", async ({ page }) => {
+    const targetId = await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template disclosure ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    const firstRequest = await runTemplate(page, "0");
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+    const templateUrl = firstRequest.url();
+
+    const token = await getAuthToken();
+    const apiBase = process.env.CONTROLHUB_API_PROXY_URL ?? "http://localhost:8081";
+    const policyUrl = `${apiBase}/query-disclosure-policies?targetResourceId=${targetId}&databaseName=query_e2e&objectName=qe_explain_big&columnName=payload`;
+    try {
+      const remove = await fetch(policyUrl, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(remove.status).toBe(204);
+
+      consumableHttpErrors = [
+        { method: "POST", url: templateUrl, status: 403, consumeConsoleStatusEcho: true },
+      ];
+      await page.getByRole("button", { name: /next page/i }).click();
+      await expect(page.getByText(/blocked by result disclosure policy/i).first()).toBeVisible({
+        timeout: 10_000,
+      });
+      await expect(page.getByRole("grid")).not.toBeVisible();
+    } finally {
+      const restore = await fetch(`${apiBase}/query-disclosure-policies`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          targetResourceId: Number(targetId),
+          databaseName: "query_e2e",
+          objectName: "qe_explain_big",
+          columnName: "payload",
+          mode: "raw_copy_allowed",
+        }),
+      });
+      expect(restore.status).toBe(201);
+    }
+
+    await deleteTemplate(page, name);
+  });
+
+  test("editing the SQL exits template mode and restores the ordinary run route", async ({ page }) => {
+    await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template edit ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+
+    await clearAndType(page, "SELECT id, payload FROM qe_explain_big ORDER BY id LIMIT 5");
+    await expect(page.getByText("Template mode")).toHaveCount(0);
+
+    const ordinaryRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const body = (await ordinaryRequest).postDataJSON() as { statement?: string };
+    expect(body.statement).toContain("qe_explain_big");
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+
+    await deleteTemplate(page, name);
+  });
+
+  test("editing SQL suppresses a stale template result and refresh discards values", async ({ page }) => {
+    await openReadyWorksheet(page);
+    const suffix = uniqueSuffix();
+    const name = `Template stale ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    await runTemplate(page, "0");
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("row-001").first()).toBeVisible();
+
+    // Editing the SQL exits template mode and invalidates the stale result.
+    await clearAndType(page, "SELECT id FROM qe_explain_big ORDER BY id LIMIT 3");
+    await expect(page.getByText("Template mode")).toHaveCount(0);
+    await expect(page.getByRole("grid")).not.toBeVisible();
+    await expect(page.getByText("row-001")).toHaveCount(0);
+
+    // Values live only in worksheet memory: a reload restores an empty form.
+    await page.reload();
+    await expect(page.getByRole("tab", { name: /saved sheets/i })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode")).toHaveCount(0);
+
+    await deleteTemplate(page, name);
+  });
+
+  test("template form and execution remain operable at 375px (desktop EN)", async ({ page }) => {
+    const targetId = await openReadyWorksheet(page);
+    // The /query sidebar link is desktop-only; shrink the viewport after the
+    // workbench is open so the template form and paging remain operable.
+    await page.setViewportSize({ width: 375, height: 812 });
+    const suffix = uniqueSuffix();
+    const name = `Template mobile ${suffix}`;
+    await createPersonalTemplate(page, {
+      name,
+      statement: TEMPLATE_STATEMENT,
+      paramName: "minimum_id",
+      paramType: "integer",
+    });
+    await loadTemplate(page, name);
+
+    const request = await runTemplate(page, "0");
+    expect(new URL(request.url()).pathname).toMatch(/\/saved-statements\/\d+\/execute$/);
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+
+    await deleteTemplate(page, name);
+    expect(targetId).toMatch(/^\d+$/);
+  });
+
+  test("template execution and localized validation render in zh-CN", async ({ page }) => {
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "zh-CN", domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+    const suffix = uniqueSuffix();
+    const name = `模板执行 ${suffix}`;
+    await page.locator('[aria-label*="将当前语句保存为个人查询"]').click();
+    await expect(page.getByText("保存为个人查询").first()).toBeVisible({ timeout: 5_000 });
+    await page.getByLabel(/语句名称/i).first().fill(name);
+    await page.getByLabel(/SQL 语句/i).first().fill(TEMPLATE_STATEMENT);
+    await page.getByRole("button", { name: /添加参数/i }).first().click();
+    const row = page.getByTestId("parameter-row-0");
+    await row.locator("input").fill("minimum_id");
+    await row.getByLabel(/类型/i).selectOption("integer");
+    await page.getByRole("button", { name: /^创建$/i }).first().click();
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: new RegExp(`加载 ${name}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByLabel("minimum_id 参数值")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("模板模式").first()).toBeVisible();
+
+    await page.getByLabel("minimum_id 参数值").fill("1.5");
+    const request = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    const invalidRequest = await request;
+    consumableHttpErrors = [
+      { method: "POST", url: invalidRequest.url(), status: 400, consumeConsoleStatusEcho: true },
+    ];
+    await expect(page.getByText("值与预期类型不匹配").first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByLabel("minimum_id 参数值").fill("0");
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+    await page.getByRole("button", { name: new RegExp(`删除 ${name}`, "i") }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
+    await dialog.first().getByRole("button", { name: /^删除$/ }).click();
+    await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
+  });
+});

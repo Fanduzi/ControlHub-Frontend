@@ -116,6 +116,26 @@ The page-size preference is stored locally under
 `controlhub.query.result-page-size`. Supported values are 10, 25, 50, and 100.
 This preference contains no query data or connection details.
 
+### Governed template execution
+
+Loading a parameterized saved statement enters template mode: the worksheet
+shows the typed parameter form and a template-mode banner, and Run and every
+page use `POST /query-targets/{id}/saved-statements/{statementId}/execute`.
+The request carries only typed `values` (strings/decimals as JSON strings,
+integers as JSON integers, booleans as JSON booleans), an optional `maxRows`
+cap, and an optional governed `pagination` object — never SQL text, parameter
+declarations, actor identity, credentials, or DSNs. The server re-reads and
+authorizes the latest saved statement for every execution and page.
+
+Parameter values live only in worksheet memory: they are retained across local
+and controlled execution errors, and are discarded on worksheet switch,
+refresh, or sign-out. Controlled per-field errors (`missing`, `unknown`,
+`invalid`, `oversized`) are localized in English and zh-CN and never echo the
+supplied value. Editing or formatting the SQL exits template mode and restores
+ordinary ad hoc execution through `POST /query-targets/{id}/execute`. Static
+saved statements (empty parameter list) keep their existing load-and-edit
+behavior.
+
 ### Schema explorer object search
 
 Object search in the schema explorer is debounced auto-search: typing in the

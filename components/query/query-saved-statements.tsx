@@ -69,10 +69,9 @@ function useIsDesktop(): boolean {
 type QuerySavedStatementsProps = {
   targetResourceId: number;
   currentStatement: string;
-  onStatementLoad: (
-    statement: string,
-    parameters: readonly QuerySavedStatementParameterDefinition[],
-  ) => void;
+  /** Passes the full authorized record so the editor can enter template mode
+   * with the statement ID and parameter definitions. */
+  onStatementLoad: (item: QuerySavedStatementRecord) => void;
   className?: string;
 };
 
@@ -338,8 +337,8 @@ export function QuerySavedStatements({
 
   // Load statement into editor
   const handleLoad = useCallback(
-    (statement: QuerySavedStatementRecord) => {
-      onStatementLoad(statement.statement, statement.parameters);
+    (item: QuerySavedStatementRecord) => {
+      onStatementLoad(item);
     },
     [onStatementLoad],
   );

@@ -20,7 +20,7 @@ import type {
   RelatedRecordNavigationResponse,
   TablePreviewRequest,
 } from "@/types/query-execution";
-import type { QuerySavedStatementParameterDefinition } from "@/types/query-saved-statement";
+import type { QuerySavedStatementParameterDefinition, QuerySavedStatementParameterValue, QuerySavedStatementRecord } from "@/types/query-saved-statement";
 import {
   executeQueryTarget,
   explainQueryTarget,
@@ -29,6 +29,7 @@ import {
   QueryExecuteError,
   type QueryExecuteErrorCode,
 } from "@/services/query-executions";
+import { executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -235,6 +236,12 @@ type LocalWorksheet = {
   statement: string;
   parameters: readonly QuerySavedStatementParameterDefinition[];
   parameterValues: Record<string, string>;
+  /** Non-null while the worksheet is in template mode: Run and paging use the
+   * template-execution route for this saved statement ID. */
+  templateStatementId: number | null;
+  /** Controlled per-parameter field codes (missing/unknown/invalid/oversized)
+   * from the last template execution; cleared when values change. */
+  templateFieldErrors: Record<string, string>;
   maxRows: number;
   isExecuting: boolean;
   result: QueryExecuteResponse | null;
@@ -260,6 +267,8 @@ function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
     statement: DEFAULT_STATEMENT,
     parameters: [],
     parameterValues: {},
+    templateStatementId: null,
+    templateFieldErrors: {},
     maxRows: DEFAULT_QUERY_MAX_ROWS,
     isExecuting: false,
     result: null,
@@ -291,6 +300,8 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
     statement: DEFAULT_STATEMENT,
     parameters: [],
     parameterValues: {},
+    templateStatementId: null,
+    templateFieldErrors: {},
     maxRows: getMaxRows(),
     isExecuting: false,
     result: null,
@@ -382,12 +393,17 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (worksheetId === activeWorksheetId) return;
     setWorksheets((previous) =>
       previous.map((ws) =>
-        ws.id === activeWorksheetId ? { ...ws, parameterValues: {} } : ws,
+        ws.id === activeWorksheetId
+          ? { ...ws, parameterValues: {}, templateFieldErrors: {} }
+          : ws,
       ),
     );
     setActiveWorksheetId(worksheetId);
   }, [activeWorksheetId]);
 
+  // Template mode is entered only by loading a parameterized saved statement.
+  // Editing, formatting, or retargeting the SQL exits it. Values stay in
+  // worksheet memory (never browser persistence) until switch/refresh/close.
   function replaceActiveStatement(
     statement: string,
     parameters: readonly QuerySavedStatementParameterDefinition[] = [],
@@ -397,6 +413,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       statement,
       parameters: [...parameters],
       parameterValues: {},
+      templateStatementId: null,
+      templateFieldErrors: {},
       formatError,
       result: null,
       error: null,
@@ -412,6 +430,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       currentPage: 1,
       resultPagination: null,
     });
+  }
+
+  function loadSavedStatement(item: QuerySavedStatementRecord) {
+    replaceActiveStatement(item.statement, item.parameters);
+    if (item.parameters.length > 0) {
+      updateActiveWorksheet({ templateStatementId: item.id });
+    }
   }
 
   function guardedUpdateWorksheet(
@@ -455,6 +480,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               explain: invalidateExplainState(ws.explain),
               currentPage: 1,
               resultPagination: null,
+              // Template declarations and the statement ID belong to the old
+              // target's library; retargeting must exit template mode.
+              parameters: [],
+              parameterValues: {},
+              templateStatementId: null,
+              templateFieldErrors: {},
             }
           : ws,
       ),
@@ -885,16 +916,85 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     return () => controller.abort();
   }, [activeWorksheet.targetResourceId, activeWorksheet.activeDatabase, worksheetTarget.availableActions.run]);
 
-  const runEnabled = canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "";
+  const templateMode = activeWorksheet.templateStatementId !== null;
+  const templateValuesReady =
+    !templateMode ||
+    activeWorksheet.parameters.every(
+      (parameter) => (activeWorksheet.parameterValues[parameter.name] ?? "").trim() !== "",
+    );
+  const runEnabled =
+    canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "" && templateValuesReady;
 
   function handleParameterValueChange(name: string, value: string) {
     setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === activeWorksheetId
-          ? { ...ws, parameterValues: { ...ws.parameterValues, [name]: value } }
-          : ws,
-      ),
+      previous.map((ws) => {
+        if (ws.id !== activeWorksheetId) return ws;
+        const templateFieldErrors = { ...ws.templateFieldErrors };
+        delete templateFieldErrors[name];
+        if (ws.templateStatementId === null) {
+          return { ...ws, parameterValues: { ...ws.parameterValues, [name]: value }, templateFieldErrors };
+        }
+        // In template mode a value change invalidates any in-flight template
+        // run so a stale response bound to older values cannot render.
+        return {
+          ...ws,
+          parameterValues: { ...ws.parameterValues, [name]: value },
+          templateFieldErrors,
+          requestId: crypto.randomUUID(),
+          isExecuting: false,
+          error: null,
+        };
+      }),
     );
+  }
+
+  // Template mode: Run and paging route through the saved-statement execution
+  // service. Values are converted to the typed wire encoding (strings and
+  // decimals stay strings, integers become numbers, booleans stay booleans).
+  function buildTemplateValues(): Readonly<Record<string, QuerySavedStatementParameterValue>> | null {
+    const values: Record<string, QuerySavedStatementParameterValue> = {};
+    for (const parameter of activeWorksheet.parameters) {
+      const raw = (activeWorksheet.parameterValues[parameter.name] ?? "").trim();
+      if (raw === "") return null;
+      switch (parameter.type) {
+        case "integer":
+          values[parameter.name] = Number(raw);
+          break;
+        case "boolean":
+          values[parameter.name] = raw === "true";
+          break;
+        case "string":
+        case "decimal":
+          values[parameter.name] = raw;
+          break;
+      }
+    }
+    return values;
+  }
+
+  /** Run one worksheet page: the template route in template mode, the ordinary
+   * execute route otherwise. Returns null when template values are incomplete. */
+  async function executeWorksheetPage(
+    targetId: number,
+    page: number,
+    pageSize: number,
+    maxRows: number,
+  ): Promise<QueryExecuteResponse | null> {
+    const templateStatementId = activeWorksheet.templateStatementId;
+    if (templateStatementId !== null) {
+      const values = buildTemplateValues();
+      if (!values) return null;
+      return executeSavedStatementTemplate(targetId, templateStatementId, {
+        values,
+        maxRows,
+        pagination: { page, pageSize },
+      });
+    }
+    return executeQueryTarget(targetId, {
+      statement: activeWorksheet.statement,
+      maxRows,
+      pagination: { page, pageSize },
+    });
   }
 
   const editorThemePreference = normalizeEditorTheme(
@@ -1047,6 +1147,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateActiveWorksheet({
       isExecuting: true,
       error: null,
+      templateFieldErrors: {},
       requestId,
       isDirty: false,
       relatedRecords: {
@@ -1057,22 +1158,23 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       ...(statementChanged ? { previewProvenance: null } : {}),
     });
 
+    const templateStatementId = activeWorksheet.templateStatementId;
     try {
-      const response = await executeQueryTarget(targetId, {
-        statement: activeWorksheet.statement,
-        maxRows: activeWorksheet.maxRows,
-        pagination: { page: 1, pageSize: activeWorksheet.pageSize },
-      });
-
+      const response = await executeWorksheetPage(targetId, 1, activeWorksheet.pageSize, activeWorksheet.maxRows);
+      if (!response) return;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
         currentPage: response.pagination?.page ?? 1,
         resultPagination: response.pagination ?? null,
       });
     } catch (caught) {
+      const templateError = caught instanceof QueryExecuteError ? caught : null;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
-        error: caught instanceof QueryExecuteError ? caught : null,
+        error: templateError,
+        ...(templateStatementId !== null
+          ? { templateFieldErrors: templateError?.details ?? {} }
+          : {}),
       });
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
@@ -1093,24 +1195,27 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateActiveWorksheet({
       isExecuting: true,
       error: null,
+      templateFieldErrors: {},
       requestId,
     });
 
+    const templateStatementId = activeWorksheet.templateStatementId;
     try {
-      const response = await executeQueryTarget(targetId, {
-        statement: activeWorksheet.statement,
-        maxRows: activeWorksheet.maxRows,
-        pagination: { page: nextPage, pageSize: activeWorksheet.pageSize },
-      });
+      const response = await executeWorksheetPage(targetId, nextPage, activeWorksheet.pageSize, activeWorksheet.maxRows);
+      if (!response) return;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
         currentPage: response.pagination?.page ?? nextPage,
         resultPagination: response.pagination ?? null,
       });
     } catch (caught) {
+      const templateError = caught instanceof QueryExecuteError ? caught : null;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
-        error: caught instanceof QueryExecuteError ? caught : null,
+        error: templateError,
+        ...(templateStatementId !== null
+          ? { templateFieldErrors: templateError?.details ?? {} }
+          : {}),
       });
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
@@ -1135,24 +1240,27 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateActiveWorksheet({
       isExecuting: true,
       error: null,
+      templateFieldErrors: {},
       requestId,
     });
 
+    const templateStatementId = activeWorksheet.templateStatementId;
     try {
-      const response = await executeQueryTarget(targetId, {
-        statement: activeWorksheet.statement,
-        maxRows: activeWorksheet.maxRows,
-        pagination: { page: prevPage, pageSize: activeWorksheet.pageSize },
-      });
+      const response = await executeWorksheetPage(targetId, prevPage, activeWorksheet.pageSize, activeWorksheet.maxRows);
+      if (!response) return;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
         currentPage: response.pagination?.page ?? prevPage,
         resultPagination: response.pagination ?? null,
       });
     } catch (caught) {
+      const templateError = caught instanceof QueryExecuteError ? caught : null;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
-        error: caught instanceof QueryExecuteError ? caught : null,
+        error: templateError,
+        ...(templateStatementId !== null
+          ? { templateFieldErrors: templateError?.details ?? {} }
+          : {}),
       });
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
@@ -1174,27 +1282,30 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     updateActiveWorksheet({
       isExecuting: true,
       error: null,
+      templateFieldErrors: {},
       requestId,
       currentPage: 1,
       pageSize: validPageSize,
       resultPagination: null,
     });
 
+    const templateStatementId = activeWorksheet.templateStatementId;
     try {
-      const response = await executeQueryTarget(targetId, {
-        statement: activeWorksheet.statement,
-        maxRows: activeWorksheet.maxRows,
-        pagination: { page: 1, pageSize: validPageSize },
-      });
+      const response = await executeWorksheetPage(targetId, 1, validPageSize, activeWorksheet.maxRows);
+      if (!response) return;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: response,
         currentPage: response.pagination?.page ?? 1,
         resultPagination: response.pagination ?? null,
       });
     } catch (caught) {
+      const templateError = caught instanceof QueryExecuteError ? caught : null;
       guardedUpdateWorksheet(worksheetId, requestId, {
         result: null,
-        error: caught instanceof QueryExecuteError ? caught : null,
+        error: templateError,
+        ...(templateStatementId !== null
+          ? { templateFieldErrors: templateError?.details ?? {} }
+          : {}),
       });
     } finally {
       guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
@@ -1202,9 +1313,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   async function handleExplain() {
-    const canExplain = actions.explain === true;
+    // Explain is disabled in template mode: the editor shows the placeholder
+    // SQL which must never reach the ordinary explain route.
     const statement = activeWorksheet.statement.trim();
-    if (!canExplain || statement === "" || activeWorksheet.isExecuting || activeWorksheet.explain.status === "loading") {
+    const canExplain =
+      actions.explain === true &&
+      !templateMode &&
+      statement !== "";
+    if (!canExplain || activeWorksheet.isExecuting || activeWorksheet.explain.status === "loading") {
       return;
     }
 
@@ -1318,6 +1434,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               explain: invalidateExplainState(worksheet.explain),
               currentPage: 1,
               resultPagination: null,
+              // Formatting rewrites the SQL text, so template mode (whose
+              // statement ID no longer matches the text) must exit.
+              parameters: [],
+              parameterValues: {},
+              templateStatementId: null,
+              templateFieldErrors: {},
             }
           : {}),
       });
@@ -1520,6 +1642,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               parameters={activeWorksheet.parameters}
               parameterValues={activeWorksheet.parameterValues}
               onParameterValueChange={handleParameterValueChange}
+              templateMode={templateMode}
+              templateFieldErrors={activeWorksheet.templateFieldErrors}
               maxRows={activeWorksheet.maxRows}
               onMaxRowsChange={(value) => {
                 const next = normalizeMaxRows(value, activeWorksheet.maxRows);
@@ -1544,6 +1668,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
               explainEnabled={
+                !templateMode &&
                 actions.explain === true &&
                 activeWorksheet.statement.trim() !== ""
               }
@@ -1636,9 +1761,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           <QuerySavedStatements
             targetResourceId={activeWorksheet.targetResourceId}
             currentStatement={activeWorksheet.statement}
-            onStatementLoad={(statement, parameters) => {
-              replaceActiveStatement(statement, parameters);
-            }}
+            onStatementLoad={loadSavedStatement}
           />
         </div>
       ) : null}
@@ -1722,16 +1845,33 @@ function WorksheetParameterInputs({
   worksheetId,
   parameters,
   parameterValues,
+  fieldErrors,
   onParameterValueChange,
   t,
 }: {
   worksheetId: string;
   parameters: readonly QuerySavedStatementParameterDefinition[];
   parameterValues: Record<string, string>;
+  fieldErrors: Record<string, string>;
   onParameterValueChange: (name: string, value: string) => void;
   t: (key: string, values?: Record<string, string>) => string;
 }) {
   if (parameters.length === 0) return null;
+
+  function fieldErrorText(name: string): string | null {
+    const code = fieldErrors[name];
+    if (!code) return null;
+    switch (code) {
+      case "missing":
+        return t("savedStatements.templateValueMissing");
+      case "unknown":
+        return t("savedStatements.templateValueUnknown");
+      case "oversized":
+        return t("savedStatements.templateValueOversized");
+      default:
+        return t("savedStatements.templateValueInvalid");
+    }
+  }
 
   return (
     <div className="border-b border-border bg-muted/20 p-3">
@@ -1739,43 +1879,58 @@ function WorksheetParameterInputs({
         {t("savedStatements.parametersLabel")}
       </label>
       <div className="space-y-2">
-        {parameters.map((param) => (
-          <div key={param.name} className="flex items-center gap-2">
-            <label
-              htmlFor={`param-value-${worksheetId}-${param.name}`}
-              className="w-32 shrink-0 truncate text-xs font-medium text-foreground"
-            >
-              {param.name}
-              <span className="ml-1 text-muted-foreground">
-                ({t(`savedStatements.parameterType${param.type.charAt(0).toUpperCase()}${param.type.slice(1)}`)})
-              </span>
-            </label>
-            {param.type === "boolean" ? (
-              <select
-                id={`param-value-${worksheetId}-${param.name}`}
-                value={parameterValues[param.name] ?? ""}
-                onChange={(e) => onParameterValueChange(param.name, e.target.value)}
-                aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">—</option>
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            ) : (
-              <Input
-                id={`param-value-${worksheetId}-${param.name}`}
-                type={param.type === "integer" || param.type === "decimal" ? "number" : "text"}
-                step={param.type === "integer" ? "1" : param.type === "decimal" ? "any" : undefined}
-                value={parameterValues[param.name] ?? ""}
-                onChange={(e) => onParameterValueChange(param.name, e.target.value)}
-                placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
-                aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
-                className="h-8 flex-1 text-xs"
-              />
-            )}
-          </div>
-        ))}
+        {parameters.map((param) => {
+          const errorText = fieldErrorText(param.name);
+          const errorId = `param-error-${worksheetId}-${param.name}`;
+          return (
+            <div key={param.name} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor={`param-value-${worksheetId}-${param.name}`}
+                  className="w-32 shrink-0 truncate text-xs font-medium text-foreground"
+                >
+                  {param.name}
+                  <span className="ml-1 text-muted-foreground">
+                    ({t(`savedStatements.parameterType${param.type.charAt(0).toUpperCase()}${param.type.slice(1)}`)})
+                  </span>
+                </label>
+                {param.type === "boolean" ? (
+                  <select
+                    id={`param-value-${worksheetId}-${param.name}`}
+                    value={parameterValues[param.name] ?? ""}
+                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                    aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
+                    aria-invalid={errorText ? true : undefined}
+                    aria-describedby={errorText ? errorId : undefined}
+                    className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">—</option>
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <Input
+                    id={`param-value-${worksheetId}-${param.name}`}
+                    type={param.type === "integer" || param.type === "decimal" ? "number" : "text"}
+                    step={param.type === "integer" ? "1" : param.type === "decimal" ? "any" : undefined}
+                    value={parameterValues[param.name] ?? ""}
+                    onChange={(e) => onParameterValueChange(param.name, e.target.value)}
+                    placeholder={param.type === "string" ? "" : param.type === "integer" ? "0" : "0.0"}
+                    aria-label={t("savedStatements.parameterValueAriaLabel", { name: param.name })}
+                    aria-invalid={errorText ? true : undefined}
+                    aria-describedby={errorText ? errorId : undefined}
+                    className="h-8 flex-1 text-xs"
+                  />
+                )}
+              </div>
+              {errorText ? (
+                <p id={errorId} role="alert" className="pl-[8.5rem] text-xs text-rose-600 dark:text-rose-400">
+                  {errorText}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1788,6 +1943,8 @@ function ReadyWorksheet({
   parameters,
   parameterValues,
   onParameterValueChange,
+  templateMode,
+  templateFieldErrors,
   maxRows,
   onMaxRowsChange,
   onMaxRowsDraftValidityChange,
@@ -1830,6 +1987,8 @@ function ReadyWorksheet({
   parameters: readonly QuerySavedStatementParameterDefinition[];
   parameterValues: Record<string, string>;
   onParameterValueChange: (name: string, value: string) => void;
+  templateMode: boolean;
+  templateFieldErrors: Record<string, string>;
   maxRows: number;
   onMaxRowsChange: (value: number) => void;
   onMaxRowsDraftValidityChange: (valid: boolean) => void;
@@ -2029,9 +2188,23 @@ function ReadyWorksheet({
         worksheetId={worksheetId}
         parameters={parameters}
         parameterValues={parameterValues}
+        fieldErrors={templateFieldErrors}
         onParameterValueChange={onParameterValueChange}
         t={t}
       />
+      {templateMode && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-border bg-emerald-500/5 px-3 py-2"
+          role="status"
+        >
+          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+            {t("savedStatements.templateModeBanner")}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {t("savedStatements.templateModeHint")}
+          </span>
+        </div>
+      )}
 
       <div className="p-3">
         {error ? (

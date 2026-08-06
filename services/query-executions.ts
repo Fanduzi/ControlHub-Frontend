@@ -81,7 +81,7 @@ function errorCodeFromStatus(error: ApiError): QueryExecuteErrorCode {
 }
 
 /** Convert the shared client's ApiError into a controlled QueryExecuteError. */
-function toQueryExecuteError(error: unknown): QueryExecuteError {
+export function toQueryExecuteError(error: unknown): QueryExecuteError {
   if (error instanceof ApiError) {
     return new QueryExecuteError(
       error.status,

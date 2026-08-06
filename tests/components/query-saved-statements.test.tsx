@@ -163,7 +163,13 @@ describe("QuerySavedStatements", () => {
     await user.click(
       screen.getByRole("button", { name: /load test query/i }),
     );
-    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders", []);
+    expect(onStatementLoad).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        statement: "SELECT id FROM orders",
+        parameters: [],
+      }),
+    );
   });
 
   it("shows create shared button only when server says canManageSharedTemplates", async () => {
@@ -270,7 +276,13 @@ describe("QuerySavedStatements", () => {
       screen.getByRole("button", { name: /load test query/i }),
     );
     expect(onStatementLoad).toHaveBeenCalledTimes(1);
-    expect(onStatementLoad).toHaveBeenCalledWith("SELECT id FROM orders", []);
+    expect(onStatementLoad).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        statement: "SELECT id FROM orders",
+        parameters: [],
+      }),
+    );
   });
 
   it("calls onStatementLoad with parameters from saved statement", async () => {
@@ -291,8 +303,11 @@ describe("QuerySavedStatements", () => {
       screen.getByRole("button", { name: /load test query/i }),
     );
     expect(onStatementLoad).toHaveBeenCalledWith(
-      "SELECT id FROM orders",
-      params,
+      expect.objectContaining({
+        id: 1,
+        statement: "SELECT id FROM orders",
+        parameters: params,
+      }),
     );
   });
 

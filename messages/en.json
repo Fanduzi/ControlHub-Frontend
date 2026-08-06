@@ -1486,6 +1486,12 @@
       "parameterNameInvalid": "Use a valid identifier (letters, digits, underscores)",
       "parameterNameTooLong": "Parameter name must be 64 characters or fewer",
       "parameterTooMany": "Maximum {max} parameters allowed",
+      "templateModeBanner": "Template mode",
+      "templateModeHint": "Run executes the saved template. Editing the SQL exits template mode.",
+      "templateValueMissing": "This field is required",
+      "templateValueInvalid": "Value does not match the expected type",
+      "templateValueOversized": "Value exceeds the maximum size",
+      "templateValueUnknown": "Unknown parameter",
       "error": {
         "loadFailed": "Failed to load saved statements.",
         "validationFailed": "The name or statement is invalid. Check the form and try again.",
