@@ -7,7 +7,7 @@ React client components for the query workbench feature.
 | File | Purpose |
 |------|---------|
 | query-workbench.tsx | Top-level workbench layout with navigator and editor shell |
-| query-editor-shell.tsx | Tabbed editor shell (worksheet, history, saved statements) |
+| query-editor-shell.tsx | Tabbed editor shell (worksheet, history, saved statements; template mode via load and SQL-edit exit) |
 | query-saved-statements.tsx | Saved statement list with CRUD and shared-template affordance gate |
 | query-workbench-navigator.tsx | Target navigator wrapper |
 | query-connection-navigator.tsx | Connection target selector dialog/sheet |

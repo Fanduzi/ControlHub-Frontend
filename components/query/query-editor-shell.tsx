@@ -1,3 +1,7 @@
+// input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
+// output: QueryEditorShell component (tabbed editor with worksheet, history, saved statements; template mode via load/SQL-edit)
+// pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
