@@ -2319,14 +2319,11 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     });
     expect(mockExecuteSavedStatementTemplate).not.toHaveBeenCalled();
 
-    // Returning to the departing worksheet must not restore entered values.
-    const originalTab = screen.queryByRole("tab", { name: /^Worksheet$/ })
-      ?? screen.queryByRole("tab", { name: /Worksheet 1/ });
-    if (originalTab) {
-      await user.click(originalTab);
-      if (screen.queryByLabelText("status value")) {
-        expect(screen.getByLabelText("status value")).toHaveValue("");
-      }
-    }
+    // Target switch creates Worksheet 2; return to the departing Worksheet 1
+    // sheet tab (not the section "Worksheet" content tab).
+    await user.click(screen.getByRole("tab", { name: /Worksheet 1/ }));
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+    expect(screen.getByLabelText("status value")).toHaveValue("");
+    expect(screen.getByLabelText("min_id value")).toHaveValue(null);
   });
 });
