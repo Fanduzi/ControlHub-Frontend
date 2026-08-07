@@ -8,7 +8,7 @@ Vitest component tests for React UI components.
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — CRUD, shared-template affordance gate, parameterized templates |
 | query-workbench.test.tsx | QueryWorkbench — full workbench integration |
-| query-editor-shell.test.tsx | QueryEditorShell — tabbed editor shell |
+| query-editor-shell.test.tsx | QueryEditorShell — tabbed editor shell, template mode, lifecycle disposal, execution routing |
 | query-connection-navigator.test.tsx | Connection navigator |
 | query-credential-settings.test.tsx | Query credential settings |
 | query-disclosure-settings.test.tsx | Query disclosure settings |

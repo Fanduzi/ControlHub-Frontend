@@ -1,11 +1,16 @@
+// input: @testing-library/react, @/components/query/query-workbench, mocked services
+// output: Vitest component tests for QueryEditorShell (template mode, lifecycle disposal, target switch, execution routing)
+// pos: unit-level behavioral tests for the query editor shell component
+// note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
 import { NextIntlClientProvider } from "next-intl";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryResultColumn } from "@/types/query-execution";
 import { QueryExecuteError } from "@/services/query-executions";
 import { DEFAULT_QUERY_MAX_ROWS } from "@/lib/query-editor-preferences";
+import * as querySqlFormat from "@/lib/query-sql-format";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
@@ -2097,18 +2102,98 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     expect(screen.queryByText("stale")).not.toBeInTheDocument();
   });
 
-  it("clears template values when switching worksheets", async () => {
+  it("editing SQL exits template mode, clears values, invalidates stale response, and restores ordinary Run", async () => {
+    // WHY: template mode must not linger after a real SQL edit; values and
+    // in-flight template results are worksheet-memory only and must die with
+    // the session so ordinary POST /execute cannot run placeholder SQL.
+    let resolveFirst!: (value: QueryExecuteResponse) => void;
+    mockExecuteSavedStatementTemplate.mockReturnValueOnce(
+      new Promise<QueryExecuteResponse>((resolve) => { resolveFirst = resolve; }),
+    );
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Run executes the saved template\. Editing the SQL exits template mode\./i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /close template session/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledTimes(1);
+    });
+
+    // Editor is disabled while executing; drive the same onChange path the
+    // SQL editor uses so requestId rotation still drops the in-flight result.
+    const editor = screen.getByRole("textbox", { name: /statement/i });
+    fireEvent.change(editor, {
+      target: { value: `${(editor as HTMLTextAreaElement).value} WHERE 1 = 1` },
+    });
+
+    expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("status value")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("min_id value")).not.toBeInTheDocument();
+
+    resolveFirst(buildExecuteResponse({ rows: [[1, "stale-after-sql-edit"]], rowCount: 1 }));
+    await waitFor(() => {
+      expect(screen.queryByText("stale-after-sql-edit")).not.toBeInTheDocument();
+    });
+
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    expect(mockExecuteSavedStatementTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears template values on worksheet switch; returning keeps the session with empty values", async () => {
+    // WHY: departing worksheet values must die on switch so a shared device
+    // cannot recover prior template input by flipping tabs. The loaded
+    // template session may remain, but entered values must stay empty.
     const user = userEvent.setup();
     renderReady();
     await loadTemplate(user);
     await fillTemplateValues(user);
     expect(screen.getByLabelText("status value")).toHaveValue("paid");
+    expect(screen.getByLabelText("min_id value")).toHaveValue(5);
 
-    // A new worksheet starts without a template form; returning to the
-    // template worksheet shows the form with values cleared.
     await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+    expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("status value")).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("tab", { name: /Worksheet 1/ }));
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
     expect(screen.getByLabelText("status value")).toHaveValue("");
+    expect(screen.getByLabelText("min_id value")).toHaveValue(null);
+  });
+
+  it("closing a non-last worksheet destroys its template session", async () => {
+    // WHY: "template close" means closing the worksheet — the close path must
+    // destroy session state so the loaded template cannot reappear.
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /Worksheet 2/ })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Close Worksheet 1/i }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(within(confirm).getByRole("button", { name: /^Close worksheet$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("tab", { name: /Worksheet 1/ })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("status value")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("min_id value")).not.toBeInTheDocument();
   });
 
   it("renders template-mode field errors in zh-CN", async () => {
@@ -2131,5 +2216,117 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     await waitFor(() => {
       expect(screen.getByText("此字段为必填项")).toBeInTheDocument();
     });
+  });
+
+  it("formatting that changes SQL exits template mode and clears values", async () => {
+    // WHY: a successful format rewrite is a real SQL edit and must exit
+    // template mode the same way a manual edit does.
+    const formatSpy = vi.spyOn(querySqlFormat, "formatQueryStatement").mockReturnValue({
+      ok: true,
+      formatted: "SELECT 1 AS formatted",
+    });
+    const user = userEvent.setup();
+    renderReady();
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+    expect(screen.getByLabelText("status value")).toHaveValue("paid");
+
+    await user.click(screen.getByRole("button", { name: /format/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText("status value")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("SELECT 1 AS formatted");
+    formatSpy.mockRestore();
+  });
+
+  it("target switch creates a clean non-template worksheet and cannot restore old values", async () => {
+    // WHY: target switch must activate a fresh worksheet; prior template values
+    // live only in the departing worksheet memory and must not resurface.
+    const secondTarget = buildReadyTarget({
+      resourceId: 31,
+      displayName: "Remote MySQL",
+      connectionContext: {
+        engine: "mysql",
+        host: "10.0.0.1",
+        port: 3306,
+        environment: "Production",
+        owner: "Platform",
+        clusterName: "",
+      },
+    });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildReadyTarget(), secondTarget],
+      pageInfo: pageInfoFor([buildReadyTarget(), secondTarget]),
+    });
+    mockListSavedStatements.mockResolvedValue({
+      items: [],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget(), secondTarget]}
+          pageInfo={pageInfoFor([buildReadyTarget(), secondTarget])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Restore the template list for the original target load path.
+    mockListSavedStatements.mockResolvedValue({
+      items: [{
+        id: 42,
+        targetResourceId: 30,
+        name: "Param template",
+        statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        scope: "personal" as const,
+        parameters: [
+          { name: "status", type: "string" as const },
+          { name: "min_id", type: "integer" as const },
+        ],
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      }],
+      pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      canManageSharedTemplates: false,
+    });
+
+    await loadTemplate(user);
+    await fillTemplateValues(user);
+    expect(screen.getByText("Template mode")).toBeInTheDocument();
+    expect(screen.getByLabelText("status value")).toHaveValue("paid");
+
+    await user.click(screen.getByRole("button", { name: /^open connections$/i }));
+    const dialog = screen.getByRole("dialog", { name: /connections/i });
+    await user.click(within(dialog).getByRole("button", { name: "Remote MySQL" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Template mode")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText("status value")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("min_id value")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    });
+    expect(mockExecuteSavedStatementTemplate).not.toHaveBeenCalled();
+
+    // Returning to the departing worksheet must not restore entered values.
+    const originalTab = screen.queryByRole("tab", { name: /^Worksheet$/ })
+      ?? screen.queryByRole("tab", { name: /Worksheet 1/ });
+    if (originalTab) {
+      await user.click(originalTab);
+      if (screen.queryByLabelText("status value")) {
+        expect(screen.getByLabelText("status value")).toHaveValue("");
+      }
+    }
   });
 });
