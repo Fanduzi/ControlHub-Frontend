@@ -6,7 +6,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 
 | Spec | Coverage |
 |------|----------|
-| query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, explain, relationship map, shared-template affordance |
+| query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, explain, relationship map, shared-template affordance, shared template execution, disposal, no-leakage assertions, list pagination |
 | console-ux.spec.ts | Console layout and UX checks |
 | databases-sheet.spec.ts | Databases sheet interactions |
 | list-pagination.spec.ts | List pagination behavior |

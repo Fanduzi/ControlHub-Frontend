@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance)
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance/disposal)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -4173,6 +4173,74 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
   let networkErrors: string[];
 
   const SHARED_TEMPLATE_NAME = "E2E shared template";
+  const SHARED_PARAM_TEMPLATE_NAME = "E2E shared param template";
+
+  function fixtureSetupError(detail: string): Error {
+    return new Error(`E2E fixture setup error: ${detail}. ${FIXTURE_DIAGNOSTIC}`);
+  }
+
+  async function ensureSharedTemplate(
+    token: string,
+    targetId: number,
+    spec: {
+      name: string;
+      statement: string;
+      parameters: Array<{ name: string; type: string }>;
+    },
+  ): Promise<void> {
+    const listRes = await fetch(
+      `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements?pageSize=100`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!listRes.ok) {
+      throw fixtureSetupError(
+        `list saved-statements for target ${targetId} returned ${listRes.status}`,
+      );
+    }
+    const listBody = (await listRes.json()) as {
+      items?: Array<{ id: number; name: string; scope: string }>;
+    };
+    if (!Array.isArray(listBody.items)) {
+      throw fixtureSetupError(
+        `list saved-statements for target ${targetId} returned unexpected body (missing items[])`,
+      );
+    }
+    const existing = listBody.items.find(
+      (s) => s.name === spec.name && s.scope === "shared_template",
+    );
+    if (existing) {
+      return;
+    }
+
+    const createRes = await fetch(
+      `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: spec.name,
+          statement: spec.statement,
+          scope: "shared_template",
+          parameters: spec.parameters,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!createRes.ok) {
+      throw fixtureSetupError(
+        `create shared template "${spec.name}" returned ${createRes.status}: ${await createRes.text()}`,
+      );
+    }
+    const created = (await createRes.json()) as { id?: number; name?: string; scope?: string };
+    if (typeof created.id !== "number" || created.name !== spec.name || created.scope !== "shared_template") {
+      throw fixtureSetupError(
+        `create shared template "${spec.name}" returned unexpected body: ${JSON.stringify(created)}`,
+      );
+    }
+  }
 
   test.beforeAll(async () => {
     await checkBackendHealth();
@@ -4182,45 +4250,34 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!targetsRes.ok) return;
+    if (!targetsRes.ok) {
+      throw fixtureSetupError(`GET /query-targets returned ${targetsRes.status}`);
+    }
     const targetsBody = (await targetsRes.json()) as {
       items?: Array<{ resourceId: number; availableActions?: { run?: boolean } }>;
     };
-    const readyTarget = (targetsBody.items ?? []).find(
+    if (!Array.isArray(targetsBody.items)) {
+      throw fixtureSetupError("GET /query-targets returned unexpected body (missing items[])");
+    }
+    const readyTarget = targetsBody.items.find(
       (t) => t.availableActions?.run === true,
     );
-    if (!readyTarget) return;
+    if (!readyTarget) {
+      throw noReadyTargetFixtureError();
+    }
 
-    const listRes = await fetch(
-      `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/saved-statements`,
-      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
-    );
-    if (!listRes.ok) return;
-    const listBody = (await listRes.json()) as {
-      items?: Array<{ id: number; name: string; scope: string }>;
-    };
-    const existing = (listBody.items ?? []).find(
-      (s) => s.name === SHARED_TEMPLATE_NAME && s.scope === "shared_template",
-    );
-    if (existing) return;
-
-    await fetch(
-      `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/saved-statements`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: SHARED_TEMPLATE_NAME,
-          statement: "SELECT 1",
-          scope: "shared_template",
-          parameters: [],
-        }),
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
+    // Ensure each shared fixture independently — never skip the parameterized
+    // template because the static one already exists (or vice versa).
+    await ensureSharedTemplate(token, readyTarget.resourceId, {
+      name: SHARED_TEMPLATE_NAME,
+      statement: "SELECT 1",
+      parameters: [],
+    });
+    await ensureSharedTemplate(token, readyTarget.resourceId, {
+      name: SHARED_PARAM_TEMPLATE_NAME,
+      statement: "SELECT id, payload FROM qe_explain_big WHERE id > :minimum_id ORDER BY id",
+      parameters: [{ name: "minimum_id", type: "integer" }],
+    });
   });
 
   test.beforeEach(async ({ page }) => {
@@ -4373,5 +4430,329 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await expect(
       page.getByRole("button", { name: new RegExp(`delete ${SHARED_TEMPLATE_NAME}`, "i") }),
     ).toHaveCount(0);
+  });
+
+  test("non-admin editor: Load shared template, fill minimum_id, execute, assert body values, capture ID, verify Next page", async ({
+    page,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await page.goto("/login");
+    await page.locator("#email").fill("editor@example.com");
+    await page.locator("#password").fill("secret123");
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+
+    await page.locator('a[href="/query"]').first().click();
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: new RegExp(`load ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+    await expect(page.getByLabel("minimum_id value")).toBeVisible();
+    await expect(
+      page.getByText(/Run executes the saved template\. Editing the SQL exits template mode\./i),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /close template session/i })).toHaveCount(0);
+
+    await page.getByLabel("minimum_id value").fill("0");
+
+    const templateExecuteRe = /\/query-targets\/(\d+)\/saved-statements\/(\d+)\/execute$/;
+    const ordinaryExecuteRe = /\/query-targets\/\d+\/execute$/;
+
+    const ordinaryRequests: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() !== "POST") return;
+      const pathname = new URL(req.url()).pathname;
+      if (ordinaryExecuteRe.test(pathname) && !templateExecuteRe.test(pathname)) {
+        ordinaryRequests.push(req.url());
+      }
+    });
+
+    const firstExecuteRequest = page.waitForRequest(
+      (req) => req.method() === "POST" && templateExecuteRe.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const firstReq = await firstExecuteRequest;
+    const firstUrl = new URL(firstReq.url());
+    expect(firstUrl.pathname).toMatch(templateExecuteRe);
+    const firstMatch = firstUrl.pathname.match(templateExecuteRe)!;
+    const targetId = firstMatch[1];
+    const savedStmtId = firstMatch[2];
+    expect(targetId).toMatch(/^\d+$/);
+    expect(savedStmtId).toMatch(/^\d+$/);
+    const firstBody = firstReq.postDataJSON() as { values?: Record<string, unknown>; pagination?: { page: number } };
+    expect(firstBody.values).toEqual({ minimum_id: 0 });
+    expect(firstBody.pagination?.page).toBe(1);
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+
+    const nextPage = page.getByRole("button", { name: /next page/i });
+    await expect(nextPage).toBeEnabled();
+
+    const secondExecuteRequest = page.waitForRequest(
+      (req) => req.method() === "POST" && templateExecuteRe.test(new URL(req.url()).pathname),
+    );
+    await nextPage.click();
+    const secondReq = await secondExecuteRequest;
+    const secondUrl = new URL(secondReq.url());
+    expect(secondUrl.pathname).toMatch(templateExecuteRe);
+    const secondMatch = secondUrl.pathname.match(templateExecuteRe)!;
+    expect(secondMatch[1]).toBe(targetId);
+    expect(secondMatch[2]).toBe(savedStmtId);
+    const secondBody = secondReq.postDataJSON() as { values?: Record<string, unknown>; pagination?: { page: number } };
+    expect(secondBody.values).toEqual({ minimum_id: 0 });
+    expect(secondBody.pagination?.page).toBe(2);
+
+    await expect.poll(() => ordinaryRequests.length).toBe(0);
+  });
+
+  test("no owner, author, or value leakage in saved statement rows", async ({
+    page,
+  }) => {
+    const SENTINEL = "987654321";
+
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: new RegExp(`load ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+
+    await page.getByLabel("minimum_id value").fill(SENTINEL);
+    await expect(page.getByLabel("minimum_id value")).toHaveValue(SENTINEL);
+
+    const listResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/saved-statements") && !resp.url().includes("/execute") && resp.ok(),
+      { timeout: 10_000 },
+    );
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    const resp = await listResponse;
+    const parsed = await resp.json() as Record<string, unknown>;
+
+    function containsKey(obj: unknown, key: string): boolean {
+      if (obj === null || obj === undefined || typeof obj !== "object") return false;
+      if (Array.isArray(obj)) return obj.some((item) => containsKey(item, key));
+      return Object.keys(obj as Record<string, unknown>).some((k) => k.toLowerCase().includes(key.toLowerCase())) ||
+        Object.values(obj as Record<string, unknown>).some((v) => containsKey(v, key));
+    }
+
+    function containsValue(obj: unknown, val: string): boolean {
+      if (obj === null || obj === undefined) return false;
+      if (typeof obj === "string") return obj.includes(val);
+      if (typeof obj !== "object") return false;
+      if (Array.isArray(obj)) return obj.some((item) => containsValue(item, val));
+      return Object.values(obj as Record<string, unknown>).some((v) => containsValue(v, val));
+    }
+
+    expect(containsKey(parsed, "ownerUserId")).toBe(false);
+    expect(containsKey(parsed, "owner_user_id")).toBe(false);
+    expect(containsKey(parsed, "actorUserId")).toBe(false);
+    expect(containsKey(parsed, "actor_user_id")).toBe(false);
+    expect(containsValue(parsed, SENTINEL)).toBe(false);
+    expect(containsValue(parsed, "Chen Hao")).toBe(false);
+    expect(containsValue(parsed, "admin@example")).toBe(false);
+
+    const panel = page.getByRole("tabpanel", { name: /saved sheets/i });
+    const panelText = await panel.textContent();
+    expect(panelText).not.toContain(SENTINEL);
+    expect(panelText).not.toMatch(/Chen Hao|admin@example/i);
+    expect(panelText).not.toMatch(/ownerUserId|actorUserId/i);
+  });
+
+  test("refresh while template values are present discards values on reload", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: new RegExp(`load ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+
+    await page.getByLabel("minimum_id value").fill("42");
+    await expect(page.getByLabel("minimum_id value")).toHaveValue("42");
+
+    await page.reload();
+    await expect(page.getByRole("tab", { name: /saved sheets/i })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode")).toHaveCount(0);
+    await expect(page.getByLabel("minimum_id value")).toHaveCount(0);
+  });
+
+  test("sign-out and re-login discards template values", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: new RegExp(`load ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+
+    await page.getByLabel("minimum_id value").fill("99");
+    await expect(page.getByLabel("minimum_id value")).toHaveValue("99");
+
+    await page.getByText("Chen Hao").first().click();
+    await page.getByRole("menuitem", { name: /sign out/i }).click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
+
+    await loginViaUI(page);
+
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    const readyIdx = await findReadyOptionIndex(page);
+    if (readyIdx === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIdx);
+
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await expect(page.getByText("Template mode")).toHaveCount(0);
+    await expect(page.getByLabel("minimum_id value")).toHaveCount(0);
+  });
+
+  test("shared statement list pagination navigates pages and shows correct items", async ({
+    page,
+  }) => {
+    const token = await getAuthToken();
+    const targetsRes = await fetch(`${PROBE_API_BASE}/query-targets`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!targetsRes.ok) {
+      throw fixtureSetupError(`GET /query-targets returned ${targetsRes.status}`);
+    }
+    const targetsBody = (await targetsRes.json()) as {
+      items?: Array<{ resourceId: number; availableActions?: { run?: boolean } }>;
+    };
+    const readyTarget = (targetsBody.items ?? []).find(
+      (t) => t.availableActions?.run === true,
+    );
+    if (!readyTarget) throw noReadyTargetFixtureError();
+    const targetId = readyTarget.resourceId;
+
+    const seededIds: number[] = [];
+    const cleanupFailures: string[] = [];
+    const SEED_PREFIX = "Pagination seed";
+
+    // Register cleanup before the first mutation so a partial seed still cleans up.
+    const cleanupSeeded = async () => {
+      for (const id of seededIds) {
+        const res = await fetch(
+          `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements/${id}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(5_000),
+          },
+        ).catch((error: unknown) => {
+          cleanupFailures.push(
+            `DELETE saved-statement ${id} threw: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return null;
+        });
+        if (res && !res.ok && res.status !== 404) {
+          cleanupFailures.push(`DELETE saved-statement ${id} returned ${res.status}`);
+        }
+      }
+      if (cleanupFailures.length > 0) {
+        throw new Error(
+          `E2E cleanup failed for shared list pagination seeds:\n${cleanupFailures.join("\n")}`,
+        );
+      }
+    };
+
+    try {
+      for (let i = 0; i < 25; i++) {
+        const res = await fetch(
+          `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: `${SEED_PREFIX} ${String(i).padStart(2, "0")}`,
+              statement: "SELECT 1",
+              scope: "shared_template",
+              parameters: [],
+            }),
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        if (!res.ok) {
+          throw fixtureSetupError(
+            `create pagination seed "${SEED_PREFIX} ${String(i).padStart(2, "0")}" returned ${res.status}: ${await res.text()}`,
+          );
+        }
+        const body = (await res.json()) as { id?: number };
+        if (typeof body.id !== "number") {
+          throw fixtureSetupError(
+            `create pagination seed returned unexpected body: ${JSON.stringify(body)}`,
+          );
+        }
+        seededIds.push(body.id);
+      }
+
+      await openQueryWorkbench(page);
+      const readyIndex = await findReadyOptionIndex(page);
+      if (readyIndex === null) throw noReadyTargetFixtureError();
+      await selectConnectionTarget(page, readyIndex);
+
+      await page.getByRole("tab", { name: /saved sheets/i }).click();
+      await expect(
+        page.getByText(/E2E shared|Pagination|loading/i).first(),
+      ).toBeVisible({ timeout: 10_000 });
+
+      const nextBtn = page.getByRole("button", { name: /^next$/i });
+      const prevBtn = page.getByRole("button", { name: /^previous$/i });
+      const pageIndicator = page.getByText(/Page \d+ of \d+/);
+
+      await expect(nextBtn).toBeEnabled();
+      await expect(pageIndicator).toBeVisible();
+      const page1Text = await pageIndicator.textContent();
+
+      const listRequest = page.waitForResponse(
+        (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=2") && resp.ok(),
+        { timeout: 10_000 },
+      );
+      await nextBtn.click();
+      await listRequest;
+
+      await expect(pageIndicator).not.toHaveText(page1Text!, { timeout: 5_000 });
+      await expect(prevBtn).toBeEnabled();
+
+      const prevRequest = page.waitForResponse(
+        (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=1") && resp.ok(),
+        { timeout: 10_000 },
+      );
+      await prevBtn.click();
+      await prevRequest;
+
+      await expect(pageIndicator).toHaveText(page1Text!, { timeout: 5_000 });
+    } finally {
+      await cleanupSeeded();
+    }
   });
 });
