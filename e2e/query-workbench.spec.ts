@@ -4171,12 +4171,33 @@ test.describe("Phase 38W-3: governed template execution", () => {
 test.describe("Saved statements shared template affordance (Issue #5)", () => {
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
+  let consumableHttpErrors: Array<{
+    method: string;
+    url: string;
+    status: number;
+    consumeConsoleStatusEcho?: boolean;
+  }> = [];
 
   const SHARED_TEMPLATE_NAME = "E2E shared template";
+  const SHARED_TEMPLATE_STATEMENT = "SELECT 1";
   const SHARED_PARAM_TEMPLATE_NAME = "E2E shared param template";
+  const SHARED_PARAM_TEMPLATE_STATEMENT =
+    "SELECT id, payload FROM qe_explain_big WHERE id > :minimum_id ORDER BY id";
+  const SHARED_PARAM_DECLARATIONS = [{ name: "minimum_id", type: "integer" }] as const;
 
   function fixtureSetupError(detail: string): Error {
     return new Error(`E2E fixture setup error: ${detail}. ${FIXTURE_DIAGNOSTIC}`);
+  }
+
+  function parametersMatch(
+    actual: Array<{ name?: string; type?: string }> | undefined,
+    expected: ReadonlyArray<{ name: string; type: string }>,
+  ): boolean {
+    if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+    return expected.every((exp, index) => {
+      const got = actual[index];
+      return got?.name === exp.name && got?.type === exp.type;
+    });
   }
 
   async function ensureSharedTemplate(
@@ -4185,7 +4206,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     spec: {
       name: string;
       statement: string;
-      parameters: Array<{ name: string; type: string }>;
+      parameters: ReadonlyArray<{ name: string; type: string }>;
     },
   ): Promise<void> {
     const listRes = await fetch(
@@ -4198,7 +4219,13 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       );
     }
     const listBody = (await listRes.json()) as {
-      items?: Array<{ id: number; name: string; scope: string }>;
+      items?: Array<{
+        id: number;
+        name: string;
+        scope: string;
+        statement?: string;
+        parameters?: Array<{ name?: string; type?: string }>;
+      }>;
     };
     if (!Array.isArray(listBody.items)) {
       throw fixtureSetupError(
@@ -4209,6 +4236,18 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       (s) => s.name === spec.name && s.scope === "shared_template",
     );
     if (existing) {
+      if (existing.statement !== spec.statement) {
+        throw fixtureSetupError(
+          `shared template "${spec.name}" exists with unexpected statement ` +
+            `(got ${JSON.stringify(existing.statement)}; want ${JSON.stringify(spec.statement)})`,
+        );
+      }
+      if (!parametersMatch(existing.parameters, spec.parameters)) {
+        throw fixtureSetupError(
+          `shared template "${spec.name}" exists with unexpected parameters ` +
+            `(got ${JSON.stringify(existing.parameters)}; want ${JSON.stringify(spec.parameters)})`,
+        );
+      }
       return;
     }
 
@@ -4234,8 +4273,20 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
         `create shared template "${spec.name}" returned ${createRes.status}: ${await createRes.text()}`,
       );
     }
-    const created = (await createRes.json()) as { id?: number; name?: string; scope?: string };
-    if (typeof created.id !== "number" || created.name !== spec.name || created.scope !== "shared_template") {
+    const created = (await createRes.json()) as {
+      id?: number;
+      name?: string;
+      scope?: string;
+      statement?: string;
+      parameters?: Array<{ name?: string; type?: string }>;
+    };
+    if (
+      typeof created.id !== "number" ||
+      created.name !== spec.name ||
+      created.scope !== "shared_template" ||
+      created.statement !== spec.statement ||
+      !parametersMatch(created.parameters, spec.parameters)
+    ) {
       throw fixtureSetupError(
         `create shared template "${spec.name}" returned unexpected body: ${JSON.stringify(created)}`,
       );
@@ -4270,17 +4321,18 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     // template because the static one already exists (or vice versa).
     await ensureSharedTemplate(token, readyTarget.resourceId, {
       name: SHARED_TEMPLATE_NAME,
-      statement: "SELECT 1",
+      statement: SHARED_TEMPLATE_STATEMENT,
       parameters: [],
     });
     await ensureSharedTemplate(token, readyTarget.resourceId, {
       name: SHARED_PARAM_TEMPLATE_NAME,
-      statement: "SELECT id, payload FROM qe_explain_big WHERE id > :minimum_id ORDER BY id",
-      parameters: [{ name: "minimum_id", type: "integer" }],
+      statement: SHARED_PARAM_TEMPLATE_STATEMENT,
+      parameters: SHARED_PARAM_DECLARATIONS,
     });
   });
 
   test.beforeEach(async ({ page }) => {
+    consumableHttpErrors = [];
     consoleMessages = collectConsoleMessages(page, {
       allowedErrors: [
         /Fast Refresh/,
@@ -4297,7 +4349,22 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       const screenshotPath = `shared-tpl-${testInfo.titlePath.join("--").replace(/\s+/g, "-").toLowerCase()}.png`;
       await page.screenshot({ path: screenshotPath, fullPage: true });
     }
-    assertClean(consoleMessages, networkErrors);
+    let remainingNetwork = networkErrors;
+    let remainingConsole = consoleMessages;
+    for (const expected of consumableHttpErrors) {
+      remainingNetwork = takeExpectedNetworkError(remainingNetwork, {
+        method: expected.method,
+        url: expected.url,
+        status: expected.status,
+      });
+      if (expected.consumeConsoleStatusEcho) {
+        remainingConsole = takeExpectedConsoleStatusError(
+          remainingConsole,
+          expected.status,
+        );
+      }
+    }
+    assertClean(remainingConsole, remainingNetwork);
   });
 
   test("desktop EN: authorized manager sees Load, Edit, Delete for shared_template", async ({
@@ -4391,6 +4458,118 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await expect(
       page.getByRole("button", { name: new RegExp(`删除 ${SHARED_TEMPLATE_NAME}`, "i") }),
     ).toBeVisible();
+  });
+
+  test("375px EN: load shared param template, controlled validation, focus, and execute", async ({
+    page,
+  }) => {
+    // Open on desktop first (sidebar link), then shrink — matches personal-template mobile pattern.
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    await page.setViewportSize({ width: 375, height: 844 });
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: new RegExp(`load ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+
+    await expect(page.getByText("Template mode").first()).toBeVisible();
+    const valueField = page.getByLabel("minimum_id value");
+    await expect(valueField).toBeVisible();
+    await valueField.focus();
+    await expect(valueField).toBeFocused();
+
+    await valueField.fill("1.5");
+    const invalidRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const invalidReq = await invalidRequest;
+    consumableHttpErrors = [
+      { method: "POST", url: invalidReq.url(), status: 400, consumeConsoleStatusEcho: true },
+    ];
+    await expect(page.getByText("Value does not match the expected type").first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(valueField).toHaveValue("1.5");
+    await expect(valueField).toHaveAttribute("aria-invalid", "true");
+
+    await valueField.fill("0");
+    const okRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const okReq = await okRequest;
+    expect(okReq.postDataJSON()).toMatchObject({
+      values: { minimum_id: 0 },
+      pagination: { page: 1 },
+    });
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("desktop zh-CN: load shared param template, controlled validation, and execute", async ({
+    page,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+    await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: new RegExp(`加载 ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
+    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+
+    await expect(page.getByText("模板模式").first()).toBeVisible();
+    const valueField = page.getByLabel("minimum_id 参数值");
+    await expect(valueField).toBeVisible();
+    await valueField.focus();
+    await expect(valueField).toBeFocused();
+
+    await valueField.fill("1.5");
+    const invalidRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    const invalidReq = await invalidRequest;
+    consumableHttpErrors = [
+      { method: "POST", url: invalidReq.url(), status: 400, consumeConsoleStatusEcho: true },
+    ];
+    await expect(page.getByText("值与预期类型不匹配").first()).toBeVisible({ timeout: 10_000 });
+    await expect(valueField).toHaveValue("1.5");
+    await expect(valueField).toHaveAttribute("aria-invalid", "true");
+
+    await valueField.fill("0");
+    const okRequest = page.waitForRequest(
+      (req) =>
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/saved-statements\/\d+\/execute$/.test(new URL(req.url()).pathname),
+    );
+    await page.getByRole("button", { name: /^执行$/i }).click();
+    const okReq = await okRequest;
+    expect(okReq.postDataJSON()).toMatchObject({
+      values: { minimum_id: 0 },
+      pagination: { page: 1 },
+    });
+    await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
   });
 
   test("non-manager editor: Load visible, Edit/Delete absent for shared_template", async ({
