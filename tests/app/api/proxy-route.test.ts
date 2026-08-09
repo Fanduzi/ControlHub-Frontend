@@ -76,11 +76,15 @@ function routeContext(path: string[]) {
   return { params: Promise.resolve({ path }) };
 }
 
-function stubUpstream(status: number, body: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(JSON.stringify(body), { status })),
+function stubUpstream(status: number, body?: unknown) {
+  const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(
+    async () =>
+      new Response(body === undefined ? null : JSON.stringify(body), {
+        status,
+      }),
   );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 afterEach(() => {
@@ -91,10 +95,7 @@ afterEach(() => {
 describe("BFF proxy boundary", () => {
   it("forwards a protected request using only the server-held credential", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () =>
-      new Response(JSON.stringify({ items: [{ id: 1 }] }), { status: 200 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubUpstream(200, { items: [{ id: 1 }] });
 
     const response = await GET(
       proxyRequest("GET", ["resources"], {
@@ -115,7 +116,7 @@ describe("BFF proxy boundary", () => {
 
   it("preserves query strings when forwarding", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    const fetchMock = stubUpstream(200, []);
     vi.stubGlobal("fetch", fetchMock);
 
     await GET(
@@ -131,7 +132,7 @@ describe("BFF proxy boundary", () => {
 
   it("rejects a client-supplied Authorization header without forwarding", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    const fetchMock = stubUpstream(200, []);
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await GET(
@@ -147,7 +148,7 @@ describe("BFF proxy boundary", () => {
 
   it("rejects an unsafe request from a non-configured Origin", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    const fetchMock = stubUpstream(200, []);
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await POST(
@@ -164,7 +165,7 @@ describe("BFF proxy boundary", () => {
 
   it("rejects an unsafe request with no Origin header", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    const fetchMock = stubUpstream(200, []);
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await POST(
@@ -181,10 +182,7 @@ describe("BFF proxy boundary", () => {
 
   it("allows an unsafe request from the exact configured Origin", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () =>
-      new Response(JSON.stringify({ id: 9 }), { status: 200 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubUpstream(200, { id: 9 });
 
     const response = await POST(
       proxyRequest("POST", ["resources"], {
@@ -205,7 +203,7 @@ describe("BFF proxy boundary", () => {
 
   it("returns one generic unauthorized outcome without a session", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    const fetchMock = stubUpstream(200, []);
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await GET(
@@ -308,7 +306,7 @@ describe("BFF proxy boundary", () => {
 
   it("passes DELETE through with the server-held credential", async () => {
     stubBffEnv();
-    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(null, { status: 204 }));
+    const fetchMock = stubUpstream(204);
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await DELETE(

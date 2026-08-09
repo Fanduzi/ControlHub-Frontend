@@ -14,18 +14,6 @@ import { clearSessionCookie, setSessionCookie } from "@/lib/operator-session/ses
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function serviceUnavailable(): NextResponse {
-  return NextResponse.json({ message: "service-unavailable" }, { status: 503 });
-}
-
-function forbidden(): NextResponse {
-  return NextResponse.json({ message: "forbidden" }, { status: 403 });
-}
-
-function invalidRequest(): NextResponse {
-  return NextResponse.json({ message: "invalid-request" }, { status: 400 });
-}
-
 /**
  * Interactive login: the BFF calls the existing backend login API
  * server-side, seals the resulting Backend Bearer Credential into an
@@ -34,20 +22,22 @@ function invalidRequest(): NextResponse {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const config = loadOperatorSessionConfig();
-  if (!config.ok) return serviceUnavailable();
+  if (!config.ok) {
+    return NextResponse.json({ message: "service-unavailable" }, { status: 503 });
+  }
 
   if (
     isUnsafeMethod(request.method) &&
     !originAllowed(request, config.value.consoleOrigin)
   ) {
-    return forbidden();
+    return NextResponse.json({ message: "forbidden" }, { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return invalidRequest();
+    return NextResponse.json({ message: "invalid-request" }, { status: 400 });
   }
 
   const { email, password } =
@@ -60,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     typeof password !== "string" ||
     password.length === 0
   ) {
-    return invalidRequest();
+    return NextResponse.json({ message: "invalid-request" }, { status: 400 });
   }
 
   const outcome = await performBackendLogin(email, password);
@@ -70,7 +60,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Neither response ever carries backend failure details.
     return outcome.kind === "invalid-credentials"
       ? NextResponse.json({ message: "unauthorized" }, { status: 401 })
-      : serviceUnavailable();
+      : NextResponse.json({ message: "service-unavailable" }, { status: 503 });
   }
 
   const sealed = sealSession(
@@ -86,13 +76,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 /** Logout: clear the Operator Session cookie. */
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const config = loadOperatorSessionConfig();
-  if (!config.ok) return serviceUnavailable();
+  if (!config.ok) {
+    return NextResponse.json({ message: "service-unavailable" }, { status: 503 });
+  }
 
   if (
     isUnsafeMethod(request.method) &&
     !originAllowed(request, config.value.consoleOrigin)
   ) {
-    return forbidden();
+    return NextResponse.json({ message: "forbidden" }, { status: 403 });
   }
 
   const response = NextResponse.json({ ok: true });

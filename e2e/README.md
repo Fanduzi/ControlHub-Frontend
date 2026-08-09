@@ -6,7 +6,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 
 | Spec | Coverage |
 |------|----------|
-| operator-session.spec.ts | Console BFF boundary (38X-1C): BFF login seals an HttpOnly Operator Session cookie, the protected proxy forwards with the server-held credential, client Authorization and unsafe cross-origin requests are rejected, logout clears the session, and no Backend Bearer Credential ever reaches browser storage or browser-readable cookies |
+| operator-session.spec.ts | Console BFF boundary (38X-1C): BFF login (via `page.request`, sharing the context cookie jar) seals an HttpOnly Operator Session cookie, the protected proxy forwards with the server-held credential, client Authorization and unsafe cross-origin requests are rejected, logout clears the session, and no Backend Bearer Credential ever reaches browser storage or browser-readable cookies |
 | query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, explain, relationship map, shared-template affordance, shared template execution, disposal, 375/zh-CN session, no-leakage assertions, list pagination |
 | console-ux.spec.ts | Console layout and UX checks |
 | databases-sheet.spec.ts | Databases sheet interactions |

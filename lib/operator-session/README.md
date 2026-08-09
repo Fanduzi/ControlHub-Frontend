@@ -4,7 +4,7 @@ Server-side Operator Session boundary for the Console BFF (Phase 38X-1C).
 
 | File | Purpose |
 |------|---------|
-| `constants.ts` | Session cookie name and the fixed eight-hour maximum age |
+| `constants.ts` | Session cookie names (BFF + legacy seam) and the fixed eight-hour maximum age / 15-minute previous-key rotation window |
 | `config.ts` | Fail-closed BFF configuration: sealing keys, Console Origin, secure-cookie policy |
 | `seal.ts` | AES-256-GCM sealed session cookie (active key + short previous-key rotation window) |
 | `origin.ts` | Same-origin guard: unsafe methods require the exact configured Console Origin |

@@ -9,9 +9,6 @@ import {
   assertClean,
   collectConsoleMessages,
   collectNetworkErrors,
-  takeExpectedConsoleStatusError,
-  takeExpectedNetworkError,
-  type ConsoleMessage,
 } from "./harness/console-guards";
 
 const CONSOLE_ORIGIN = "http://localhost:3100";
@@ -19,21 +16,24 @@ const SESSION_COOKIE = "controlhub.operator-session";
 const EMAIL = "admin@example.com";
 const PASSWORD = "secret123";
 
-async function bffLogin(page: Page) {
-  return page.evaluate(
-    async ({ email, password }) => {
-      const res = await fetch("/api/operator-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "same-origin",
-      });
-      return { status: res.status, body: await res.text() };
-    },
-    { email: EMAIL, password: PASSWORD },
-  );
+/**
+ * All BFF requests go through `page.request` (the browser context's real
+ * HTTP stack, sharing the context cookie jar) with the same Origin a real
+ * same-origin fetch would send. No `page.evaluate` is used for requests.
+ */
+async function bffLoginViaRequest(page: Page) {
+  const res = await page.request.post(`${CONSOLE_ORIGIN}/api/operator-session`, {
+    data: { email: EMAIL, password: PASSWORD },
+    headers: { Origin: CONSOLE_ORIGIN },
+  });
+  return { status: res.status(), body: await res.text() };
 }
 
+/**
+ * Read-only storage snapshot. Playwright exposes no storage API; this is a
+ * pure read (no requests, no state mutation) — same precedent as
+ * query-credential-settings.spec.ts sessionStorage assertions.
+ */
 async function storageSnapshot(page: Page) {
   return page.evaluate(() => ({
     sessionStorageKeys: Object.keys(window.sessionStorage),
@@ -89,7 +89,7 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     const networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
-    const login = await bffLogin(page);
+    const login = await bffLoginViaRequest(page);
 
     expect(login.status).toBe(200);
     const body = JSON.parse(login.body) as Record<string, unknown>;
@@ -119,40 +119,27 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
   test("BFF login with invalid credentials returns one generic unauthorized outcome", async ({
     page,
   }) => {
-    let consoleMessages: ConsoleMessage[] = collectConsoleMessages(page);
-    let networkErrors = collectNetworkErrors(page);
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
-    const login = await page.evaluate(async () => {
-      const res = await fetch("/api/operator-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: "admin@example.com",
-          password: "wrong-password",
-        }),
-        credentials: "same-origin",
-      });
-      return { status: res.status, body: await res.text() };
-    });
-
-    expect(login.status).toBe(401);
-    const body = JSON.parse(login.body) as Record<string, unknown>;
+    const res = await page.request.post(
+      `${CONSOLE_ORIGIN}/api/operator-session`,
+      {
+        data: { email: EMAIL, password: "wrong-password" },
+        headers: { Origin: CONSOLE_ORIGIN },
+      },
+    );
+    expect(res.status()).toBe(401);
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.message).toBe("unauthorized");
     // No backend failure internals leak into the controlled outcome.
-    expect(login.body).not.toContain("invalid");
-    expect(login.body).not.toContain("password");
-    expect(login.body).not.toContain("Bearer ");
+    expect(JSON.stringify(body)).not.toContain("invalid");
+    expect(JSON.stringify(body)).not.toContain("password");
+    expect(JSON.stringify(body)).not.toContain("Bearer ");
 
     const cookies = await page.context().cookies();
     expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeUndefined();
-
-    networkErrors = takeExpectedNetworkError(networkErrors, {
-      method: "POST",
-      url: `${CONSOLE_ORIGIN}/api/operator-session`,
-      status: 401,
-    });
-    consoleMessages = takeExpectedConsoleStatusError(consoleMessages, 401);
     assertClean(consoleMessages, networkErrors);
   });
 
@@ -163,16 +150,13 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     const networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
-    expect((await bffLogin(page)).status).toBe(200);
+    expect((await bffLoginViaRequest(page)).status).toBe(200);
 
-    const result = await page.evaluate(async () => {
-      const res = await fetch("/api/proxy/resources?limit=2", {
-        credentials: "same-origin",
-      });
-      return { status: res.status, body: await res.text() };
-    });
-    expect(result.status).toBe(200);
-    const resources = JSON.parse(result.body) as { items: unknown[] };
+    const res = await page.request.get(
+      `${CONSOLE_ORIGIN}/api/proxy/resources?limit=2`,
+    );
+    expect(res.status()).toBe(200);
+    const resources = (await res.json()) as { items: unknown[] };
     expect(Array.isArray(resources.items)).toBe(true);
     expect(resources.items.length).toBeGreaterThan(0);
 
@@ -183,27 +167,18 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
   test("the BFF proxy rejects a client-supplied Authorization header", async ({
     page,
   }) => {
-    let consoleMessages: ConsoleMessage[] = collectConsoleMessages(page);
-    let networkErrors = collectNetworkErrors(page);
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
-    expect((await bffLogin(page)).status).toBe(200);
+    expect((await bffLoginViaRequest(page)).status).toBe(200);
 
-    const result = await page.evaluate(async () => {
-      const res = await fetch("/api/proxy/resources?limit=1", {
-        credentials: "same-origin",
-        headers: { Authorization: "Bearer client-token" },
-      });
-      return { status: res.status, body: await res.text() };
-    });
-    expect(result.status).toBe(400);
+    const res = await page.request.get(
+      `${CONSOLE_ORIGIN}/api/proxy/resources?limit=1`,
+      { headers: { Authorization: "Bearer client-token" } },
+    );
+    expect(res.status()).toBe(400);
 
-    networkErrors = takeExpectedNetworkError(networkErrors, {
-      method: "GET",
-      url: `${CONSOLE_ORIGIN}/api/proxy/resources?limit=1`,
-      status: 400,
-    });
-    consoleMessages = takeExpectedConsoleStatusError(consoleMessages, 400);
     assertClean(consoleMessages, networkErrors);
   });
 
@@ -236,7 +211,7 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
 
     // Unsafe proxy method from a foreign Origin is rejected even with a
     // valid session.
-    expect((await bffLogin(page)).status).toBe(200);
+    expect((await bffLoginViaRequest(page)).status).toBe(200);
     const evilProxy = await page.request.post(
       `${CONSOLE_ORIGIN}/api/proxy/resources`,
       {
@@ -265,7 +240,7 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     const networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
-    expect((await bffLogin(page)).status).toBe(200);
+    expect((await bffLoginViaRequest(page)).status).toBe(200);
 
     // A valid Operator Session passes the route guard and drives a
     // protected page without any browser-readable credential.

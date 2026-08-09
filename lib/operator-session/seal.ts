@@ -5,7 +5,10 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import type { OperatorSessionConfig } from "@/lib/operator-session/config";
-import { SESSION_MAX_AGE_SECONDS } from "@/lib/operator-session/constants";
+import {
+  SESSION_MAX_AGE_SECONDS,
+  SESSION_PREVIOUS_KEY_WINDOW_SECONDS,
+} from "@/lib/operator-session/constants";
 
 export interface SealedSessionPayload {
   token: string;
@@ -78,10 +81,12 @@ export function unsealSession(
 
   const [, kid, noncePart, dataPart, tagPart] = parts;
   let key: Buffer | null = null;
+  let usedPreviousKey = false;
   if (kid === keyId(config.activeKey)) {
     key = config.activeKey;
   } else if (config.previousKey && kid === keyId(config.previousKey)) {
     key = config.previousKey;
+    usedPreviousKey = true;
   }
   if (!key) return { ok: false, reason: "unknown-key" };
 
@@ -142,6 +147,16 @@ export function unsealSession(
   const nowSec = Math.floor(nowMs / 1000);
   if (nowSec >= exp) return { ok: false, reason: "expired" };
   if (nowSec < iat) return { ok: false, reason: "malformed" };
+
+  // Previous-key seals are accepted only within the short rotation window:
+  // a session sealed under the rotated-out key must be recent, otherwise the
+  // operator must sign in again after a key rotation.
+  if (
+    usedPreviousKey &&
+    nowSec - iat > SESSION_PREVIOUS_KEY_WINDOW_SECONDS
+  ) {
+    return { ok: false, reason: "expired" };
+  }
 
   return { ok: true, payload: { token, role, iat, exp } };
 }

@@ -14,6 +14,8 @@ const ACTIVE_KEY_HEX =
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 const PREVIOUS_KEY_HEX =
   "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
+const THIRD_KEY_HEX =
+  "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f";
 
 function makeConfig(overrides: Record<string, string> = {}) {
   const result = loadOperatorSessionConfig({
@@ -67,16 +69,45 @@ describe("sealSession / unsealSession", () => {
   });
 
   it("accepts a session sealed with the previous key during the rotation window", () => {
-    const before = makeConfig(); // active key only
+    const before = makeConfig(); // active key A
     const sealed = sealSession(
       { token: "server-token-123", role: "admin" },
       before,
       NOW_MS,
     );
-    const after = makeConfig({
-      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: PREVIOUS_KEY_HEX,
+    // Rotate: B becomes active, A becomes previous (still in the window).
+    const afterRotation = makeConfig({
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
     });
-    const result = unsealSession(sealed, after, NOW_MS);
+    const result = unsealSession(sealed, afterRotation, NOW_MS);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a previous-key seal issued before the short rotation window", () => {
+    const before = makeConfig(); // active key A
+    const sealed = sealSession(
+      { token: "server-token-123", role: "admin" },
+      before,
+      NOW_MS - 2 * 60 * 60 * 1000, // issued two hours ago
+    );
+    const afterRotation = makeConfig({
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
+    });
+    const result = unsealSession(sealed, afterRotation, NOW_MS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("expired");
+  });
+
+  it("accepts an active-key seal regardless of issuance age", () => {
+    const config = makeConfig();
+    const sealed = sealSession(
+      { token: "server-token-123", role: "admin" },
+      config,
+      NOW_MS - 7 * 60 * 60 * 1000, // issued seven hours ago, still within 8h
+    );
+    const result = unsealSession(sealed, config, NOW_MS);
     expect(result.ok).toBe(true);
   });
 
@@ -88,16 +119,19 @@ describe("sealSession / unsealSession", () => {
       NOW_MS,
     );
     const rotated = makeConfig({
-      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
     });
     const rotatedSealed = sealSession(
       { token: "server-token-456", role: "admin" },
       rotated,
       NOW_MS,
     );
-    // Active key rotates: old active becomes previous, previous is dropped.
+    // Active key rotates again (B -> C): B would become previous, A is
+    // dropped entirely, and the operator closes the window by not
+    // configuring any previous key.
     const windowClosed = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: THIRD_KEY_HEX,
     });
     expect(unsealSession(rotatedSealed, windowClosed, NOW_MS).ok).toBe(false);
     expect(unsealSession(sealed, windowClosed, NOW_MS).ok).toBe(false);

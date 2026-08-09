@@ -40,10 +40,14 @@ Only use this marker when the test does not depend on server-rendered pages.
 ### BFF operator-session login (38X-1C)
 
 `e2e/operator-session.spec.ts` authenticates through the Console BFF
-(`POST /api/operator-session`) with a real browser `fetch` and then navigates
-application pages. This is the intended mechanism for BFF boundary tests: the
-BFF flow sets an HttpOnly Operator Session cookie that server components can
-read, so it is not subject to the `loginViaApi` SSR limitation. The spec must
+(`POST /api/operator-session`) using Playwright's `page.request`
+(APIRequestContext), which shares the browser context's cookie jar, and then
+navigates application pages with `page.goto`. This is the intended mechanism
+for BFF boundary tests: the BFF flow sets an HttpOnly Operator Session cookie
+that server components can read, so it is not subject to the `loginViaApi`
+SSR limitation. Requests must go through `page.request` or real page
+interaction — never `page.evaluate`; storage-leak assertions may read
+browser storage (read-only) and cookies via `context.cookies()`. The spec must
 prove the boundary (HttpOnly sealed cookie, no Backend Bearer Credential in
 browser storage or browser-readable cookies, logout clearing) and use the
 console/network guards like any application-page spec. Do not use this
