@@ -20,6 +20,33 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 - `/audits`
 - `/settings`
 
+## Console BFF (Operator Sessions)
+
+Phase 38X-1C establishes a same-origin Console BFF boundary. Interactive login
+goes through the BFF, which calls the backend login API server-side and seals
+the Backend Bearer Credential into an HttpOnly Operator Session cookie
+(`controlhub.operator-session`, `SameSite=Strict`, eight-hour maximum age,
+AES-256-GCM with an active key plus a short previous-key rotation window). The
+protected proxy at `/api/proxy/[...path]` forwards requests using only the
+server-held credential and rejects client-supplied `Authorization` headers and
+unsafe cross-origin requests. Browser JavaScript never receives a Backend
+Bearer Credential. The legacy browser token path remains as a temporary
+compatibility seam until the Phase 38X console migration.
+
+### BFF environment
+
+| Env var | Required | Meaning |
+|---------|----------|---------|
+| `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (64 hex chars or 44 base64 chars) |
+| `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window |
+| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (for example `http://localhost:3100`) |
+| `CONTROLHUB_BFF_SECURE_COOKIES` | no | `true` (default) or `false`; `false` is the explicit local-development non-Secure exception and is rejected in production |
+
+Production startup (`next start`) fails closed when any of these are missing,
+malformed, or unsafe, or when a non-Secure cookie policy is requested; see
+`instrumentation.ts`. Route handlers also refuse BFF traffic with a generic
+`503` until the configuration is valid.
+
 ## Local development
 
 ### Node runtime

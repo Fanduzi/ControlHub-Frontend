@@ -1,0 +1,328 @@
+// input: @/app/api/proxy/[...path]/route, @/lib/operator-session/*, next/server
+// output: Vitest tests for the protected BFF proxy boundary (server-held credential, origin and header rejection)
+// pos: unit-level contract tests for server-side forwarding of the session-held Backend Bearer Credential
+// note: if this file changes, update header and tests/app/api/README.md
+import { NextRequest } from "next/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { DELETE, GET, POST } from "@/app/api/proxy/[...path]/route";
+import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
+import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
+import { sealSession } from "@/lib/operator-session/seal";
+
+const ACTIVE_KEY_HEX =
+  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const ORIGIN = "http://localhost:3100";
+const TOKEN = "server-held-bearer-token";
+const NOW_MS = Date.now();
+
+function stubBffEnv() {
+  vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_HEX);
+  vi.stubEnv("CONTROLHUB_BFF_CONSOLE_ORIGIN", ORIGIN);
+  vi.stubEnv("CONTROLHUB_BFF_SECURE_COOKIES", "false");
+  vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://backend.test");
+}
+
+function sessionConfig() {
+  const result = loadOperatorSessionConfig(process.env);
+  if (!result.ok) throw new Error("test config invalid");
+  return result.value;
+}
+
+function sealedCookieValue(overrides: { token?: string } = {}): string {
+  return sealSession(
+    { token: overrides.token ?? TOKEN, role: "admin" },
+    sessionConfig(),
+    NOW_MS,
+  );
+}
+
+function proxyRequest(
+  method: string,
+  path: string[],
+  options: {
+    cookie?: string | null;
+    origin?: string | null;
+    authorization?: string | null;
+    body?: unknown;
+  } = {},
+): NextRequest {
+  const headers = new Headers({ accept: "application/json" });
+  if (options.cookie !== undefined) {
+    headers.set(
+      "cookie",
+      options.cookie === null ? "" : `${SESSION_COOKIE_NAME}=${options.cookie}`,
+    );
+  }
+  if (options.origin !== null && options.origin !== undefined) {
+    headers.set("origin", options.origin);
+  }
+  if (options.authorization) {
+    headers.set("authorization", options.authorization);
+  }
+  const url = `http://localhost:3100/api/proxy/${path.join("/")}`;
+  const hasBody = options.body !== undefined;
+  if (hasBody) {
+    headers.set("content-type", "application/json");
+  }
+  return new NextRequest(url, {
+    method,
+    headers,
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+  });
+}
+
+function routeContext(path: string[]) {
+  return { params: Promise.resolve({ path }) };
+}
+
+function stubUpstream(status: number, body: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(body), { status })),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+describe("BFF proxy boundary", () => {
+  it("forwards a protected request using only the server-held credential", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () =>
+      new Response(JSON.stringify({ items: [{ id: 1 }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ items: [{ id: 1 }] });
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe("http://backend.test/resources");
+    const headers = new Headers(init?.headers);
+    expect(headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(headers.get("cookie")).toBeNull();
+  });
+
+  it("preserves query strings when forwarding", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await GET(
+      new NextRequest("http://localhost:3100/api/proxy/resources?limit=2&page=1", {
+        method: "GET",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${sealedCookieValue()}` },
+      }),
+      routeContext(["resources"]),
+    );
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe("http://backend.test/resources?limit=2&page=1");
+  });
+
+  it("rejects a client-supplied Authorization header without forwarding", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        authorization: "Bearer client-token",
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsafe request from a non-configured Origin", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      proxyRequest("POST", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: "https://evil.example",
+        body: { name: "x" },
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsafe request with no Origin header", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      proxyRequest("POST", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+        body: { name: "x" },
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an unsafe request from the exact configured Origin", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () =>
+      new Response(JSON.stringify({ id: 9 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      proxyRequest("POST", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: ORIGIN,
+        body: { name: "x" },
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe("http://backend.test/resources");
+    expect(new Headers(init?.headers).get("authorization")).toBe(
+      `Bearer ${TOKEN}`,
+    );
+    expect(new TextDecoder().decode(init?.body as ArrayBuffer | undefined)).toContain("name");
+  });
+
+  it("returns one generic unauthorized outcome without a session", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      proxyRequest("GET", ["resources"], { cookie: null }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(401);
+    expect(await response.text()).toContain("unauthorized");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("maps an expired or invalid session to the same generic unauthorized outcome and clears the cookie", async () => {
+    stubBffEnv();
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: "v1.deadbeef.abc.def.ghi",
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(401);
+    expect(await response.text()).toContain("unauthorized");
+    const cookie = response.cookies.get(SESSION_COOKIE_NAME);
+    expect(cookie?.maxAge).toBe(0);
+  });
+
+  it("maps backend 401 to a generic unauthorized outcome without leaking backend details", async () => {
+    stubBffEnv();
+    stubUpstream(401, { message: "token revoked: session 42" });
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(401);
+    const body = await response.text();
+    expect(body).not.toContain("revoked");
+    expect(body).not.toContain("session 42");
+    expect(body).not.toContain(TOKEN);
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.maxAge).toBe(0);
+  });
+
+  it("maps backend 403 to a generic forbidden outcome without clearing the session", async () => {
+    stubBffEnv();
+    stubUpstream(403, { message: "role insufficient: operator" });
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(403);
+    const body = await response.text();
+    expect(body).not.toContain("insufficient");
+    expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+  });
+
+  it("forwards non-auth upstream responses verbatim", async () => {
+    stubBffEnv();
+    stubUpstream(500, { error: "internal" });
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "internal" });
+  });
+
+  it("forwards upstream redirects with their Location header and never forwards upstream Set-Cookie", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn(async () => {
+      const headers = new Headers({
+        location: "http://backend.test/resources/5",
+        "cache-control": "no-store",
+        "set-cookie": "session=evil",
+      });
+      return new Response(null, { status: 302, headers });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "http://backend.test/resources/5",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("passes DELETE through with the server-held credential", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn<(url: string | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await DELETE(
+      proxyRequest("DELETE", ["resources", "5"], {
+        cookie: sealedCookieValue(),
+        origin: ORIGIN,
+      }),
+      routeContext(["resources", "5"]),
+    );
+    expect(response.status).toBe(204);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe("http://backend.test/resources/5");
+    expect(new Headers(init?.headers).get("authorization")).toBe(
+      `Bearer ${TOKEN}`,
+    );
+  });
+});

@@ -37,6 +37,18 @@ Allowed exception:
 
 Only use this marker when the test does not depend on server-rendered pages.
 
+### BFF operator-session login (38X-1C)
+
+`e2e/operator-session.spec.ts` authenticates through the Console BFF
+(`POST /api/operator-session`) with a real browser `fetch` and then navigates
+application pages. This is the intended mechanism for BFF boundary tests: the
+BFF flow sets an HttpOnly Operator Session cookie that server components can
+read, so it is not subject to the `loginViaApi` SSR limitation. The spec must
+prove the boundary (HttpOnly sealed cookie, no Backend Bearer Credential in
+browser storage or browser-readable cookies, logout clearing) and use the
+console/network guards like any application-page spec. Do not use this
+mechanism for ordinary console flows until the Phase 38X console migration.
+
 ## Console And Network Guards
 
 Application-page E2E specs must use:
