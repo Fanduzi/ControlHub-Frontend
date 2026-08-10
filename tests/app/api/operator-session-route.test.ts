@@ -118,6 +118,7 @@ describe("POST /api/operator-session", () => {
 
     const response = await POST(loginRequest());
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.text();
     expect(body).toContain("service-unavailable");
     expect(body).not.toContain("fetch failed");

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Neither response ever carries backend failure details.
     return outcome.kind === "invalid-credentials"
       ? bffJson(401, "unauthorized")
-      : NextResponse.json({ message: "service-unavailable" }, { status: 503 });
+      : bffJson(503, "service-unavailable");
   }
 
   const sealed = sealSession(

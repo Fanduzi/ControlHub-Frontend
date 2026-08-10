@@ -169,7 +169,7 @@ async function handleProxy(
       signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
     });
   } catch {
-    return NextResponse.json({ message: "service-unavailable" }, { status: 503 });
+    return bffJson(503, "service-unavailable");
   }
 
   if (upstream.status === 401) {
