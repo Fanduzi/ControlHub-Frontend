@@ -17,4 +17,7 @@ Guards:
 - Backend `401` maps to the same generic outcome; backend `403` maps to a
   generic forbidden outcome without clearing the session.
 - Upstream response headers (including `Location` on redirects) are relayed;
-  upstream `Set-Cookie` is never forwarded.
+  upstream `Set-Cookie` and `access-control-*` headers are never forwarded,
+  and `Cache-Control` is always `no-store`.
+- Request bodies are capped at 10 MiB (`413` beyond the cap), enforced both
+  on `Content-Length` and while streaming chunked bodies.

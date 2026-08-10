@@ -1,0 +1,17 @@
+// input: next/server
+// output: controlled BFF JSON error responses with Cache-Control: no-store
+// pos: shared non-cacheable outcome shape for the Console BFF boundary
+// note: if this file changes, update header and lib/operator-session/README.md
+import { NextResponse } from "next/server";
+
+/**
+ * BFF-controlled JSON outcome. Every error and success mapping produced by
+ * the BFF carries `Cache-Control: no-store` so sensitive proxied payloads
+ * and authentication outcomes are never cached by browsers or intermediaries.
+ */
+export function bffJson(status: number, message: string): NextResponse {
+  return NextResponse.json(
+    { message },
+    { status, headers: { "cache-control": "no-store" } },
+  );
+}

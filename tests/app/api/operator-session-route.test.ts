@@ -68,6 +68,7 @@ describe("POST /api/operator-session", () => {
     const body = (await response.json()) as Record<string, unknown>;
     expect(body).toEqual({ role: "admin" });
     expect(JSON.stringify(body)).not.toContain(TOKEN);
+    expect(response.headers.get("cache-control")).toBe("no-store");
 
     const cookie = response.cookies.get(SESSION_COOKIE_NAME);
     expect(cookie).toBeDefined();
@@ -98,6 +99,7 @@ describe("POST /api/operator-session", () => {
 
     const response = await POST(loginRequest());
     expect(response.status).toBe(401);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.text();
     expect(body).toContain("unauthorized");
     expect(body).not.toContain("disabled");

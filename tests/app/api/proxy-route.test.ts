@@ -45,6 +45,7 @@ function proxyRequest(
     origin?: string | null;
     authorization?: string | null;
     body?: unknown;
+    contentLength?: number;
   } = {},
 ): NextRequest {
   const headers = new Headers({ accept: "application/json" });
@@ -64,6 +65,9 @@ function proxyRequest(
   const hasBody = options.body !== undefined;
   if (hasBody) {
     headers.set("content-type", "application/json");
+    if (options.contentLength !== undefined) {
+      headers.set("content-length", String(options.contentLength));
+    }
   }
   return new NextRequest(url, {
     method,
@@ -277,12 +281,14 @@ describe("BFF proxy boundary", () => {
     expect(await response.json()).toEqual({ error: "internal" });
   });
 
-  it("forwards upstream redirects with their Location header and never forwards upstream Set-Cookie", async () => {
+  it("forwards upstream redirects with their Location header and never forwards upstream Set-Cookie or CORS headers", async () => {
     stubBffEnv();
     const fetchMock = vi.fn(async () => {
       const headers = new Headers({
         location: "http://backend.test/resources/5",
-        "cache-control": "no-store",
+        "cache-control": "max-age=60",
+        "access-control-allow-origin": "*",
+        "access-control-allow-credentials": "true",
         "set-cookie": "session=evil",
       });
       return new Response(null, { status: 302, headers });
@@ -300,8 +306,47 @@ describe("BFF proxy boundary", () => {
     expect(response.headers.get("location")).toBe(
       "http://backend.test/resources/5",
     );
+    // Cache-Control is always overridden to no-store.
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    expect(response.headers.get("access-control-allow-credentials")).toBeNull();
     expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("rejects an oversized request body with 413 before forwarding", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      proxyRequest("POST", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: ORIGIN,
+        body: { name: "x" },
+        contentLength: 11 * 1024 * 1024,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a chunked body that exceeds the size cap while streaming", async () => {
+    stubBffEnv();
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const oversized = "x".repeat(10 * 1024 * 1024 + 1);
+    const response = await POST(
+      proxyRequest("POST", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: ORIGIN,
+        body: oversized,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("passes DELETE through with the server-held credential", async () => {

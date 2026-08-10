@@ -9,6 +9,7 @@ import { resolveBffBackendBaseUrl } from "@/lib/operator-session/backend";
 import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
 import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
 import { isUnsafeMethod, originAllowed } from "@/lib/operator-session/origin";
+import { bffJson } from "@/lib/operator-session/response";
 import { unsealSession } from "@/lib/operator-session/seal";
 import { clearSessionCookie } from "@/lib/operator-session/session-cookie";
 
@@ -16,6 +17,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PROXY_TIMEOUT_MS = 30_000;
+
+/** Maximum request body the BFF buffers for forwarding (10 MiB). */
+const MAX_PROXY_BODY_BYTES = 10 * 1024 * 1024;
 
 /** Request headers never forwarded upstream; the BFF owns authentication. */
 const FORBIDDEN_HEADERS = new Set([
@@ -36,20 +40,60 @@ const FORBIDDEN_HEADERS = new Set([
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
- * Copy upstream response headers into the proxied response. Set-Cookie is
- * never forwarded (the backend must not mint browser cookies through the
- * BFF); everything else, including Location on 3xx redirects, is preserved.
+ * Copy upstream response headers into the proxied response. Set-Cookie and
+ * access-control-* headers are never forwarded: the backend must not mint
+ * browser cookies or a CORS policy through the BFF. Everything else,
+ * including Location on 3xx redirects, is preserved, but Cache-Control is
+ * always overridden to no-store so sensitive proxied payloads are never
+ * cached by browsers or intermediaries.
  */
 function upstreamResponseHeaders(upstream: Response): Headers {
   const headers = new Headers();
   for (const [name, value] of upstream.headers) {
-    if (name.toLowerCase() === "set-cookie") continue;
+    const lower = name.toLowerCase();
+    if (lower === "set-cookie" || lower.startsWith("access-control-")) {
+      continue;
+    }
     headers.set(name, value);
   }
+  headers.set("cache-control", "no-store");
   if (!headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
   return headers;
+}
+
+/**
+ * Buffer the request body with a hard size cap. Content-Length is rejected
+ * up front; chunked bodies are capped while streaming so an oversized upload
+ * cannot exhaust BFF memory.
+ */
+async function readProxyBody(
+  request: NextRequest,
+): Promise<{ ok: true; body: Buffer | undefined } | { ok: false }> {
+  if (!BODY_METHODS.has(request.method) || !request.body) {
+    return { ok: true, body: undefined };
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_PROXY_BODY_BYTES) {
+    return { ok: false };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_PROXY_BODY_BYTES) {
+      await reader.cancel();
+      return { ok: false };
+    }
+    chunks.push(value);
+  }
+  return { ok: true, body: Buffer.concat(chunks) };
 }
 
 async function handleProxy(
@@ -58,7 +102,7 @@ async function handleProxy(
 ): Promise<NextResponse> {
   const config = loadOperatorSessionConfig();
   if (!config.ok) {
-    return NextResponse.json({ message: "service-unavailable" }, { status: 503 });
+    return bffJson(503, "service-unavailable");
   }
 
   // Authentication-source confusion guard: a client-supplied Authorization
@@ -67,19 +111,19 @@ async function handleProxy(
     request.headers.has("authorization") ||
     request.headers.has("proxy-authorization")
   ) {
-    return NextResponse.json({ message: "forbidden-header" }, { status: 400 });
+    return bffJson(400, "forbidden-header");
   }
 
   if (
     isUnsafeMethod(request.method) &&
     !originAllowed(request, config.value.consoleOrigin)
   ) {
-    return NextResponse.json({ message: "forbidden" }, { status: 403 });
+    return bffJson(403, "forbidden");
   }
 
   const sealed = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!sealed) {
-    return NextResponse.json({ message: "unauthorized" }, { status: 401 });
+    return bffJson(401, "unauthorized");
   }
 
   const unsealed = unsealSession(sealed, config.value, Date.now());
@@ -87,10 +131,7 @@ async function handleProxy(
     // Missing, malformed, tampered, expired, and unknown-key sessions all
     // produce the same controlled unauthenticated outcome; the rejected
     // session cookie is cleared.
-    const response = NextResponse.json(
-      { message: "unauthorized" },
-      { status: 401 },
-    );
+    const response = bffJson(401, "unauthorized");
     clearSessionCookie(response, config.value.secureCookies);
     return response;
   }
@@ -109,10 +150,13 @@ async function handleProxy(
   // The only credential forwarded is the server-held one from the session.
   headers.set("authorization", `Bearer ${unsealed.payload.token}`);
 
-  const body =
-    BODY_METHODS.has(request.method) && request.body
-      ? await request.arrayBuffer()
-      : undefined;
+  const bufferedBody = await readProxyBody(request);
+  if (!bufferedBody.ok) {
+    return bffJson(413, "payload-too-large");
+  }
+  const body = bufferedBody.body
+    ? new Uint8Array(bufferedBody.body)
+    : undefined;
 
   let upstream: Response;
   try {
@@ -129,17 +173,14 @@ async function handleProxy(
   }
 
   if (upstream.status === 401) {
-    const response = NextResponse.json(
-      { message: "unauthorized" },
-      { status: 401 },
-    );
+    const response = bffJson(401, "unauthorized");
     clearSessionCookie(response, config.value.secureCookies);
     return response;
   }
 
   if (upstream.status === 403) {
     // A valid session without the required role keeps the session.
-    return NextResponse.json({ message: "forbidden" }, { status: 403 });
+    return bffJson(403, "forbidden");
   }
 
   const responseHeaders = upstreamResponseHeaders(upstream);
