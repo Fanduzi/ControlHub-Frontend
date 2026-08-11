@@ -60,9 +60,13 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 - Backend repo: `/Users/fan/GolangProjects/ControlHub`
 - E2E operator identities come only from explicit per-run fixture provisioning
   (`E2E_FIXTURE_ADMIN_*` / `E2E_FIXTURE_EDITOR_*` env via the backend
-  `cmd/e2e-fixture-bootstrap` seam). The 0002 seed accounts
+  `cmd/e2e-fixture-bootstrap` seam, gated by `CONTROLHUB_E2E_FIXTURE_MODE=1`
+  and a dedicated disposable `*_e2e` metadata DSN). The 0002 seed accounts
   (`admin@example.com` / `editor@example.com` / `secret123`) were retired by
   backend migration 00016 and are refused, never used.
+- **Delivery status**: the fixture seam is not yet on backend `main` (backend
+  ticket #19 blocks #15); the frontend CI depends on it, so **#15 cannot
+  release** until the backend prerequisite is merged/pushed/CI-green.
 
 ## Testing
 

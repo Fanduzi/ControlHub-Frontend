@@ -59,7 +59,13 @@ jobs:
           --health-retries=12
     env:
       BACKEND_DIR: controlhub-backend
-      DATABASE_DSN: controlhub:controlhub_dev@tcp(127.0.0.1:3306)/controlhub?parseTime=true&charset=utf8mb4
+      # Dedicated disposable E2E metadata database. The fixture provisioning
+      # seam (backend cmd/e2e-fixture-bootstrap) refuses the default
+      # `controlhub` database and requires a *_e2e name; the backend server
+      # also serves this database so the whole E2E run is isolated.
+      DATABASE_DSN: controlhub:controlhub_dev@tcp(127.0.0.1:3306)/controlhub_e2e?parseTime=true&charset=utf8mb4
+      E2E_FIXTURE_DATABASE_DSN: controlhub:controlhub_dev@tcp(127.0.0.1:3306)/controlhub_e2e?parseTime=true&charset=utf8mb4
+      CONTROLHUB_E2E_FIXTURE_MODE: "1"
       JWT_SECRET: ci-e2e-secret-must-be-at-least-32b
       APP_PORT: "8080"
       PLAYWRIGHT_PROXY_TARGET: http://localhost:8080
@@ -229,6 +235,14 @@ jobs:
           FLUSH PRIVILEGES;
           SQL
 
+      - name: Create disposable E2E metadata database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          CREATE DATABASE IF NOT EXISTS controlhub_e2e CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+          GRANT ALL PRIVILEGES ON controlhub_e2e.* TO 'controlhub'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
       - name: Run backend migrations
         working-directory: ${{ env.BACKEND_DIR }}
         run: make migrate-up
@@ -244,6 +258,10 @@ jobs:
       # uses explicit per-run fixture operators provisioned by the backend
       # TEST/CI-ONLY seam cmd/e2e-fixture-bootstrap (refuses the retired seeds).
       # Passwords are generated per run, masked, and never printed.
+      #
+      # BACKEND PREREQUISITE: this step requires cmd/e2e-fixture-bootstrap on
+      # backend main (ticket Fanduzi/ControlHub-Backend#19, blocks #15). Until
+      # that backend change is merged/pushed/CI-green, release-e2e cannot run.
       - name: Provision E2E fixture operators
         id: provision
         working-directory: ${{ env.BACKEND_DIR }}
@@ -255,6 +273,8 @@ jobs:
           EDITOR_PW="$(openssl rand -hex 24)"
           echo "::add-mask::$ADMIN_PW"
           echo "::add-mask::$EDITOR_PW"
+          CONTROLHUB_E2E_FIXTURE_MODE="$CONTROLHUB_E2E_FIXTURE_MODE" \
+          E2E_FIXTURE_DATABASE_DSN="$E2E_FIXTURE_DATABASE_DSN" \
           E2E_FIXTURE_ADMIN_EMAIL="$ADMIN_EMAIL" \
           E2E_FIXTURE_ADMIN_PASSWORD="$ADMIN_PW" \
           E2E_FIXTURE_EDITOR_EMAIL="$EDITOR_EMAIL" \
@@ -271,7 +291,7 @@ jobs:
       # E2E must never silently resume them.
       - name: Verify retired seed accounts stay disabled
         run: |
-          ACTIVE_SEEDS=$(mysql -h 127.0.0.1 -ucontrolhub -pcontrolhub_dev controlhub -N -e \
+          ACTIVE_SEEDS=$(mysql -h 127.0.0.1 -ucontrolhub -pcontrolhub_dev controlhub_e2e -N -e \
             "SELECT COUNT(*) FROM users WHERE email IN ('admin@example.com','editor@example.com') AND is_active = 1")
           echo "active retired-seed accounts: $ACTIVE_SEEDS"
           if [ "$ACTIVE_SEEDS" != "0" ]; then

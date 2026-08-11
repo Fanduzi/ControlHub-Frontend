@@ -35,7 +35,13 @@ migration 00016 disabled. Every E2E run must be provisioned with explicit
 admin and editor fixture operators:
 
 - Provisioning: backend `cmd/e2e-fixture-bootstrap` (TEST/CI-ONLY seam) or an
-equivalent controlled path; it refuses the retired seed identities.
+equivalent controlled path; it refuses the retired seed identities. The seam
+requires an explicit test-mode capability and a dedicated disposable
+`*_e2e` metadata DSN on a loopback host (see backend
+`docs/decisions/2026-08-12-e2e-fixture-provisioning-safety-boundary.md`).
+  **BACKEND PREREQUISITE**: the seam is not yet on backend `main` (backend
+ticket #19, which blocks #15). The frontend CI workflow calls it, so
+`release-e2e` cannot run until the backend prerequisite is merged/pushed/CI-green.
 - Consumption: `e2e/harness/fixtures.ts` resolves
   `E2E_FIXTURE_ADMIN_EMAIL` / `E2E_FIXTURE_ADMIN_PASSWORD` and
   `E2E_FIXTURE_EDITOR_EMAIL` / `E2E_FIXTURE_EDITOR_PASSWORD`.
@@ -43,6 +49,8 @@ equivalent controlled path; it refuses the retired seed identities.
   starts. There is no seed fallback.
 - Fixture passwords must never be printed in tests, logs, evidence, or CI
   output; only the non-sensitive fixture emails/roles may be recorded.
+- Note: `.invalid` fixture emails are an additional hygiene guard, NOT the
+  production-safety boundary; the backend seam's DSN/capability gates are.
 
 ### BFF operator-session login (38X-1C)
 
