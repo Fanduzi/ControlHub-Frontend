@@ -240,27 +240,44 @@ jobs:
           QUERY_DEV_ALLOW_TARGET_FIXTURE: "true"
         run: go run ./cmd/querydev
 
-      # Migration 00016 disables the published seed users. E2E still authenticates
-      # as admin@example.com / secret123 via the Console BFF, so recreate that
-      # operator explicitly for the CI database.
-      - name: Bootstrap E2E admin operator
+      # Migration 00016 disabled the published 0002 seed accounts. Real E2E
+      # uses explicit per-run fixture operators provisioned by the backend
+      # TEST/CI-ONLY seam cmd/e2e-fixture-bootstrap (refuses the retired seeds).
+      # Passwords are generated per run, masked, and never printed.
+      - name: Provision E2E fixture operators
+        id: provision
         working-directory: ${{ env.BACKEND_DIR }}
-        env:
-          BOOTSTRAP_ADMIN_EMAIL: admin@example.com
-          BOOTSTRAP_ADMIN_PASSWORD: secret123
-        run: go run ./cmd/bootstrap-admin
-
-      # Shared-template E2E covers non-admin editor flows with editor@example.com.
-      # 00016 disables that seed user; reactivate with the published secret123 hash.
-      - name: Reactivate E2E editor operator
         run: |
-          mysql -h 127.0.0.1 -ucontrolhub -pcontrolhub_dev controlhub <<'SQL'
-          UPDATE users
-          SET is_active = 1,
-              password_hash = 'fcf730b6d95236ecd3c9fc2d92d7b6b2bb061514961aec041d6c7a7192f592e4',
-              authorization_version = authorization_version + 1
-          WHERE email = 'editor@example.com';
-          SQL
+          set -euo pipefail
+          ADMIN_EMAIL="e2e-admin-${GITHUB_RUN_ID}@controlhub-e2e.invalid"
+          EDITOR_EMAIL="e2e-editor-${GITHUB_RUN_ID}@controlhub-e2e.invalid"
+          ADMIN_PW="$(openssl rand -hex 24)"
+          EDITOR_PW="$(openssl rand -hex 24)"
+          echo "::add-mask::$ADMIN_PW"
+          echo "::add-mask::$EDITOR_PW"
+          E2E_FIXTURE_ADMIN_EMAIL="$ADMIN_EMAIL" \
+          E2E_FIXTURE_ADMIN_PASSWORD="$ADMIN_PW" \
+          E2E_FIXTURE_EDITOR_EMAIL="$EDITOR_EMAIL" \
+          E2E_FIXTURE_EDITOR_PASSWORD="$EDITOR_PW" \
+          go run ./cmd/e2e-fixture-bootstrap
+          {
+            echo "admin_email=$ADMIN_EMAIL"
+            echo "admin_password=$ADMIN_PW"
+            echo "editor_email=$EDITOR_EMAIL"
+            echo "editor_password=$EDITOR_PW"
+          } >> "$GITHUB_OUTPUT"
+
+      # The published seed accounts must stay disabled on the migrated DB —
+      # E2E must never silently resume them.
+      - name: Verify retired seed accounts stay disabled
+        run: |
+          ACTIVE_SEEDS=$(mysql -h 127.0.0.1 -ucontrolhub -pcontrolhub_dev controlhub -N -e \
+            "SELECT COUNT(*) FROM users WHERE email IN ('admin@example.com','editor@example.com') AND is_active = 1")
+          echo "active retired-seed accounts: $ACTIVE_SEEDS"
+          if [ "$ACTIVE_SEEDS" != "0" ]; then
+            echo "migration 00016 must leave the published seed accounts disabled"
+            exit 1
+          fi
 
       - name: Start backend server
         working-directory: ${{ env.BACKEND_DIR }}
@@ -288,6 +305,11 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run frontend E2E release gates
+        env:
+          E2E_FIXTURE_ADMIN_EMAIL: ${{ steps.provision.outputs.admin_email }}
+          E2E_FIXTURE_ADMIN_PASSWORD: ${{ steps.provision.outputs.admin_password }}
+          E2E_FIXTURE_EDITOR_EMAIL: ${{ steps.provision.outputs.editor_email }}
+          E2E_FIXTURE_EDITOR_PASSWORD: ${{ steps.provision.outputs.editor_password }}
         run: npm run release:e2e
 
       - name: Upload E2E artifacts
