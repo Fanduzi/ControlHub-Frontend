@@ -1,6 +1,11 @@
+// input: react, next-intl, resource view model, auth-role, edit resource sheet
+// output: admin-only resource edit affordance
+// pos: resource detail page mutation control
+// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useState } from "react";
+import { useAdminRole } from "@/lib/auth-role";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -17,16 +22,19 @@ export function ResourceDetailEditButton({
 }: ResourceDetailEditButtonProps) {
   const t = useTranslations();
   const [editOpen, setEditOpen] = useState(false);
+  const isAdmin = useAdminRole();
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setEditOpen(true)}
-      >
-        {t("common.actions.editResource")}
-      </Button>
+      {isAdmin === true && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setEditOpen(true)}
+        >
+          {t("common.actions.editResource")}
+        </Button>
+      )}
       <EditResourceSheet
         open={editOpen}
         onOpenChange={setEditOpen}

@@ -1,5 +1,5 @@
 // input: vitest, testing-library, environment-provider
-// output: tests for legacy-credential gate on environments probe
+// output: tests for authenticated BFF session gate on environments probe
 // pos: component unit tests
 // note: if this file changes, update header and tests/components/README.md
 import { render, screen, waitFor } from "@testing-library/react";
@@ -28,11 +28,11 @@ describe("EnvironmentProvider", () => {
     mockedListEnvironments.mockReset();
     window.localStorage.clear();
     window.sessionStorage.clear();
-    document.cookie = "controlhub.token=; path=/; max-age=0";
+    document.cookie = "controlhub.role=; path=/; max-age=0";
   });
 
   it("does not expose environment slug fallbacks before backend environments load", async () => {
-    window.sessionStorage.setItem("controlhub.token", "legacy-token");
+    window.sessionStorage.setItem("controlhub.role", "admin");
     mockedListEnvironments.mockResolvedValue([
       {
         id: 1,
@@ -71,7 +71,7 @@ describe("EnvironmentProvider", () => {
     expect(screen.queryByText("1")).not.toBeInTheDocument();
   });
 
-  it("loads environments for a BFF presentation role without a legacy token", async () => {
+  it("loads environments for an authenticated BFF presentation role", async () => {
     window.sessionStorage.setItem("controlhub.role", "admin");
     mockedListEnvironments.mockResolvedValue([
       {

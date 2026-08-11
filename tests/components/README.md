@@ -45,3 +45,6 @@ Vitest component tests for React UI components.
 | db-type-icon.test.tsx | Database type icon |
 | select.test.tsx | Select component |
 | environment-provider.test.tsx | Environment provider |
+
+`environment-provider.test.tsx` verifies the environment probe starts from
+BFF presentation role state rather than browser bearer storage.

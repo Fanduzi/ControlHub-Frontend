@@ -2,4 +2,6 @@
 
 Console shell chrome (sidebar, topbar, layout).
 
-Sign-out clears presentation auth state and calls `DELETE /api/operator-session` so the sealed HttpOnly session is cleared.
+The topbar uses presentation-only role state to hide resource-creation affordances
+for non-admin users. Sign-out calls `DELETE /api/operator-session` and clears
+browser-readable presentation state.

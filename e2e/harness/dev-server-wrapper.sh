@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# input: npm run dev, CONTROLHUB_API_BASE_URL, CONTROLHUB_API_PROXY_URL, NEXT_PUBLIC_API_BASE_URL, CONTROLHUB_BFF_* env
-# output: Next.js dev server for E2E with the legacy proxy and Console BFF local-development configuration
-# pos: E2E dev-server startup wrapper filtering the single known Node v22 TransformStream stderr race
+# input: npm run dev, CONTROLHUB_API_BASE_URL, CONTROLHUB_API_PROXY_URL, CONTROLHUB_BFF_* env
+# output: Next.js dev server for E2E with Console BFF local-development configuration
+# pos: E2E dev-server wrapper filtering the single known Node v22 TransformStream stderr race
 # note: if this file changes, update header and e2e/harness/README.md
 # Wraps the Next.js dev server to filter a known Node.js v22 stderr noise.
 #
@@ -15,8 +15,8 @@ set -euo pipefail
 # Forward args to the real dev server, filtering stderr line-by-line.
 # Only the single known Node v22 stream race condition is suppressed.
 #
-# Browser requests use same-origin /__api (via NEXT_PUBLIC_API_BASE_URL).
-# Server-side fetches and the rewrite target point at the E2E proxy (8081).
+# Browser requests use same-origin `/api/proxy`. Server-side fetches point at
+# the isolated E2E backend target through the proxy on port 8081.
 #
 # Console BFF (38X-1C) local-development configuration:
 # - explicit fixed dev sealing key (never used outside local E2E/dev)
@@ -24,7 +24,6 @@ set -euo pipefail
 # - explicit controlled non-Secure cookie exception (local HTTP only)
 CONTROLHUB_API_BASE_URL=http://localhost:8081 \
 CONTROLHUB_API_PROXY_URL=http://localhost:8081 \
-NEXT_PUBLIC_API_BASE_URL=/__api \
 CONTROLHUB_BFF_SESSION_KEY=9f2c7e51b8a43d6f0c1e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f \
 CONTROLHUB_BFF_CONSOLE_ORIGIN=http://localhost:3100 \
 CONTROLHUB_BFF_SECURE_COOKIES=false \

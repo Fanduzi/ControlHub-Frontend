@@ -214,14 +214,15 @@
       "submit": "Enter console"
     },
     "errors": {
-      "backend": "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
+      "backend": "Unable to reach the backend server. Check that the BFF is running.",
       "invalidCredentials": "Invalid email or password.",
+      "sessionExpired": "Your session ended. Please sign in again.",
       "unknown": "Unknown error"
     }
   },
   "errors": {
     "title": "Something went wrong",
-    "backend": "Unable to reach the backend server. Check that the API is running and NEXT_PUBLIC_API_BASE_URL is correct.",
+    "backend": "Unable to reach the backend server. Check that the BFF is running.",
     "auth": "Authentication failed. Please sign in again.",
     "forbidden": "You do not have permission to access this data.",
     "notFound": "The requested resource was not found.",

@@ -48,7 +48,7 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 ## Key Conventions
 
 - **Default locale is `zh-CN`**, not English. Locale set via `controlhub.locale` cookie. All user-facing strings live in `messages/{zh-CN,en}.json`.
-- **Auth tokens in `sessionStorage`** (`controlhub.token`, `controlhub.role`). No middleware guards — client-side redirect only.
+- **Authentication** uses a same-origin Console BFF. Browser JavaScript stores only presentation role state (`controlhub.role`); the Backend Bearer Credential stays in the HttpOnly Operator Session cookie. Protected pages require the sealed session through `proxy.ts`.
 - **API responses**: `{ items: T[] }` for lists, camelCase fields. 404 returns `null` from service functions.
 - **Tailwind v4** uses inline `@theme` in `globals.css`, not `tailwind.config.ts` (which is mostly empty).
 - **shadcn components** use `@base-ui/react` under the hood, not Radix. Use `data-slot` attributes for test selectors.
@@ -56,7 +56,7 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 
 ## Environment
 
-- `NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8080`
+- `CONTROLHUB_API_BASE_URL` defaults to `http://localhost:8080` for server-side BFF calls
 - Backend repo: `/Users/fan/GolangProjects/ControlHub`
 - Seeded login: `admin@example.com` / `secret123`
 

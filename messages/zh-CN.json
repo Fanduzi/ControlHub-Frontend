@@ -214,14 +214,15 @@
       "submit": "进入控制台"
     },
     "errors": {
-      "backend": "无法连接后端服务。请检查 API 是否运行，并确认 NEXT_PUBLIC_API_BASE_URL 是否正确。",
+      "backend": "无法连接后端服务。请检查 BFF 是否运行。",
       "invalidCredentials": "邮箱或密码无效。",
+      "sessionExpired": "会话已结束，请重新登录。",
       "unknown": "未知错误"
     }
   },
   "errors": {
     "title": "出现问题",
-    "backend": "无法连接后端服务。请检查 API 是否运行，并确认 NEXT_PUBLIC_API_BASE_URL 是否正确。",
+    "backend": "无法连接后端服务。请检查 BFF 是否运行。",
     "auth": "认证失败。请重新登录。",
     "forbidden": "你没有权限访问这些数据。",
     "notFound": "未找到请求的资源。",

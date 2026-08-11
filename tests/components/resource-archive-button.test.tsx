@@ -5,9 +5,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/services/api-client";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
+// input: vitest, testing-library, resource archive button, auth-role
+// output: admin archive/restore control tests
+// pos: component tests for role-gated resource mutations
+// note: if this file changes, update header and components/resources/README.md
+
 import messages from "@/messages/en.json";
 import type { ResourceListViewModel } from "@/types/view-models";
 
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => true,
+}));
 const { archiveMock, unarchiveMock } = vi.hoisted(() => ({
   archiveMock: vi.fn(),
   unarchiveMock: vi.fn(),

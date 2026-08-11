@@ -1,7 +1,8 @@
-// input: react, next-intl, environment/theme providers
-// output: console topbar controls including sign-out clearing legacy auth storage
+// input: react, next-intl, environment/theme providers, auth-role
+// output: console topbar controls including admin-only resource creation and sign-out
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -40,6 +41,7 @@ import {
 import { useEnvironment } from "@/components/providers/environment-provider";
 import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
 import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
+import { useAdminRole } from "@/lib/auth-role";
 
 type TopbarProps = {
   pathname: string;
@@ -61,6 +63,7 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const isAdmin = useAdminRole();
 
   useEffect(() => {
     function handleOpenCreate() {
@@ -192,10 +195,12 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
         <ThemeToggle />
         <AccentSwitcher />
 
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowCreate(true)}>
-          <Plus className="size-4" />
-          {t("shell.quickAction")}
-        </Button>
+        {isAdmin === true && (
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowCreate(true)}>
+            <Plus className="size-4" />
+            {t("shell.quickAction")}
+          </Button>
+        )}
 
         <Popover>
           <PopoverTrigger
@@ -253,10 +258,12 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
               <Command className="size-4" />
               {t("shell.openCommandPalette")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="lg:hidden" onClick={() => setShowCreate(true)}>
-              <Plus className="size-4" />
-              {t("shell.quickAction")}
-            </DropdownMenuItem>
+            {isAdmin === true && (
+              <DropdownMenuItem className="lg:hidden" onClick={() => setShowCreate(true)}>
+                <Plus className="size-4" />
+                {t("shell.quickAction")}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           {/* Mobile-only settings */}

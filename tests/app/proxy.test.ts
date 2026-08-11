@@ -7,10 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { proxy } from "@/proxy";
 import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
-import {
-  LEGACY_TOKEN_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-} from "@/lib/operator-session/constants";
+import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
 import { sealSession } from "@/lib/operator-session/seal";
 
 const ACTIVE_KEY_HEX =
@@ -39,11 +36,14 @@ function requestWithCookies(cookies: Record<string, string>): NextRequest {
   });
 }
 
-function assertRedirectsToLogin(response: Response, pathname = "/overview") {
+function assertRedirectsToLogin(response: Response, pathname = "/overview", expired = true) {
   expect(response.status).toBe(307);
   const location = new URL(response.headers.get("location") ?? "");
   expect(location.pathname).toBe("/login");
   expect(location.searchParams.get("from")).toBe(pathname);
+  if (expired) {
+    expect(location.searchParams.get("reason")).toBe("session-expired");
+  }
 }
 
 afterEach(() => {
@@ -64,7 +64,7 @@ describe("proxy Operator Session gate", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
-  it("redirects to login and clears the cookie for a forged cookie value", () => {
+  it("redirects to login and marks invalid session as expired", () => {
     stubBffEnv();
     const response = proxy(
       requestWithCookies({ [SESSION_COOKIE_NAME]: "not-a-sealed-session" }),
@@ -129,19 +129,18 @@ describe("proxy Operator Session gate", () => {
     expect(response.cookies.get(SESSION_COOKIE_NAME)?.maxAge).toBe(0);
   });
 
-  it("still passes the legacy token cookie seam", () => {
+  it("rejects a browser bearer cookie at the protected page gate", () => {
     stubBffEnv();
     const response = proxy(
-      requestWithCookies({ [LEGACY_TOKEN_COOKIE_NAME]: "legacy-token" }),
+      requestWithCookies({ "controlhub.token": "legacy-token" }),
     );
-    expect(response.status).toBe(200);
-    expect(response.headers.get("location")).toBeNull();
+    assertRedirectsToLogin(response, "/overview", false);
   });
 
   it("redirects to login when no session cookie is present", () => {
     stubBffEnv();
     const response = proxy(requestWithCookies({}));
-    assertRedirectsToLogin(response);
+    assertRedirectsToLogin(response, "/overview", false);
   });
 
   it("leaves public paths untouched", () => {

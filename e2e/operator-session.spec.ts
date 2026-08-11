@@ -76,7 +76,7 @@ function assertNoCredentialLeak(snapshot: {
     ...snapshot.localStorageValues,
   ];
   // The Backend Bearer Credential must never be readable by browser
-  // JavaScript: no legacy token key, no value carrying a bearer marker,
+  // JavaScript: no browser bearer key, no value carrying a bearer marker,
   // no browser-readable cookie, and the sealed session cookie must be
   // HttpOnly (absent from document.cookie).
   expect(allKeys).not.toContain("controlhub.token");

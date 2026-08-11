@@ -1,9 +1,14 @@
+// input: react, next-intl, resource view model, auth-role, resource mutation services
+// output: admin-only archive and restore controls
+// pos: resource mutation boundary
+// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { useAdminRole } from "@/lib/auth-role";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/services/api-client";
 import { archiveResource, unarchiveResource } from "@/services/resources";
@@ -25,6 +30,9 @@ export function ResourceArchiveButton({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const isAdmin = useAdminRole();
+
+  if (isAdmin !== true) return null;
 
   const isArchived = resource.isArchived;
   const size = compact ? "xs" : "sm";

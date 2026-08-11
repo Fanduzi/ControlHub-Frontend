@@ -336,8 +336,7 @@ test.describe("Query credential settings", () => {
     // Clear sessionStorage auth state. BFF bearer stays HttpOnly; presentation
     // role remains in the controlhub.role cookie for new-tab / direct-URL recovery.
     const cookieRole = await page.evaluate(() => {
-      window.sessionStorage.removeItem("controlhub.token");
-      window.sessionStorage.removeItem("controlhub.role");
+        window.sessionStorage.removeItem("controlhub.role");
       const match = document.cookie
         .split(";")
         .map((part) => part.trim())

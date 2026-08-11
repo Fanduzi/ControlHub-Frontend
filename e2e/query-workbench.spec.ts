@@ -758,8 +758,7 @@ async function openQueryWorkbench(page: Page): Promise<void> {
  * Derives the numeric target id after navigator selection from (in order):
  * 1) `?targetId=` on the workbench URL
  * 2) recent same-origin `/query-targets/{id}/…` resource timing (schema/history)
- * Browser API base under BFF sessions is same-origin `/api/proxy`
- * (legacy `/__api` remains only when a browser-readable token is present).
+ * Browser API base under BFF sessions is same-origin `/api/proxy`.
  */
 async function exactExecuteUrlForActiveTarget(page: Page): Promise<string> {
   // Ready selection must expose Run before we can trust the active target.

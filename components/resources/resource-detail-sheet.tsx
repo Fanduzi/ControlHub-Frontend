@@ -1,6 +1,11 @@
+// input: react, next-intl, resource view models, auth-role, resource mutation controls
+// output: resource detail sheet with admin-only edit/archive affordances
+// pos: authenticated resource detail interaction boundary
+// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useState } from "react";
+import { useAdminRole } from "@/lib/auth-role";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -59,6 +64,7 @@ export function ResourceDetailSheet({
   const t = useTranslations();
   const locale = useLocale();
   const [editOpen, setEditOpen] = useState(false);
+  const isAdmin = useAdminRole();
 
   if (!resource) {
     return null;
@@ -100,15 +106,17 @@ export function ResourceDetailSheet({
               >
                 {t("common.actions.openFullDetail")}
               </Link>
-              <ResourceArchiveButton resource={resource} compact />
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setEditOpen(true)}
-                disabled={!detailResource || loading}
-              >
-                {t("common.actions.editResource")}
-              </Button>
+              {isAdmin === true && <ResourceArchiveButton resource={resource} compact />}
+              {isAdmin === true && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setEditOpen(true)}
+                  disabled={!detailResource || loading}
+                >
+                  {t("common.actions.editResource")}
+                </Button>
+              )}
               {resource.isArchived && (
                 <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                   {t("common.actions.archived")}

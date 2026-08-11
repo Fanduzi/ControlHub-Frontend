@@ -25,19 +25,17 @@ export default function LoginPage() {
   const t = useTranslations("login");
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
-    // Already signed in via BFF sealed session or legacy compatibility cookie.
-    const hasLegacy = document.cookie.includes("controlhub.token=");
-    const hasRole = document.cookie.includes("controlhub.role=");
-    if (hasLegacy || hasRole) {
-      router.replace("/overview");
+    if (new URLSearchParams(window.location.search).get("reason") === "session-expired") {
+      setError(t("errors.sessionExpired"));
     }
-  }, [router]);
+  }, [t]);
+
   const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(1, t("form.passwordRequired")),
   });
+
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -85,7 +83,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Presentation-only role recovery for admin UI gating. Never store a bearer.
       window.sessionStorage.removeItem("controlhub.token");
       window.sessionStorage.setItem("controlhub.role", role);
       // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render

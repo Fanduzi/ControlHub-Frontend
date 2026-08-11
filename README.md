@@ -28,13 +28,11 @@ API server-side and seals the Backend Bearer Credential into an HttpOnly
 Operator Session cookie (`controlhub.operator-session`, `SameSite=Strict`,
 eight-hour maximum age, AES-256-GCM with an active key plus a short
 previous-key rotation window of 15 minutes). The login response body returns
-only `{ role }` — never a bearer token. Browser client fetches without a legacy
-token use `/api/proxy/[...path]`, which attaches the server-held credential and
+only `{ role }` — never a bearer token. Browser client fetches without client Authorization use `/api/proxy/[...path]`, which attaches the server-held credential and
 rejects client-supplied `Authorization` headers, blocked prefixes such as
 `auth/*`, and unsafe cross-origin requests. The console route guard (`proxy.ts`)
 accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
-expired cookies fail closed to login. A temporary legacy `controlhub.token`
-page-gate seam remains only until Issue #15 removes pre-BFF sessions. There is no open `/__api` rewrite to the backend; browser API access is only via `/api/proxy`.
+expired cookies fail closed to login. There is no open `/__api` rewrite to the backend; browser API access is only via `/api/proxy`.
 
 ### BFF environment
 
@@ -82,20 +80,18 @@ Unsupported Node versions fail before `npm start`, `npm run dev`, or
 npm ci
 ```
 
-The frontend connects to the ControlHub backend API. Set the environment variable to point to your backend:
-
-```bash
-# Required: backend API base URL
-export NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-```
-
-If `NEXT_PUBLIC_API_BASE_URL` is not set, it defaults to `http://localhost:8080`.
+The console browser always uses same-origin `/api/proxy`; `NEXT_PUBLIC_API_BASE_URL`
+is not a browser authentication or routing setting.
 
 ### Running with the backend
 
-1. Start the backend at `http://localhost:8080` (see the backend repository for instructions)
-2. `npm run dev`
-3. Smoke-test these pages:
+Start an isolated backend and configure the BFF server target:
+
+```bash
+export CONTROLHUB_API_BASE_URL=http://localhost:8080
+```
+
+Then run `npm run dev` and smoke-test these pages:
    - `/login` — sign in with backend credentials
    - `/overview` — attention queue, posture metrics, environment lanes, recent audits
    - `/resources` — resource table with search/filter and detail sheet
