@@ -6,4 +6,5 @@ Vitest unit tests for `services/*`.
 |------|----------|
 | `api-client.test.ts` | BFF proxy base URL, unsafe integers, no browser Authorization (incl. stale legacy bearer storage), BFF 401 session handling |
 | `audits.test.ts` | Audit list/pagination forwarding, resource audit paths, operator-boundary 403 degradation to empty |
+| `e2e-api-helpers.test.ts` | E2E API helper contracts — fixture-based auth body, fail-loud without fixture env |
 

@@ -5,6 +5,7 @@
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
+import { resolveFixtureIdentity } from "./harness/fixtures";
 import { getAuthToken } from "./api.helpers";
 import {
   assertClean,
@@ -18,6 +19,10 @@ import {
 
 const FIXTURE_DIAGNOSTIC =
   "Run: make query-e2e-mysql-up && seed-query-dev-target";
+
+// Provisioned per-run fixture operator used by no-leak assertions (the
+// operator identity must never leak into saved-statement rows).
+const FIXTURE_ADMIN_EMAIL = resolveFixtureIdentity("admin").email;
 
 const PROBE_API_BASE =
   process.env.CONTROLHUB_API_PROXY_URL ??
@@ -3098,8 +3103,11 @@ test.describe("Saved statements (Phase 38R)", () => {
     const testName = `E2E test ${testSuffix}`;
     await nameInput.fill(testName);
 
-    // Statement textarea should be pre-filled
-    const stmtTextarea = page.getByLabel(/sql statement/i).first();
+    // Statement textarea should be pre-filled (scoped to the dialog: the
+    // worksheet CodeMirror editor shares the "SQL statement" label).
+    const stmtTextarea = page
+      .getByRole("dialog", { name: /save as personal query|保存为个人查询/i })
+      .getByLabel(/sql statement|SQL 语句/i);
     const stmtValue = await stmtTextarea.inputValue();
     expect(stmtValue.length).toBeGreaterThan(0);
 
@@ -3293,6 +3301,32 @@ test.describe("Saved statements (Phase 38R)", () => {
   });
 });
 
+/**
+ * Fill both save-dialog fields (name + statement) and verify the values
+ * committed. Guards a load-induced controlled-input race observed under
+ * full-suite runs where a fill could land in the wrong field or be lost;
+ * refills once, then fails loudly with the actual field values.
+ */
+async function fillSaveDialog(
+  page: Page,
+  name: string,
+  statement: string,
+): Promise<void> {
+  const saveDialog = page.getByRole("dialog", { name: /save as personal query|保存为个人查询/i });
+  const nameField = saveDialog.getByLabel(/statement name|语句名称/i);
+  const stmtField = saveDialog.getByLabel(/SQL statement|SQL 语句/i);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await nameField.fill(name);
+    await stmtField.fill(statement);
+    const nameOk = (await nameField.inputValue()) === name;
+    const stmtOk = (await stmtField.inputValue()) === statement;
+    if (nameOk && stmtOk) return;
+  }
+  throw new Error(
+    `save dialog fields did not commit: name="${await nameField.inputValue()}" statement="${await stmtField.inputValue()}"`,
+  );
+}
+
 async function exerciseParameterizedTemplateLoad(
   page: Page,
   options: {
@@ -3323,8 +3357,7 @@ async function exerciseParameterizedTemplateLoad(
       name: options.locale === "en" ? /Save current statement as personal/i : /将当前语句保存为个人查询/,
     })
     .click();
-  await page.getByLabel(options.locale === "en" ? /statement name/i : /语句名称/i).first().fill(savedName);
-  await page.getByLabel(options.locale === "en" ? /SQL statement/i : /SQL 语句/i).first().fill("SELECT :status AS status");
+  await fillSaveDialog(page, savedName, "SELECT :status AS status");
   await page.getByRole("button", { name: options.locale === "en" ? /add parameter/i : /添加参数/i }).first().click();
   await page.getByTestId("parameter-row-0").locator("input").fill("status");
 
@@ -3771,8 +3804,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     await page.getByRole("tab", { name: /saved sheets/i }).click();
     await page.locator('[aria-label*="Save current statement as personal"]').click();
     await expect(page.getByText("Save as personal query").first()).toBeVisible({ timeout: 5_000 });
-    await page.getByLabel(/statement name/i).first().fill(options.name);
-    await page.getByLabel(/SQL statement/i).first().fill(options.statement);
+    await fillSaveDialog(page, options.name, options.statement);
     await page.getByRole("button", { name: /add parameter/i }).first().click();
     const row = page.getByTestId("parameter-row-0");
     await row.locator("input").fill(options.paramName);
@@ -4126,8 +4158,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     const name = `模板执行 ${suffix}`;
     await page.locator('[aria-label*="将当前语句保存为个人查询"]').click();
     await expect(page.getByText("保存为个人查询").first()).toBeVisible({ timeout: 5_000 });
-    await page.getByLabel(/语句名称/i).first().fill(name);
-    await page.getByLabel(/SQL 语句/i).first().fill(TEMPLATE_STATEMENT);
+    await fillSaveDialog(page, name, TEMPLATE_STATEMENT);
     await page.getByRole("button", { name: /添加参数/i }).first().click();
     const row = page.getByTestId("parameter-row-0");
     await row.locator("input").fill("minimum_id");
@@ -4584,10 +4615,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       },
     ]);
     await page.goto("/login");
-    await page.locator("#email").fill("editor@example.com");
-    await page.locator("#password").fill("secret123");
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+    await loginViaUI(page, "editor");
 
     await page.locator('a[href="/query"]').first().click();
     await expect(page).toHaveURL(/\/query/);
@@ -4623,10 +4651,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       },
     ]);
     await page.goto("/login");
-    await page.locator("#email").fill("editor@example.com");
-    await page.locator("#password").fill("secret123");
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+    await loginViaUI(page, "editor");
 
     await page.locator('a[href="/query"]').first().click();
     await expect(page).toHaveURL(/\/query/);
@@ -4746,12 +4771,13 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     expect(containsKey(parsed, "actor_user_id")).toBe(false);
     expect(containsValue(parsed, SENTINEL)).toBe(false);
     expect(containsValue(parsed, "Chen Hao")).toBe(false);
-    expect(containsValue(parsed, "admin@example")).toBe(false);
+    expect(containsValue(parsed, FIXTURE_ADMIN_EMAIL)).toBe(false);
 
     const panel = page.getByRole("tabpanel", { name: /saved sheets/i });
     const panelText = await panel.textContent();
     expect(panelText).not.toContain(SENTINEL);
-    expect(panelText).not.toMatch(/Chen Hao|admin@example/i);
+    expect(panelText).not.toMatch(/Chen Hao/);
+    expect(panelText).not.toContain(FIXTURE_ADMIN_EMAIL);
     expect(panelText).not.toMatch(/ownerUserId|actorUserId/i);
   });
 

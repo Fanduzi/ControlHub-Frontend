@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// input: vitest, e2e/api.helpers
+// output: unit tests for E2E API helpers — fixture-based auth, fail-loud without fixture env
+// pos: contract tests for the E2E API helper surface
+// note: if this file changes, update header and tests/services/README.md
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock global fetch before importing helpers
 const fetchMock = vi.fn();
@@ -14,6 +18,22 @@ const {
   getAuthToken,
   testResourceName,
 } = await import("../../e2e/api.helpers");
+
+// The E2E helpers authenticate with provisioned per-run fixture identities
+// (never the retired seeds); unit tests supply explicit fixture env.
+function stubFixtureEnv() {
+  vi.stubEnv("E2E_FIXTURE_ADMIN_EMAIL", "e2e-admin@unit-test.invalid");
+  vi.stubEnv("E2E_FIXTURE_ADMIN_PASSWORD", "admin-pw");
+  vi.stubEnv("E2E_FIXTURE_EDITOR_EMAIL", "e2e-editor@unit-test.invalid");
+  vi.stubEnv("E2E_FIXTURE_EDITOR_PASSWORD", "editor-pw");
+}
+
+stubFixtureEnv();
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  stubFixtureEnv();
+});
 
 const API_BASE = "http://localhost:8081";
 
@@ -166,7 +186,10 @@ describe("getAuthToken", () => {
     expect(token).toBe("test-token");
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE}/auth/login`,
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("e2e-admin@unit-test.invalid"),
+      }),
     );
   });
 
@@ -178,6 +201,12 @@ describe("getAuthToken", () => {
     });
 
     await expect(getAuthToken()).rejects.toThrow("returned 401");
+  });
+
+  it("fails loud without fixture env — no seed fallback", async () => {
+    vi.unstubAllEnvs();
+
+    await expect(getAuthToken()).rejects.toThrow(/E2E_FIXTURE_ADMIN_EMAIL/);
   });
 });
 

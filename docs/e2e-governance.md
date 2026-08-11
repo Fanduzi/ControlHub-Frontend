@@ -24,18 +24,25 @@ Classification".
 ## Auth Rule
 
 Use `loginViaUI(page)` for E2E tests that navigate to application pages.
+`loginViaUI` authenticates through the real Console BFF login form with the
+provisioned per-run fixture identity.
 
-Do not use `loginViaApi(page)` for SSR page tests. `loginViaApi()` seeds
-client-side state, but server components fetch during SSR and cannot read that
-state.
+### Fixture identities (38X-1D)
 
-Allowed exception:
+Real E2E never uses the published 0002 seed accounts
+(`admin@example.com` / `editor@example.com` / `secret123`), which backend
+migration 00016 disabled. Every E2E run must be provisioned with explicit
+admin and editor fixture operators:
 
-```ts
-// e2e-governance-allow-loginViaApi: API-only test, no SSR page render.
-```
-
-Only use this marker when the test does not depend on server-rendered pages.
+- Provisioning: backend `cmd/e2e-fixture-bootstrap` (TEST/CI-ONLY seam) or an
+equivalent controlled path; it refuses the retired seed identities.
+- Consumption: `e2e/harness/fixtures.ts` resolves
+  `E2E_FIXTURE_ADMIN_EMAIL` / `E2E_FIXTURE_ADMIN_PASSWORD` and
+  `E2E_FIXTURE_EDITOR_EMAIL` / `E2E_FIXTURE_EDITOR_PASSWORD`.
+- Missing or blank fixture env fails the run loudly before any browser
+  starts. There is no seed fallback.
+- Fixture passwords must never be printed in tests, logs, evidence, or CI
+  output; only the non-sensitive fixture emails/roles may be recorded.
 
 ### BFF operator-session login (38X-1C)
 
@@ -44,14 +51,12 @@ Only use this marker when the test does not depend on server-rendered pages.
 (APIRequestContext), which shares the browser context's cookie jar, and then
 navigates application pages with `page.goto`. This is the intended mechanism
 for BFF boundary tests: the BFF flow sets an HttpOnly Operator Session cookie
-that server components can read, so it is not subject to the `loginViaApi`
-SSR limitation. Requests must go through `page.request` or real page
-interaction — never `page.evaluate`; storage-leak assertions may read
-browser storage (read-only) and cookies via `context.cookies()`. The spec must
-prove the boundary (HttpOnly sealed cookie, no Backend Bearer Credential in
-browser storage or browser-readable cookies, logout clearing) and use the
-console/network guards like any application-page spec. Do not use this
-mechanism for ordinary console flows until the Phase 38X console migration.
+that server components can read. Requests must go through `page.request` or
+real page interaction — never `page.evaluate`; storage-leak assertions may
+read browser storage (read-only) and cookies via `context.cookies()`. The
+spec must prove the boundary (HttpOnly sealed cookie, no Backend Bearer
+Credential in browser storage or browser-readable cookies, logout clearing)
+and use the console/network guards like any application-page spec.
 
 ## Console And Network Guards
 

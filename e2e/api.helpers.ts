@@ -1,9 +1,15 @@
+// input: @playwright/test fetch helpers, ./harness/fixtures, process env
+// output: authenticated API helpers for E2E (fixture identities; no seed fallback)
+// pos: server-side E2E data helpers through the api-proxy
+// note: if this file changes, update header and e2e/README.md
 /**
  * Playwright API helpers for authenticated backend requests.
  *
  * All calls go through the api-proxy (localhost:8081) so they are
  * recorded the same way as browser-initiated requests.
  */
+
+import { resolveFixtureIdentity, type FixtureRole } from "./harness/fixtures";
 
 const API_BASE =
   process.env.CONTROLHUB_API_PROXY_URL ??
@@ -58,14 +64,12 @@ type CreateRelationInput = {
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
-const TEST_EMAIL = "admin@example.com";
-const TEST_PASSWORD = "secret123";
-
-export async function getAuthToken(): Promise<string> {
+export async function getAuthToken(role: FixtureRole = "admin"): Promise<string> {
+  const { email, password } = resolveFixtureIdentity(role);
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD }),
+    body: JSON.stringify({ email, password }),
   });
 
   if (!res.ok) {

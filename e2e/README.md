@@ -26,7 +26,8 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | File | Purpose |
 |------|---------|
 | harness/backend-health.ts | Backend health check |
-| harness/auth.ts | UI login helper |
+| harness/auth.ts | UI login helper (provisioned fixture identities) |
+| harness/fixtures.ts | Fail-loud fixture credential resolver (no seed fallback) |
 | harness/console-guards.ts | Console/network error guards |
 | harness/dev-server-wrapper.sh | Dev server wrapper for E2E |
 | harness/interaction-stability.ts | Interaction stability helpers |

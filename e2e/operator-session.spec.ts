@@ -6,6 +6,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
+import { resolveFixtureIdentity } from "./harness/fixtures";
 import { loadOperatorSessionConfig } from "../lib/operator-session/config";
 import { sealSession } from "../lib/operator-session/seal";
 import {
@@ -16,8 +17,9 @@ import {
 
 const CONSOLE_ORIGIN = "http://localhost:3100";
 const SESSION_COOKIE = "controlhub.operator-session";
-const EMAIL = "admin@example.com";
-const PASSWORD = "secret123";
+// Provisioned per-run fixture operator (backend cmd/e2e-fixture-bootstrap);
+// the retired 0002 seed accounts are refused by the resolver.
+const FIXTURE = resolveFixtureIdentity("admin");
 
 /** Must match e2e/harness/dev-server-wrapper.sh local BFF key material. */
 const E2E_BFF_SESSION_KEY =
@@ -40,7 +42,7 @@ function e2eSessionConfig() {
  */
 async function bffLoginViaRequest(page: Page) {
   const res = await page.request.post(`${CONSOLE_ORIGIN}/api/operator-session`, {
-    data: { email: EMAIL, password: PASSWORD },
+    data: { email: FIXTURE.email, password: FIXTURE.password },
     headers: { Origin: CONSOLE_ORIGIN },
   });
   return { status: res.status(), body: await res.text() };
@@ -178,7 +180,7 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     const res = await page.request.post(
       `${CONSOLE_ORIGIN}/api/operator-session`,
       {
-        data: { email: EMAIL, password: "wrong-password" },
+        data: { email: FIXTURE.email, password: "wrong-password" },
         headers: { Origin: CONSOLE_ORIGIN },
       },
     );
@@ -246,7 +248,7 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     const evilLogin = await page.request.post(
       `${CONSOLE_ORIGIN}/api/operator-session`,
       {
-        data: { email: EMAIL, password: PASSWORD },
+        data: { email: FIXTURE.email, password: FIXTURE.password },
         headers: { Origin: "https://evil.example" },
       },
     );
@@ -418,8 +420,13 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     await uiSignOut(page);
 
     // Controlled failure surfaced in the console menu; no navigation away
-    // while the HttpOnly Operator Session cookie is still valid.
-    await expect(page.getByRole("alert")).toBeVisible();
+    // while the HttpOnly Operator Session cookie is still valid. (Filter by
+    // text: Next.js also mounts a route-announcer div with role="alert".)
+    await expect(
+      page
+        .getByRole("alert")
+        .filter({ hasText: /sign out failed|退出登录失败/i }),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/overview/);
 
     // Back online: the session is the honest remaining state — a reload

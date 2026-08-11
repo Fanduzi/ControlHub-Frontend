@@ -58,12 +58,16 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 
 - `CONTROLHUB_API_BASE_URL` defaults to `http://localhost:8080` for server-side BFF calls
 - Backend repo: `/Users/fan/GolangProjects/ControlHub`
-- Seeded login: `admin@example.com` / `secret123`
+- E2E operator identities come only from explicit per-run fixture provisioning
+  (`E2E_FIXTURE_ADMIN_*` / `E2E_FIXTURE_EDITOR_*` env via the backend
+  `cmd/e2e-fixture-bootstrap` seam). The 0002 seed accounts
+  (`admin@example.com` / `editor@example.com` / `secret123`) were retired by
+  backend migration 00016 and are refused, never used.
 
 ## Testing
 
 - **Unit tests** in `tests/` with Vitest + jsdom + testing-library. Mock service functions with `vi.mock()`, wrap renders in `NextIntlClientProvider`.
-- **E2E tests** in `e2e/` with Playwright (chromium only). **Always use `loginViaUI()` for SSR console pages** — it navigates through the real login form and establishes a client-side session. `loginViaApi()` only sets `sessionStorage` (client-only), which breaks SSR auth because server components fetch during render with no token. Tests set English locale cookie.
+- **E2E tests** in `e2e/` with Playwright (chromium only). **Always use `loginViaUI()` for SSR console pages** — it navigates through the real login form with the provisioned fixture identity and establishes a client-side session. Tests set English locale cookie.
 - Vitest excludes `e2e/**` — the two runners must not cross paths.
 
 <!-- gitnexus:start -->
