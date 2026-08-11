@@ -240,6 +240,16 @@ jobs:
           QUERY_DEV_ALLOW_TARGET_FIXTURE: "true"
         run: go run ./cmd/querydev
 
+      # Migration 00016 disables the published seed users. E2E still authenticates
+      # as admin@example.com / secret123 via the Console BFF, so recreate that
+      # operator explicitly for the CI database.
+      - name: Bootstrap E2E admin operator
+        working-directory: ${{ env.BACKEND_DIR }}
+        env:
+          BOOTSTRAP_ADMIN_EMAIL: admin@example.com
+          BOOTSTRAP_ADMIN_PASSWORD: secret123
+        run: go run ./cmd/bootstrap-admin
+
       - name: Start backend server
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
