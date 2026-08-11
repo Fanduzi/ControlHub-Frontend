@@ -1,11 +1,8 @@
 // input: fetch, next/headers (server), operator-session seal/config
-// output: shared API client with browser and server credential resolution
-// pos: sole browser/SSR fetch helper; server unseals BFF session or legacy token cookie
+// output: shared API client; browser uses /api/proxy, server unseals BFF session
+// pos: sole browser/SSR fetch helper for console data
 // note: if this file changes, update header and services/README.md
-import {
-  LEGACY_TOKEN_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-} from "@/lib/operator-session/constants";
+import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
 
 export class ApiError extends Error {
   status: number;
@@ -19,25 +16,12 @@ export class ApiError extends Error {
   }
 }
 
-function browserHasLegacyToken(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    if (window.sessionStorage?.getItem("controlhub.token")) return true;
-  } catch {
-    // ignore storage access failures
-  }
-  return Boolean(readLegacyTokenFromDocumentCookie());
-}
-
 export function resolveApiBaseUrl(): string {
   if (typeof window !== "undefined") {
-    // BFF-only sessions have no browser-readable bearer. Route client fetches
-    // through the same-origin protected proxy so the server attaches the
-    // sealed credential. Legacy token sessions keep the pre-BFF /__api path.
-    if (!browserHasLegacyToken()) {
-      return "/api/proxy";
-    }
-    return process.env.NEXT_PUBLIC_API_BASE_URL || "/__api";
+    // Browser fetches always use the same-origin BFF proxy. The server attaches
+    // the sealed Operator Session credential; clients never send Authorization.
+    // (Legacy readable tokens are page-gate only until Issue #15 removes them.)
+    return "/api/proxy";
   }
 
   return process.env.CONTROLHUB_API_BASE_URL || "http://localhost:8080";
@@ -65,33 +49,11 @@ function assertNoUnsafeIntegers(value: unknown) {
   }
 }
 
-function readLegacyTokenFromDocumentCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${LEGACY_TOKEN_COOKIE_NAME}=`));
-  if (!match) return null;
-  const value = match.slice(LEGACY_TOKEN_COOKIE_NAME.length + 1);
-  return value.length > 0 ? value : null;
-}
-
-/** Browser-only: sessionStorage first, then the legacy readable token cookie. */
-function getBrowserAuthHeaders(): Record<string, string> {
-  const token =
-    window.sessionStorage.getItem("controlhub.token") ??
-    readLegacyTokenFromDocumentCookie();
-
-  if (!token) {
-    return {};
-  }
-
-  return { Authorization: `Bearer ${token}` };
-}
-
 /**
- * Server-only: prefer the sealed BFF Operator Session cookie; fall back to the
- * legacy token cookie. Dynamic import keeps next/headers out of the client bundle.
+ * Server-only: unseal the Operator Session cookie into a Backend Bearer
+ * Credential for RSC/server fetches. Dynamic import keeps next/headers out of
+ * the client bundle. Legacy readable tokens are intentionally not used here —
+ * they remain a temporary page-gate seam only (`proxy.ts`) until Issue #15.
  */
 async function getServerAuthHeaders(): Promise<Record<string, string>> {
   try {
@@ -112,11 +74,6 @@ async function getServerAuthHeaders(): Promise<Record<string, string>> {
         }
       }
     }
-
-    const legacy = jar.get(LEGACY_TOKEN_COOKIE_NAME)?.value;
-    if (legacy) {
-      return { Authorization: `Bearer ${legacy}` };
-    }
   } catch {
     // Outside a Next.js request scope (unit tests, build) — no credentials.
   }
@@ -124,8 +81,9 @@ async function getServerAuthHeaders(): Promise<Record<string, string>> {
 }
 
 async function resolveAuthHeaders(): Promise<Record<string, string>> {
+  // Browser clients never attach Authorization; the BFF proxy owns credentials.
   if (typeof window !== "undefined") {
-    return getBrowserAuthHeaders();
+    return {};
   }
   return getServerAuthHeaders();
 }
@@ -169,7 +127,7 @@ export async function apiClient<T>(
     ) {
       window.sessionStorage.removeItem("controlhub.token");
       window.sessionStorage.removeItem("controlhub.role");
-      document.cookie = `${LEGACY_TOKEN_COOKIE_NAME}=; path=/; max-age=0`;
+      document.cookie = "controlhub.token=; path=/; max-age=0";
       document.cookie = "controlhub.role=; path=/; max-age=0";
       window.location.href = "/login?reason=session-expired";
     }

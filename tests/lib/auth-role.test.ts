@@ -81,27 +81,24 @@ describe("useAdminRole", () => {
   });
 
   it("falls back to controlhub.role cookie when sessionStorage is empty (38X-1A+)", async () => {
-    // New tokens embed authorizationVersion, not role — UI recovery uses the role cookie.
-    const token = buildFakeToken(99, "1");
-    document.cookie = `controlhub.token=${token}; path=/; max-age=86400`;
     document.cookie = `controlhub.role=admin; path=/; max-age=86400`;
 
     const { result } = renderHook(() => useAdminRole());
     await waitFor(() => expect(result.current).toBe(true));
 
-    expect(window.sessionStorage.getItem("controlhub.token")).toBe(token);
+    // Role is backfilled; legacy bearer cookies are never promoted into storage.
     expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+    expect(window.sessionStorage.getItem("controlhub.token")).toBeNull();
   });
 
-  it("falls back to legacy cookie token role when role cookie is absent", async () => {
+  it("does not promote a legacy token cookie into sessionStorage", async () => {
     const token = buildFakeToken(99, "admin");
     document.cookie = `controlhub.token=${token}; path=/; max-age=86400`;
 
     const { result } = renderHook(() => useAdminRole());
-    await waitFor(() => expect(result.current).toBe(true));
-
-    expect(window.sessionStorage.getItem("controlhub.token")).toBe(token);
-    expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(window.sessionStorage.getItem("controlhub.token")).toBeNull();
+    expect(window.sessionStorage.getItem("controlhub.role")).toBeNull();
   });
 
   it("does not treat authorizationVersion as a role name", async () => {
@@ -112,15 +109,6 @@ describe("useAdminRole", () => {
     const { result } = renderHook(() => useAdminRole());
     await waitFor(() => expect(result.current).toBe(false));
     expect(window.sessionStorage.getItem("controlhub.role")).toBeNull();
-  });
-
-  it("falls back to cookie token for non-admin role", async () => {
-    const token = buildFakeToken(5, "viewer");
-    document.cookie = `controlhub.token=${token}; path=/; max-age=86400`;
-
-    const { result } = renderHook(() => useAdminRole());
-    await waitFor(() => expect(result.current).toBe(false));
-    expect(window.sessionStorage.getItem("controlhub.role")).toBe("viewer");
   });
 
   it("returns false for a malformed token", async () => {
@@ -148,12 +136,9 @@ describe("useAdminRole", () => {
     await waitFor(() => expect(result.current).toBe(true));
   });
 
-  it("prefers sessionStorage token decode over cookie", async () => {
-    // sessionStorage token says "admin", cookie says "viewer"
-    const sessionToken = buildFakeToken(42, "admin");
-    const cookieToken = buildFakeToken(7, "viewer");
-    window.sessionStorage.setItem("controlhub.token", sessionToken);
-    document.cookie = `controlhub.token=${cookieToken}; path=/; max-age=86400`;
+  it("prefers sessionStorage role over role cookie", async () => {
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    document.cookie = "controlhub.role=viewer; path=/; max-age=86400";
 
     const { result } = renderHook(() => useAdminRole());
     await waitFor(() => expect(result.current).toBe(true));

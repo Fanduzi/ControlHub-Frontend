@@ -4,5 +4,5 @@ Vitest unit tests for `services/*`.
 
 | File | Coverage |
 |------|----------|
-| `api-client.test.ts` | base URL resolution, unsafe integers, credentialed vs unauthenticated 401, legacy cookie Authorization |
+| `api-client.test.ts` | BFF proxy base URL, unsafe integers, no browser Authorization, unauthenticated 401 handling |
 

@@ -281,11 +281,21 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              sessionStorage.removeItem("controlhub.token");
-              sessionStorage.removeItem("controlhub.role");
-              document.cookie = "controlhub.token=; path=/; max-age=0";
-              document.cookie = "controlhub.role=; path=/; max-age=0";
-              window.location.href = "/login";
+              void (async () => {
+                try {
+                  await fetch("/api/operator-session", {
+                    method: "DELETE",
+                    cache: "no-store",
+                  });
+                } catch {
+                  // Still clear local presentation state and leave the console.
+                }
+                sessionStorage.removeItem("controlhub.token");
+                sessionStorage.removeItem("controlhub.role");
+                document.cookie = "controlhub.token=; path=/; max-age=0";
+                document.cookie = "controlhub.role=; path=/; max-age=0";
+                window.location.href = "/login";
+              })();
             }}
           >
             {t("shell.signOut")}

@@ -2,5 +2,5 @@
 
 Frontend API service modules.
 
-`api-client.ts` resolves credentials on the browser (sessionStorage/legacy cookie) and on the server (sealed Operator Session cookie, then legacy token cookie) before calling the backend.
+`api-client.ts` routes browser fetches through `/api/proxy` (no client Authorization). Server/RSC unseals the Operator Session cookie when calling the backend directly.
 

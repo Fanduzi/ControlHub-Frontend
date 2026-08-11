@@ -11,3 +11,4 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-origin.test.ts` | Console Origin guard on unsafe methods |
 | `operator-session-backend.test.ts` | Server-side backend login and generic outcome mapping |
 | `auth-role.test.ts` | Presentation-only admin role recovery (role cookie, legacy token decode, authorizationVersion non-role) |
+# note: auth-role recovery tests cover role-cookie path

@@ -89,10 +89,6 @@ function readCookieValue(name: string): string | null {
   }
 }
 
-function readTokenFromCookie(): string | null {
-  return readCookieValue("controlhub.token");
-}
-
 function readRoleFromCookie(): string | null {
   return readCookieValue("controlhub.role");
 }
@@ -129,36 +125,21 @@ export function useAdminRole(): boolean | null {
         return;
       }
 
-      // 2. Role cookie (backend tokens no longer embed role)
+      // 2. Role cookie (backend tokens no longer embed role). Never copy a
+      // legacy bearer token into sessionStorage from this path.
       const cookieRole = readRoleFromCookie();
       if (cookieRole) {
         window.sessionStorage.setItem("controlhub.role", cookieRole);
-        const cookieToken = readTokenFromCookie();
-        if (cookieToken) {
-          window.sessionStorage.setItem("controlhub.token", cookieToken);
-        }
         setIsAdmin(cookieRole === "admin");
         return;
       }
 
-      // 3. Legacy: decode from sessionStorage token
+      // 3. Legacy presentation only: decode role name from an already-present
+      // sessionStorage token (do not promote cookie tokens into storage).
       const sessionToken = window.sessionStorage.getItem("controlhub.token");
       if (sessionToken) {
         const role = decodeRoleFromRawToken(sessionToken);
-        // New tokens decode to authorizationVersion (numeric), not a role name.
         if (role === "admin" || role === "editor" || role === "viewer") {
-          window.sessionStorage.setItem("controlhub.role", role);
-          setIsAdmin(role === "admin");
-          return;
-        }
-      }
-
-      // 4. Legacy: decode from token cookie
-      const cookieToken = readTokenFromCookie();
-      if (cookieToken) {
-        const role = decodeRoleFromRawToken(cookieToken);
-        if (role === "admin" || role === "editor" || role === "viewer") {
-          window.sessionStorage.setItem("controlhub.token", cookieToken);
           window.sessionStorage.setItem("controlhub.role", role);
           setIsAdmin(role === "admin");
           return;
