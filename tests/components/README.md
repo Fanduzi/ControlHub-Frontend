@@ -45,4 +45,3 @@ Vitest component tests for React UI components.
 | db-type-icon.test.tsx | Database type icon |
 | select.test.tsx | Select component |
 | environment-provider.test.tsx | Environment provider |
-

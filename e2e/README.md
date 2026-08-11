@@ -15,7 +15,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | operator-console-smoke.spec.ts | Operator console smoke tests |
 | operator-database-workflow.spec.ts | Operator database workflow |
 | operator-interaction-stability.spec.ts | Operator interaction stability |
-| query-credential-settings.spec.ts | Query credential settings |
+| query-credential-settings.spec.ts | Query credential settings (admin flows; cookie-only role recovery under BFF) |
 | resource-archive.spec.ts | Resource archiving |
 | resources-sheet.spec.ts | Resources sheet |
 | settings.spec.ts | Settings page |

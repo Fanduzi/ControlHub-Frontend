@@ -758,7 +758,8 @@ async function openQueryWorkbench(page: Page): Promise<void> {
  * Derives the numeric target id after navigator selection from (in order):
  * 1) `?targetId=` on the workbench URL
  * 2) recent same-origin `/query-targets/{id}/…` resource timing (schema/history)
- * Browser API base is same-origin `/__api` (see e2e dev-server wrapper).
+ * Browser API base under BFF sessions is same-origin `/api/proxy`
+ * (legacy `/__api` remains only when a browser-readable token is present).
  */
 async function exactExecuteUrlForActiveTarget(page: Page): Promise<string> {
   // Ready selection must expose Run before we can trust the active target.
@@ -779,7 +780,7 @@ async function exactExecuteUrlForActiveTarget(page: Page): Promise<string> {
           const entries = performance.getEntriesByType("resource");
           for (let i = entries.length - 1; i >= 0; i -= 1) {
             const match = entries[i]!.name.match(
-              /\/(?:__api\/)?query-targets\/(\d+)(?:\/|\?|$)/,
+              /\/(?:api\/proxy\/|__api\/)?query-targets\/(\d+)(?:\/|\?|$)/,
             );
             if (match) return match[1]!;
           }
@@ -801,7 +802,7 @@ async function exactExecuteUrlForActiveTarget(page: Page): Promise<string> {
     );
   }
   return new URL(
-    `/__api/query-targets/${resolvedId}/execute`,
+    `/api/proxy/query-targets/${resolvedId}/execute`,
     new URL(page.url()).origin,
   ).href;
 }

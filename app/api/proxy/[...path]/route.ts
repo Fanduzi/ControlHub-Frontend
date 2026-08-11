@@ -39,6 +39,14 @@ const FORBIDDEN_HEADERS = new Set([
 
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/** Upstream path prefixes the BFF must never forward (token-minting, etc.). */
+const BLOCKED_PATH_PREFIXES = ["auth"];
+
+function isBlockedProxyPath(path: string[]): boolean {
+  const head = path[0]?.toLowerCase() ?? "";
+  return BLOCKED_PATH_PREFIXES.includes(head);
+}
+
 /**
  * Copy upstream response headers into the proxied response. Set-Cookie and
  * access-control-* headers are never forwarded: the backend must not mint
@@ -103,6 +111,10 @@ async function handleProxy(
   const config = loadOperatorSessionConfig();
   if (!config.ok) {
     return bffJson(503, "service-unavailable");
+  }
+
+  if (isBlockedProxyPath(path)) {
+    return bffJson(404, "not-found");
   }
 
   // Authentication-source confusion guard: a client-supplied Authorization
@@ -178,10 +190,8 @@ async function handleProxy(
     return response;
   }
 
-  if (upstream.status === 403) {
-    // A valid session without the required role keeps the session.
-    return bffJson(403, "forbidden");
-  }
+  // 403 and other non-401 statuses keep the session and forward the upstream
+  // body so product messages (disclosure policy, validation, etc.) survive.
 
   const responseHeaders = upstreamResponseHeaders(upstream);
 

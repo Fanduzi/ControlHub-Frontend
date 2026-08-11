@@ -118,6 +118,27 @@ describe("BFF proxy boundary", () => {
     expect(headers.get("cookie")).toBeNull();
   });
 
+  it("refuses to proxy auth paths that could mint a bearer for the browser", async () => {
+    stubBffEnv();
+    const fetchMock = stubUpstream(200, { token: "should-not-leak", role: "admin" });
+
+    const response = await POST(
+      proxyRequest(
+        "POST",
+        ["auth", "login"],
+        {
+          cookie: sealedCookieValue(),
+          origin: ORIGIN,
+          body: { email: "a@b.c", password: "x" },
+        },
+      ),
+      routeContext(["auth", "login"]),
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ message: "not-found" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("preserves query strings when forwarding", async () => {
     stubBffEnv();
     const fetchMock = stubUpstream(200, []);
@@ -251,9 +272,9 @@ describe("BFF proxy boundary", () => {
     expect(response.cookies.get(SESSION_COOKIE_NAME)?.maxAge).toBe(0);
   });
 
-  it("maps backend 403 to a generic forbidden outcome without clearing the session", async () => {
+  it("forwards backend 403 bodies without clearing the session", async () => {
     stubBffEnv();
-    stubUpstream(403, { message: "role insufficient: operator" });
+    stubUpstream(403, { message: "blocked by result disclosure policy" });
     const response = await GET(
       proxyRequest("GET", ["resources"], {
         cookie: sealedCookieValue(),
@@ -262,8 +283,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(403);
-    const body = await response.text();
-    expect(body).not.toContain("insufficient");
+    expect(await response.json()).toEqual({
+      message: "blocked by result disclosure policy",
+    });
+    // Session cookie is not cleared on 403.
     expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
 

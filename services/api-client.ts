@@ -19,8 +19,24 @@ export class ApiError extends Error {
   }
 }
 
+function browserHasLegacyToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.sessionStorage?.getItem("controlhub.token")) return true;
+  } catch {
+    // ignore storage access failures
+  }
+  return Boolean(readLegacyTokenFromDocumentCookie());
+}
+
 export function resolveApiBaseUrl(): string {
   if (typeof window !== "undefined") {
+    // BFF-only sessions have no browser-readable bearer. Route client fetches
+    // through the same-origin protected proxy so the server attaches the
+    // sealed credential. Legacy token sessions keep the pre-BFF /__api path.
+    if (!browserHasLegacyToken()) {
+      return "/api/proxy";
+    }
     return process.env.NEXT_PUBLIC_API_BASE_URL || "/__api";
   }
 

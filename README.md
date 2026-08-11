@@ -23,19 +23,18 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 ## Console BFF (Operator Sessions)
 
 Phase 38X-1C establishes a same-origin Console BFF boundary. Interactive login
-goes through the BFF, which calls the backend login API server-side and seals
-the Backend Bearer Credential into an HttpOnly Operator Session cookie
-(`controlhub.operator-session`, `SameSite=Strict`, eight-hour maximum age,
-AES-256-GCM with an active key plus a short previous-key rotation window of
-15 minutes). The
-protected proxy at `/api/proxy/[...path]` forwards requests using only the
-server-held credential and rejects client-supplied `Authorization` headers and
-unsafe cross-origin requests. Browser JavaScript never receives a Backend
-Bearer Credential. The console route guard (`proxy.ts`) passes only a
-valid, unexpired Operator Session and redirects forged, tampered,
-unknown-key, or expired cookies to login. The legacy browser token path
-remains as a temporary compatibility seam until the Phase 38X console
-migration.
+(`app/login`) posts to `/api/operator-session`, which calls the backend login
+API server-side and seals the Backend Bearer Credential into an HttpOnly
+Operator Session cookie (`controlhub.operator-session`, `SameSite=Strict`,
+eight-hour maximum age, AES-256-GCM with an active key plus a short
+previous-key rotation window of 15 minutes). The login response body returns
+only `{ role }` — never a bearer token. Browser client fetches without a legacy
+token use `/api/proxy/[...path]`, which attaches the server-held credential and
+rejects client-supplied `Authorization` headers, blocked prefixes such as
+`auth/*`, and unsafe cross-origin requests. The console route guard (`proxy.ts`)
+accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
+expired cookies fail closed to login. A temporary legacy `controlhub.token`
+page-gate seam remains only until Issue #15 removes pre-BFF sessions.
 
 ### BFF environment
 

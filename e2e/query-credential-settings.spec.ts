@@ -1,3 +1,7 @@
+// input: @playwright/test, ./harness/*
+// output: Playwright E2E for query credential settings admin flows
+// pos: browser verification of credential settings including cookie-only role recovery under BFF
+// note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 
 import { loginViaUI } from "./harness/auth";
@@ -323,30 +327,28 @@ test.describe("Query credential settings", () => {
   test("direct URL /settings/query-credentials shows admin controls after role recovery (cookie-only)", async ({
     page,
   }) => {
-    // Login to establish session (sets sessionStorage token/role and cookie).
+    // BFF login seals HttpOnly operator session and sets presentation role cookie.
     await loginViaUI(page);
 
-    // Navigate away first.
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
 
-    // Save the cookie token, then clear ALL sessionStorage auth state.
-    // This simulates a new-tab / direct-URL scenario where only the
-    // httpOnly-style cookie survives.
-    const cookieToken = await page.evaluate(() => {
-      const token = window.sessionStorage.getItem("controlhub.token");
+    // Clear sessionStorage auth state. BFF bearer stays HttpOnly; presentation
+    // role remains in the controlhub.role cookie for new-tab / direct-URL recovery.
+    const cookieRole = await page.evaluate(() => {
       window.sessionStorage.removeItem("controlhub.token");
       window.sessionStorage.removeItem("controlhub.role");
-      return token;
+      const match = document.cookie
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith("controlhub.role="));
+      return match ? match.slice("controlhub.role=".length) : null;
     });
-    expect(cookieToken).toBeTruthy();
+    expect(cookieRole).toBe("admin");
 
-    // Navigate directly to the query-credentials page.
     await page.goto("/settings/query-credentials");
     await expect(page).toHaveURL(/\/settings\/query-credentials/);
 
-    // Admin controls should appear after role recovery from the cookie
-    // bearer token (the token contains the role, decoded client-side).
     await expect(
       page.getByRole("heading", { name: /Query credential administration/i }),
     ).toBeVisible({ timeout: 15_000 });
@@ -354,7 +356,6 @@ test.describe("Query credential settings", () => {
     const tableRows = page.locator("table tbody tr");
     await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
 
-    // sessionStorage should have been backfilled.
     const backfilledRole = await page.evaluate(() =>
       window.sessionStorage.getItem("controlhub.role"),
     );

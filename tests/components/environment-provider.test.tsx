@@ -58,7 +58,7 @@ describe("EnvironmentProvider", () => {
     });
   });
 
-  it("skips the environments probe when no legacy browser credential exists", async () => {
+  it("skips the environments probe when no legacy credential or BFF role exists", async () => {
     render(
       <EnvironmentProvider>
         <EnvironmentIds />
@@ -69,5 +69,29 @@ describe("EnvironmentProvider", () => {
       expect(mockedListEnvironments).not.toHaveBeenCalled();
     });
     expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
+  it("loads environments for a BFF presentation role without a legacy token", async () => {
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    mockedListEnvironments.mockResolvedValue([
+      {
+        id: 2,
+        name: "Staging",
+        slug: "staging",
+        description: "Staging",
+        createdAt: "2026-04-12T12:57:30Z",
+      },
+    ]);
+
+    render(
+      <EnvironmentProvider>
+        <EnvironmentIds />
+      </EnvironmentProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+    expect(mockedListEnvironments).toHaveBeenCalled();
   });
 });

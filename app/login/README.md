@@ -1,5 +1,5 @@
 # app/login
 
-Public interactive login page (legacy browser credential path).
+Public interactive login page for the Console BFF boundary.
 
-Sets `controlhub.token` / `controlhub.role` in sessionStorage and cookies. Same-origin BFF login lives under `app/api/operator-session`.
+Posts credentials to same-origin `/api/operator-session`. Stores only the presentation `controlhub.role` (sessionStorage + cookie). Never stores a Backend Bearer Credential.

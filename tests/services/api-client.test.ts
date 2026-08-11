@@ -19,14 +19,35 @@ describe("resolveApiBaseUrl", () => {
     }
   });
 
-  it("uses /__api in the browser by default", () => {
-    globalThis.window = {} as Window & typeof globalThis;
+  it("uses the BFF proxy in the browser when no legacy token is present", () => {
+    globalThis.window = {
+      sessionStorage: { getItem: () => null },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    expect(resolveApiBaseUrl()).toBe("/api/proxy");
+  });
+
+  it("uses /__api in the browser when a legacy token is present", () => {
+    globalThis.window = {
+      sessionStorage: {
+        getItem: (key: string) =>
+          key === "controlhub.token" ? "legacy-token" : null,
+      },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("document", { cookie: "" });
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
     expect(resolveApiBaseUrl()).toBe("/__api");
   });
 
-  it("uses NEXT_PUBLIC_API_BASE_URL in the browser when explicitly set", () => {
-    globalThis.window = {} as Window & typeof globalThis;
+  it("uses NEXT_PUBLIC_API_BASE_URL in the browser when a legacy token is present", () => {
+    globalThis.window = {
+      sessionStorage: {
+        getItem: (key: string) =>
+          key === "controlhub.token" ? "legacy-token" : null,
+      },
+    } as unknown as Window & typeof globalThis;
+    vi.stubGlobal("document", { cookie: "" });
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "/custom-api");
     expect(resolveApiBaseUrl()).toBe("/custom-api");
   });

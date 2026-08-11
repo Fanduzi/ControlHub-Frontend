@@ -44,15 +44,21 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const currentEnvironmentId = mounted ? readStoredEnvironmentId() : envId;
 
   useEffect(() => {
-    // Legacy browser credential only. A BFF sealed session (#14) is HttpOnly and
-    // invisible here; #15 will fetch environments through the BFF proxy instead.
-    // Probing /environments without a credential only produces 401 noise.
+    // Need either a legacy browser bearer or a BFF presentation role (the sealed
+    // session cookie is HttpOnly; client apiClient routes to /api/proxy when no
+    // legacy token is present). Without either, skip the probe to avoid 401 noise
+    // on public pages.
     const hasLegacyToken =
       Boolean(window.sessionStorage.getItem("controlhub.token")) ||
       document.cookie
         .split(";")
         .some((part) => part.trim().startsWith("controlhub.token="));
-    if (!hasLegacyToken) {
+    const hasBffPresentation =
+      Boolean(window.sessionStorage.getItem("controlhub.role")) ||
+      document.cookie
+        .split(";")
+        .some((part) => part.trim().startsWith("controlhub.role="));
+    if (!hasLegacyToken && !hasBffPresentation) {
       // Defer so we don't sync-set state inside the effect body (lint).
       void Promise.resolve().then(() => setLoading(false));
       return;

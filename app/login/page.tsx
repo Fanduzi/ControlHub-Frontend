@@ -1,6 +1,6 @@
-// input: react, next/navigation, next-intl, services/auth
-// output: legacy interactive login page setting token/role sessionStorage and cookies
-// pos: public login UI; BFF login is app/api/operator-session
+// input: react, next/navigation, next-intl, same-origin /api/operator-session
+// output: interactive login via Console BFF; stores presentation role only (no bearer)
+// pos: public login UI for the 38X-1C Operator Session boundary
 // note: if this file changes, update header and app/login/README.md
 "use client";
 
@@ -14,9 +14,7 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError } from "@/services/api-client";
 import { Input } from "@/components/ui/input";
-import { login } from "@/services/auth";
 
 type LoginValues = {
   email: string;
@@ -29,8 +27,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = document.cookie.includes("controlhub.token=");
-    if (token) {
+    // Already signed in via BFF sealed session or legacy compatibility cookie.
+    const hasLegacy = document.cookie.includes("controlhub.token=");
+    const hasRole = document.cookie.includes("controlhub.role=");
+    if (hasLegacy || hasRole) {
       router.replace("/overview");
     }
   }, [router]);
@@ -50,25 +50,51 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const result = await login(values);
-      window.sessionStorage.setItem("controlhub.token", result.token);
-      window.sessionStorage.setItem("controlhub.role", result.role);
+      // Same-origin BFF login: the server seals the Backend Bearer Credential
+      // into an HttpOnly Operator Session cookie. The response body carries only
+      // the presentation role — never a bearer token.
+      const response = await fetch("/api/operator-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError(t("errors.invalidCredentials"));
+          return;
+        }
+        setError(t("errors.backend"));
+        return;
+      }
+
+      let role = "";
+      try {
+        const body = (await response.json()) as { role?: unknown };
+        if (typeof body.role === "string") role = body.role;
+      } catch {
+        setError(t("errors.backend"));
+        return;
+      }
+      if (!role) {
+        setError(t("errors.backend"));
+        return;
+      }
+
+      // Presentation-only role recovery for admin UI gating. Never store a bearer.
+      window.sessionStorage.removeItem("controlhub.token");
+      window.sessionStorage.setItem("controlhub.role", role);
       // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
-      document.cookie = `controlhub.token=${result.token}; path=/; max-age=86400; SameSite=Strict`;
-      // Role is no longer embedded in the bearer token (backend 38X-1A+). Persist
-      // it beside the legacy token cookie so direct-URL / new-tab recovery can
-      // restore the presentation-only admin gate without decoding the token.
+      document.cookie = "controlhub.token=; path=/; max-age=0";
       // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
-      document.cookie = `controlhub.role=${result.role}; path=/; max-age=86400; SameSite=Strict`;
+      document.cookie = `controlhub.role=${role}; path=/; max-age=28800; SameSite=Strict`;
       router.push("/overview");
     } catch (submitError) {
-      if (submitError instanceof ApiError) {
-        if (submitError.status === 401) {
-          setError(t("errors.invalidCredentials"));
-        } else {
-          setError(submitError.message || t("errors.backend"));
-        }
-      } else if (submitError instanceof TypeError) {
+      if (submitError instanceof TypeError) {
         setError(t("errors.backend"));
       } else {
         setError(

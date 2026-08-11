@@ -70,3 +70,4 @@ query-*/
 !app/(console)/settings/query-disclosure-policies/
 # E2E failure screenshots (Phase 38W-3 template execution)
 tpl-*.png
+.pi-subagents/

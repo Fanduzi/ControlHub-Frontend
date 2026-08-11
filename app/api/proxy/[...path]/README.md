@@ -21,3 +21,5 @@ Guards:
   and `Cache-Control` is always `no-store`.
 - Request bodies are capped at 10 MiB (`413` beyond the cap), enforced both
   on `Content-Length` and while streaming chunked bodies.
+
+Blocked upstream prefixes: `auth/*` (never mint browser-visible tokens through the proxy).
