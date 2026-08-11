@@ -209,9 +209,11 @@ async function handleProxy(
   });
 }
 
+type ProxyRouteContext = { params: Promise<{ path: string[] }> };
+
 async function proxy(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   const { path } = await ctx.params;
   return handleProxy(request, path);
@@ -219,49 +221,49 @@ async function proxy(
 
 export async function GET(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function PUT(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function DELETE(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function HEAD(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
 
 export async function OPTIONS(
   request: NextRequest,
-  ctx: RouteContext<"/api/proxy/[...path]">,
+  ctx: ProxyRouteContext,
 ): Promise<NextResponse> {
   return proxy(request, ctx);
 }
