@@ -1,10 +1,12 @@
-// input: @playwright/test, ./harness/console-guards
-// output: Playwright E2E for the Console BFF operator session boundary (login, sealed cookie, proxy, origin, logout, storage leaks)
+// input: @playwright/test, ./harness/console-guards, lib/operator-session/{config,seal}
+// output: Playwright E2E for the Console BFF operator session boundary (login, sealed cookie, proxy, origin, logout, forged/tampered/expired page gate, storage leaks)
 // pos: browser-level verification of the 38X-1C same-origin BFF boundary against the real backend
 // note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { loadOperatorSessionConfig } from "../lib/operator-session/config";
+import { sealSession } from "../lib/operator-session/seal";
 import {
   assertClean,
   collectConsoleMessages,
@@ -15,6 +17,20 @@ const CONSOLE_ORIGIN = "http://localhost:3100";
 const SESSION_COOKIE = "controlhub.operator-session";
 const EMAIL = "admin@example.com";
 const PASSWORD = "secret123";
+
+/** Must match e2e/harness/dev-server-wrapper.sh local BFF key material. */
+const E2E_BFF_SESSION_KEY =
+  "9f2c7e51b8a43d6f0c1e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f";
+
+function e2eSessionConfig() {
+  const result = loadOperatorSessionConfig({
+    CONTROLHUB_BFF_SESSION_KEY: E2E_BFF_SESSION_KEY,
+    CONTROLHUB_BFF_CONSOLE_ORIGIN: CONSOLE_ORIGIN,
+    CONTROLHUB_BFF_SECURE_COOKIES: "false",
+  });
+  if (!result.ok) throw new Error("e2e BFF config invalid");
+  return result.value;
+}
 
 /**
  * All BFF requests go through `page.request` (the browser context's real
@@ -242,8 +258,9 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     await page.goto("/login");
     expect((await bffLoginViaRequest(page)).status).toBe(200);
 
-    // A valid Operator Session passes the route guard and drives a
-    // protected page without any browser-readable credential.
+    // Sealed session admits the protected route; SSR apiClient unseals the
+    // HttpOnly cookie server-side so Overview RSC can load without exposing
+    // the bearer credential to browser JS.
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
     await expect(page.locator("nav")).toBeVisible();
@@ -268,6 +285,75 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     await expect(page).toHaveURL(/\/login\?from=/);
 
     assertNoCredentialLeak(await storageSnapshot(page));
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("forged, tampered, and expired session cookies fail closed at the page gate", async ({
+    page,
+    context,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    await page.goto("/login");
+    expect((await bffLoginViaRequest(page)).status).toBe(200);
+    const valid = (await context.cookies()).find(
+      (cookie) => cookie.name === SESSION_COOKIE,
+    );
+    expect(valid?.value).toBeTruthy();
+
+    // Forge: replace the sealed value with garbage.
+    await context.clearCookies();
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: "v1.deadbeef.not-a-real-session",
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Strict",
+      },
+    ]);
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+
+    // Tamper: flip trailing ciphertext bytes of a real seal.
+    const parts = valid!.value.split(".");
+    parts[3] = `${parts[3].slice(0, -2)}AA`;
+    await context.clearCookies();
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: parts.join("."),
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Strict",
+      },
+    ]);
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+
+    // Expired: seal under the same local key with iat/exp nine hours ago.
+    const expired = sealSession(
+      { token: "expired-token", role: "admin" },
+      e2eSessionConfig(),
+      Date.now() - 9 * 60 * 60 * 1000,
+    );
+    await context.clearCookies();
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: expired,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Strict",
+      },
+    ]);
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+
     assertClean(consoleMessages, networkErrors);
   });
 });

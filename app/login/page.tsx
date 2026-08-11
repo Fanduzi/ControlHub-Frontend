@@ -1,3 +1,7 @@
+// input: react, next/navigation, next-intl, services/auth
+// output: legacy interactive login page setting token/role sessionStorage and cookies
+// pos: public login UI; BFF login is app/api/operator-session
+// note: if this file changes, update header and app/login/README.md
 "use client";
 
 import { useEffect, useState } from "react";
@@ -51,6 +55,11 @@ export default function LoginPage() {
       window.sessionStorage.setItem("controlhub.role", result.role);
       // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
       document.cookie = `controlhub.token=${result.token}; path=/; max-age=86400; SameSite=Strict`;
+      // Role is no longer embedded in the bearer token (backend 38X-1A+). Persist
+      // it beside the legacy token cookie so direct-URL / new-tab recovery can
+      // restore the presentation-only admin gate without decoding the token.
+      // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
+      document.cookie = `controlhub.role=${result.role}; path=/; max-age=86400; SameSite=Strict`;
       router.push("/overview");
     } catch (submitError) {
       if (submitError instanceof ApiError) {

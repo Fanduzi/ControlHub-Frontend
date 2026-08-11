@@ -1,3 +1,7 @@
+// input: react, services/settings, lib/preferences
+// output: environment list context loaded only with a legacy browser credential
+// pos: console environment selector data source
+// note: if this file changes, update header and components/providers/README.md
 "use client";
 
 import {
@@ -40,6 +44,20 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const currentEnvironmentId = mounted ? readStoredEnvironmentId() : envId;
 
   useEffect(() => {
+    // Legacy browser credential only. A BFF sealed session (#14) is HttpOnly and
+    // invisible here; #15 will fetch environments through the BFF proxy instead.
+    // Probing /environments without a credential only produces 401 noise.
+    const hasLegacyToken =
+      Boolean(window.sessionStorage.getItem("controlhub.token")) ||
+      document.cookie
+        .split(";")
+        .some((part) => part.trim().startsWith("controlhub.token="));
+    if (!hasLegacyToken) {
+      // Defer so we don't sync-set state inside the effect body (lint).
+      void Promise.resolve().then(() => setLoading(false));
+      return;
+    }
+
     listEnvironments()
       .then((envs) => {
         setEnvironments(envs);

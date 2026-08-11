@@ -1,12 +1,17 @@
+// input: react
+// output: useAdminRole presentation-only admin gate from role storage/cookies
+// pos: UI role recovery after 38X-1A tokens no longer embed role
+// note: if this file changes, update header and lib/README.md
 /**
  * Presentation-only admin-role detection for UI gating.
  *
- * The bearer token created by the backend has the form:
+ * Backend 38X-1A+ bearer tokens no longer embed role:
  *
- *   base64.RawURLEncoding( "<id>:<role>:<issuedAtUnix>:<hexHMAC>" )
+ *   base64.RawURLEncoding( "<id>:<authorizationVersion>:<issuedAtUnix>:<hexHMAC>" )
  *
- * To recover the role we base64url-decode the token, split on ":", and
- * read index 1.
+ * Role for UI gating comes from login response storage (`controlhub.role`
+ * sessionStorage + cookie). Legacy tokens that still embed `<id>:<role>:...`
+ * remain decodable as a fallback.
  *
  * **Security boundary:** This module does NOT verify the HMAC signature.
  * The frontend has no access to the signing key and cannot authenticate
@@ -21,11 +26,10 @@
  * `false` (non-admin UI).
  *
  * Direct-URL / new-tab scenario:
- *   sessionStorage may be empty, but the login flow also sets a
- *   `controlhub.token` cookie.  When sessionStorage token is missing
- *   we fall back to the cookie, decode the role, and backfill both
- *   sessionStorage["controlhub.token"] and sessionStorage["controlhub.role"]
- *   so subsequent reads are fast.
+ *   sessionStorage may be empty. Login sets `controlhub.token` and
+ *   `controlhub.role` cookies. Prefer the role cookie (backend 38X-1A+
+ *   tokens no longer embed role). Legacy tokens that still embed role
+ *   remain decodable as a fallback. Backfill sessionStorage on recovery.
  */
 
 "use client";
@@ -71,17 +75,26 @@ function decodeRoleFromRawToken(token: string): string | null {
  * Read the `controlhub.token` value from `document.cookie`.
  * Returns the token string or `null` if not present.
  */
-function readTokenFromCookie(): string | null {
+function readCookieValue(name: string): string | null {
   try {
+    const prefix = `${name}=`;
     const match = document.cookie
       .split(";")
       .map((c) => c.trim())
-      .find((c) => c.startsWith("controlhub.token="));
+      .find((c) => c.startsWith(prefix));
     if (!match) return null;
-    return match.split("=").slice(1).join("=") || null;
+    return match.slice(prefix.length) || null;
   } catch {
     return null;
   }
+}
+
+function readTokenFromCookie(): string | null {
+  return readCookieValue("controlhub.token");
+}
+
+function readRoleFromCookie(): string | null {
+  return readCookieValue("controlhub.role");
 }
 
 /**
@@ -95,10 +108,10 @@ function readTokenFromCookie(): string | null {
  *
  * Resolution order:
  * 1. `sessionStorage["controlhub.role"]` — set at login time.
- * 2. Decode role from `sessionStorage["controlhub.token"]`.
- * 3. Decode role from `document.cookie` `controlhub.token` (direct URL /
- *    new-tab scenario).  Backfills sessionStorage for subsequent reads.
- * 4. `false` (unauthenticated / malformed — fail closed to non-admin UI).
+ * 2. `document.cookie` `controlhub.role` (direct URL / new-tab; 38X-1A+).
+ * 3. Decode role from `sessionStorage["controlhub.token"]` (legacy tokens).
+ * 4. Decode role from `document.cookie` `controlhub.token` (legacy tokens).
+ * 5. `false` (unauthenticated / malformed — fail closed to non-admin UI).
  *
  * The hook is hydration-safe: it returns `null` during SSR and the first
  * client render, then resolves in a `useEffect`.
@@ -116,24 +129,35 @@ export function useAdminRole(): boolean | null {
         return;
       }
 
-      // 2. Decode from sessionStorage token (client-side decode only,
-      //    no HMAC verification — presentation hint for UI gating)
+      // 2. Role cookie (backend tokens no longer embed role)
+      const cookieRole = readRoleFromCookie();
+      if (cookieRole) {
+        window.sessionStorage.setItem("controlhub.role", cookieRole);
+        const cookieToken = readTokenFromCookie();
+        if (cookieToken) {
+          window.sessionStorage.setItem("controlhub.token", cookieToken);
+        }
+        setIsAdmin(cookieRole === "admin");
+        return;
+      }
+
+      // 3. Legacy: decode from sessionStorage token
       const sessionToken = window.sessionStorage.getItem("controlhub.token");
       if (sessionToken) {
         const role = decodeRoleFromRawToken(sessionToken);
-        if (role) {
+        // New tokens decode to authorizationVersion (numeric), not a role name.
+        if (role === "admin" || role === "editor" || role === "viewer") {
           window.sessionStorage.setItem("controlhub.role", role);
           setIsAdmin(role === "admin");
           return;
         }
       }
 
-      // 3. Cookie fallback (direct URL / new tab)
+      // 4. Legacy: decode from token cookie
       const cookieToken = readTokenFromCookie();
       if (cookieToken) {
         const role = decodeRoleFromRawToken(cookieToken);
-        if (role) {
-          // Backfill sessionStorage so future reads are fast
+        if (role === "admin" || role === "editor" || role === "viewer") {
           window.sessionStorage.setItem("controlhub.token", cookieToken);
           window.sessionStorage.setItem("controlhub.role", role);
           setIsAdmin(role === "admin");
@@ -141,7 +165,7 @@ export function useAdminRole(): boolean | null {
         }
       }
 
-      // 4. Fail closed: no valid token → non-admin UI
+      // 5. Fail closed: no valid role → non-admin UI
       setIsAdmin(false);
     } catch {
       setIsAdmin(false);

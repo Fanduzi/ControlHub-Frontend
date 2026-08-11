@@ -1,3 +1,7 @@
+// input: vitest, testing-library, useAdminRole
+// output: tests for admin role recovery including role cookie and legacy tokens
+// pos: unit tests for presentation-only admin gate
+// note: if this file changes, update header and tests/lib/README.md
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAdminRole } from "@/lib/auth-role";
@@ -30,8 +34,9 @@ function buildFakeToken(userId: number, role: string): string {
 describe("useAdminRole", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
-    // Clear cookie by setting expiry in the past
+    // Clear cookies by setting expiry in the past
     document.cookie = "controlhub.token=; path=/; max-age=0";
+    document.cookie = "controlhub.role=; path=/; max-age=0";
   });
 
   it("resolves to false when no auth data exists (hydration-safe initial null)", async () => {
@@ -75,17 +80,38 @@ describe("useAdminRole", () => {
     expect(window.sessionStorage.getItem("controlhub.role")).toBe("viewer");
   });
 
-  it("falls back to cookie token when sessionStorage is empty", async () => {
-    const token = buildFakeToken(99, "admin");
+  it("falls back to controlhub.role cookie when sessionStorage is empty (38X-1A+)", async () => {
+    // New tokens embed authorizationVersion, not role — UI recovery uses the role cookie.
+    const token = buildFakeToken(99, "1");
     document.cookie = `controlhub.token=${token}; path=/; max-age=86400`;
-    // sessionStorage is completely empty
+    document.cookie = `controlhub.role=admin; path=/; max-age=86400`;
 
     const { result } = renderHook(() => useAdminRole());
     await waitFor(() => expect(result.current).toBe(true));
 
-    // Should have backfilled both token and role into sessionStorage
     expect(window.sessionStorage.getItem("controlhub.token")).toBe(token);
     expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+  });
+
+  it("falls back to legacy cookie token role when role cookie is absent", async () => {
+    const token = buildFakeToken(99, "admin");
+    document.cookie = `controlhub.token=${token}; path=/; max-age=86400`;
+
+    const { result } = renderHook(() => useAdminRole());
+    await waitFor(() => expect(result.current).toBe(true));
+
+    expect(window.sessionStorage.getItem("controlhub.token")).toBe(token);
+    expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+  });
+
+  it("does not treat authorizationVersion as a role name", async () => {
+    // 38X-1A payload: id:authorizationVersion:issuedAt — index 1 is "1", not admin.
+    const token = buildFakeToken(1, "1");
+    window.sessionStorage.setItem("controlhub.token", token);
+
+    const { result } = renderHook(() => useAdminRole());
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(window.sessionStorage.getItem("controlhub.role")).toBeNull();
   });
 
   it("falls back to cookie token for non-admin role", async () => {

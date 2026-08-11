@@ -1,3 +1,7 @@
+// input: vitest, api-client
+// output: tests for resolveApiBaseUrl, unsafe integers, credentialed 401 handling, cookie auth
+// pos: unit tests for shared API client
+// note: if this file changes, update header and tests/services/README.md
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient, ApiError, resolveApiBaseUrl } from "@/services/api-client";
@@ -87,6 +91,89 @@ describe("apiClient", () => {
 
     await expect(apiClient("/resources/1")).rejects.toEqual(
       new ApiError(400, "Bad request", { id: "invalid" }),
+    );
+  });
+
+  it("does not treat unauthenticated 401 as session expiry", async () => {
+    const hrefOwner = { href: "http://localhost:3100/login" };
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: () => null,
+        removeItem: vi.fn(),
+      },
+      location: hrefOwner,
+    });
+    vi.stubGlobal("document", { cookie: "" });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: "unauthorized" }),
+    } as Response);
+
+    await expect(apiClient("/environments")).rejects.toEqual(
+      new ApiError(401, "unauthorized"),
+    );
+    expect(hrefOwner.href).toBe("http://localhost:3100/login");
+    expect(window.sessionStorage.removeItem).not.toHaveBeenCalled();
+  });
+
+  it("clears the legacy token and redirects on credentialed 401", async () => {
+    const removeItem = vi.fn();
+    const hrefOwner = { href: "http://localhost:3100/overview" };
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: (key: string) =>
+          key === "controlhub.token" ? "legacy-token" : null,
+        removeItem,
+      },
+      location: hrefOwner,
+    });
+    vi.stubGlobal("document", { cookie: "controlhub.token=legacy-token" });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: "unauthorized" }),
+    } as Response);
+
+    await expect(apiClient("/environments")).rejects.toEqual(
+      new ApiError(401, "unauthorized"),
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer legacy-token",
+        }),
+      }),
+    );
+    expect(removeItem).toHaveBeenCalledWith("controlhub.token");
+    expect(document.cookie).toContain("max-age=0");
+    expect(hrefOwner.href).toBe("/login?reason=session-expired");
+  });
+
+  it("sends the legacy document cookie when sessionStorage is empty", async () => {
+    vi.stubGlobal("window", {
+      sessionStorage: { getItem: () => null, removeItem: vi.fn() },
+      location: { href: "http://localhost:3100/overview" },
+    });
+    vi.stubGlobal("document", { cookie: "controlhub.token=cookie-token" });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await expect(apiClient("/health")).resolves.toEqual({ ok: true });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer cookie-token",
+        }),
+      }),
     );
   });
 });

@@ -1,3 +1,7 @@
+// input: react, next-intl, environment/theme providers
+// output: console topbar controls including sign-out clearing legacy auth storage
+// pos: console shell chrome
+// note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
 import { useEffect, useState } from "react";
@@ -280,6 +284,7 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
               sessionStorage.removeItem("controlhub.token");
               sessionStorage.removeItem("controlhub.role");
               document.cookie = "controlhub.token=; path=/; max-age=0";
+              document.cookie = "controlhub.role=; path=/; max-age=0";
               window.location.href = "/login";
             }}
           >
