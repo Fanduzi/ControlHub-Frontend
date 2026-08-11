@@ -60,7 +60,7 @@ jobs:
     env:
       BACKEND_DIR: controlhub-backend
       DATABASE_DSN: controlhub:controlhub_dev@tcp(127.0.0.1:3306)/controlhub?parseTime=true&charset=utf8mb4
-      JWT_SECRET: ci-e2e-secret
+      JWT_SECRET: ci-e2e-secret-must-be-at-least-32b
       APP_PORT: "8080"
       PLAYWRIGHT_PROXY_TARGET: http://localhost:8080
       PLAYWRIGHT_PROXY_PORT: "8081"
