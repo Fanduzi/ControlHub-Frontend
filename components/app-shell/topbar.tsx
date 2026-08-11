@@ -1,5 +1,5 @@
 // input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar controls including admin-only resource creation and sign-out
+// output: console topbar controls including admin-only resource creation and fail-closed sign-out (leaves only after the BFF confirms session clearing)
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
 
@@ -63,16 +63,19 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const isAdmin = useAdminRole();
 
   useEffect(() => {
     function handleOpenCreate() {
-      setShowCreate(true);
+      if (isAdmin === true) {
+        setShowCreate(true);
+      }
     }
     window.addEventListener("open-create-resource", handleOpenCreate);
     return () =>
       window.removeEventListener("open-create-resource", handleOpenCreate);
-  }, []);
+  }, [isAdmin]);
   const sectionId = getConsoleSectionId(pathname);
   const sectionTitle = sectionId
     ? t(`navigation.${sectionId}.title`)
@@ -287,15 +290,27 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
             {t("shell.profile")}
           </DropdownMenuItem>
           <DropdownMenuItem
+            closeOnClick={false}
             onClick={() => {
               void (async () => {
+                setSignOutFailed(false);
+                let cleared = false;
                 try {
-                  await fetch("/api/operator-session", {
+                  const response = await fetch("/api/operator-session", {
                     method: "DELETE",
                     cache: "no-store",
                   });
+                  cleared = response.ok;
                 } catch {
-                  // Still clear local presentation state and leave the console.
+                  cleared = false;
+                }
+                if (!cleared) {
+                  // Fail-closed logout: the HttpOnly Operator Session cookie
+                  // is still valid. Never present a logged-out console while
+                  // the session survives — surface the controlled failure
+                  // and let the operator retry.
+                  setSignOutFailed(true);
+                  return;
                 }
                 sessionStorage.removeItem("controlhub.token");
                 sessionStorage.removeItem("controlhub.role");
@@ -307,6 +322,14 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
           >
             {t("shell.signOut")}
           </DropdownMenuItem>
+          {signOutFailed ? (
+            <p
+              role="alert"
+              className="px-2 py-1.5 text-xs text-destructive"
+            >
+              {t("shell.signOutFailed")}
+            </p>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

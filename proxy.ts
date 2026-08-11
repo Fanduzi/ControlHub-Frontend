@@ -1,6 +1,6 @@
 // input: next/server, @/lib/operator-session/config, @/lib/operator-session/seal, @/lib/operator-session/constants, @/lib/operator-session/session-cookie
-// output: console route guard requiring a valid unexpired Operator Session
-// pos: authentication-boundary gate for console pages; forged/tampered/unknown-key/expired sessions fail closed to login
+// output: console route guard requiring a valid unexpired Operator Session; forged/tampered/unknown-key/expired sessions fail closed to login; a valid session is never left behind a logged-out login page
+// pos: authentication-boundary gate for console pages
 // note: if this file changes, update header and README.md
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,8 +8,6 @@ import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
 import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
 import { unsealSession } from "@/lib/operator-session/seal";
 import { clearSessionCookie } from "@/lib/operator-session/session-cookie";
-
-const PUBLIC_PATHS = ["/login", "/api"];
 
 function redirectToLogin(
   request: NextRequest,
@@ -25,32 +23,54 @@ function redirectToLogin(
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.some((prefix) => pathname.startsWith(prefix))) {
+  // BFF API routes are their own boundary; the page gate does not apply.
+  if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 
   // Only a valid, authenticated, unexpired Sealed Operator Session passes.
   // A browser bearer cookie is never a page or API authorization path.
   const operatorSession = request.cookies.get(SESSION_COOKIE_NAME);
-  if (operatorSession?.value) {
-    const config = loadOperatorSessionConfig();
-    let sessionValid = false;
-    if (config.ok) {
-      sessionValid = unsealSession(
-        operatorSession.value,
-        config.value,
-        Date.now(),
-      ).ok;
-    }
+  const config = loadOperatorSessionConfig();
+  const sessionValid =
+    operatorSession?.value !== undefined && config.ok
+      ? unsealSession(operatorSession.value, config.value, Date.now()).ok
+      : false;
+
+  if (pathname === "/login") {
     if (sessionValid) {
-      return NextResponse.next();
+      // A live session behind the login form is a logged-out presentation
+      // with a usable operator session — send the operator to the console.
+      return NextResponse.redirect(new URL("/overview", request.url));
     }
-    const response = redirectToLogin(request, pathname, "session-expired");
-    clearSessionCookie(response, config.ok ? config.value.secureCookies : true);
-    return response;
+    if (operatorSession?.value) {
+      // Forged/tampered/expired session cookie: clear it, then show login.
+      const response = NextResponse.next();
+      clearSessionCookie(
+        response,
+        config.ok ? config.value.secureCookies : true,
+      );
+      return response;
+    }
+    return NextResponse.next();
   }
 
-  return redirectToLogin(request, pathname);
+  if (sessionValid) {
+    return NextResponse.next();
+  }
+
+  const response = redirectToLogin(
+    request,
+    pathname,
+    operatorSession?.value ? "session-expired" : undefined,
+  );
+  if (operatorSession?.value) {
+    clearSessionCookie(
+      response,
+      config.ok ? config.value.secureCookies : true,
+    );
+  }
+  return response;
 }
 
 export const config = {

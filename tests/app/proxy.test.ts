@@ -27,11 +27,14 @@ function sessionConfig() {
   return result.value;
 }
 
-function requestWithCookies(cookies: Record<string, string>): NextRequest {
+function requestWithCookies(
+  cookies: Record<string, string>,
+  pathname = "/overview",
+): NextRequest {
   const header = Object.entries(cookies)
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
-  return new NextRequest("http://localhost:3100/overview", {
+  return new NextRequest(`http://localhost:3100${pathname}`, {
     headers: header ? { cookie: header } : {},
   });
 }
@@ -152,5 +155,32 @@ describe("proxy Operator Session gate", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("location")).toBeNull();
     }
+  });
+
+  it("never leaves a valid session behind the login page: /login redirects to the console", () => {
+    stubBffEnv();
+    const sealed = sealSession(
+      { token: "server-token", role: "admin" },
+      sessionConfig(),
+    );
+    const response = proxy(
+      requestWithCookies({ [SESSION_COOKIE_NAME]: sealed }, "/login"),
+    );
+    expect(response.status).toBe(307);
+    expect(new URL(response.headers.get("location") ?? "").pathname).toBe(
+      "/overview",
+    );
+    // The session is not cleared — it is still the operator's live session.
+    expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+  });
+
+  it("clears a forged or expired session cookie presented on /login", () => {
+    stubBffEnv();
+    const response = proxy(
+      requestWithCookies({ [SESSION_COOKIE_NAME]: "not-a-sealed-session" }, "/login"),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.maxAge).toBe(0);
   });
 });

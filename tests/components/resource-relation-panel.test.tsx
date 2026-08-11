@@ -1,3 +1,7 @@
+// input: vitest, testing-library, resource relation panel, auth-role
+// output: relation panel tests — read surface for all operators, add/delete mutations admin-only
+// pos: component tests for role-gated relation mutations
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,6 +13,11 @@ import * as relationService from "@/services/resources";
 import * as settingsService from "@/services/settings";
 import messages from "@/messages/en.json";
 import type { ResourceRelationViewModel } from "@/types/view-models";
+
+let isAdmin = true;
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => isAdmin,
+}));
 
 const refresh = vi.fn();
 
@@ -81,11 +90,27 @@ describe("ResourceRelationPanel", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     refresh.mockClear();
+    isAdmin = true;
 
     mockedListRelationTypes.mockResolvedValue([
       { key: "member_of", label: "Member of", description: "" },
       { key: "depends_on", label: "Depends on", description: "" },
     ]);
+  });
+
+  it("hides add and delete relation affordances for non-admin operators (server stays authoritative)", async () => {
+    isAdmin = false;
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={relations} resourceId={101} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText("Add relation")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove this relation/i })).toBeNull();
+    // The read surface stays available to editors.
+    expect(screen.getByRole("link", { name: "orders-cluster" })).toBeInTheDocument();
   });
 
   it("renders relations with linked name, type, and resource type badge", () => {

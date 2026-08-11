@@ -1,3 +1,7 @@
+// input: lucide-react
+// output: console navigation registry with adminOnly markers; section id lookup
+// pos: single navigation source consumed by sidebar, command palette, and topbar
+// note: if this file changes, update header and lib/README.md
 import {
   Activity,
   Database,
@@ -5,9 +9,23 @@ import {
   Settings,
   ServerCog,
   SquareTerminal,
+  type LucideIcon,
 } from "lucide-react";
 
-export const consoleNavigation = [
+/**
+ * Console navigation entry. `adminOnly` items (audits) are hidden for
+ * non-admin operators — presentation mirrors the server-owned access
+ * matrix, which remains the authorization authority.
+ */
+export type ConsoleNavigationItem = {
+  id: "overview" | "resources" | "databases" | "query" | "audits" | "settings";
+  href: string;
+  icon: LucideIcon;
+  supportsEnvironment: boolean;
+  adminOnly?: true;
+};
+
+export const consoleNavigation: readonly ConsoleNavigationItem[] = [
   {
     id: "overview",
     href: "/overview",
@@ -37,6 +55,7 @@ export const consoleNavigation = [
     href: "/audits",
     icon: Activity,
     supportsEnvironment: false,
+    adminOnly: true,
   },
   {
     id: "settings",
@@ -52,7 +71,7 @@ export const environmentOptions = [
   { value: "development" },
 ] as const;
 
-export type ConsoleSectionId = (typeof consoleNavigation)[number]["id"];
+export type ConsoleSectionId = ConsoleNavigationItem["id"];
 
 export function getConsoleSectionId(pathname: string) {
   const item = consoleNavigation.find((entry) => pathname.startsWith(entry.href));

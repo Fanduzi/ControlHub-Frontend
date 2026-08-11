@@ -24,7 +24,7 @@ Vitest component tests for React UI components.
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel |
-| resource-archive-button.test.tsx | Resource archive button |
+| resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
 | database-table.test.tsx | Database table |
 | database-instance-facts-panel.test.tsx | Database instance facts |
 | database-consistency-panel.test.tsx | Database consistency |
@@ -36,7 +36,7 @@ Vitest component tests for React UI components.
 | activity-timeline.test.tsx | Activity timeline |
 | audit-table.test.tsx | Audit table |
 | sidebar.test.tsx | App sidebar |
-| topbar.test.tsx | App topbar |
+| topbar.test.tsx | App topbar (incl. fail-closed sign-out: success clears+leaves, network/non-2xx failure stays with controlled error) |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |
 | language-switcher.test.tsx | Language switcher |

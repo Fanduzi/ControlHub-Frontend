@@ -1,4 +1,8 @@
-import { apiClient } from "@/services/api-client";
+// input: @/services/api-client, @/lib/pagination, @/types/audit
+// output: audit list/read services; resource audit reads degrade to empty on the operator-boundary 403
+// pos: audit data services with server-authoritative access-boundary handling
+// note: if this file changes, update header and services/README.md
+import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
 import type {
   AuditEvent,
@@ -51,9 +55,20 @@ async function listAllAuditEvents(params: AuditEventListParams = {}): Promise<Au
 export async function listResourceAuditEvents(
   resourceId: number,
 ): Promise<AuditEvent[]> {
-  const response = await apiClient<AuditEventListResponse>(
-    `/resources/${resourceId}/audit-events`,
-  );
+  let response: AuditEventListResponse;
+  try {
+    response = await apiClient<AuditEventListResponse>(
+      `/resources/${resourceId}/audit-events`,
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) {
+      // Operator access boundary: only administrators may read audit
+      // events. Editors still read the resource itself; the audit panel
+      // degrades to an empty timeline. The server stays authoritative.
+      return [];
+    }
+    throw error;
+  }
 
   return [...response.items].sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt),

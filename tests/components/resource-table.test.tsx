@@ -1,3 +1,7 @@
+// input: vitest, testing-library, resource table, auth-role
+// output: resource table tests — list/search/column behavior plus admin-only create affordance
+// pos: component tests for the inventory table and its role-gated mutation control
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -8,6 +12,11 @@ import { ResourceTable } from "@/components/resources/resource-table";
 import messages from "@/messages/en.json";
 import type { ResourceTypeDefinition } from "@/types/settings";
 import type { ResourceListViewModel } from "@/types/view-models";
+
+let isAdmin = true;
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => isAdmin,
+}));
 
 const replace = vi.fn();
 
@@ -106,6 +115,17 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
 describe("ResourceTable", () => {
   beforeEach(() => {
     replace.mockClear();
+    isAdmin = true;
+  });
+
+  it("hides the create-resource affordance for non-admin operators (server stays authoritative)", () => {
+    isAdmin = false;
+
+    renderTable();
+
+    expect(
+      screen.queryByRole("button", { name: "New resource" }),
+    ).toBeNull();
   });
 
   it("updates q in the URL and resets to the first page when searching", async () => {

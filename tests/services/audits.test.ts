@@ -1,14 +1,26 @@
+// input: vitest, services/audits
+// output: audit service tests — pagination/filter forwarding, resource audit path, operator-boundary 403 degradation
+// pos: unit tests for audit list/read services
+// note: if this file changes, update header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listAuditEvents, listRecentAuditEvents, listResourceAuditEvents } from "@/services/audits";
 import type { AuditEventListResponse } from "@/types/audit";
 
-const { apiClientMock } = vi.hoisted(() => ({
-  apiClientMock: vi.fn(),
-}));
+const { apiClientMock, ApiErrorMock } = vi.hoisted(() => {
+  class ApiErrorMock extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  }
+  return { apiClientMock: vi.fn(), ApiErrorMock };
+});
 
 vi.mock("@/services/api-client", () => ({
   apiClient: apiClientMock,
+  ApiError: ApiErrorMock,
 }));
 
 describe("listAuditEvents", () => {
@@ -162,6 +174,25 @@ describe("listAuditEvents", () => {
         createdAt: "2026-04-15T00:00:00Z",
       },
     ]);
+  });
+
+  it("degrades to an empty audit list when the operator access boundary rejects the read (403)", async () => {
+    apiClientMock.mockRejectedValue(
+      new ApiErrorMock(403, "admin role is required"),
+    );
+
+    const result = await listResourceAuditEvents(7);
+
+    expect(result).toEqual([]);
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/7/audit-events");
+  });
+
+  it("rethrows non-403 audit read failures", async () => {
+    apiClientMock.mockRejectedValue(new ApiErrorMock(500, "internal"));
+
+    await expect(listResourceAuditEvents(7)).rejects.toMatchObject({
+      status: 500,
+    });
   });
 
   it("builds resource audit paths with numeric resource ids", async () => {

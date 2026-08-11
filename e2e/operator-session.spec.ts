@@ -1,10 +1,11 @@
-// input: @playwright/test, ./harness/console-guards, lib/operator-session/{config,seal}
-// output: Playwright E2E for the Console BFF operator session boundary (login, sealed cookie, proxy, origin, logout, forged/tampered/expired page gate, storage leaks)
-// pos: browser-level verification of the 38X-1C same-origin BFF boundary against the real backend
+// input: @playwright/test, ./harness/{auth,console-guards}, lib/operator-session/{config,seal}
+// output: Playwright E2E for the Console BFF operator session boundary (login, sealed cookie, proxy, origin, UI logout incl. fail-closed, forged/tampered/expired page gate, legacy-token rejection, viewport/locale coverage, storage leaks)
+// pos: browser-level verification of the 38X-1C/38X-1D same-origin BFF boundary against the real backend
 // note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { loginViaUI } from "./harness/auth";
 import { loadOperatorSessionConfig } from "../lib/operator-session/config";
 import { sealSession } from "../lib/operator-session/seal";
 import {
@@ -84,6 +85,41 @@ function assertNoCredentialLeak(snapshot: {
   expect(allValues.join("\n")).not.toContain("Bearer ");
   expect(snapshot.cookieHeader).not.toContain("controlhub.token=");
   expect(snapshot.cookieHeader).not.toContain(SESSION_COOKIE);
+}
+
+/**
+ * Bearer-exposure assertion for flows that signed in through the real UI:
+ * the presentation-only `controlhub.role` state is expected by design, but
+ * the Backend Bearer Credential (and any browser-readable token cookie)
+ * must never appear in browser storage, readable cookies, or values.
+ */
+function assertNoBearerExposure(snapshot: {
+  sessionStorageKeys: string[];
+  localStorageKeys: string[];
+  sessionStorageValues: string[];
+  localStorageValues: string[];
+  cookieHeader: string;
+}) {
+  const allKeys = [
+    ...snapshot.sessionStorageKeys,
+    ...snapshot.localStorageKeys,
+  ];
+  const allValues = [
+    ...snapshot.sessionStorageValues,
+    ...snapshot.localStorageValues,
+  ];
+  expect(allKeys).not.toContain("controlhub.token");
+  expect(allValues.join("\n")).not.toContain("Bearer ");
+  expect(snapshot.cookieHeader).not.toContain("controlhub.token=");
+  expect(snapshot.cookieHeader).not.toContain(SESSION_COOKIE);
+}
+
+/** Real UI sign-out: console account menu → Sign out (locale-agnostic). */
+async function uiSignOut(page: Page) {
+  await page.locator('[data-slot="dropdown-menu-trigger"]').click();
+  await page
+    .getByRole("menuitem", { name: /sign out|退出登录/i })
+    .click();
 }
 
 test.describe("Operator session BFF boundary (38X-1C)", () => {
@@ -288,6 +324,188 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     assertClean(consoleMessages, networkErrors);
   });
 
+  test("a valid operator session never sits behind the login page", async ({
+    page,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    await loginViaUI(page);
+    await expect(page).toHaveURL(/\/overview/);
+
+    // Direct navigation to /login with a live session redirects to the
+    // console — no logged-out presentation over a usable session.
+    await page.goto("/login");
+    await expect(page).toHaveURL(/\/overview/);
+
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeDefined();
+    assertNoBearerExposure(await storageSnapshot(page));
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("legacy controlhub.token alone never admits a protected page (Issue #15 seam removal)", async ({
+    page,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    // Exact legacy shape: a browser-readable bearer cookie, no Operator
+    // Session cookie. The pre-BFF page gate trusted this; the BFF gate
+    // must reject it.
+    await page.context().addCookies([
+      {
+        name: "controlhub.token",
+        value: "legacy-browser-bearer",
+        domain: "localhost",
+        path: "/",
+        httpOnly: false,
+      },
+    ]);
+
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeUndefined();
+    // The legacy token cookie is not cleared (browser storage is not the
+    // session authority), but it admits nothing on its own: no session is
+    // minted and the browser-held bearer never becomes an auth path.
+    const snapshot = await storageSnapshot(page);
+    expect(snapshot.cookieHeader).not.toContain(SESSION_COOKIE);
+    expect(snapshot.sessionStorageKeys).not.toContain("controlhub.token");
+    expect(snapshot.sessionStorageKeys).not.toContain("controlhub.role");
+    expect(snapshot.sessionStorageValues.join("\n")).not.toContain("Bearer ");
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("UI sign-out clears the operator session and protected pages require login again", async ({
+    page,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    await loginViaUI(page);
+    await expect(page).toHaveURL(/\/overview/);
+    await expect(page.locator("nav")).toBeVisible();
+    assertNoBearerExposure(await storageSnapshot(page));
+
+    await uiSignOut(page);
+    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
+
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeUndefined();
+
+    // Protected navigation now redirects to login.
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+
+    assertNoBearerExposure(await storageSnapshot(page));
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("a failed UI sign-out never presents a logged-out console while the operator session survives", async ({
+    page,
+    context,
+  }) => {
+    await loginViaUI(page);
+    await expect(page).toHaveURL(/\/overview/);
+
+    // Real network failure: the browser goes offline, then Sign out is
+    // clicked. No route mocking — the DELETE genuinely cannot be sent.
+    const networkErrors = collectNetworkErrors(page);
+    await context.setOffline(true);
+    await uiSignOut(page);
+
+    // Controlled failure surfaced in the console menu; no navigation away
+    // while the HttpOnly Operator Session cookie is still valid.
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page).toHaveURL(/\/overview/);
+
+    // Back online: the session is the honest remaining state — a reload
+    // lands on the console, not the login page.
+    await context.setOffline(false);
+    await page.reload();
+    await expect(page).toHaveURL(/\/overview/);
+    await expect(page.locator("nav")).toBeVisible();
+
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeDefined();
+    assertNoBearerExposure(await storageSnapshot(page));
+
+    // Exactly the one sign-out DELETE failed at the network layer (no HTTP
+    // status); nothing else went wrong. Offline mode intentionally produces
+    // network-layer console noise, so console-message cleanliness is not
+    // asserted here.
+    const logoutFailures = networkErrors.filter((entry) =>
+      entry.includes("/api/operator-session"),
+    );
+    expect(logoutFailures).toHaveLength(1);
+    expect(logoutFailures[0]).toMatch(/DELETE .*api\/operator-session → /);
+  });
+
+  test("desktop zh-CN: BFF login, sealed session, reload survival, and UI sign-out", async ({
+    page,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+
+    await loginViaUI(page);
+    await expect(page).toHaveURL(/\/overview/);
+    assertNoBearerExposure(await storageSnapshot(page));
+
+    // Valid Operator Sessions survive reloads.
+    await page.reload();
+    await expect(page).toHaveURL(/\/overview/);
+    await expect(page.locator("nav")).toBeVisible();
+
+    await uiSignOut(page);
+    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeUndefined();
+
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+    assertNoBearerExposure(await storageSnapshot(page));
+    assertClean(consoleMessages, networkErrors);
+  });
+
+  test("375px EN: BFF session survives reload and UI sign-out works on the mobile viewport", async ({
+    page,
+  }) => {
+    const consoleMessages = collectConsoleMessages(page);
+    const networkErrors = collectNetworkErrors(page);
+
+    await page.setViewportSize({ width: 375, height: 844 });
+
+    await loginViaUI(page);
+    await expect(page).toHaveURL(/\/overview/);
+    assertNoBearerExposure(await storageSnapshot(page));
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/overview/);
+    await expect(page.locator("header")).toBeVisible();
+
+    await uiSignOut(page);
+    await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
+    const cookies = await page.context().cookies();
+    expect(cookies.find((cookie) => cookie.name === SESSION_COOKIE)).toBeUndefined();
+
+    await page.goto("/overview");
+    await expect(page).toHaveURL(/\/login\?from=/);
+    assertNoBearerExposure(await storageSnapshot(page));
+    assertClean(consoleMessages, networkErrors);
+  });
+
   test("forged, tampered, and expired session cookies fail closed at the page gate", async ({
     page,
     context,
@@ -316,8 +534,10 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     ]);
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/login\?from=/);
-
-    // Tamper: flip trailing ciphertext bytes of a real seal.
+    // Localized generic re-login feedback for the rejected session. The
+    // forged-cookie setup cleared the locale cookie, so the page may render
+    // in the default zh-CN — match both locales.
+    await expect(page.getByText(/session ended|会话已结束/i)).toBeVisible();
     const parts = valid!.value.split(".");
     parts[3] = `${parts[3].slice(0, -2)}AA`;
     await context.clearCookies();

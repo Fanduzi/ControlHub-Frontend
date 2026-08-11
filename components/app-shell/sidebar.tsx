@@ -1,3 +1,7 @@
+// input: react, next-intl, next/navigation, environment provider, auth-role, navigation registry
+// output: console sidebar navigation; admin-only entries (audits) hidden for non-admin operators
+// pos: console navigation chrome mirroring the server-owned access matrix
+// note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
 import Link from "next/link";
@@ -6,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 
 import { useEnvironment } from "@/components/providers/environment-provider";
+import { useAdminRole } from "@/lib/auth-role";
 import { consoleNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +30,7 @@ type SidebarProps = {
 export function Sidebar({ pathname, collapsed = false, onToggleCollapse, onNavigate }: SidebarProps) {
   const t = useTranslations();
   const searchParams = useSearchParams();
+  const isAdmin = useAdminRole();
   const { environments, currentEnvironmentId } = useEnvironment();
   const urlEnvironmentSlug = searchParams.get("environment");
   const validatedEnvironmentSlug = environments.find(
@@ -59,7 +65,9 @@ export function Sidebar({ pathname, collapsed = false, onToggleCollapse, onNavig
 
       <nav className={cn("flex-1 px-3 py-4", collapsed && "px-1")}>
         <ul className="flex flex-col gap-1">
-          {consoleNavigation.map((item) => {
+          {consoleNavigation
+            .filter((item) => isAdmin === true || !item.adminOnly)
+            .map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;

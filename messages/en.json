@@ -152,7 +152,8 @@
     "expandSidebar": "Expand sidebar",
     "openMobileMenu": "Open navigation menu",
     "closeMobileMenu": "Close navigation menu",
-    "mobileSettings": "Settings"
+    "mobileSettings": "Settings",
+    "signOutFailed": "Sign out failed. You are still signed in. Try again."
   },
   "environments": {
     "all": "All",

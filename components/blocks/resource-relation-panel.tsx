@@ -1,3 +1,7 @@
+// input: react, next-intl, next/navigation, auth-role, relation services
+// output: resource relation list (all operators) with admin-only add/delete affordances
+// pos: read surface for every operator; mutations mirror the server access matrix
+// note: if this file changes, update header and components/blocks/README.md
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +12,7 @@ import { useTranslations } from "next-intl";
 
 import { ApiError } from "@/services/api-client";
 
+import { useAdminRole } from "@/lib/auth-role";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { EmptyState } from "@/components/blocks/empty-state";
 import { ResourceSearchCombobox } from "@/components/blocks/resource-search-combobox";
@@ -52,6 +57,7 @@ export function ResourceRelationPanel({
   const mt = useTranslations("mutations");
   const ct = useTranslations("common");
   const router = useRouter();
+  const isAdmin = useAdminRole();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [targetId, setTargetId] = useState<number | null>(null);
@@ -125,7 +131,7 @@ export function ResourceRelationPanel({
 
   return (
     <div className="space-y-3">
-      {resourceId && (
+      {resourceId && isAdmin === true && (
         <div className="flex justify-end">
           <Button
             variant="outline"
@@ -231,7 +237,7 @@ export function ResourceRelationPanel({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {resourceId && (
+                {resourceId && isAdmin === true && (
                   <Button
                     variant="ghost"
                     size="icon-xs"

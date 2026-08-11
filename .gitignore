@@ -45,6 +45,9 @@ yarn-error.log*
 # Git worktrees
 /.worktrees/
 
+# Regenerable tool cache: CodeGraph SQLite index (delete freely, rebuilt on demand)
+.codegraph/
+
 # Playwright MCP
 .playwright-mcp/
 

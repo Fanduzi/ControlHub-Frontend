@@ -118,6 +118,33 @@ describe("apiClient", () => {
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("/api/proxy");
   });
 
+  it("ignores stale legacy bearer storage: still routes through the BFF proxy without Authorization", async () => {
+    // A pre-BFF upgrade can leave controlhub.token behind in browser
+    // storage. The client must never resurrect the direct-bearer path —
+    // the same-origin BFF proxy stays the only request boundary.
+    const getItem = vi.fn((key: string) =>
+      key === "controlhub.token" ? "legacy-bearer-value" : null,
+    );
+    vi.stubGlobal("window", {
+      sessionStorage: { getItem, removeItem: vi.fn() },
+      location: { href: "http://localhost:3100/overview" },
+    });
+    vi.stubGlobal("document", { cookie: "controlhub.token=legacy-bearer-value" });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await expect(apiClient("/health")).resolves.toEqual({ ok: true });
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get("authorization")).toBeNull();
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("/api/proxy");
+    expect(fetchSpy.mock.calls[0]?.[0]).not.toContain("8080");
+  });
+
   it("redirects browser 401 to login and clears presentation state", async () => {
     const hrefOwner = { href: "http://localhost:3100/overview" };
     const removeItem = vi.fn();

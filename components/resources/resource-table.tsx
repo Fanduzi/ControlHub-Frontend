@@ -1,3 +1,7 @@
+// input: react, next-intl, next/navigation, tanstack table, auth-role
+// output: resources inventory table; admin-only create affordance
+// pos: inventory list view with role-gated mutation control
+// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,6 +20,7 @@ import {
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { DataTableShell } from "@/components/blocks/data-table-shell";
 import { EmptyState } from "@/components/blocks/empty-state";
+import { useAdminRole } from "@/lib/auth-role";
 import {
   MultiSelectFilter,
   buildMultiSelectParams,
@@ -92,6 +97,7 @@ export function ResourceTable({
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const isAdmin = useAdminRole();
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
     resourceSubtype: false,
     externalId: false,
@@ -392,12 +398,14 @@ export function ResourceTable({
         description={t("tables.resources.description")}
         controls={
           <>
-            <Button
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              {t("common.actions.createResource")}
-            </Button>
+            {isAdmin === true && (
+              <Button
+                size="sm"
+                onClick={() => setCreateOpen(true)}
+              >
+                {t("common.actions.createResource")}
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={

@@ -1,3 +1,7 @@
+// input: vitest, testing-library, resource archive button, auth-role
+// output: admin archive/restore control tests; non-admin operators see no mutation affordance
+// pos: component tests for role-gated resource mutations
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -5,16 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/services/api-client";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
-// input: vitest, testing-library, resource archive button, auth-role
-// output: admin archive/restore control tests
-// pos: component tests for role-gated resource mutations
-// note: if this file changes, update header and components/resources/README.md
 
 import messages from "@/messages/en.json";
 import type { ResourceListViewModel } from "@/types/view-models";
 
+let isAdmin = true;
 vi.mock("@/lib/auth-role", () => ({
-  useAdminRole: () => true,
+  useAdminRole: () => isAdmin,
 }));
 const { archiveMock, unarchiveMock } = vi.hoisted(() => ({
   archiveMock: vi.fn(),
@@ -77,7 +78,17 @@ function renderArchiveButton(
 
 describe("ResourceArchiveButton", () => {
   beforeEach(() => {
+    isAdmin = true;
     vi.resetAllMocks();
+  });
+
+  it("renders no mutation affordance for non-admin operators", () => {
+    isAdmin = false;
+
+    renderArchiveButton(activeResource);
+
+    expect(screen.queryByRole("button", { name: /archive/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /restore/i })).toBeNull();
   });
 
   describe("active resource", () => {

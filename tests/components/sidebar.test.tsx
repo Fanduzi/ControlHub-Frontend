@@ -1,3 +1,7 @@
+// input: vitest, testing-library, sidebar, auth-role
+// output: sidebar tests — navigation, environment scoping, admin-only audits entry
+// pos: component tests for console navigation chrome
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -5,6 +9,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Sidebar } from "@/components/app-shell/sidebar";
 import messages from "@/messages/en.json";
+
+let isAdmin = true;
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => isAdmin,
+}));
 
 const searchParams = new URLSearchParams();
 
@@ -39,6 +48,7 @@ vi.mock("@/components/providers/environment-provider", () => ({
 
 describe("Sidebar", () => {
   beforeEach(() => {
+    isAdmin = true;
     currentEnvironmentId = "";
     environments = [
       {
@@ -58,6 +68,29 @@ describe("Sidebar", () => {
     ];
     searchParams.delete("environmentId");
     searchParams.delete("environment");
+  });
+
+  it("hides the admin-only audits navigation for non-admin operators", () => {
+    isAdmin = false;
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Audits" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Resources" })).toBeInTheDocument();
+  });
+
+  it("shows the audits navigation for administrators", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Sidebar pathname="/resources" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "Audits" })).toBeInTheDocument();
   });
 
   it("renders the console navigation groups in the agreed order", () => {

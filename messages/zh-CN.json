@@ -152,7 +152,8 @@
     "expandSidebar": "展开侧边栏",
     "openMobileMenu": "打开导航菜单",
     "closeMobileMenu": "关闭导航菜单",
-    "mobileSettings": "设置"
+    "mobileSettings": "设置",
+    "signOutFailed": "退出登录失败。您仍处于登录状态，请重试。"
   },
   "environments": {
     "all": "全部",

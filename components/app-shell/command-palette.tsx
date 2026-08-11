@@ -1,3 +1,7 @@
+// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry
+// output: command palette navigation; create-resource command is admin-only
+// pos: console quick-navigation overlay with role-gated mutation affordances
+// note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
 import { useCallback, useEffect } from "react";
@@ -19,6 +23,7 @@ import {
 
 import { Command } from "cmdk";
 
+import { useAdminRole } from "@/lib/auth-role";
 import { consoleNavigation } from "@/lib/navigation";
 
 type CommandPaletteProps = {
@@ -38,6 +43,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const t = useTranslations();
   const router = useRouter();
   const { setTheme, theme } = useTheme();
+  const isAdmin = useAdminRole();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -84,7 +90,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           heading={t("navigation._label")}
           className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
         >
-          {consoleNavigation.map((item) => {
+          {consoleNavigation
+            .filter((item) => isAdmin === true || !item.adminOnly)
+            .map((item) => {
             const Icon = NAV_ICONS[item.id] ?? LayoutDashboard;
             return (
               <Command.Item
@@ -106,20 +114,22 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           heading={t("shell.workspace")}
           className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
         >
-          <Command.Item
-            value="create-resource"
-            onSelect={() =>
-              runCommand(() => {
-                window.dispatchEvent(
-                  new CustomEvent("open-create-resource"),
-                );
-              })
-            }
-            className="relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-selected:bg-muted data-selected:text-foreground"
-          >
-            <Plus className="size-4" />
-            {t("common.actions.createResource")}
-          </Command.Item>
+          {isAdmin === true && (
+            <Command.Item
+              value="create-resource"
+              onSelect={() =>
+                runCommand(() => {
+                  window.dispatchEvent(
+                    new CustomEvent("open-create-resource"),
+                  );
+                })
+              }
+              className="relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-selected:bg-muted data-selected:text-foreground"
+            >
+              <Plus className="size-4" />
+              {t("common.actions.createResource")}
+            </Command.Item>
+          )}
         </Command.Group>
 
         <Command.Separator className="-mx-1 h-px bg-border" />

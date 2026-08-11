@@ -1,3 +1,7 @@
+// input: vitest, testing-library, resource detail sheet, auth-role
+// output: detail sheet tests — overlay behavior, localized summary, admin-only edit/archive affordances
+// pos: component tests for the resource detail sheet
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -6,6 +10,11 @@ import { useState } from "react";
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import messages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
+
+let isAdmin: boolean | null = null;
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => isAdmin,
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -91,6 +100,44 @@ const resource: ResourceDetailViewModel = {
 };
 
 describe("ResourceDetailSheet", () => {
+  beforeEach(() => {
+    isAdmin = null;
+  });
+
+  it("hides edit and archive mutation affordances for non-admin operators", () => {
+    isAdmin = false;
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+  });
+
+  it("shows edit and archive mutation affordances for administrators", () => {
+    isAdmin = true;
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
+  });
+
   it("closes when the overlay is clicked", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

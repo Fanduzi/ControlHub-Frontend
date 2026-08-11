@@ -1,5 +1,9 @@
+// input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
+// output: Vitest tests for the console topbar (environment switching, URL params, fail-closed sign-out)
+// pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -167,6 +171,104 @@ describe("Topbar", () => {
 
     expect(setEnvironmentId).toHaveBeenCalledWith(10000000);
     expect(replace).toHaveBeenCalledWith("/audits?page=1&q=orders");
+  });
+
+  describe("sign-out", () => {
+    const locationMock = { href: "http://localhost:3100/overview" };
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: locationMock,
+      });
+      window.sessionStorage.clear();
+      document.cookie.split(";").forEach((cookie) => {
+        const name = cookie.split("=")[0]?.trim();
+        if (name) document.cookie = `${name}=; path=/; max-age=0`;
+      });
+      locationMock.href = "http://localhost:3100/overview";
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    async function openMenuAndClickSignOut(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: /chen hao/i }));
+      await user.click(await screen.findByRole("menuitem", { name: /sign out/i }));
+    }
+
+    it("leaves the console only after the BFF logout succeeded (session cleared server-side)", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue({ ok: true, status: 200 });
+      window.sessionStorage.setItem("controlhub.role", "admin");
+      document.cookie = "controlhub.role=admin; path=/";
+
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <Topbar pathname="/overview" />
+        </NextIntlClientProvider>,
+      );
+
+      await openMenuAndClickSignOut(user);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith("/api/operator-session", {
+          method: "DELETE",
+          cache: "no-store",
+        });
+        expect(locationMock.href).toBe("/login");
+      });
+      expect(window.sessionStorage.getItem("controlhub.role")).toBeNull();
+      expect(window.sessionStorage.getItem("controlhub.token")).toBeNull();
+      expect(document.cookie).not.toContain("controlhub.role");
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("fails closed on network failure: stays in the console and never presents a logged-out state", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+      window.sessionStorage.setItem("controlhub.role", "admin");
+      document.cookie = "controlhub.role=admin; path=/";
+
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <Topbar pathname="/overview" />
+        </NextIntlClientProvider>,
+      );
+
+      await openMenuAndClickSignOut(user);
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeTruthy();
+      });
+      expect(locationMock.href).toBe("http://localhost:3100/overview");
+      expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+      expect(document.cookie).toContain("controlhub.role=admin");
+    });
+
+    it("fails closed when the backend rejects logout (non-2xx): stays in the console with the session intact", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue({ ok: false, status: 503 });
+      window.sessionStorage.setItem("controlhub.role", "admin");
+
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <Topbar pathname="/overview" />
+        </NextIntlClientProvider>,
+      );
+
+      await openMenuAndClickSignOut(user);
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeTruthy();
+      });
+      expect(locationMock.href).toBe("http://localhost:3100/overview");
+      expect(window.sessionStorage.getItem("controlhub.role")).toBe("admin");
+    });
   });
 
   it("does not emit raw ids in readable environment URLs when a backend slug exists", async () => {
