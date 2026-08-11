@@ -34,7 +34,7 @@ rejects client-supplied `Authorization` headers, blocked prefixes such as
 `auth/*`, and unsafe cross-origin requests. The console route guard (`proxy.ts`)
 accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
 expired cookies fail closed to login. A temporary legacy `controlhub.token`
-page-gate seam remains only until Issue #15 removes pre-BFF sessions.
+page-gate seam remains only until Issue #15 removes pre-BFF sessions. There is no open `/__api` rewrite to the backend; browser API access is only via `/api/proxy`.
 
 ### BFF environment
 

@@ -12,7 +12,7 @@ import {
 import { unsealSession } from "@/lib/operator-session/seal";
 import { clearSessionCookie } from "@/lib/operator-session/session-cookie";
 
-const PUBLIC_PATHS = ["/login", "/api", "/__api"];
+const PUBLIC_PATHS = ["/login", "/api"];
 
 function redirectToLogin(
   request: NextRequest,

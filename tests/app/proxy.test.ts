@@ -146,7 +146,7 @@ describe("proxy Operator Session gate", () => {
 
   it("leaves public paths untouched", () => {
     stubBffEnv();
-    for (const path of ["/login", "/api/operator-session", "/__api/resources"]) {
+    for (const path of ["/login", "/api/operator-session", "/api/proxy/resources"]) {
       const response = proxy(
         new NextRequest(`http://localhost:3100${path}`),
       );
