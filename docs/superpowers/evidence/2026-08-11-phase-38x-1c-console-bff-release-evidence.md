@@ -138,21 +138,22 @@ Unchanged dirty set recorded at precheck (CLAUDE.md, advisor-plans/README.md, ba
 
 | Field | Value |
 |-------|-------|
-| Fast-forward merge range | `917b1389977447e6362d309f0fc2967466581232..bdca6d9b71a844322ac750b54c51ae6ff25b8a38` then CI follow-ups to final tip |
-| Final frontend `HEAD` / `origin/main` | `b9303f111beec0c1adea509ce02c02ce45eb45e5` |
+| Fast-forward merge range | `917b1389977447e6362d309f0fc2967466581232..bdca6d9b71a844322ac750b54c51ae6ff25b8a38` |
 | Push | normal `git push origin main` (no force) |
-| GitHub Actions run | https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/31467862864 |
-| Actions head SHA | `b9303f111beec0c1adea509ce02c02ce45eb45e5` |
-| Job `release-local` | success |
-| Job `release-e2e` | success |
+| Product-complete tip (feature + CI bootstraps) | `b9303f111beec0c1adea509ce02c02ce45eb45e5` |
+| CI on product-complete tip | https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/31467862864 — `release-local` success, `release-e2e` success, headSha `b9303f111beec0c1adea509ce02c02ce45eb45e5` |
+| Evidence-fill tip on main | `3c9abd41ebbc3ddc6d1d02038d5deda3cfea128a` |
+| CI on evidence-fill tip | https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/31469760874 — `release-local` success, `release-e2e` success, headSha `3c9abd41ebbc3ddc6d1d02038d5deda3cfea128a` |
 | Post-merge local gates on merged root | runtime/tsc/lint/unit(1459)/build/governance + `release:e2e` 170 passed |
 
-Follow-up commits after the evidence-bearing delivery tip (still on `main`, included in final SHA):
+Follow-up commits after the first evidence-bearing delivery tip `bdca6d9b71a844322ac750b54c51ae6ff25b8a38`:
 
-- `34fd0d65fcc9911fb05561a72917ac49d287c8c4` — explicit proxy `RouteContext` type for bare `tsc`
+- `34fd0d65fcc9911fb05561a72917ac49d287c8c4` — explicit proxy route context type for bare `tsc`
 - `a86a093437713401d344a687ec45118e0f15e6fb` — CI `JWT_SECRET` length
 - `4b18c1fd42c9e2fc506bbd47b95203dcce995c6e` — CI bootstrap admin
 - `b9303f111beec0c1adea509ce02c02ce45eb45e5` — CI reactivate editor
+- `3c9abd41ebbc3ddc6d1d02038d5deda3cfea128a` — first evidence CI/merge fill
+- this commit — evidence alignment with both green Actions runs (no product code change)
 
 ## Cleanup plan
 
