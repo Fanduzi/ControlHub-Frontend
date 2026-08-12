@@ -2,9 +2,9 @@
 
 ## Scope
 
-Frontend Issue tracker ticket: ControlHub-Backend #15  
-Title: 38X-1D Migrate the Console fully to the BFF boundary  
-Repository: Fanduzi/ControlHub-Frontend  
+Frontend Issue tracker ticket: ControlHub-Backend #15
+Title: 38X-1D Migrate the Console fully to the BFF boundary
+Repository: Fanduzi/ControlHub-Frontend
 Parent ticket #7 (kept OPEN; not touched by this release).
 
 ## Git refs (pre-merge candidate)
@@ -16,7 +16,7 @@ Parent ticket #7 (kept OPEN; not touched by this release).
 | Backend prerequisite `origin/main` (#19, released) | `1713d8efa48478284d046e279bf9962153349607` |
 | Backend migration ceiling verified | 00016 (`00016_disable_seed_users.sql` applied) |
 
-Merge type planned: `git merge --ff-only` of candidate into frontend root `main`.  
+Merge type planned: `git merge --ff-only` of candidate into frontend root `main`.
 Push: normal `git push origin main` (no force, no tag, no deploy).
 
 ## Changed files (base...candidate)
