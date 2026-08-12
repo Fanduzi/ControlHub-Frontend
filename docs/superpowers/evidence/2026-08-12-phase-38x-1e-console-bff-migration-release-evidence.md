@@ -12,7 +12,8 @@ Parent ticket #7 (kept OPEN; not touched by this release).
 | Ref | Full SHA |
 |-----|----------|
 | Frontend base (`origin/main` at validation) | `c94addd1a6d8aef327796c134775743ea3e18a56` |
-| Frontend candidate HEAD (after P2 docs fix) | `20e709ac9298f3b1081ab8f723d06bfc40a0ba01` |
+| Frontend candidate code HEAD (post-review, P2 fix) | `20e709ac9298f3b1081ab8f723d06bfc40a0ba01` |
+| Evidence commits (docs-only, follow the code HEAD) | `b9f618ab008bff15c701ed2dc389db59172a58de`, `92288dd280459f79f0f706b06b54e075847091ff` |
 | Backend prerequisite `origin/main` (#19, released) | `1713d8efa48478284d046e279bf9962153349607` |
 | Backend migration ceiling verified | 00016 (`00016_disable_seed_users.sql` applied) |
 
