@@ -20,6 +20,20 @@ Parent ticket #7 (kept OPEN; not touched by this release).
 Merge type planned: `git merge --ff-only` of candidate into frontend root `main`.
 Push: normal `git push origin main` (no force, no tag, no deploy).
 
+## Release outcome (post-merge, CI-verified)
+
+| Fact | Value |
+|------|-------|
+| Merged/pushed SHA (`HEAD == origin/main`) | `a235cc7898ff5696599675e1d006998fd0ac2ecf` |
+| Merge | `git merge --ff-only task/issue-15-bff-migration-20260811` in frontend root; no rebase/reset/amend/force-push |
+| Push | `git push origin main` (`c94addd..a235cc7`) |
+| Frontend CI run (exact headSha) | `https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/31571223988` — headSha `a235cc7898ff5696599675e1d006998fd0ac2ecf`, push to `main`, conclusion success |
+| `release-local` | success |
+| `release-e2e` | success (retired-seed verification step green on CI) |
+| Post-merge gates re-run from merged root | release:local green; full release-e2e green (186 passed, 0 failed, 0 skipped) |
+| Root WIP after merge + cleanup | byte-identical (porcelain, tracked patch hunk, untracked manifest, AGENTS.md/backups/PNGs/.codegraph content hashes; CLAUDE.md WIP gitnexus-deletion hunk preserved byte-identically on the merged HEAD) |
+| Ticket #15 | this release closes #15; #7 and unrelated tickets untouched |
+
 ## Changed files (base...candidate)
 
 64 paths (61 files, +1456/−559) under the candidate range, including:
