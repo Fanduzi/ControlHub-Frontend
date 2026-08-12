@@ -12,14 +12,17 @@ import { SESSION_MAX_AGE_SECONDS } from "@/lib/operator-session/constants";
 
 const ACTIVE_KEY_HEX =
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const ACTIVE_KEY_BASE64 = Buffer.from(ACTIVE_KEY_HEX, "hex").toString("base64");
 const PREVIOUS_KEY_HEX =
   "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
+const PREVIOUS_KEY_BASE64 = Buffer.from(PREVIOUS_KEY_HEX, "hex").toString("base64");
 const THIRD_KEY_HEX =
   "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f";
+const THIRD_KEY_BASE64 = Buffer.from(THIRD_KEY_HEX, "hex").toString("base64");
 
 function makeConfig(overrides: Record<string, string> = {}) {
   const result = loadOperatorSessionConfig({
-    CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_HEX,
+    CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_BASE64,
     CONTROLHUB_BFF_CONSOLE_ORIGIN: "http://localhost:3100",
     CONTROLHUB_BFF_SECURE_COOKIES: "false",
     ...overrides,
@@ -77,8 +80,8 @@ describe("sealSession / unsealSession", () => {
     );
     // Rotate: B becomes active, A becomes previous (still in the window).
     const afterRotation = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
-      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_BASE64,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_BASE64,
     });
     const result = unsealSession(sealed, afterRotation, NOW_MS);
     expect(result.ok).toBe(true);
@@ -92,8 +95,8 @@ describe("sealSession / unsealSession", () => {
       NOW_MS - 2 * 60 * 60 * 1000, // issued two hours ago
     );
     const afterRotation = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
-      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_BASE64,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_BASE64,
     });
     const result = unsealSession(sealed, afterRotation, NOW_MS);
     expect(result.ok).toBe(false);
@@ -119,8 +122,8 @@ describe("sealSession / unsealSession", () => {
       NOW_MS,
     );
     const rotated = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
-      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_BASE64,
+      CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_BASE64,
     });
     const rotatedSealed = sealSession(
       { token: "server-token-456", role: "admin" },
@@ -131,7 +134,7 @@ describe("sealSession / unsealSession", () => {
     // dropped entirely, and the operator closes the window by not
     // configuring any previous key.
     const windowClosed = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: THIRD_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: THIRD_KEY_BASE64,
     });
     expect(unsealSession(rotatedSealed, windowClosed, NOW_MS).ok).toBe(false);
     expect(unsealSession(sealed, windowClosed, NOW_MS).ok).toBe(false);
@@ -177,7 +180,7 @@ describe("sealSession / unsealSession", () => {
   it("rejects seals made with an unknown key", () => {
     const config = makeConfig();
     const other = makeConfig({
-      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_HEX,
+      CONTROLHUB_BFF_SESSION_KEY: PREVIOUS_KEY_BASE64,
     });
     const sealed = sealSession(
       { token: "server-token-123", role: "admin" },

@@ -23,7 +23,7 @@ const FIXTURE = resolveFixtureIdentity("admin");
 
 /** Must match e2e/harness/dev-server-wrapper.sh local BFF key material. */
 const E2E_BFF_SESSION_KEY =
-  "9f2c7e51b8a43d6f0c1e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f";
+  "nyx+UbikPW8MHio7TF1uf4CRorPE1eb3CBkqO0xdbn8=";
 
 function e2eSessionConfig() {
   const result = loadOperatorSessionConfig({

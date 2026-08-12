@@ -12,11 +12,13 @@ import { sealSession } from "@/lib/operator-session/seal";
 
 const ACTIVE_KEY_HEX =
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const ACTIVE_KEY_BASE64 = Buffer.from(ACTIVE_KEY_HEX, "hex").toString("base64");
 const OTHER_KEY_HEX =
   "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
+const OTHER_KEY_BASE64 = Buffer.from(OTHER_KEY_HEX, "hex").toString("base64");
 
 function stubBffEnv() {
-  vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_HEX);
+  vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_BASE64);
   vi.stubEnv("CONTROLHUB_BFF_CONSOLE_ORIGIN", "http://localhost:3100");
   vi.stubEnv("CONTROLHUB_BFF_SECURE_COOKIES", "false");
 }

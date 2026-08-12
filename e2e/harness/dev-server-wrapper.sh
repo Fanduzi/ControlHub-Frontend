@@ -24,7 +24,7 @@ set -euo pipefail
 # - explicit controlled non-Secure cookie exception (local HTTP only)
 CONTROLHUB_API_BASE_URL=http://localhost:8081 \
 CONTROLHUB_API_PROXY_URL=http://localhost:8081 \
-CONTROLHUB_BFF_SESSION_KEY=9f2c7e51b8a43d6f0c1e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f \
+CONTROLHUB_BFF_SESSION_KEY=nyx+UbikPW8MHio7TF1uf4CRorPE1eb3CBkqO0xdbn8= \
 CONTROLHUB_BFF_CONSOLE_ORIGIN=http://localhost:3100 \
 CONTROLHUB_BFF_SECURE_COOKIES=false \
 npm run dev -- "$@" 2> >(grep -v --line-buffered 'controller\[kState\]\.transformAlgorithm')

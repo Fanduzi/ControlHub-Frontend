@@ -13,11 +13,12 @@ import {
 
 const ACTIVE_KEY_HEX =
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const ACTIVE_KEY_BASE64 = Buffer.from(ACTIVE_KEY_HEX, "hex").toString("base64");
 const ORIGIN = "http://localhost:3100";
 const TOKEN = "server-issued-bearer-token";
 
 function stubBffEnv() {
-  vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_HEX);
+  vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_BASE64);
   vi.stubEnv("CONTROLHUB_BFF_CONSOLE_ORIGIN", ORIGIN);
   vi.stubEnv("CONTROLHUB_BFF_SECURE_COOKIES", "true");
   vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://backend.test");

@@ -11,12 +11,14 @@ const ACTIVE_KEY_HEX =
 const PREVIOUS_KEY_HEX =
   "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
 const ACTIVE_KEY_BASE64 = Buffer.from(ACTIVE_KEY_HEX, "hex").toString("base64");
-const ORIGIN = "http://localhost:3100";
+const PREVIOUS_KEY_BASE64 = Buffer.from(PREVIOUS_KEY_HEX, "hex").toString("base64");
+const LOCAL_ORIGIN = "http://localhost:3100";
+const HTTPS_ORIGIN = "https://console.example.com";
 
 function env(overrides: Record<string, string> = {}): Record<string, string> {
   return {
-    CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_HEX,
-    CONTROLHUB_BFF_CONSOLE_ORIGIN: ORIGIN,
+    CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_BASE64,
+    CONTROLHUB_BFF_CONSOLE_ORIGIN: LOCAL_ORIGIN,
     CONTROLHUB_BFF_SECURE_COOKIES: "false",
     ...overrides,
   };
@@ -33,6 +35,20 @@ describe("loadOperatorSessionConfig", () => {
     expect(result.value.secureCookies).toBe(false);
   });
 
+  it("accepts a valid production HTTPS configuration", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: HTTPS_ORIGIN,
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.consoleOrigin).toBe(HTTPS_ORIGIN);
+    expect(result.value.secureCookies).toBe(true);
+  });
+
   it("accepts base64-encoded key material", () => {
     const result = loadOperatorSessionConfig(
       env({ CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_BASE64 }),
@@ -40,6 +56,13 @@ describe("loadOperatorSessionConfig", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.activeKey.toString("hex")).toBe(ACTIVE_KEY_HEX);
+  });
+
+  it("rejects hex-encoded key material (base64 only)", () => {
+    const result = loadOperatorSessionConfig(
+      env({ CONTROLHUB_BFF_SESSION_KEY: ACTIVE_KEY_HEX }),
+    );
+    expect(result.ok).toBe(false);
   });
 
   it("fails closed when the active session key is missing", () => {
@@ -72,18 +95,25 @@ describe("loadOperatorSessionConfig", () => {
 
   it("fails closed when the previous key equals the active key", () => {
     const result = loadOperatorSessionConfig(
-      env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_HEX }),
+      env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_BASE64 }),
     );
     expect(result.ok).toBe(false);
   });
 
   it("accepts a distinct previous key for the rotation window", () => {
     const result = loadOperatorSessionConfig(
-      env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: PREVIOUS_KEY_HEX }),
+      env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: PREVIOUS_KEY_BASE64 }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.previousKey).not.toBeNull();
+  });
+
+  it("rejects hex-encoded previous key material (base64 only)", () => {
+    const result = loadOperatorSessionConfig(
+      env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: PREVIOUS_KEY_HEX }),
+    );
+    expect(result.ok).toBe(false);
   });
 
   it("fails closed when the Console Origin is missing or unsafe", () => {
@@ -104,6 +134,24 @@ describe("loadOperatorSessionConfig", () => {
       );
       expect(result.ok).toBe(false);
     }
+  });
+
+  it("rejects HTTP origin in production (HTTPS required)", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: "http://localhost:3100",
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("accepts HTTP origin only in non-production (local development)", () => {
+    const result = loadOperatorSessionConfig(
+      env({ CONTROLHUB_BFF_CONSOLE_ORIGIN: "http://localhost:3100" }),
+    );
+    expect(result.ok).toBe(true);
   });
 
   it("normalizes a trailing slash on the Console Origin", () => {
@@ -140,8 +188,67 @@ describe("loadOperatorSessionConfig", () => {
 
   it("accepts secure cookies in production", () => {
     const result = loadOperatorSessionConfig(
-      env({ NODE_ENV: "production", CONTROLHUB_BFF_SECURE_COOKIES: "true" }),
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: HTTPS_ORIGIN,
+        NODE_ENV: "production",
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+      }),
     );
     expect(result.ok).toBe(true);
+  });
+
+  // --- Issue #23: production HTTPS-origin enforcement ---
+
+  it("rejects HTTP origin in production with insecure-cookies-in-production", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: "http://localhost:3100",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects multiple origins (comma-separated)", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN:
+          "https://a.example.com,https://b.example.com",
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects origin with explicit port 80 in production", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: "http://localhost:80",
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects origin with path segments in production", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: "https://console.example.com/app",
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects origin with fragment in production", () => {
+    const result = loadOperatorSessionConfig(
+      env({
+        CONTROLHUB_BFF_CONSOLE_ORIGIN: "https://console.example.com#section",
+        CONTROLHUB_BFF_SECURE_COOKIES: "true",
+        NODE_ENV: "production",
+      }),
+    );
+    expect(result.ok).toBe(false);
   });
 });

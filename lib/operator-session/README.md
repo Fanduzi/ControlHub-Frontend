@@ -16,9 +16,9 @@ Server-side Operator Session boundary for the Console BFF (Phase 38X-1C).
 
 | Env var | Required | Meaning |
 |---------|----------|---------|
-| `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (64 hex chars or 44 base64 chars) |
-| `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window |
-| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (`http://host[:port]`) |
+| `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (44 base64 chars; hex rejected) |
+| `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window (base64 only) |
+| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (HTTPS required in production; HTTP allowed only in local development) |
 | `CONTROLHUB_BFF_SECURE_COOKIES` | no | `true` (default) or `false`; `false` is rejected in production |
 
 Production startup fails closed when any of these are missing, malformed, or

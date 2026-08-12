@@ -42,9 +42,9 @@ There is no open `/__api` rewrite to the backend; browser API access is only via
 
 | Env var | Required | Meaning |
 |---------|----------|---------|
-| `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (64 hex chars or 44 base64 chars) |
-| `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window |
-| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (for example `http://localhost:3100`) |
+| `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (44 base64 chars; hex encoding rejected) |
+| `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window (base64 only) |
+| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (HTTPS required in production; HTTP allowed only in local development, for example `http://localhost:3100`) |
 | `CONTROLHUB_BFF_SECURE_COOKIES` | no | `true` (default) or `false`; `false` is the explicit local-development non-Secure exception and is rejected in production |
 
 Production startup (`next start`) fails closed when any of these are missing,

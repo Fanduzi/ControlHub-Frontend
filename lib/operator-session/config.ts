@@ -21,20 +21,21 @@ function decodeKeyMaterial(raw: string): Buffer | null {
   const value = raw.trim();
   if (!value) return null;
 
-  let bytes: Buffer | null = null;
-  if (/^[0-9a-fA-F]{64}$/.test(value)) {
-    bytes = Buffer.from(value, "hex");
-  } else if (/^[A-Za-z0-9+/]{43}=$/.test(value)) {
-    bytes = Buffer.from(value, "base64");
-  }
+  // Sealing keys must be base64 and decode to exactly 32 bytes.
+  // Hex encoding is rejected — base64 is the only accepted format.
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) return null;
 
-  if (!bytes || bytes.length !== 32) return null;
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.length !== 32) return null;
   // Unsafe low-entropy key material (single repeated byte) is rejected.
   if (new Set(bytes).size < 2) return null;
   return bytes;
 }
 
-function normalizeConsoleOrigin(raw: string): string | null {
+function normalizeConsoleOrigin(
+  raw: string,
+  isProduction: boolean,
+): string | null {
   const value = raw.trim();
   if (!value) return null;
 
@@ -50,6 +51,11 @@ function normalizeConsoleOrigin(raw: string): string | null {
   if (url.username !== "" || url.password !== "") return null;
   if (url.search !== "" || url.hash !== "") return null;
   if (url.pathname !== "" && url.pathname !== "/") return null;
+
+  // Production requires exactly one HTTPS Console Origin.
+  // HTTP is accepted only as an explicit bounded local-development exception.
+  if (isProduction && url.protocol !== "https:") return null;
+
   return `${url.protocol}//${url.host}`;
 }
 
@@ -82,8 +88,10 @@ export function loadOperatorSessionConfig(
     }
   }
 
+  const isProduction = env.NODE_ENV === "production";
   const consoleOrigin = normalizeConsoleOrigin(
     env.CONTROLHUB_BFF_CONSOLE_ORIGIN ?? "",
+    isProduction,
   );
   if (!consoleOrigin) {
     problems.push("invalid-or-missing-console-origin");
