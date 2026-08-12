@@ -64,9 +64,9 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
   and a dedicated disposable `*_e2e` metadata DSN). The 0002 seed accounts
   (`admin@example.com` / `editor@example.com` / `secret123`) were retired by
   backend migration 00016 and are refused, never used.
-- **Delivery status**: the fixture seam is not yet on backend `main` (backend
-  ticket #19 blocks #15); the frontend CI depends on it, so **#15 cannot
-  release** until the backend prerequisite is merged/pushed/CI-green.
+- **Fixture seam**: the backend `cmd/e2e-fixture-bootstrap` seam is on backend
+  `main` (backend ticket #19). The frontend CI depends on it; without it,
+  `release-e2e` cannot run.
 
 ## Testing
 
