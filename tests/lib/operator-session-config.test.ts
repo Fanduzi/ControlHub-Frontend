@@ -93,6 +93,18 @@ describe("loadOperatorSessionConfig", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("fails closed for a two-byte alternating (low-diversity) key", () => {
+    // 01 02 repeated 16 times = 32 bytes, 2 unique values
+    const twoByteCycle = Buffer.from(
+      Array.from({ length: 32 }, (_, i) => (i % 2 === 0 ? 0x01 : 0x02)),
+    );
+    const b64 = twoByteCycle.toString("base64");
+    const result = loadOperatorSessionConfig(
+      env({ CONTROLHUB_BFF_SESSION_KEY: b64 }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
   it("fails closed when the previous key equals the active key", () => {
     const result = loadOperatorSessionConfig(
       env({ CONTROLHUB_BFF_PREVIOUS_SESSION_KEY: ACTIVE_KEY_BASE64 }),

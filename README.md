@@ -50,7 +50,9 @@ There is no open `/__api` rewrite to the backend; browser API access is only via
 Production startup (`next start`) fails closed when any of these are missing,
 malformed, or unsafe, or when a non-Secure cookie policy is requested; see
 `instrumentation.ts`. Route handlers also refuse BFF traffic with a generic
-`503` until the configuration is valid.
+`503` until the configuration is valid. Key material with a short repeating
+pattern (periods 1–16 bytes) is rejected; this is a structural check, not an
+entropy proof.
 
 ## Local development
 

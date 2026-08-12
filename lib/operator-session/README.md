@@ -24,4 +24,13 @@ Server-side Operator Session boundary for the Console BFF (Phase 38X-1C).
 Production startup fails closed when any of these are missing, malformed, or
 unsafe; see `instrumentation.ts` and `README.md` at the repo root.
 
+### Key material validation
+
+Sealing keys must be standard base64 (44 chars with padding) decoding to
+exactly 32 bytes. Hex encoding is rejected. The config loader also rejects
+keys with a short repeating pattern (periods 1, 2, 4, 8, or 16 bytes) — for
+example, a single repeated byte or a two-byte alternating cycle. This is a
+structural check that catches obvious low-diversity material; it is not an
+entropy measurement and does not guarantee cryptographic quality.
+
 Legacy browser bearer storage and cookies are not accepted or produced.

@@ -17,6 +17,30 @@ export type ConfigLoadResult =
   | { ok: true; value: OperatorSessionConfig }
   | { ok: false; problems: string[] };
 
+/**
+ * Reject key material whose content repeats at a period shorter than the
+ * full key length. This catches single-byte, two-byte, four-byte, eight-byte,
+ * and sixteen-byte repeating patterns (periods 1, 2, 4, 8, 16).
+ *
+ * This is a structural check — it rejects obvious repeating patterns — not
+ * an entropy measurement. High-entropy random keys will always pass.
+ */
+function hasRepeatingPattern(buf: Buffer): boolean {
+  for (let period = 1; period <= 16; period *= 2) {
+    if (buf.length % period !== 0) continue;
+    const slice = buf.subarray(0, period);
+    let matches = true;
+    for (let i = period; i < buf.length; i += period) {
+      if (!buf.subarray(i, i + period).equals(slice)) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
 function decodeKeyMaterial(raw: string): Buffer | null {
   const value = raw.trim();
   if (!value) return null;
@@ -27,8 +51,10 @@ function decodeKeyMaterial(raw: string): Buffer | null {
 
   const bytes = Buffer.from(value, "base64");
   if (bytes.length !== 32) return null;
-  // Unsafe low-entropy key material (single repeated byte) is rejected.
-  if (new Set(bytes).size < 2) return null;
+  // Reject low-diversity key material with a short repeating pattern.
+  // This catches single-byte, two-byte, four-byte, eight-byte, and
+  // sixteen-byte cycles. The check is structural, not an entropy proof.
+  if (hasRepeatingPattern(bytes)) return null;
   return bytes;
 }
 
