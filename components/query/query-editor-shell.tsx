@@ -922,6 +922,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     // slow response can never surface suggestions from the wrong context.
     if (objectIdentityChanged) {
       setLoadedObjects([]);
+      // Forget the cleared objects' identity so a later return to it reloads
+      // rather than wrongly reusing empty collections.
+      loadedObjectsIdentityRef.current = null;
       setMetadataError(false);
     }
     if (targetChanged) {
@@ -959,10 +962,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
     if (targetChanged) {
       // First load for this target: fetch the target-scoped database list once.
-      dbListLoadedTargetRef.current = targetId;
+      // dbListLoadedTargetRef is committed only on success so a database change
+      // during the in-flight fetch re-issues the list for the new identity
+      // instead of silently dropping database-name completion.
       void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
         (response) => {
           if (isStale()) return;
+          dbListLoadedTargetRef.current = targetId;
           setLoadedDatabases(response.items.map((db) => db.name));
           defaultDatabaseRef.current = response.defaultDatabase;
           if (effectiveDb !== null) {

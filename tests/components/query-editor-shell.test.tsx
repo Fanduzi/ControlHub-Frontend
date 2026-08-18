@@ -2467,5 +2467,27 @@ describe("Phase 38W-3: template execution through the governed route", () => {
       expect(mockGetSchemaDatabases.mock.calls.length).toBe(dbCalls);
       expect(mockGetSchemaObjects.mock.calls.length).toBe(objectCalls);
     });
+
+    it("database switch reuses the database list and reloads objects for the new database", async () => {
+      const user = userEvent.setup();
+      mockGetSchemaDatabases.mockResolvedValue(dbList(null, ["appdb", "otherdb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("appdb"));
+      renderReady();
+      await waitFor(() => {
+        expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
+      });
+      // Select a different database via the quick navigator (its own fetch is
+      // separate and lazy).
+      fireEvent.keyDown(window, { key: "p", metaKey: true });
+      const dialog = await screen.findByRole("dialog", { name: /quick navigator/i });
+      await user.click(await within(dialog).findByRole("button", { name: "otherdb" }));
+      // Isolate: after the switch the shell reuses the loaded database list and
+      // reloads only this identity's objects.
+      mockGetSchemaDatabases.mockClear();
+      await waitFor(() => {
+        expect(mockGetSchemaObjects).toHaveBeenCalledWith(30, expect.objectContaining({ database: "otherdb" }));
+      });
+      expect(mockGetSchemaDatabases).not.toHaveBeenCalled();
+    });
   });
 });
