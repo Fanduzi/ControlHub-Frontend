@@ -26,7 +26,15 @@ export function useWorksheetSchemaAdapter(
   loadedObjects: readonly { database: string; name: string; kind: string }[],
 ): WorksheetSchemaAdapter {
   const namespace = useMemo((): SchemaNamespace | undefined => {
-    if (!targetId || !activeDatabase) return undefined;
+    if (!targetId) return undefined;
+
+    // Before a database is selected (e.g. the server returned no default),
+    // only the target-scoped database-name completion is offered. Object and
+    // column suggestions wait for an explicit database selection so they can
+    // never come from the wrong identity.
+    if (!activeDatabase) {
+      return { tables: [], databases: loadedDatabases, loadedColumns: {} };
+    }
 
     const loadedColumns: Record<string, readonly string[]> = {};
 

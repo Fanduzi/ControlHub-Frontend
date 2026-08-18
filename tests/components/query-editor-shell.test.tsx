@@ -2326,4 +2326,146 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     expect(screen.getByLabelText("status value")).toHaveValue("");
     expect(screen.getByLabelText("min_id value")).toHaveValue(null);
   });
+
+  describe("Phase 38X-4: Schema Metadata Identity isolation", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockListQueryExecutions.mockResolvedValue(emptyHistory());
+      mockGetQueryTargets.mockResolvedValue({
+        items: [buildReadyTarget()],
+        pageInfo: pageInfoFor([buildReadyTarget()]),
+      });
+    });
+
+    const dbList = (defaultDatabase: string | null, names: string[]) => ({
+      targetResourceId: 30,
+      defaultDatabase,
+      items: names.map((name) => ({ name, isDefault: name === defaultDatabase })),
+      pageInfo: { page: 1, pageSize: 100, totalItems: names.length, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    const objects = (database: string) => ({
+      targetResourceId: 30,
+      database,
+      items: [{ database, name: "orders", kind: "table" as const }],
+      pageInfo: { page: 1, pageSize: 500, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    it("issues exactly one database-list request to supply default and completion", async () => {
+      mockGetSchemaDatabases.mockResolvedValue(dbList("appdb", ["appdb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("appdb"));
+      renderReady();
+      // The applied default drives an object fetch for that database.
+      await waitFor(() => {
+        expect(mockGetSchemaObjects).toHaveBeenCalledWith(30, expect.objectContaining({ database: "appdb" }));
+      });
+      // Default selection and database completions come from a single request.
+      expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not auto-select a database on null default and object completion waits", async () => {
+      mockGetSchemaDatabases.mockResolvedValue(dbList(null, ["appdb", "otherdb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("appdb"));
+      renderReady();
+      await waitFor(() => {
+        expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
+      });
+      // Without an explicit selection the object load waits for a database.
+      expect(mockGetSchemaObjects).not.toHaveBeenCalled();
+    });
+
+    it("shows a non-blocking retryable warning and keeps Run available on metadata failure", async () => {
+      const user = userEvent.setup();
+      mockGetSchemaDatabases.mockRejectedValueOnce(new Error("boom"));
+      renderReady();
+      await waitFor(() => {
+        expect(screen.getByTestId("metadata-warning")).toBeInTheDocument();
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("Schema metadata is unavailable");
+      // Editor and Run stay usable with keyword-only completion.
+      expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+      mockGetSchemaDatabases.mockResolvedValue(dbList("appdb", ["appdb"]));
+      await user.click(screen.getByRole("button", { name: /retry metadata/i }));
+      await waitFor(() => {
+        expect(screen.queryByTestId("metadata-warning")).not.toBeInTheDocument();
+      });
+    });
+
+    it("Retry reloads databases and objects together for the current identity", async () => {
+      const user = userEvent.setup();
+      mockGetSchemaDatabases.mockResolvedValue(dbList("appdb", ["appdb"]));
+      mockGetSchemaObjects.mockRejectedValueOnce(new Error("boom"));
+      renderReady();
+      await waitFor(() => {
+        expect(screen.getByTestId("metadata-warning")).toBeInTheDocument();
+      });
+      const dbCalls = mockGetSchemaDatabases.mock.calls.length;
+      const objectCalls = mockGetSchemaObjects.mock.calls.length;
+      await user.click(screen.getByRole("button", { name: /retry metadata/i }));
+      await waitFor(() => {
+        expect(screen.queryByTestId("metadata-warning")).not.toBeInTheDocument();
+      });
+      expect(mockGetSchemaDatabases.mock.calls.length).toBeGreaterThan(dbCalls);
+      expect(mockGetSchemaObjects.mock.calls.length).toBeGreaterThan(objectCalls);
+    });
+
+    it("rejects a stale database-list response after a target change", async () => {
+      const secondTarget = buildReadyTarget({
+        resourceId: 31,
+        displayName: "Remote MySQL",
+        connectionContext: { engine: "mysql", host: "10.0.0.1", port: 3306, environment: "Production", owner: "Platform", clusterName: "" },
+      });
+      mockGetQueryTargets.mockResolvedValue({
+        items: [buildReadyTarget(), secondTarget],
+        pageInfo: pageInfoFor([buildReadyTarget(), secondTarget]),
+      });
+      let resolveStale!: (value: unknown) => void;
+      mockGetSchemaDatabases
+        .mockReturnValueOnce(
+          new Promise<unknown>((resolve) => { resolveStale = resolve; }) as ReturnType<typeof getSchemaDatabases>,
+        )
+        .mockResolvedValue(dbList(null, ["remotedb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("appdb"));
+      const user = userEvent.setup();
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <QueryWorkbench
+            targets={[buildReadyTarget(), secondTarget]}
+            pageInfo={pageInfoFor([buildReadyTarget(), secondTarget])}
+            initialFilters={EMPTY_FILTERS}
+          />
+        </NextIntlClientProvider>,
+      );
+      // Switch target so the first target's in-flight db-list is stale.
+      await user.click(screen.getByRole("button", { name: /^open connections$/i }));
+      const dialog = screen.getByRole("dialog", { name: /connections/i });
+      await user.click(within(dialog).getByRole("button", { name: "Remote MySQL" }));
+      await waitFor(() => {
+        expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(2);
+      });
+      mockGetSchemaObjects.mockClear();
+      resolveStale(dbList("staleDb", ["staleDb"]));
+      await new Promise((r) => setTimeout(r, 20));
+      // The stale response must not trigger any object fetch for a prior identity.
+      expect(mockGetSchemaObjects).not.toHaveBeenCalled();
+    });
+
+    it("shares metadata across same-identity worksheets without duplicate requests", async () => {
+      const user = userEvent.setup();
+      mockGetSchemaDatabases.mockResolvedValue(dbList("appdb", ["appdb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("appdb"));
+      renderReady();
+      await waitFor(() => {
+        expect(mockGetSchemaObjects).toHaveBeenCalledWith(30, expect.objectContaining({ database: "appdb" }));
+      });
+      const dbCalls = mockGetSchemaDatabases.mock.calls.length;
+      const objectCalls = mockGetSchemaObjects.mock.calls.length;
+      await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("tab", { name: /Worksheet 2/ })).toHaveAttribute("aria-selected", "true");
+      });
+      // The sibling worksheet reuses the loaded metadata: no duplicate request.
+      expect(mockGetSchemaDatabases.mock.calls.length).toBe(dbCalls);
+      expect(mockGetSchemaObjects.mock.calls.length).toBe(objectCalls);
+    });
+  });
 });

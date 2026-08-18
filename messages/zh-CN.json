@@ -1121,7 +1121,9 @@
       "format": "格式化",
       "formatError": "SQL 格式化失败。请检查语句语法后重试。",
       "resizeEditor": "调整 SQL 编辑器大小",
-      "explainReady": "Explain"
+      "explainReady": "Explain",
+      "metadataWarning": "Schema 元数据不可用，补全仅限于关键字。",
+      "metadataRetry": "重试元数据"
     },
     "actions": {
       "run": "执行已锁定",

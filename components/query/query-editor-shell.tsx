@@ -333,6 +333,20 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
   const [loadedDatabases, setLoadedDatabases] = useState<readonly string[]>([]);
   const [loadedObjects, setLoadedObjects] = useState<readonly ObjectSummary[]>([]);
+  // Schema completion metadata belongs to one active Schema Metadata Identity
+  // (targetResourceId, database). `metadataError` drives the non-blocking
+  // retry warning; Retry reloads databases and objects together.
+  const [metadataError, setMetadataError] = useState(false);
+  const [metadataRetryKey, setMetadataRetryKey] = useState(0);
+  const metadataGenerationRef = useRef(0);
+  // The single active Schema Metadata Identity (targetResourceId, database)
+  // whose objects are currently loaded, so sibling worksheets on the same
+  // identity share metadata without duplicate ownership.
+  const loadedObjectsIdentityRef = useRef<{ targetId: number; database: string } | null>(null);
+  // Target whose database list is loaded (target-scoped, one request per load
+  // generation) and the server-selected default for that target.
+  const dbListLoadedTargetRef = useRef<number | null>(null);
+  const defaultDatabaseRef = useRef<string | null>(null);
   const [retargetDialog, setRetargetDialog] = useState<{
     open: boolean;
     worksheetId: string;
@@ -871,54 +885,134 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
 
+  // Own schema completion metadata by one active Schema Metadata Identity
+  // (targetResourceId, database). One database-list request supplies both the
+  // server-selected default and the available-database completions. Changing
+  // the target or database clears the previous identity's metadata before the
+  // new identity's requests settle; stale responses are rejected by generation.
   useEffect(() => {
-    const worksheetId = activeWorksheet.id;
     const targetId = activeWorksheet.targetResourceId;
-    if (activeWorksheet.activeDatabase !== null) return;
-    if (!worksheetTarget.availableActions.run) return;
+    const activeDb = activeWorksheet.activeDatabase;
+    const generation = ++metadataGenerationRef.current;
     const controller = new AbortController();
-    void getSchemaDatabases(targetId, { page: 1, pageSize: 50, signal: controller.signal }).then((response) => {
-      if (controller.signal.aborted) return;
-      setWorksheets((previous) => previous.map((worksheet) =>
-        worksheet.id === worksheetId && worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
-          ? { ...worksheet, activeDatabase: response.defaultDatabase }
-          : worksheet,
-      ));
-    }, () => undefined);
+
+    if (!worksheetTarget.availableActions.run) {
+      setLoadedObjects([]);
+      setLoadedDatabases([]);
+      loadedObjectsIdentityRef.current = null;
+      dbListLoadedTargetRef.current = null;
+      defaultDatabaseRef.current = null;
+      return () => controller.abort();
+    }
+
+    const targetChanged = dbListLoadedTargetRef.current !== targetId;
+    // Before a database is selected, a null-db worksheet adopts the stored
+    // default, so the object identity it will use is the effective one.
+    const effectiveDb =
+      activeDb !== null
+        ? activeDb
+        : targetChanged
+          ? null
+          : defaultDatabaseRef.current;
+    const objectIdentityChanged =
+      loadedObjectsIdentityRef.current?.targetId !== targetId ||
+      loadedObjectsIdentityRef.current?.database !== effectiveDb;
+
+    // Identity transition: drop the prior identity's objects immediately so a
+    // slow response can never surface suggestions from the wrong context.
+    if (objectIdentityChanged) {
+      setLoadedObjects([]);
+      setMetadataError(false);
+    }
+    if (targetChanged) {
+      setLoadedDatabases([]);
+      setMetadataError(false);
+      defaultDatabaseRef.current = null;
+    }
+
+    const isStale = (): boolean =>
+      controller.signal.aborted || generation !== metadataGenerationRef.current;
+
+    const loadObjects = (database: string): void => {
+      void getSchemaObjects(targetId, { database, page: 1, pageSize: 500, signal: controller.signal }).then(
+        (response) => {
+          if (isStale()) return;
+          setLoadedObjects(response.items);
+          loadedObjectsIdentityRef.current = { targetId, database };
+        },
+        () => {
+          if (!isStale()) setMetadataError(true);
+        },
+      );
+    };
+
+    const applyDefaultToNullWorksheets = (defaultDb: string | null): void => {
+      if (!defaultDb) return;
+      setWorksheets((previous) =>
+        previous.map((worksheet) =>
+          worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
+            ? { ...worksheet, activeDatabase: defaultDb }
+            : worksheet,
+        ),
+      );
+    };
+
+    if (targetChanged) {
+      // First load for this target: fetch the target-scoped database list once.
+      dbListLoadedTargetRef.current = targetId;
+      void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
+        (response) => {
+          if (isStale()) return;
+          setLoadedDatabases(response.items.map((db) => db.name));
+          defaultDatabaseRef.current = response.defaultDatabase;
+          if (effectiveDb !== null) {
+            loadObjects(effectiveDb);
+          } else if (response.defaultDatabase) {
+            // Apply the server-selected default without issuing another
+            // database-list request; object loading runs on the re-run for the
+            // new identity.
+            applyDefaultToNullWorksheets(response.defaultDatabase);
+          }
+          // A null default leaves worksheets null: database-name completion
+          // stays available while object completion waits for an explicit
+          // selection.
+        },
+        () => {
+          dbListLoadedTargetRef.current = null;
+          if (!isStale()) setMetadataError(true);
+        },
+      );
+    } else if (effectiveDb !== null && objectIdentityChanged) {
+      // Database or worksheet switch within an already-loaded target: share the
+      // database list and reload only this identity's objects.
+      loadObjects(effectiveDb);
+    }
+
+    // A worksheet without a database adopts the target's stored default without
+    // another database-list request, so sibling worksheets share the metadata.
+    if (activeDb === null && defaultDatabaseRef.current !== null) {
+      applyDefaultToNullWorksheets(defaultDatabaseRef.current);
+    }
+
     return () => controller.abort();
-  }, [activeWorksheet.activeDatabase, activeWorksheet.id, activeWorksheet.targetResourceId, worksheetTarget.availableActions.run]);
+  }, [
+    activeWorksheet.targetResourceId,
+    activeWorksheet.activeDatabase,
+    metadataRetryKey,
+    worksheetTarget.availableActions.run,
+  ]);
+
+  function retryMetadata() {
+    // Retry reloads databases and objects together for the current identity.
+    dbListLoadedTargetRef.current = null;
+    loadedObjectsIdentityRef.current = null;
+    defaultDatabaseRef.current = null;
+    setMetadataRetryKey((key) => key + 1);
+  }
 
   useEffect(() => {
     onActiveDatabaseChange?.(activeWorksheet.activeDatabase);
   }, [activeWorksheet.activeDatabase, onActiveDatabaseChange]);
-
-  // Fetch databases and objects for schema-aware completion.
-  // This is the single source of truth for the worksheet's schema metadata.
-  useEffect(() => {
-    const targetId = activeWorksheet.targetResourceId;
-    const activeDb = activeWorksheet.activeDatabase;
-    if (!worksheetTarget.availableActions.run || !activeDb) return;
-
-    const controller = new AbortController();
-
-    void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
-      (response) => {
-        if (controller.signal.aborted) return;
-        setLoadedDatabases(response.items.map((db) => db.name));
-      },
-      () => undefined,
-    );
-
-    void getSchemaObjects(targetId, { database: activeDb, page: 1, pageSize: 500, signal: controller.signal }).then(
-      (response) => {
-        if (controller.signal.aborted) return;
-        setLoadedObjects(response.items);
-      },
-      () => undefined,
-    );
-
-    return () => controller.abort();
-  }, [activeWorksheet.targetResourceId, activeWorksheet.activeDatabase, worksheetTarget.availableActions.run]);
 
   const templateMode = activeWorksheet.templateStatementId !== null;
   const templateValuesReady =
@@ -1652,6 +1746,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               activeDatabase={activeWorksheet.activeDatabase}
               loadedDatabases={loadedDatabases}
               loadedObjects={loadedObjects}
+              metadataError={metadataError}
+              onRetryMetadata={retryMetadata}
               previewProvenance={activeWorksheet.previewProvenance}
               relatedRecords={activeWorksheet.relatedRecords}
               onRelatedRecordsNavigate={handleRelatedRecordsNavigate}
@@ -1932,6 +2028,8 @@ function ReadyWorksheet({
   activeDatabase,
   loadedDatabases,
   loadedObjects,
+  metadataError,
+  onRetryMetadata,
   previewProvenance,
   relatedRecords,
   onRelatedRecordsNavigate,
@@ -1976,6 +2074,8 @@ function ReadyWorksheet({
   activeDatabase: string | null;
   loadedDatabases: readonly string[];
   loadedObjects: readonly ObjectSummary[];
+  metadataError: boolean;
+  onRetryMetadata: () => void;
   previewProvenance: PreviewProvenance | null;
   relatedRecords: RelatedRecordsState;
   onRelatedRecordsNavigate: (foreignKey: string, localValues: readonly string[]) => void;
@@ -2086,6 +2186,24 @@ function ReadyWorksheet({
         <label className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {t("editor.statementLabel")}
         </label>
+        {metadataError ? (
+          <div
+            role="alert"
+            data-testid="metadata-warning"
+            className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <span>{t("editor.metadataWarning")}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onRetryMetadata}
+              aria-label={t("editor.metadataRetry")}
+            >
+              {t("editor.metadataRetry")}
+            </Button>
+          </div>
+        ) : null}
         <SqlCodeEditor
           key={worksheetId}
           value={statement}

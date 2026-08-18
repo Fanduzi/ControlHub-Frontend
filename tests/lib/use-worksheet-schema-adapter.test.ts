@@ -44,12 +44,16 @@ describe("useWorksheetSchemaAdapter", () => {
       expect(result.current.namespace).toBeUndefined();
     });
 
-    it("returns undefined when activeDatabase is missing", () => {
+    it("offers only database-name completion when no database is selected", () => {
       const store = new QuerySchemaStore();
       const { result } = renderHook(() =>
         useWorksheetSchemaAdapter(store, 1, undefined, ["mydb"], []),
       );
-      expect(result.current.namespace).toBeUndefined();
+      expect(result.current.namespace).toBeDefined();
+      expect(result.current.namespace!.databases).toEqual(["mydb"]);
+      // Object and column suggestions wait for an explicit database selection.
+      expect(result.current.namespace!.tables).toEqual([]);
+      expect(result.current.namespace!.loadedColumns).toEqual({});
     });
 
     it("builds namespace from loaded objects", () => {

@@ -1121,7 +1121,9 @@
       "format": "Format",
       "formatError": "SQL formatting failed. Check the statement syntax and try again.",
       "resizeEditor": "Resize SQL editor",
-      "explainReady": "Explain"
+      "explainReady": "Explain",
+      "metadataWarning": "Schema metadata is unavailable. Completion is limited to keywords.",
+      "metadataRetry": "Retry metadata"
     },
     "actions": {
       "run": "Run locked",
