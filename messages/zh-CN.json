@@ -1443,6 +1443,7 @@
       "createShared": "保存为共享",
       "loading": "加载中…",
       "empty": "暂无已保存的查询。",
+      "retry": "重试",
       "sharedBadge": "共享",
       "parameterizedBadge": "参数化",
       "parameterValueAriaLabel": "{name} 参数值",
@@ -1497,6 +1498,9 @@
       "templateValueOversized": "值超出最大大小限制",
       "templateValueUnknown": "未知参数",
       "error": {
+        "forbidden": "此目标的已保存语句不可用。",
+        "not_found": "此已保存语句上下文已不可用。",
+        "retryable": "加载已保存的语句失败。",
         "loadFailed": "加载已保存的语句失败。",
         "validationFailed": "名称或语句无效。请检查表单后重试。",
         "createFailed": "创建已保存语句失败。",

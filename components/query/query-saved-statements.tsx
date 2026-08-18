@@ -1,5 +1,5 @@
 // input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
-// output: QuerySavedStatements component (list, create, edit, delete saved statements; shared-template affordance gate)
+// output: QuerySavedStatements component (terminal list generations, create/edit/delete, shared-template affordance gate)
 // pos: UI component for managing saved query statements within the query workbench
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -82,7 +82,7 @@ type QuerySavedStatementsProps = {
 type SavedStatementsState = {
   status: "idle" | "loading" | "ready" | "error";
   items: QuerySavedStatementRecord[];
-  error?: string;
+  error?: "forbidden" | "not_found" | "retryable";
   canManageSharedTemplates: boolean;
   page: number;
   totalPages: number;
@@ -124,6 +124,13 @@ export function QuerySavedStatements({
   const [searchDebounced, setSearchDebounced] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
+  const activeTargetRef = useRef(targetResourceId);
+  const targetGenerationRef = useRef(0);
+  const previousTargetRef = useRef(targetResourceId);
+  if (activeTargetRef.current !== targetResourceId) {
+    activeTargetRef.current = targetResourceId;
+    targetGenerationRef.current += 1;
+  }
 
   // Debounce search
   useEffect(() => {
@@ -135,6 +142,8 @@ export function QuerySavedStatements({
   const fetchStatements = useCallback(
     async (page: number = 1) => {
       const generation = ++generationRef.current;
+      const requestTarget = targetResourceId;
+      const requestTargetGeneration = targetGenerationRef.current;
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -148,7 +157,11 @@ export function QuerySavedStatements({
           signal: controller.signal,
         });
 
-        if (generationRef.current !== generation) return;
+        if (
+          generationRef.current !== generation ||
+          activeTargetRef.current !== requestTarget ||
+          targetGenerationRef.current !== requestTargetGeneration
+        ) return;
 
         setState({
           status: "ready",
@@ -158,25 +171,29 @@ export function QuerySavedStatements({
           totalPages: response.pageInfo.totalPages,
         });
       } catch (error) {
-        if (generationRef.current !== generation) return;
         if (
-          error instanceof SavedStatementError &&
-          error.code === "internal_error"
-        ) {
-          setState((prev) => ({
-            ...prev,
-            status: "error",
-            error: t("error.loadFailed"),
-          }));
-        }
+          generationRef.current !== generation ||
+          activeTargetRef.current !== requestTarget ||
+          targetGenerationRef.current !== requestTargetGeneration
+        ) return;
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          items: [],
+          error:
+            error instanceof SavedStatementError && error.code === "forbidden"
+              ? "forbidden"
+              : error instanceof SavedStatementError && error.code === "not_found"
+                ? "not_found"
+                : "retryable",
+        }));
       }
     },
-    [targetResourceId, searchDebounced, t],
+    [targetResourceId, searchDebounced],
   );
 
   // Fetch on mount and search change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchStatements(1);
     return () => abortRef.current?.abort();
   }, [fetchStatements]);
@@ -231,18 +248,28 @@ export function QuerySavedStatements({
   );
 
   const handleCreateSubmit = useCallback(async () => {
+    const requestTarget = targetResourceId;
+    const requestTargetGeneration = targetGenerationRef.current;
     setCreateError(null);
     try {
-      await createSavedStatement(targetResourceId, {
+      await createSavedStatement(requestTarget, {
         name: createName.trim(),
         statement: createStatement.trim(),
         scope: createDialog.scope,
         parameters: createParameters,
       });
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       setCreateDialog((prev) => ({ ...prev, open: false }));
       restoreFocus(createDialog.triggerRef);
       void fetchStatements(1);
     } catch (error) {
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       if (error instanceof SavedStatementError) {
         setCreateError(
           error.code === "validation_failed"
@@ -269,13 +296,23 @@ export function QuerySavedStatements({
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
   const handleDelete = useCallback(async () => {
     if (!deleteDialog) return;
+    const requestTarget = targetResourceId;
+    const requestTargetGeneration = targetGenerationRef.current;
     try {
-      await deleteSavedStatement(targetResourceId, deleteDialog.item.id);
+      await deleteSavedStatement(requestTarget, deleteDialog.item.id);
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       const triggerRef = deleteDialog.triggerRef;
       setDeleteDialog(null);
       restoreFocus(triggerRef);
       void fetchStatements(state.page);
     } catch {
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       // Controlled error
     }
   }, [deleteDialog, targetResourceId, fetchStatements, state.page, restoreFocus]);
@@ -286,6 +323,26 @@ export function QuerySavedStatements({
   const [editStatement, setEditStatement] = useState("");
   const [editParameters, setEditParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (previousTargetRef.current === targetResourceId) return;
+    previousTargetRef.current = targetResourceId;
+    setSearch("");
+    setSearchDebounced("");
+    setState({
+      status: "loading",
+      items: [],
+      canManageSharedTemplates: false,
+      page: 1,
+      totalPages: 1,
+    });
+    setCreateDialog((prev) => ({ ...prev, open: false }));
+    setCreateError(null);
+    setDeleteDialog(null);
+    setEditDialog(null);
+    setEditError(null);
+  }, [targetResourceId]);
+
   const editHasDeclarationErrors = hasDeclarationErrors(editParameters);
   const editSubmitDisabled = editHasDeclarationErrors || editName.trim().length === 0;
 
@@ -315,18 +372,28 @@ export function QuerySavedStatements({
 
   const handleEditSave = useCallback(async () => {
     if (!editDialog) return;
+    const requestTarget = targetResourceId;
+    const requestTargetGeneration = targetGenerationRef.current;
     setEditError(null);
     try {
-      await updateSavedStatement(targetResourceId, editDialog.item.id, {
+      await updateSavedStatement(requestTarget, editDialog.item.id, {
         name: editName.trim(),
         statement: editStatement.trim(),
         parameters: editParameters,
       });
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       const triggerRef = editDialog.triggerRef;
       setEditDialog(null);
       restoreFocus(triggerRef);
       void fetchStatements(state.page);
     } catch (error) {
+      if (
+        activeTargetRef.current !== requestTarget ||
+        targetGenerationRef.current !== requestTargetGeneration
+      ) return;
       if (error instanceof SavedStatementError) {
         setEditError(
           error.code === "validation_failed"
@@ -354,8 +421,8 @@ export function QuerySavedStatements({
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t("searchPlaceholder")}
@@ -365,10 +432,12 @@ export function QuerySavedStatements({
             aria-label={t("searchAriaLabel")}
           />
         </div>
+        <div className="flex flex-wrap items-center gap-2">
         <Button
           ref={createPersonalRef}
           variant="outline"
           size="sm"
+          disabled={state.status !== "ready"}
           onClick={() => handleCreateOpen("personal", createPersonalRef)}
           aria-label={t("createPersonalAriaLabel")}
         >
@@ -380,6 +449,7 @@ export function QuerySavedStatements({
             ref={createSharedRef}
             variant="outline"
             size="sm"
+            disabled={state.status !== "ready"}
             onClick={() =>
               handleCreateOpen("shared_template", createSharedRef)
             }
@@ -389,31 +459,45 @@ export function QuerySavedStatements({
             {t("createShared")}
           </Button>
         )}
+        </div>
       </div>
 
       {/* Content */}
       {state.status === "loading" && (
-        <div className="flex items-center justify-center p-4">
+        <div className="flex items-center justify-center p-4" role="status" aria-live="polite">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="ml-2">{t("loading")}</span>
         </div>
       )}
 
       {state.status === "error" && (
-        <div className="p-4 text-sm text-destructive">{state.error}</div>
+        <div className="p-4 text-sm text-destructive" role="alert">
+          {t(`error.${state.error}`)}
+          {state.error === "retryable" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2"
+              onClick={() => void fetchStatements(state.page)}
+            >
+              {t("retry")}
+            </Button>
+          )}
+        </div>
       )}
 
       {state.status === "ready" && state.items.length === 0 && (
         <div className="p-4 text-sm text-muted-foreground">{t("empty")}</div>
       )}
 
-      {state.status === "ready" && state.items.length > 0 && (
-        <div className="space-y-1">
+      {(state.status === "ready" || state.status === "loading") && state.items.length > 0 && (
+        <div className="space-y-1" aria-busy={state.status === "loading"}>
           {state.items.map((item) => (
             <SavedStatementRow
               key={item.id}
               item={item}
               canManageSharedTemplates={state.canManageSharedTemplates}
+              disabled={state.status === "loading"}
               onLoad={handleLoad}
               onEdit={handleEditOpen}
               onDelete={(item, triggerRef) =>
@@ -637,6 +721,7 @@ export function QuerySavedStatements({
 function SavedStatementRow({
   item,
   canManageSharedTemplates,
+  disabled,
   onLoad,
   onEdit,
   onDelete,
@@ -644,6 +729,7 @@ function SavedStatementRow({
 }: {
   item: QuerySavedStatementRecord;
   canManageSharedTemplates: boolean;
+  disabled: boolean;
   onLoad: (item: QuerySavedStatementRecord) => void;
   onEdit: (
     item: QuerySavedStatementRecord,
@@ -682,6 +768,7 @@ function SavedStatementRow({
         <Button
           variant="ghost"
           size="sm"
+          disabled={disabled}
           onClick={() => onLoad(item)}
           aria-label={t("loadAriaLabel", { name: item.name })}
         >
@@ -693,6 +780,7 @@ function SavedStatementRow({
               ref={editRef}
               variant="ghost"
               size="sm"
+              disabled={disabled}
               onClick={() => onEdit(item, editRef)}
               aria-label={t("editAriaLabel", { name: item.name })}
             >
@@ -702,6 +790,7 @@ function SavedStatementRow({
               ref={deleteRef}
               variant="ghost"
               size="sm"
+              disabled={disabled}
               onClick={() => onDelete(item, deleteRef)}
               aria-label={t("deleteAriaLabel", { name: item.name })}
             >

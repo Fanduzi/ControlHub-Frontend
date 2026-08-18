@@ -1,5 +1,5 @@
 // input: @testing-library/react, @/components/query/query-saved-statements, @/services/query-saved-statements (mocked)
-// output: Vitest component tests for QuerySavedStatements (CRUD, shared-template affordance gate, parameterized templates)
+// output: Vitest component tests for QuerySavedStatements (terminal list generations, CRUD, shared-template gate, templates)
 // pos: unit-level behavioral tests for the saved-statements UI component
 // note: if this file changes, update header and tests/components/README.md
 import { render, screen, waitFor } from "@testing-library/react";
@@ -52,6 +52,16 @@ function renderComponent(
       />
     </NextIntlClientProvider>,
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function emptyResponse(canManage = false) {
@@ -272,14 +282,168 @@ describe("QuerySavedStatements", () => {
     expect(screen.getByText("Create Shared")).toBeInTheDocument();
   });
 
-  it("shows error state on load failure", async () => {
+  it.each([
+    [403, "forbidden", "Saved statements are unavailable for this target."],
+    [404, "not_found", "This saved-statement context is no longer available."],
+  ] as const)("settles a %i response as a non-retryable controlled error", async (status, code, message) => {
     mockListSavedStatements.mockRejectedValue(
-      new SavedStatementError(500, "internal_error", "Server error"),
+      new SavedStatementError(status, code, "raw server detail"),
     );
     renderComponent();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryByText("raw server detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("settles a transient failure with an accessible Retry action", async () => {
+    mockListSavedStatements
+      .mockRejectedValueOnce(new SavedStatementError(500, "internal_error", "Server error"))
+      .mockResolvedValueOnce(emptyResponse());
+    const user = userEvent.setup();
+    renderComponent();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load saved statements.");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("No saved queries yet.")).toBeInTheDocument();
+    expect(mockListSavedStatements).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains same-target rows during refresh but disables mutations and hides them on failure", async () => {
+    const refresh = deferred<ReturnType<typeof singleItemResponse>>();
+    mockListSavedStatements
+      .mockResolvedValueOnce(singleItemResponse({ name: "Current row" }))
+      .mockReturnValueOnce(refresh.promise);
+    const user = userEvent.setup();
+    renderComponent();
+
+    expect(await screen.findByText("Current row")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Search saved statements" }), "new");
+    await waitFor(() => expect(mockListSavedStatements).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByText("Current row")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search saved statements" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /save current statement as personal/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /load current row/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /edit current row/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /delete current row/i })).toBeDisabled();
+
+    refresh.reject(new SavedStatementError(500, "internal_error", "raw"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load saved statements.");
+    expect(screen.queryByText("Current row")).not.toBeInTheDocument();
+  });
+
+  it("resets target-scoped search, rows, and dialogs when the target changes", async () => {
+    const nextTarget = deferred<ReturnType<typeof singleItemResponse>>();
+    mockListSavedStatements
+      .mockResolvedValueOnce(singleItemResponse({ name: "Old target row" }))
+      .mockReturnValue(nextTarget.promise);
+    const user = userEvent.setup();
+    const view = renderComponent();
+
+    expect(await screen.findByText("Old target row")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Search saved statements" }), "old search");
+    await user.click(screen.getByRole("button", { name: /save current statement as personal/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySavedStatements
+          targetResourceId={33}
+          currentStatement="SELECT 1"
+          onStatementLoad={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
     await waitFor(() => {
-      expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Search saved statements")).toHaveValue("");
+      expect(screen.queryByText("Old target row")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("ignores a mutation completion after an A-B-A target transition", async () => {
+    const create = deferred<Awaited<ReturnType<typeof createSavedStatement>>>();
+    const middleTarget = deferred<ReturnType<typeof singleItemResponse>>();
+    const currentTarget = deferred<ReturnType<typeof singleItemResponse>>();
+    mockListSavedStatements
+      .mockResolvedValueOnce(emptyResponse())
+      .mockReturnValueOnce(middleTarget.promise)
+      .mockReturnValueOnce(currentTarget.promise);
+    mockCreateSavedStatement.mockReturnValueOnce(create.promise);
+    const user = userEvent.setup();
+    const view = renderComponent();
+
+    expect(await screen.findByText("No saved queries yet.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save current statement as personal/i }));
+    await user.type(screen.getByLabelText("Statement name"), "Old target create");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySavedStatements
+          targetResourceId={33}
+          currentStatement="SELECT 1"
+          onStatementLoad={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => expect(mockListSavedStatements).toHaveBeenCalledTimes(2));
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySavedStatements
+          targetResourceId={22}
+          currentStatement="SELECT 1"
+          onStatementLoad={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => expect(mockListSavedStatements).toHaveBeenCalledTimes(3));
+
+    create.resolve({
+      id: 99,
+      targetResourceId: 22,
+      name: "Old target create",
+      statement: "SELECT 1",
+      scope: "personal",
+      parameters: [],
+      createdAt: "2026-08-18T00:00:00Z",
+      updatedAt: "2026-08-18T00:00:00Z",
+    });
+    currentTarget.resolve(singleItemResponse({ name: "Current target row" }));
+
+    expect(await screen.findByText("Current target row")).toBeInTheDocument();
+    expect(mockListSavedStatements).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores a late response from the previous target generation", async () => {
+    const oldTarget = deferred<ReturnType<typeof singleItemResponse>>();
+    const newTarget = deferred<ReturnType<typeof singleItemResponse>>();
+    mockListSavedStatements
+      .mockReturnValueOnce(oldTarget.promise)
+      .mockReturnValueOnce(newTarget.promise);
+    const view = renderComponent();
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySavedStatements
+          targetResourceId={33}
+          currentStatement="SELECT 1"
+          onStatementLoad={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => expect(mockListSavedStatements).toHaveBeenCalledTimes(2));
+
+    oldTarget.resolve(singleItemResponse({ name: "Late old row" }));
+    await Promise.resolve();
+    expect(screen.queryByText("Late old row")).not.toBeInTheDocument();
+
+    newTarget.resolve(singleItemResponse({ name: "Current target row" }));
+    expect(await screen.findByText("Current target row")).toBeInTheDocument();
   });
 
   it("opens create dialog and pre-fills current statement", async () => {

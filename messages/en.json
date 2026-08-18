@@ -1443,6 +1443,7 @@
       "createShared": "Create Shared",
       "loading": "Loading...",
       "empty": "No saved queries yet.",
+      "retry": "Retry",
       "sharedBadge": "Shared",
       "parameterizedBadge": "Parameterized",
       "parameterValueAriaLabel": "{name} value",
@@ -1497,6 +1498,9 @@
       "templateValueOversized": "Value exceeds the maximum size",
       "templateValueUnknown": "Unknown parameter",
       "error": {
+        "forbidden": "Saved statements are unavailable for this target.",
+        "not_found": "This saved-statement context is no longer available.",
+        "retryable": "Failed to load saved statements.",
         "loadFailed": "Failed to load saved statements.",
         "validationFailed": "The name or statement is invalid. Check the form and try again.",
         "createFailed": "Failed to create saved statement.",
