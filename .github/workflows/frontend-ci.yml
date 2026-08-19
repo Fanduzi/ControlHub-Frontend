@@ -325,6 +325,13 @@ jobs:
       - name: Run E2E preflight
         run: npm run check:e2e-preflight
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
