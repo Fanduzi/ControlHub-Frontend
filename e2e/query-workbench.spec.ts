@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance/disposal)
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -741,6 +741,198 @@ test.describe("Query Workbench shell", () => {
       (url) => !url.includes("localhost") || url.includes("/execute"),
     );
     expect(unexpectedRequests).toHaveLength(0);
+  });
+});
+
+// Phase 38X-4 (#44): schema completion metadata keyed to one active Schema
+// Metadata Identity (targetResourceId, database). The shell's completion load
+// is the only caller using pageSize=100, so a request filter on that value
+// isolates the shell's database-list / object requests from the lazy Objects
+// explorer (pageSize 25) and the Cmd/Ctrl+P navigator (pageSize 50).
+test.describe("Phase 38X-4: Schema Metadata Identity", () => {
+  const RUN = /^(run|执行)$/i;
+
+  /** Count matching same-origin API requests, resettable per load generation. */
+  function requestTracker(
+    page: Page,
+    predicate: (url: URL, method: string) => boolean,
+  ): { list: () => string[]; clear: () => void } {
+    const seen: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (predicate(url, request.method())) seen.push(request.url());
+    });
+    return {
+      list: () => seen,
+      clear: () => {
+        seen.length = 0;
+      },
+    };
+  }
+
+  test("desktop EN: one database-list request per load generation, reused on database selection", async ({ page }) => {
+    // Shell database-list requests (the only pageSize=100 caller).
+    const dbList = requestTracker(
+      page,
+      (url, method) =>
+        method === "GET" &&
+        url.pathname.endsWith("/schema/databases") &&
+        url.searchParams.get("pageSize") === "100",
+    );
+    // Shell object responses (pageSize=100 caller), keyed by database.
+    const shellObjectStatus: string[] = [];
+    page.on("response", (response) => {
+      const url = new URL(response.url());
+      if (
+        url.pathname.endsWith("/schema/objects") &&
+        url.searchParams.get("pageSize") === "100"
+      ) {
+        shellObjectStatus.push(`${response.status()}:${url.searchParams.get("database")}`);
+      }
+    });
+
+    await openQueryWorkbench(page);
+    await ensureReadyTargetSelected(page);
+    await expect(page.getByRole("button", { name: RUN })).toBeEnabled({ timeout: 15_000 });
+
+    // Count a fresh load generation for the already-selected ready target.
+    dbList.clear();
+    await page.reload();
+    await expect(page).toHaveURL(/\/query/);
+    await expect(page.getByRole("button", { name: RUN })).toBeEnabled({ timeout: 15_000 });
+
+    // Exactly one database-list request supplies default selection and
+    // database-name completions for this load generation.
+    await expect.poll(() => dbList.list().length).toBe(1);
+
+    // Null server default: the workbench waits for an explicit database choice
+    // instead of guessing, but the target-scoped database completion is ready.
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+P" : "Control+P");
+    const navigator = page.getByRole("dialog", { name: /quick navigator/i });
+    await expect(navigator).toBeVisible();
+    await navigator
+      .getByRole("textbox", { name: /search databases and objects/i })
+      .fill("query_e2e");
+    await expect(
+      navigator.getByRole("button", { name: "query_e2e", exact: true }),
+    ).toBeVisible();
+
+    // Explicit selection reuses the same database list (no duplicate request)
+    // and the shell's object completion load succeeds for that database.
+    await navigator.getByRole("button", { name: "query_e2e", exact: true }).click();
+    await expect.poll(() => dbList.list().length).toBe(1);
+    await expect
+      .poll(() =>
+        shellObjectStatus.some((s) => s === "200:query_e2e"),
+      )
+      .toBe(true);
+    // Dismiss the modal navigator (its database picker does not auto-close).
+    await page.keyboard.press("Escape");
+    await expect(navigator).toBeHidden();
+    // The metadata load did not fail, so no retry warning is shown and Run
+    // remains available (keyword-only degradation is proven at the component
+    // seam, not fabricated here).
+    await expect(page.getByTestId("metadata-warning")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: RUN })).toBeEnabled();
+  });
+
+  test("375px EN: schema completion available without horizontal overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "en",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+    await ensureReadyTargetSelected(page);
+    await expect(page.getByRole("button", { name: RUN })).toBeEnabled({ timeout: 15_000 });
+
+    // No horizontal scrollbar at the 375px viewport once the workbench renders
+    // (measured, not a CSS-class snapshot).
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Math.max(
+            0,
+            document.documentElement.scrollWidth -
+              document.documentElement.clientWidth,
+          ),
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+
+    // The mobile objects trigger is accessible and opens the schema browser
+    // sheet; schema metadata renders inside it without horizontal overflow.
+    const objectsTrigger = page.getByRole("button", { name: "Open objects", exact: true });
+    await expect(objectsTrigger).toBeVisible();
+    await objectsTrigger.click();
+    const sheet = page.getByRole("dialog", { name: "Schema browser" });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("treeitem").first()).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Math.max(
+            0,
+            document.documentElement.scrollWidth -
+              document.documentElement.clientWidth,
+          ),
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  });
+
+  test("desktop zh-CN: schema completion controls localized without overflow", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.context().addCookies([
+      {
+        name: "controlhub.locale",
+        value: "zh-CN",
+        domain: "localhost",
+        path: "/",
+      },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+
+    // Actively select a ready target under zh-CN (locale-stable EN triggers).
+    await ensureReadyTargetSelected(page);
+    await expect(page.getByRole("button", { name: RUN })).toBeEnabled({ timeout: 15_000 });
+
+    // Localized quick navigator lists the target-scoped databases (completion
+    // metadata is available and rendered with the zh-CN labels).
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+P" : "Control+P");
+    const navigator = page.getByRole("dialog", { name: /快速导航/ });
+    await expect(navigator).toBeVisible();
+    await navigator
+      .getByRole("textbox", { name: /搜索数据库和对象/ })
+      .fill("query_e2e");
+    await expect(
+      navigator.getByRole("button", { name: "query_e2e", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(navigator).toBeHidden();
+
+    // No horizontal overflow on desktop zh-CN with schema metadata rendered.
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Math.max(
+            0,
+            document.documentElement.scrollWidth -
+              document.documentElement.clientWidth,
+          ),
+        ),
+      )
+      .toBeLessThanOrEqual(1);
   });
 });
 

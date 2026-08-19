@@ -7,7 +7,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | Spec | Coverage |
 |------|----------|
 | operator-session.spec.ts | Console BFF boundary (38X-1C/38X-1D): BFF login seals HttpOnly Operator Session cookie; proxy forwards server-held credential; client Authorization and unsafe Origin rejected; logout (API + real UI) and forged/tampered/expired page gate; fail-closed UI sign-out under network failure; legacy controlhub.token alone rejected; desktop EN / 375px EN / desktop zh-CN coverage; no backend bearer in browser storage/DOM/readable cookies |
-| query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, explain, relationship map, shared-template affordance, shared template execution, disposal, 375/zh-CN session, no-leakage assertions, list pagination |
+| query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, explain, relationship map, shared-template affordance, shared template execution, disposal, schema metadata identity isolation (one database-list request per load generation, reuse on database selection, null-default behavior, 375/zh-CN no-overflow), 375/zh-CN session, no-leakage assertions, list pagination |
 | console-ux.spec.ts | Console layout and UX checks |
 | databases-sheet.spec.ts | Databases sheet interactions |
 | list-pagination.spec.ts | List pagination behavior |

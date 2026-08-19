@@ -937,7 +937,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       controller.signal.aborted || generation !== metadataGenerationRef.current;
 
     const loadObjects = (database: string): void => {
-      void getSchemaObjects(targetId, { database, page: 1, pageSize: 500, signal: controller.signal }).then(
+      void getSchemaObjects(targetId, { database, page: 1, pageSize: 100, signal: controller.signal }).then(
         (response) => {
           if (isStale()) return;
           setLoadedObjects(response.items);
@@ -962,13 +962,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
     if (targetChanged) {
       // First load for this target: fetch the target-scoped database list once.
-      // dbListLoadedTargetRef is committed only on success so a database change
-      // during the in-flight fetch re-issues the list for the new identity
-      // instead of silently dropping database-name completion.
+      // The ref is claimed at fetch start so re-runs during the same load
+      // generation (e.g. rapid mount effects) do not issue duplicate requests.
+      dbListLoadedTargetRef.current = targetId;
       void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
         (response) => {
           if (isStale()) return;
-          dbListLoadedTargetRef.current = targetId;
           setLoadedDatabases(response.items.map((db) => db.name));
           defaultDatabaseRef.current = response.defaultDatabase;
           if (effectiveDb !== null) {
@@ -984,8 +983,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           // selection.
         },
         () => {
-          dbListLoadedTargetRef.current = null;
-          if (!isStale()) setMetadataError(true);
+          // A real failure (not a superseded-abort, which is the normal
+          // dedupe/cleanup path) releases the claim so Retry re-issues the
+          // list; a stale abort must not null the ref and cause a refetch.
+          if (!isStale()) {
+            dbListLoadedTargetRef.current = null;
+            setMetadataError(true);
+          }
         },
       );
     } else if (effectiveDb !== null && objectIdentityChanged) {
