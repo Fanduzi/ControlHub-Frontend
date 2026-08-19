@@ -41,7 +41,11 @@ jobs:
   release-e2e:
     name: release-e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The full real-Chromium suite needs ~23-25 min on shared runners (prior
+    # green runs took ~23 min at a 25-min cap). 45 min gives headroom for
+    # Playwright-browser download stalls and runner contention without masking
+    # any test result.
+    timeout-minutes: 45
     services:
       mysql:
         image: mysql:8.0
