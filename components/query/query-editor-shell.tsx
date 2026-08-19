@@ -344,8 +344,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   // identity share metadata without duplicate ownership.
   const loadedObjectsIdentityRef = useRef<{ targetId: number; database: string } | null>(null);
   // Target whose database list is loaded (target-scoped, one request per load
-  // generation) and the server-selected default for that target.
+  // generation) and the server-selected default for that target. The list keeps
+  // its own controller so a database-only change while it is in flight neither
+  // drops the response (the list is valid for the whole target) nor re-issues a
+  // duplicate request.
   const dbListLoadedTargetRef = useRef<number | null>(null);
+  const dbListControllerRef = useRef<AbortController | null>(null);
   const defaultDatabaseRef = useRef<string | null>(null);
   const [retargetDialog, setRetargetDialog] = useState<{
     open: boolean;
@@ -885,6 +889,65 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
 
+  // Apply the server-selected default to every current-identity worksheet that
+  // still awaits a database, without issuing another database-list request.
+  const applyDefaultToNullWorksheets = useCallback((targetId: number, defaultDb: string | null): void => {
+    if (!defaultDb) return;
+    setWorksheets((previous) =>
+      previous.map((worksheet) =>
+        worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
+          ? { ...worksheet, activeDatabase: defaultDb }
+          : worksheet,
+      ),
+    );
+  }, []);
+
+  // Fetch the target-scoped database list at most once per target, surviving
+  // effect cleanups caused by database-only changes. One database-list request
+  // supplies both the server-selected default and the database-name
+  // completions; a null default leaves worksheets null so object completion
+  // waits for an explicit selection. The claim is released only on a real
+  // failure (not a superseded abort) so Retry can re-issue the list.
+  const ensureDbListForTarget = useCallback((targetId: number): void => {
+    if (
+      dbListLoadedTargetRef.current === targetId &&
+      dbListControllerRef.current &&
+      !dbListControllerRef.current.signal.aborted
+    ) {
+      return; // already claimed (loaded or in flight) for this target
+    }
+
+    dbListControllerRef.current?.abort();
+    dbListLoadedTargetRef.current = targetId;
+    const controller = new AbortController();
+    dbListControllerRef.current = controller;
+
+    void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
+      (response) => {
+        if (controller.signal.aborted || dbListLoadedTargetRef.current !== targetId) return;
+        setLoadedDatabases(response.items.map((db) => db.name));
+        defaultDatabaseRef.current = response.defaultDatabase;
+        if (response.defaultDatabase && dbListControllerRef.current === controller) {
+          applyDefaultToNullWorksheets(targetId, response.defaultDatabase);
+        }
+        // A null default leaves worksheets null: database-name completion
+        // stays available while object completion waits for an explicit
+        // selection.
+      },
+      () => {
+        // A real failure (not a superseded abort, which is the normal
+        // dedupe/cleanup path) releases the claim so Retry re-issues the list.
+        if (!controller.signal.aborted) {
+          dbListLoadedTargetRef.current = null;
+          if (dbListControllerRef.current === controller) {
+            dbListControllerRef.current = null;
+          }
+          setMetadataError(true);
+        }
+      },
+    );
+  }, [applyDefaultToNullWorksheets]);
+
   // Own schema completion metadata by one active Schema Metadata Identity
   // (targetResourceId, database). One database-list request supplies both the
   // server-selected default and the available-database completions. Changing
@@ -897,6 +960,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const controller = new AbortController();
 
     if (!worksheetTarget.availableActions.run) {
+      dbListControllerRef.current?.abort();
+      dbListControllerRef.current = null;
       setLoadedObjects([]);
       setLoadedDatabases([]);
       loadedObjectsIdentityRef.current = null;
@@ -944,76 +1009,47 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           loadedObjectsIdentityRef.current = { targetId, database };
         },
         () => {
-          if (!isStale()) setMetadataError(true);
-        },
-      );
-    };
-
-    const applyDefaultToNullWorksheets = (defaultDb: string | null): void => {
-      if (!defaultDb) return;
-      setWorksheets((previous) =>
-        previous.map((worksheet) =>
-          worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
-            ? { ...worksheet, activeDatabase: defaultDb }
-            : worksheet,
-        ),
-      );
-    };
-
-    if (targetChanged) {
-      // First load for this target: fetch the target-scoped database list once.
-      // The ref is claimed at fetch start so re-runs during the same load
-      // generation (e.g. rapid mount effects) do not issue duplicate requests.
-      dbListLoadedTargetRef.current = targetId;
-      void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
-        (response) => {
-          if (isStale()) return;
-          setLoadedDatabases(response.items.map((db) => db.name));
-          defaultDatabaseRef.current = response.defaultDatabase;
-          if (effectiveDb !== null) {
-            loadObjects(effectiveDb);
-          } else if (response.defaultDatabase) {
-            // Apply the server-selected default without issuing another
-            // database-list request; object loading runs on the re-run for the
-            // new identity.
-            applyDefaultToNullWorksheets(response.defaultDatabase);
-          }
-          // A null default leaves worksheets null: database-name completion
-          // stays available while object completion waits for an explicit
-          // selection.
-        },
-        () => {
-          // A real failure (not a superseded-abort, which is the normal
-          // dedupe/cleanup path) releases the claim so Retry re-issues the
-          // list; a stale abort must not null the ref and cause a refetch.
+          // A database- or object-list failure clears schema-derived
+          // completions for the identity and keeps only keyword completion,
+          // matching the warning shown to the operator.
           if (!isStale()) {
-            dbListLoadedTargetRef.current = null;
+            setLoadedObjects([]);
+            setLoadedDatabases([]);
+            loadedObjectsIdentityRef.current = null;
             setMetadataError(true);
           }
         },
       );
-    } else if (effectiveDb !== null && objectIdentityChanged) {
+    };
+
+    ensureDbListForTarget(targetId);
+
+    if (effectiveDb !== null && objectIdentityChanged) {
       // Database or worksheet switch within an already-loaded target: share the
       // database list and reload only this identity's objects.
       loadObjects(effectiveDb);
-    }
-
-    // A worksheet without a database adopts the target's stored default without
-    // another database-list request, so sibling worksheets share the metadata.
-    if (activeDb === null && defaultDatabaseRef.current !== null) {
-      applyDefaultToNullWorksheets(defaultDatabaseRef.current);
+    } else if (
+      activeDb === null &&
+      defaultDatabaseRef.current !== null &&
+      dbListLoadedTargetRef.current === targetId
+    ) {
+      applyDefaultToNullWorksheets(targetId, defaultDatabaseRef.current);
     }
 
     return () => controller.abort();
   }, [
     activeWorksheet.targetResourceId,
     activeWorksheet.activeDatabase,
+    ensureDbListForTarget,
+    applyDefaultToNullWorksheets,
     metadataRetryKey,
     worksheetTarget.availableActions.run,
   ]);
 
   function retryMetadata() {
     // Retry reloads databases and objects together for the current identity.
+    dbListControllerRef.current?.abort();
+    dbListControllerRef.current = null;
     dbListLoadedTargetRef.current = null;
     loadedObjectsIdentityRef.current = null;
     defaultDatabaseRef.current = null;

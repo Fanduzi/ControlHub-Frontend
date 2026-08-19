@@ -4,7 +4,7 @@
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
 import { NextIntlClientProvider } from "next-intl";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryResultColumn } from "@/types/query-execution";
@@ -2444,7 +2444,11 @@ describe("Phase 38W-3: template execution through the governed route", () => {
       });
       mockGetSchemaObjects.mockClear();
       resolveStale(dbList("staleDb", ["staleDb"]));
-      await new Promise((r) => setTimeout(r, 20));
+      // Flush the resolution deterministically (no wall-clock sleep) so the
+      // stale callback runs and is rejected before we assert.
+      await act(async () => {
+        await Promise.resolve();
+      });
       // The stale response must not trigger any object fetch for a prior identity.
       expect(mockGetSchemaObjects).not.toHaveBeenCalled();
     });
@@ -2488,6 +2492,47 @@ describe("Phase 38W-3: template execution through the governed route", () => {
         expect(mockGetSchemaObjects).toHaveBeenCalledWith(30, expect.objectContaining({ database: "otherdb" }));
       });
       expect(mockGetSchemaDatabases).not.toHaveBeenCalled();
+    });
+
+    it("reuses a target-scoped database list when a database is selected mid-flight", async () => {
+      const user = userEvent.setup();
+      // The shell's database-list request stays pending (deferred) while the
+      // user selects a database. The database list is target-scoped, so the
+      // claim must survive the database-only re-run without being re-issued.
+      let resolveDbList!: (value: unknown) => void;
+      mockGetSchemaDatabases
+        .mockReturnValueOnce(
+          new Promise<unknown>((resolve) => { resolveDbList = resolve; }) as ReturnType<typeof getSchemaDatabases>,
+        )
+        .mockResolvedValue(dbList(null, ["otherdb", "appdb"]));
+      mockGetSchemaObjects.mockResolvedValue(objects("otherdb"));
+      renderReady();
+
+      // The shell (pageSize=100) issued its one database-list request.
+      const shellDbListCalls = () =>
+        mockGetSchemaDatabases.mock.calls.filter(([, params]) => params?.pageSize === 100).length;
+      expect(shellDbListCalls()).toBe(1);
+
+      // Select a database through the quick navigator while that request is
+      // still in flight (the navigator's own fetch uses pageSize=50).
+      fireEvent.keyDown(window, { key: "p", metaKey: true });
+      const dialog = await screen.findByRole("dialog", { name: /quick navigator/i });
+      await user.click(await within(dialog).findByRole("button", { name: "otherdb" }));
+      await waitFor(() => {
+        expect(mockGetSchemaObjects).toHaveBeenCalledWith(30, expect.objectContaining({ database: "otherdb" }));
+      });
+      // The identity switch loaded the selected database's objects without a
+      // second database-list request for the same target.
+      expect(shellDbListCalls()).toBe(1);
+
+      // The in-flight database-list response still lands for the target (it is
+      // target-scoped) instead of being dropped by the database-only re-run,
+      // and it must not trigger a duplicate request once settled.
+      resolveDbList(dbList(null, ["otherdb", "appdb"]));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(shellDbListCalls()).toBe(1);
     });
   });
 });
