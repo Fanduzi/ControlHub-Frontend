@@ -332,8 +332,11 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
+      # ubuntu-latest already ships Chromium's OS dependencies; --with-deps only
+      # runs an apt-get update that flakily hangs on Azure Ubuntu mirrors and
+      # cancelled the job before any E2E test ran. Install the browser alone.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run frontend E2E release gates
         env:
