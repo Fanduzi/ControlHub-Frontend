@@ -1,3 +1,7 @@
+// input: @testing-library/react, @/components/query/query-workbench, mocked query services
+// output: QueryWorkbench integration tests including synchronized asynchronous select interactions
+// pos: component-level behavioral coverage for the complete query workbench
+// note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -3860,7 +3864,7 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
 
     const statusSelect = screen.getByRole("combobox", { name: /status/i });
     await user.click(statusSelect);
-    await user.click(screen.getByRole("option", { name: /failed/i }));
+    await user.click(await screen.findByRole("option", { name: /failed/i }));
 
     await user.click(screen.getByRole("button", { name: /apply/i }));
 
