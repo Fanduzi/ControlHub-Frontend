@@ -1467,6 +1467,9 @@
       "scopeImmutable": "(cannot be changed)",
       "cancel": "Cancel",
       "confirmDelete": "Delete",
+      "deleting": "Deleting…",
+      "deleted": "{name} deleted.",
+      "noLongerExists": "{name} is no longer available.",
       "save": "Save",
       "create": "Create",
       "createPersonalTitle": "Save as personal query",
@@ -1504,7 +1507,9 @@
         "loadFailed": "Failed to load saved statements.",
         "validationFailed": "The name or statement is invalid. Check the form and try again.",
         "createFailed": "Failed to create saved statement.",
-        "updateFailed": "Failed to update saved statement."
+        "updateFailed": "Failed to update saved statement.",
+        "deleteForbidden": "You don't have permission to delete this saved statement.",
+        "deleteRetryable": "Deletion failed. Retry, or cancel."
       }
     }
   },

@@ -1467,6 +1467,9 @@
       "scopeImmutable": "（无法更改）",
       "cancel": "取消",
       "confirmDelete": "删除",
+      "deleting": "删除中…",
+      "deleted": "{name} 已删除。",
+      "noLongerExists": "{name} 已不可用。",
       "save": "保存",
       "create": "创建",
       "createPersonalTitle": "保存为个人查询",
@@ -1504,7 +1507,9 @@
         "loadFailed": "加载已保存的语句失败。",
         "validationFailed": "名称或语句无效。请检查表单后重试。",
         "createFailed": "创建已保存语句失败。",
-        "updateFailed": "更新已保存语句失败。"
+        "updateFailed": "更新已保存语句失败。",
+        "deleteForbidden": "你没有删除此已保存语句的权限。",
+        "deleteRetryable": "删除失败。请重试，或取消。"
       }
     }
   },

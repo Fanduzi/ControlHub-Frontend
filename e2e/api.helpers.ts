@@ -82,7 +82,7 @@ export async function getAuthToken(role: FixtureRole = "admin"): Promise<string>
 
 // ── Generic authenticated fetch ──────────────────────────────────────
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   init: RequestInit & { token: string },
 ): Promise<T> {

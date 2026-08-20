@@ -6,7 +6,7 @@ import { expect, test, type Page, type Request as PlaywrightRequest } from "@pla
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
 import { resolveFixtureIdentity } from "./harness/fixtures";
-import { getAuthToken } from "./api.helpers";
+import { getAuthToken, apiFetch } from "./api.helpers";
 import {
   assertClean,
   collectConsoleMessages,
@@ -3490,6 +3490,188 @@ test.describe("Saved statements (Phase 38R)", () => {
 
   test("desktop zh-CN: parameterized personal template loads typed form", async ({ page }) => {
     await exerciseParameterizedTemplateLoad(page, { locale: "zh-CN" });
+  });
+
+  // ─── Phase 38X-4C: terminal delete state machine (Issue #43) ─────────
+
+  /**
+   * Create a saved statement through the real UI and return its id + target
+   * from the real create API response. No mocks, no route bypass.
+   */
+  async function createSavedStatementViaUi(
+    page: Page,
+    locale: "en" | "zh-CN",
+    name: string,
+  ): Promise<{ id: number; targetResourceId: number }> {
+    await page
+      .getByRole("button", {
+        name:
+          locale === "en"
+            ? /Save current statement as personal/i
+            : /将当前语句保存为个人查询/,
+      })
+      .first()
+      .click();
+    await fillSaveDialog(page, name, "SELECT 1");
+    const createResponse = page.waitForResponse(
+      (resp) =>
+        resp.request().method() === "POST" &&
+        /saved-statements$/.test(resp.url()) &&
+        resp.status() === 200,
+    );
+    await page
+      .getByRole("button", { name: locale === "en" ? /^create$/i : /^创建$/ })
+      .first()
+      .click();
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
+    const created = (await (await createResponse).json()) as {
+      id: number;
+      targetResourceId: number;
+    };
+    return { id: created.id, targetResourceId: created.targetResourceId };
+  }
+
+  test("desktop EN: deleting an already-removed saved statement closes the dialog, refreshes, and announces absence", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const name = `Gone ${suffix}`;
+    const { id, targetResourceId } = await createSavedStatementViaUi(page, "en", name);
+    const token = await getAuthToken("admin");
+    // Remove it through the real API so the next UI delete hits 404.
+    await apiFetch(`/query-targets/${targetResourceId}/saved-statements/${id}`, {
+      method: "DELETE",
+      token,
+    });
+
+    // The stale row is still shown; its delete must now resolve to 404.
+    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    await page.getByRole("button", { name: `Delete ${name}` }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
+    await dialog.first().getByRole("button", { name: /^delete$/i }).click();
+
+    // Dialog closes, list refreshes, row is gone, and the announcement is
+    // absence (never a success claim).
+    await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
+    ).toBeAttached();
+  });
+
+  test("375px EN: deleting an already-removed saved statement announces absence without success", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const name = `Gone ${suffix}`;
+    const { id, targetResourceId } = await createSavedStatementViaUi(page, "en", name);
+    const token = await getAuthToken("admin");
+    await apiFetch(`/query-targets/${targetResourceId}/saved-statements/${id}`, {
+      method: "DELETE",
+      token,
+    });
+
+    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    await page.getByRole("button", { name: `Delete ${name}` }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
+    await dialog.first().getByRole("button", { name: /^delete$/i }).click();
+
+    await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
+    ).toBeAttached();
+  });
+
+  test("desktop zh-CN: deleting an already-removed saved statement announces absence in Chinese", async ({
+    page,
+  }) => {
+    await page.context().addCookies([
+      { name: "controlhub.locale", value: "zh-CN", domain: "localhost", path: "/" },
+    ]);
+    await loginViaUI(page);
+    await page.goto("/query");
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    await page.getByRole("tab", { name: /已保存脚本/i }).click();
+    await expect(page.getByText(/暂无已保存的查询|加载中/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const name = `已删 ${suffix}`;
+    const { id, targetResourceId } = await createSavedStatementViaUi(page, "zh-CN", name);
+    const token = await getAuthToken("admin");
+    await apiFetch(`/query-targets/${targetResourceId}/saved-statements/${id}`, {
+      method: "DELETE",
+      token,
+    });
+
+    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    await page.getByRole("button", { name: `删除 ${name}` }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
+    await dialog.first().getByRole("button", { name: /^删除$/i }).click();
+
+    await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: /已不可用/ }).first(),
+    ).toBeAttached();
+  });
+
+  test("375px EN: saved sheets search occupies its own row with no horizontal overflow", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const search = page.getByRole("textbox", { name: /search saved statements/i }).first();
+    const create = page
+      .getByRole("button", { name: /Save current statement as personal/i })
+      .first();
+    const searchBox = await search.boundingBox();
+    const createBox = await create.boundingBox();
+    expect(searchBox).not.toBeNull();
+    expect(createBox).not.toBeNull();
+    // Search occupies its own row: the create action sits fully below it.
+    expect(createBox!.y).toBeGreaterThanOrEqual(
+      (searchBox!.y ?? 0) + (searchBox!.height ?? 0) - 1,
+    );
+    // No horizontal overflow on the page at 375px.
+    const overflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 });
 

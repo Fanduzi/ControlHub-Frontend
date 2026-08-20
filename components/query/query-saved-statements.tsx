@@ -103,6 +103,10 @@ type EditDialogState = {
 type DeleteDialogState = {
   item: QuerySavedStatementRecord;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  /** True while a delete request is in flight: blocks dismissal and resubmit. */
+  pending: boolean;
+  /** Terminal delete error kept in the dialog. `forbidden` is non-retryable. */
+  error?: "forbidden" | "retryable";
 } | null;
 
 export function QuerySavedStatements({
@@ -294,28 +298,51 @@ export function QuerySavedStatements({
 
   // --- Delete dialog ---
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
+  /** Polite reconciliation announcement (deletion outcome, no-longer-exists). */
+  const [announcement, setAnnouncement] = useState("");
+
   const handleDelete = useCallback(async () => {
-    if (!deleteDialog) return;
+    if (!deleteDialog || deleteDialog.pending) return;
     const requestTarget = targetResourceId;
     const requestTargetGeneration = targetGenerationRef.current;
+    const item = deleteDialog.item;
+    const triggerRef = deleteDialog.triggerRef;
+    setDeleteDialog((prev) =>
+      prev ? { ...prev, pending: true, error: undefined } : prev,
+    );
     try {
-      await deleteSavedStatement(requestTarget, deleteDialog.item.id);
+      await deleteSavedStatement(requestTarget, item.id);
       if (
         activeTargetRef.current !== requestTarget ||
         targetGenerationRef.current !== requestTargetGeneration
       ) return;
-      const triggerRef = deleteDialog.triggerRef;
+      const lastRowOnLaterPage = state.items.length === 1 && state.page > 1;
       setDeleteDialog(null);
       restoreFocus(triggerRef);
-      void fetchStatements(state.page);
-    } catch {
+      setAnnouncement(t("deleted", { name: item.name }));
+      void fetchStatements(lastRowOnLaterPage ? state.page - 1 : state.page);
+    } catch (error) {
       if (
         activeTargetRef.current !== requestTarget ||
         targetGenerationRef.current !== requestTargetGeneration
       ) return;
-      // Controlled error
+      if (error instanceof SavedStatementError && error.code === "not_found") {
+        // Not a success: refresh the current list and announce absence.
+        setDeleteDialog(null);
+        restoreFocus(triggerRef);
+        setAnnouncement(t("noLongerExists", { name: item.name }));
+        void fetchStatements(state.page);
+        return;
+      }
+      const retryable =
+        !(error instanceof SavedStatementError && error.code === "forbidden");
+      setDeleteDialog((prev) =>
+        prev
+          ? { ...prev, pending: false, error: retryable ? "retryable" : "forbidden" }
+          : prev,
+      );
     }
-  }, [deleteDialog, targetResourceId, fetchStatements, state.page, restoreFocus]);
+  }, [deleteDialog, targetResourceId, fetchStatements, state.page, state.items.length, restoreFocus, t]);
 
   // --- Edit dialog ---
   const [editDialog, setEditDialog] = useState<EditDialogState>(null);
@@ -420,6 +447,10 @@ export function QuerySavedStatements({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
+      {/* Polite reconciliation announcements; never steals focus. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
       {/* Search */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative w-full sm:flex-1">
@@ -432,7 +463,7 @@ export function QuerySavedStatements({
             aria-label={t("searchAriaLabel")}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         <Button
           ref={createPersonalRef}
           variant="outline"
@@ -501,7 +532,7 @@ export function QuerySavedStatements({
               onLoad={handleLoad}
               onEdit={handleEditOpen}
               onDelete={(item, triggerRef) =>
-                setDeleteDialog({ item, triggerRef })
+                setDeleteDialog({ item, triggerRef, pending: false })
               }
               t={t}
             />
@@ -534,11 +565,11 @@ export function QuerySavedStatements({
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
+      {/* Delete confirmation dialog — terminal state machine */}
       <AlertDialog
         open={!!deleteDialog}
         onOpenChange={(open) => {
-          if (!open && deleteDialog) {
+          if (!open && deleteDialog && !deleteDialog.pending) {
             const ref = deleteDialog.triggerRef;
             setDeleteDialog(null);
             restoreFocus(ref);
@@ -554,10 +585,33 @@ export function QuerySavedStatements({
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteDialog?.error && (
+            <div role="alert" className="text-sm text-destructive">
+              {t(
+                deleteDialog.error === "forbidden"
+                  ? "error.deleteForbidden"
+                  : "error.deleteRetryable",
+              )}
+            </div>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDelete()}>
-              {t("confirmDelete")}
+            {deleteDialog?.error === "retryable" && (
+              <Button
+                variant="outline"
+                onClick={() => void handleDelete()}
+                disabled={deleteDialog.pending}
+              >
+                {t("retry")}
+              </Button>
+            )}
+            <AlertDialogCancel disabled={deleteDialog?.pending}>
+              {t("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDelete()}
+              disabled={deleteDialog?.pending}
+            >
+              {deleteDialog?.pending ? t("deleting") : t("confirmDelete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

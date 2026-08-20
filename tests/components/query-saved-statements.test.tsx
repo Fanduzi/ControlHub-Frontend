@@ -2,7 +2,7 @@
 // output: Vitest component tests for QuerySavedStatements (terminal list generations, CRUD, shared-template gate, templates)
 // pos: unit-level behavioral tests for the saved-statements UI component
 // note: if this file changes, update header and tests/components/README.md
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import type {
 import {
   listSavedStatements,
   createSavedStatement,
+  deleteSavedStatement,
   SavedStatementError,
 } from "@/services/query-saved-statements";
 import enMessages from "@/messages/en.json";
@@ -38,6 +39,7 @@ vi.mock("@/services/query-saved-statements", () => ({
 
 const mockListSavedStatements = vi.mocked(listSavedStatements);
 const mockCreateSavedStatement = vi.mocked(createSavedStatement);
+const mockDeleteSavedStatement = vi.mocked(deleteSavedStatement);
 
 function renderComponent(
   props: Partial<React.ComponentProps<typeof QuerySavedStatements>> = {},
@@ -820,5 +822,203 @@ describe("QuerySavedStatements declaration validation", () => {
     expect(remainingInputs).toHaveLength(2);
     expect(remainingInputs[0]).toHaveValue("alpha");
     expect(remainingInputs[1]).toHaveValue("gamma");
+  });
+});
+
+describe("QuerySavedStatements delete terminal state", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function paged(page: number, totalPages: number, name: string) {
+    return {
+      items: [
+        {
+          id: 1,
+          targetResourceId: 22,
+          name,
+          statement: "SELECT 1",
+          scope: "personal" as const,
+          parameters: [],
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+      pageInfo: {
+        page,
+        pageSize: 20,
+        totalItems: page * 20,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+      canManageSharedTemplates: false,
+    };
+  }
+
+  it("blocks dismissal and duplicate submit while pending", async () => {
+    const del = deferred<void>();
+    mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Pending item" }));
+    mockDeleteSavedStatement.mockReturnValue(del.promise);
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Pending item")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete pending item/i }));
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+
+    const dialog = screen.getByRole("alertdialog");
+    const pendingConfirm = within(dialog).getByRole("button", { name: "Deleting…" });
+    expect(pendingConfirm).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    // A second submit is ignored (pending guard).
+    await user.click(pendingConfirm);
+    expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(1);
+    // Dialog stays open until the request settles.
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+    del.resolve();
+    expect(await screen.findByText("Pending item")).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("shows Retry and Cancel on a transient failure and retries", async () => {
+    const del = deferred<void>();
+    mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Flaky" }));
+    mockDeleteSavedStatement
+      .mockReturnValueOnce(del.promise)
+      .mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Flaky")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete flaky/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    del.reject(new SavedStatementError(500, "internal_error", "boom"));
+    const errDialog = await screen.findByRole("alertdialog");
+    expect(within(errDialog).getByRole("alert")).toHaveTextContent("Deletion failed.");
+    expect(within(errDialog).getByRole("button", { name: "Retry" })).toBeEnabled();
+    expect(within(errDialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(1);
+
+    await user.click(within(errDialog).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Flaky")).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a non-retryable error with Cancel only on 403", async () => {
+    mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Forbidden" }));
+    mockDeleteSavedStatement.mockRejectedValue(
+      new SavedStatementError(403, "forbidden", "raw detail"),
+    );
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Forbidden")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete forbidden/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    const errDialog = await screen.findByRole("alertdialog");
+    expect(within(errDialog).getByRole("alert")).toHaveTextContent("don't have permission");
+    expect(within(errDialog).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(within(errDialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(screen.queryByText("raw detail")).not.toBeInTheDocument();
+
+    await user.click(within(errDialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("closes, refreshes the list, and announces absence on 404 without claiming success", async () => {
+    const reload = deferred<ReturnType<typeof singleItemResponse>>();
+    mockListSavedStatements
+      .mockResolvedValueOnce(singleItemResponse({ name: "Gone" }))
+      .mockReturnValueOnce(reload.promise);
+    mockDeleteSavedStatement.mockRejectedValue(
+      new SavedStatementError(404, "not_found", "raw detail"),
+    );
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Gone")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete gone/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(mockListSavedStatements).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/Gone is no longer available/i)).toBeInTheDocument();
+    expect(screen.queryByText("raw detail")).not.toBeInTheDocument();
+    reload.resolve(singleItemResponse({ name: "Gone" }));
+    expect(await screen.findByText("Gone")).toBeInTheDocument();
+  });
+
+  it("loads the previous page when deleting the last row on a later page", async () => {
+    mockListSavedStatements.mockResolvedValue(paged(3, 3, "Last row"));
+    mockDeleteSavedStatement.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Last row")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete last row/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(mockDeleteSavedStatement).toHaveBeenCalledWith(22, 1);
+    const refetchedLaterPage = mockListSavedStatements.mock.calls.some(
+      (call) => {
+        const params = call[1] as { page?: number } | undefined;
+        return params?.page === 2;
+      },
+    );
+    expect(refetchedLaterPage).toBe(true);
+  });
+
+  it("uses polite status for reconciliation and alert for inline errors", async () => {
+    mockListSavedStatements
+      .mockResolvedValueOnce(singleItemResponse({ name: "Ann" }))
+      .mockResolvedValue(singleItemResponse({ name: "Ann" }));
+    mockDeleteSavedStatement.mockRejectedValue(
+      new SavedStatementError(404, "not_found", "x"),
+    );
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Ann")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete ann/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Ann is no longer available/i)).toBeInTheDocument(),
+    );
+    const polite = Array.from(document.querySelectorAll('[aria-live="polite"]')).find(
+      (el) => el.textContent?.includes("is no longer available"),
+    );
+    expect(polite).not.toBeNull();
+  });
+
+  it("clears the delete dialog when the target changes", async () => {
+    mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Before switch" }));
+    const user = userEvent.setup();
+    const view = renderComponent();
+    expect(await screen.findByText("Before switch")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete before switch/i }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySavedStatements
+          targetResourceId={33}
+          currentStatement="SELECT 1"
+          onStatementLoad={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
   });
 });
