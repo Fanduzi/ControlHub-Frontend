@@ -3381,10 +3381,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
     await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
 
-    // Statement should be removed from list
-    await expect(page.getByText(testName).first()).toBeHidden({
-      timeout: 10_000,
-    });
+    // Statement should be removed from the list. The polite announcement still
+    // contains the name, so assert the row control is gone rather than the text.
+    await expect(page.getByRole("button", { name: new RegExp(`delete ${testName}`, "i") })).toHaveCount(0);
   });
 
   test("saved statements create dialog opens at 375px mobile", async ({
@@ -3435,9 +3434,7 @@ test.describe("Saved statements (Phase 38R)", () => {
     await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
     await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
     await deleteResponse;
-    await expect(page.getByText(mobileTestName).first()).toBeHidden({
-      timeout: 10_000,
-    });
+    await expect(page.getByRole("button", { name: new RegExp(`delete ${mobileTestName}`, "i") })).toHaveCount(0);
   });
 
   test("saved statements panel shows zh-CN translations", async ({ page }) => {
@@ -4224,7 +4221,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
     await dialog.first().getByRole("button", { name: /^delete$/i }).click();
-    await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: new RegExp(`delete ${name}`, "i") })).toHaveCount(0);
   }
 
   /** Fill the template form and wait for the template-execute request. */
@@ -4589,7 +4586,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
     await dialog.first().getByRole("button", { name: /^删除$/ }).click();
-    await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: new RegExp(`删除 ${name}`) })).toHaveCount(0);
   });
 });
 
