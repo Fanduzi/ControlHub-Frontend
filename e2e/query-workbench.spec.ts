@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -3539,9 +3539,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
     await page.getByRole("tab", { name: /saved sheets/i }).click();
-    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByRole("textbox", { name: /search saved statements/i }).first(),
+    ).toBeVisible({ timeout: 10_000 });
 
     const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const name = `Gone ${suffix}`;
@@ -3554,7 +3554,7 @@ test.describe("Saved statements (Phase 38R)", () => {
     });
 
     // The stale row is still shown; its delete must now resolve to 404.
-    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
     await page.getByRole("button", { name: `Delete ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
@@ -3567,6 +3567,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
     ).toBeAttached();
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: `${name} deleted.` }),
+    ).toHaveCount(0);
   });
 
   test("375px EN: deleting an already-removed saved statement announces absence without success", async ({
@@ -3578,9 +3581,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
     await page.getByRole("tab", { name: /saved sheets/i }).click();
-    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByRole("textbox", { name: /search saved statements/i }).first(),
+    ).toBeVisible({ timeout: 10_000 });
 
     const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const name = `Gone ${suffix}`;
@@ -3591,7 +3594,7 @@ test.describe("Saved statements (Phase 38R)", () => {
       token,
     });
 
-    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
     await page.getByRole("button", { name: `Delete ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
@@ -3602,6 +3605,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
     ).toBeAttached();
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: `${name} deleted.` }),
+    ).toHaveCount(0);
   });
 
   test("desktop zh-CN: deleting an already-removed saved statement announces absence in Chinese", async ({
@@ -3616,9 +3622,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
     await page.getByRole("tab", { name: /已保存脚本/i }).click();
-    await expect(page.getByText(/暂无已保存的查询|加载中/i).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByRole("textbox", { name: /搜索已保存的语句/i }).first(),
+    ).toBeVisible({ timeout: 10_000 });
 
     const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const name = `已删 ${suffix}`;
@@ -3629,7 +3635,7 @@ test.describe("Saved statements (Phase 38R)", () => {
       token,
     });
 
-    consumableHttpErrors.push({ method: "DELETE", url: `http://localhost:8081/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
     await page.getByRole("button", { name: `删除 ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
@@ -3640,6 +3646,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /已不可用/ }).first(),
     ).toBeAttached();
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: `${name} 已删除。` }),
+    ).toHaveCount(0);
   });
 
   test("375px EN: saved sheets search occupies its own row with no horizontal overflow", async ({
@@ -3651,9 +3660,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
     await page.getByRole("tab", { name: /saved sheets/i }).click();
-    await expect(page.getByText(/no saved queries yet|loading/i).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByRole("textbox", { name: /search saved statements/i }).first(),
+    ).toBeVisible({ timeout: 10_000 });
 
     const search = page.getByRole("textbox", { name: /search saved statements/i }).first();
     const create = page

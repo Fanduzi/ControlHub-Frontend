@@ -1,5 +1,5 @@
 // input: @testing-library/react, @/components/query/query-saved-statements, @/services/query-saved-statements (mocked)
-// output: Vitest component tests for QuerySavedStatements (terminal list generations, CRUD, shared-template gate, templates)
+// output: Vitest component tests for QuerySavedStatements (terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates)
 // pos: unit-level behavioral tests for the saved-statements UI component
 // note: if this file changes, update header and tests/components/README.md
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -871,8 +871,10 @@ describe("QuerySavedStatements delete terminal state", () => {
     // A second submit is ignored (pending guard).
     await user.click(pendingConfirm);
     expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(1);
-    // Dialog stays open until the request settles.
+    // Escape must not dismiss while the request is in flight.
+    await user.keyboard("{Escape}");
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(1);
 
     del.resolve();
     expect(await screen.findByText("Pending item")).toBeInTheDocument();
@@ -897,6 +899,7 @@ describe("QuerySavedStatements delete terminal state", () => {
     expect(within(errDialog).getByRole("alert")).toHaveTextContent("Deletion failed.");
     expect(within(errDialog).getByRole("button", { name: "Retry" })).toBeEnabled();
     expect(within(errDialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(within(errDialog).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(1);
 
     await user.click(within(errDialog).getByRole("button", { name: "Retry" }));
@@ -920,6 +923,7 @@ describe("QuerySavedStatements delete terminal state", () => {
     const errDialog = await screen.findByRole("alertdialog");
     expect(within(errDialog).getByRole("alert")).toHaveTextContent("don't have permission");
     expect(within(errDialog).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(within(errDialog).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(within(errDialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
     expect(screen.queryByText("raw detail")).not.toBeInTheDocument();
 
@@ -949,6 +953,7 @@ describe("QuerySavedStatements delete terminal state", () => {
     );
     expect(mockListSavedStatements).toHaveBeenCalledTimes(2);
     expect(screen.getByText(/Gone is no longer available/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Gone deleted/i)).not.toBeInTheDocument();
     expect(screen.queryByText("raw detail")).not.toBeInTheDocument();
     reload.resolve(singleItemResponse({ name: "Gone" }));
     expect(await screen.findByText("Gone")).toBeInTheDocument();
@@ -994,10 +999,11 @@ describe("QuerySavedStatements delete terminal state", () => {
     await waitFor(() =>
       expect(screen.getByText(/Ann is no longer available/i)).toBeInTheDocument(),
     );
-    const polite = Array.from(document.querySelectorAll('[aria-live="polite"]')).find(
-      (el) => el.textContent?.includes("is no longer available"),
-    );
-    expect(polite).not.toBeNull();
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent(/Ann is no longer available/i);
+    expect(document.activeElement).not.toBe(status);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("clears the delete dialog when the target changes", async () => {

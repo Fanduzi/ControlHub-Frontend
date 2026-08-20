@@ -1,5 +1,5 @@
 // input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
-// output: QuerySavedStatements component (terminal list generations, create/edit/delete, shared-template affordance gate)
+// output: QuerySavedStatements component (terminal list generations, create/edit/delete with terminal delete state machine, shared-template affordance gate)
 // pos: UI component for managing saved query statements within the query workbench
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -607,12 +607,14 @@ export function QuerySavedStatements({
             <AlertDialogCancel disabled={deleteDialog?.pending}>
               {t("cancel")}
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleDelete()}
-              disabled={deleteDialog?.pending}
-            >
-              {deleteDialog?.pending ? t("deleting") : t("confirmDelete")}
-            </AlertDialogAction>
+            {!deleteDialog?.error && (
+              <AlertDialogAction
+                onClick={() => void handleDelete()}
+                disabled={deleteDialog?.pending}
+              >
+                {deleteDialog?.pending ? t("deleting") : t("confirmDelete")}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
