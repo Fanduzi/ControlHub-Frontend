@@ -3555,7 +3555,11 @@ test.describe("Saved statements (Phase 38R)", () => {
     });
 
     // The stale row is still shown; its delete must now resolve to 404.
-    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({
+      method: "DELETE",
+      url: `http://localhost:3100/api/proxy/query-targets/${targetResourceId}/saved-statements/${id}`,
+      status: 404,
+    });
     await page.getByRole("button", { name: `Delete ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
@@ -3564,7 +3568,7 @@ test.describe("Saved statements (Phase 38R)", () => {
     // Dialog closes, list refreshes, row is gone, and the announcement is
     // absence (never a success claim).
     await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
-    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: `Delete ${name}` })).toHaveCount(0);
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
     ).toBeAttached();
@@ -3595,14 +3599,18 @@ test.describe("Saved statements (Phase 38R)", () => {
       token,
     });
 
-    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({
+      method: "DELETE",
+      url: `http://localhost:3100/api/proxy/query-targets/${targetResourceId}/saved-statements/${id}`,
+      status: 404,
+    });
     await page.getByRole("button", { name: `Delete ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
     await dialog.first().getByRole("button", { name: /^delete$/i }).click();
 
     await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
-    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: `Delete ${name}` })).toHaveCount(0);
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /is no longer available/i }).first(),
     ).toBeAttached();
@@ -3636,14 +3644,18 @@ test.describe("Saved statements (Phase 38R)", () => {
       token,
     });
 
-    consumableHttpErrors.push({ method: "DELETE", url: `${PROBE_API_BASE}/query-targets/${targetResourceId}/saved-statements/${id}`, status: 404 });
+    consumableHttpErrors.push({
+      method: "DELETE",
+      url: `http://localhost:3100/api/proxy/query-targets/${targetResourceId}/saved-statements/${id}`,
+      status: 404,
+    });
     await page.getByRole("button", { name: `删除 ${name}` }).first().click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.first()).toBeVisible({ timeout: 5_000 });
     await dialog.first().getByRole("button", { name: /^删除$/i }).click();
 
     await expect(dialog.first()).toBeHidden({ timeout: 10_000 });
-    await expect(page.getByText(name).first()).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: `删除 ${name}` })).toHaveCount(0);
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /已不可用/ }).first(),
     ).toBeAttached();
