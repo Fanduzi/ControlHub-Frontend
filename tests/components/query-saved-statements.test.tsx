@@ -908,6 +908,23 @@ describe("QuerySavedStatements delete terminal state", () => {
     expect(mockDeleteSavedStatement).toHaveBeenCalledTimes(2);
   });
 
+  it("shows Retry and Cancel on a network failure", async () => {
+    mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Offline" }));
+    mockDeleteSavedStatement.mockRejectedValue(new TypeError("Failed to fetch"));
+    const user = userEvent.setup();
+    renderComponent();
+    expect(await screen.findByText("Offline")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete offline/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    const errDialog = await screen.findByRole("alertdialog");
+    expect(within(errDialog).getByRole("alert")).toHaveTextContent("Deletion failed.");
+    expect(within(errDialog).getByRole("button", { name: "Retry" })).toBeEnabled();
+    expect(within(errDialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
+    expect(within(errDialog).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
   it("shows a non-retryable error with Cancel only on 403", async () => {
     mockListSavedStatements.mockResolvedValue(singleItemResponse({ name: "Forbidden" }));
     mockDeleteSavedStatement.mockRejectedValue(

@@ -128,6 +128,7 @@ export function QuerySavedStatements({
   const [searchDebounced, setSearchDebounced] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
+  const deleteInFlightRef = useRef(false);
   const activeTargetRef = useRef(targetResourceId);
   const targetGenerationRef = useRef(0);
   const previousTargetRef = useRef(targetResourceId);
@@ -302,7 +303,8 @@ export function QuerySavedStatements({
   const [announcement, setAnnouncement] = useState("");
 
   const handleDelete = useCallback(async () => {
-    if (!deleteDialog || deleteDialog.pending) return;
+    if (!deleteDialog || deleteDialog.pending || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
     const requestTarget = targetResourceId;
     const requestTargetGeneration = targetGenerationRef.current;
     const item = deleteDialog.item;
@@ -341,6 +343,8 @@ export function QuerySavedStatements({
           ? { ...prev, pending: false, error: retryable ? "retryable" : "forbidden" }
           : prev,
       );
+    } finally {
+      deleteInFlightRef.current = false;
     }
   }, [deleteDialog, targetResourceId, fetchStatements, state.page, state.items.length, restoreFocus, t]);
 
@@ -365,6 +369,7 @@ export function QuerySavedStatements({
     });
     setCreateDialog((prev) => ({ ...prev, open: false }));
     setCreateError(null);
+    deleteInFlightRef.current = false;
     setDeleteDialog(null);
     setEditDialog(null);
     setEditError(null);

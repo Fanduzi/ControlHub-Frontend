@@ -3796,7 +3796,11 @@ async function exerciseParameterizedTemplateLoad(
   const deleteDialog = page.getByRole("alertdialog");
   await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
   await deleteDialog.first().getByRole("button", { name: options.locale === "en" ? /^delete$/i : /^删除$/ }).click();
-  await expect(page.getByText(savedName)).toHaveCount(0, { timeout: 10_000 });
+  await expect(
+    page.getByRole("button", {
+      name: new RegExp(`${options.locale === "en" ? "delete" : "删除"} ${savedName}`, "i"),
+    }),
+  ).toHaveCount(0);
 }
 
 test.describe("Governed result paging (Phase 38S)", () => {
@@ -4036,7 +4040,9 @@ test.describe("Governed result paging (Phase 38S)", () => {
     const deleteDialog = page.getByRole("alertdialog");
     await expect(deleteDialog.first()).toBeVisible({ timeout: 5_000 });
     await deleteDialog.first().getByRole("button", { name: /^delete$/i }).click();
-    await expect(page.getByText(savedName)).toHaveCount(0, { timeout: 10_000 });
+    await expect(
+      page.getByRole("button", { name: new RegExp(`delete ${savedName}`, "i") }),
+    ).toHaveCount(0);
   });
 
   test("zh-CN: paging controls are localized with no MISSING_MESSAGE errors", async ({ page }) => {
