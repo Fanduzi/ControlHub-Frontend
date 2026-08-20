@@ -3516,8 +3516,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     const createResponse = page.waitForResponse(
       (resp) =>
         resp.request().method() === "POST" &&
-        /saved-statements$/.test(resp.url()) &&
-        resp.status() === 200,
+        resp.url().includes("/saved-statements") &&
+        !resp.url().includes("/execute") &&
+        resp.status() === 201,
     );
     await page
       .getByRole("button", { name: locale === "en" ? /^create$/i : /^创建$/ })
@@ -3575,8 +3576,8 @@ test.describe("Saved statements (Phase 38R)", () => {
   test("375px EN: deleting an already-removed saved statement announces absence without success", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
     await openQueryWorkbench(page);
+    await page.setViewportSize({ width: 375, height: 812 });
     const readyIndex = await findReadyOptionIndex(page);
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
@@ -3654,8 +3655,8 @@ test.describe("Saved statements (Phase 38R)", () => {
   test("375px EN: saved sheets search occupies its own row with no horizontal overflow", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
     await openQueryWorkbench(page);
+    await page.setViewportSize({ width: 375, height: 812 });
     const readyIndex = await findReadyOptionIndex(page);
     if (readyIndex === null) throw noReadyTargetFixtureError();
     await selectConnectionTarget(page, readyIndex);
