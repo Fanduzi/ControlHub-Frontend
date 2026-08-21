@@ -65,8 +65,7 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
   (`admin@example.com` / `editor@example.com` / `secret123`) were retired by
   backend migration 00016 and are refused, never used.
 - **Fixture seam**: the backend `cmd/e2e-fixture-bootstrap` seam is on backend
-  `main` (backend ticket #19). The frontend CI depends on it; without it,
-  `release-e2e` cannot run.
+  `main` (shipped as ticket #19). Frontend CI already calls it.
 
 ## Testing
 

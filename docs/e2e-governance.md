@@ -39,8 +39,8 @@ equivalent controlled path; it refuses the retired seed identities. The seam
 requires an explicit test-mode capability and a dedicated disposable
 `*_e2e` metadata DSN on a loopback host (see backend
 `docs/decisions/2026-08-12-e2e-fixture-provisioning-safety-boundary.md`).
-  The seam is on backend `main` (backend ticket #19). The frontend CI
-workflow calls it, and `release-e2e` requires it.
+  The seam is on backend `main` (shipped as ticket #19). The frontend CI
+workflow already calls it.
 - Consumption: `e2e/harness/fixtures.ts` resolves
   `E2E_FIXTURE_ADMIN_EMAIL` / `E2E_FIXTURE_ADMIN_PASSWORD` and
   `E2E_FIXTURE_EDITOR_EMAIL` / `E2E_FIXTURE_EDITOR_PASSWORD`.
