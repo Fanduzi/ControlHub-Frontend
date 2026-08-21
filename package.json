@@ -22,7 +22,7 @@
     "check:e2e-preflight": "node scripts/check-e2e-preflight.mjs",
     "check:controlled-error-codes": "node scripts/check-controlled-error-codes.mjs",
     "release:local": "npm run check:runtime && npm run check:e2e-preflight && npm run check:e2e-governance && npm run check:controlled-error-codes && npx tsc --noEmit -p tsconfig.json && npm run lint && npm run test && npm run build",
-    "release:e2e": "npm run test:e2e:smoke && npm run test:e2e:interaction && npm run test:e2e",
+    "release:e2e": "npm run test:e2e",
     "release:check": "npm run release:local && npm run release:e2e",
     "release:smoke:cdp": "node scripts/cdp-release-smoke.mjs"
   },
