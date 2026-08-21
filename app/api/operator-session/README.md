@@ -8,7 +8,8 @@ Console BFF session routes (Phase 38X-1C).
 | `DELETE /api/operator-session` | Logout: clears the Operator Session cookie |
 
 Unsafe methods require the exact configured Console Origin. All authentication
-failures map to one generic `401 { message: "unauthorized" }` outcome; the
-Backend Bearer Credential never appears in a response body. Cookie
+failures map to one generic `401 { error: "unauthorized", message: "unauthorized" }`
+outcome; the Backend Bearer Credential never appears in a response body. Cookie
 set/clear attributes are shared with the proxy via
-`lib/operator-session/session-cookie.ts`.
+`lib/operator-session/session-cookie.ts`. Synthesized BFF errors use
+`{ error, message }` with a snake_case Controlled Error Code.

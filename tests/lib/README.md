@@ -10,5 +10,6 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-seal.test.ts` | Sealed cookie round-trip, eight-hour expiry, key rotation window (15 minutes), tamper rejection |
 | `operator-session-origin.test.ts` | Console Origin guard on unsafe methods |
 | `operator-session-backend.test.ts` | Server-side backend login and generic outcome mapping |
+| `operator-session-response.test.ts` | BFF `bffJson` synthesized bodies include a snake_case Controlled Error Code on `error` |
 | `auth-role.test.ts` | Presentation-only admin role recovery from BFF role storage/cookie; bearer-shaped values are ignored |
 # note: auth-role recovery tests cover role-cookie path

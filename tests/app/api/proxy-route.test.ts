@@ -1,5 +1,5 @@
 // input: @/app/api/proxy/[...path]/route, @/lib/operator-session/*, next/server
-// output: Vitest tests for the protected BFF proxy boundary (server-held credential, origin and header rejection)
+// output: Vitest tests for the protected BFF proxy boundary (server-held credential, origin and header rejection, coded synthesized errors, forwarded upstream error)
 // pos: unit-level contract tests for server-side forwarding of the session-held Backend Bearer Credential
 // note: if this file changes, update header and tests/app/api/README.md
 import { NextRequest } from "next/server";
@@ -136,7 +136,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["auth", "login"]),
     );
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ message: "not-found" });
+    expect(await response.json()).toEqual({
+      error: "not_found",
+      message: "not-found",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -169,6 +172,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "forbidden_header",
+      message: "forbidden-header",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -186,6 +193,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "forbidden",
+      message: "forbidden",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -203,6 +214,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "forbidden",
+      message: "forbidden",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -237,7 +252,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(401);
-    expect(await response.text()).toContain("unauthorized");
+    expect(await response.json()).toEqual({
+      error: "unauthorized",
+      message: "unauthorized",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -250,7 +268,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(401);
-    expect(await response.text()).toContain("unauthorized");
+    expect(await response.json()).toEqual({
+      error: "unauthorized",
+      message: "unauthorized",
+    });
     const cookie = response.cookies.get(SESSION_COOKIE_NAME);
     expect(cookie?.maxAge).toBe(0);
   });
@@ -266,16 +287,20 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(401);
-    const body = await response.text();
-    expect(body).not.toContain("revoked");
-    expect(body).not.toContain("session 42");
-    expect(body).not.toContain(TOKEN);
+    const body = await response.json();
+    expect(body).toEqual({ error: "unauthorized", message: "unauthorized" });
+    expect(JSON.stringify(body)).not.toContain("revoked");
+    expect(JSON.stringify(body)).not.toContain("session 42");
+    expect(JSON.stringify(body)).not.toContain(TOKEN);
     expect(response.cookies.get(SESSION_COOKIE_NAME)?.maxAge).toBe(0);
   });
 
   it("forwards backend 403 bodies without clearing the session", async () => {
     stubBffEnv();
-    stubUpstream(403, { message: "blocked by result disclosure policy" });
+    stubUpstream(403, {
+      error: "query_result_disclosure_blocked",
+      message: "blocked by result disclosure policy",
+    });
     const response = await GET(
       proxyRequest("GET", ["resources"], {
         cookie: sealedCookieValue(),
@@ -285,6 +310,7 @@ describe("BFF proxy boundary", () => {
     );
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
+      error: "query_result_disclosure_blocked",
       message: "blocked by result disclosure policy",
     });
     // Session cookie is not cleared on 403.
@@ -352,6 +378,10 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "payload_too_large",
+      message: "payload-too-large",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -370,7 +400,34 @@ describe("BFF proxy boundary", () => {
       routeContext(["resources"]),
     );
     expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "payload_too_large",
+      message: "payload-too-large",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a coded service_unavailable envelope when the backend is unreachable", async () => {
+    stubBffEnv();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    const response = await GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "service_unavailable",
+      message: "service-unavailable",
+    });
   });
 
   it("passes DELETE through with the server-held credential", async () => {

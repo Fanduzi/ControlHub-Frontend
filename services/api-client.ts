@@ -1,16 +1,24 @@
 // input: fetch, next/headers (server), operator-session cookie
-// output: shared API client; browser and server use the same-origin BFF proxy
+// output: shared API client; browser and server use the same-origin BFF proxy; JSON error is ApiError.code
 // pos: sole browser/SSR fetch helper for console data
 // note: if this file changes, update header and services/README.md
 export class ApiError extends Error {
   status: number;
   details?: Record<string, string>;
+  /** Controlled Error Code from JSON `error`. Absent when the envelope omits it. */
+  code?: string;
 
-  constructor(status: number, message: string, details?: Record<string, string>) {
+  constructor(
+    status: number,
+    message: string,
+    details?: Record<string, string>,
+    code?: string,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.details = details;
+    this.code = code;
   }
 }
 
@@ -80,7 +88,11 @@ export async function apiClient<T>(
     }
     const message = (errorBody?.message as string) || `Request failed: ${response.status}`;
     const details = (errorBody?.details as Record<string, string>) || undefined;
-    const error = new ApiError(response.status, message, details);
+    const code =
+      typeof errorBody?.error === "string" && errorBody.error.length > 0
+        ? errorBody.error
+        : undefined;
+    const error = new ApiError(response.status, message, details, code);
 
     if (response.status === 401) {
       if (typeof window === "undefined") {

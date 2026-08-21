@@ -1,5 +1,5 @@
 // input: vitest, api-client
-// output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling
+// output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling, Controlled Error Code ingest
 // pos: unit tests for shared API client
 // note: if this file changes, update header and tests/services/README.md
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,19 +82,64 @@ describe("apiClient", () => {
     });
   });
 
-  it("surfaces API errors with parsed message and details", async () => {
+  it("surfaces API errors with parsed message, details, and Controlled Error Code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
       status: 400,
       json: async () => ({
+        error: "validation_failed",
         message: "Bad request",
         details: { id: "invalid" },
       }),
     } as Response);
 
-    await expect(apiClient("/resources/1")).rejects.toEqual(
-      new ApiError(400, "Bad request", { id: "invalid" }),
-    );
+    const failure = await apiClient("/resources/1").catch((error) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure).toMatchObject({
+      status: 400,
+      message: "Bad request",
+      details: { id: "invalid" },
+      code: "validation_failed",
+    });
+  });
+
+  it("preserves JSON error as ApiError.code without rebuilding it from status", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: "query_result_disclosure_blocked",
+        message: "blocked by result disclosure policy",
+      }),
+    } as Response);
+
+    const failure = await apiClient("/query/executions").catch((error) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure).toMatchObject({
+      status: 403,
+      message: "blocked by result disclosure policy",
+      code: "query_result_disclosure_blocked",
+    });
+  });
+
+  it("does not invent a business code from HTTP status when JSON omits error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        message: "blocked",
+      }),
+    } as Response);
+
+    const failure = await apiClient("/query/executions").catch((error) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    const apiError = failure as ApiError;
+    expect(apiError).toMatchObject({
+      status: 403,
+      message: "blocked",
+    });
+    expect(apiError.code).toBeUndefined();
+    expect(apiError).not.toMatchObject({ code: "query_not_allowed" });
   });
 
   it("does not attach Authorization or retain browser bearer storage", async () => {
@@ -157,12 +202,16 @@ describe("apiClient", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
       status: 401,
-      json: async () => ({ message: "unauthorized" }),
+      json: async () => ({ error: "unauthorized", message: "unauthorized" }),
     } as Response);
 
-    await expect(apiClient("/environments")).rejects.toEqual(
-      new ApiError(401, "unauthorized"),
-    );
+    const failure = await apiClient("/environments").catch((error) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure).toMatchObject({
+      status: 401,
+      message: "unauthorized",
+      code: "unauthorized",
+    });
     expect(hrefOwner.href).toBe("/login?reason=session-expired");
     expect(removeItem).toHaveBeenCalledWith("controlhub.role");
   });

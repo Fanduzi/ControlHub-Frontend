@@ -1,5 +1,5 @@
 // input: @/app/api/operator-session/route, @/lib/operator-session/*, next/server
-// output: Vitest tests for the BFF login/logout route boundary (sealed HttpOnly cookie, generic outcomes)
+// output: Vitest tests for the BFF login/logout route boundary (sealed HttpOnly cookie, coded generic outcomes)
 // pos: unit-level contract tests for the Operator Session login and logout HTTP surface
 // note: if this file changes, update header and tests/app/api/README.md
 import { NextRequest } from "next/server";
@@ -101,10 +101,10 @@ describe("POST /api/operator-session", () => {
     const response = await POST(loginRequest());
     expect(response.status).toBe(401);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const body = await response.text();
-    expect(body).toContain("unauthorized");
-    expect(body).not.toContain("disabled");
-    expect(body).not.toContain("reason");
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({ error: "unauthorized", message: "unauthorized" });
+    expect(JSON.stringify(body)).not.toContain("disabled");
+    expect(JSON.stringify(body)).not.toContain("reason");
     expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
 
@@ -120,15 +120,22 @@ describe("POST /api/operator-session", () => {
     const response = await POST(loginRequest());
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const body = await response.text();
-    expect(body).toContain("service-unavailable");
-    expect(body).not.toContain("fetch failed");
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({
+      error: "service_unavailable",
+      message: "service-unavailable",
+    });
+    expect(JSON.stringify(body)).not.toContain("fetch failed");
   });
 
   it("rejects an unsafe login from a non-configured Origin", async () => {
     stubBffEnv();
     const response = await POST(loginRequest({}, "https://evil.example"));
     expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "forbidden",
+      message: "forbidden",
+    });
     expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
 
@@ -148,12 +155,20 @@ describe("POST /api/operator-session", () => {
       }),
     );
     expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "invalid_request",
+      message: "invalid-request",
+    });
   });
 
   it("rejects a login body missing required fields", async () => {
     stubBffEnv();
     const response = await POST(loginRequest({ email: "admin@example.com" }));
     expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "invalid_request",
+      message: "invalid-request",
+    });
   });
 
   it("fails closed with a generic outcome when configuration is invalid", async () => {
@@ -161,9 +176,13 @@ describe("POST /api/operator-session", () => {
     vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", "");
     const response = await POST(loginRequest());
     expect(response.status).toBe(503);
-    const body = await response.text();
-    expect(body).not.toContain("session-key");
-    expect(body).not.toContain(ACTIVE_KEY_HEX);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({
+      error: "service_unavailable",
+      message: "service-unavailable",
+    });
+    expect(JSON.stringify(body)).not.toContain("session-key");
+    expect(JSON.stringify(body)).not.toContain(ACTIVE_KEY_HEX);
   });
 });
 
