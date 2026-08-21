@@ -74,7 +74,7 @@ describe("executeSavedStatementTemplate", () => {
       new ApiError(400, "template parameter validation failed", {
         status: "missing",
         bogus: "unknown",
-      }),
+      }, "validation_failed"),
     );
     await expect(executeSavedStatementTemplate(22, 7, { values: {} })).rejects.toMatchObject({
       name: "QueryExecuteError",
@@ -84,11 +84,53 @@ describe("executeSavedStatementTemplate", () => {
     });
   });
 
-  it("maps 404 to query_target_not_found", async () => {
-    mockApiClient.mockRejectedValueOnce(new ApiError(404, "saved statement not found"));
+  it("maps saved_statement_not_found from the envelope code", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(404, "saved statement not found", undefined, "saved_statement_not_found"),
+    );
+    await expect(executeSavedStatementTemplate(22, 7, { values: {} })).rejects.toMatchObject({
+      code: "saved_statement_not_found",
+      status: 404,
+    });
+  });
+
+  it("maps query_target_not_found from the envelope code", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(404, "target missing", undefined, "query_target_not_found"),
+    );
     await expect(executeSavedStatementTemplate(22, 7, { values: {} })).rejects.toMatchObject({
       code: "query_target_not_found",
       status: 404,
+    });
+  });
+
+  it("does not invent query_target_not_found from HTTP 404 when the code is absent", async () => {
+    mockApiClient.mockRejectedValueOnce(new ApiError(404, "saved statement not found"));
+    const error = await executeSavedStatementTemplate(22, 7, { values: {} }).catch(
+      (value: unknown) => value,
+    );
+    expect(error).toMatchObject({
+      name: "QueryExecuteError",
+      status: 404,
+      code: "service_unavailable",
+    });
+  });
+
+  it("classifies disclosure blocked and query_not_allowed by code on the same HTTP 403", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(403, "blocked", undefined, "query_result_disclosure_blocked"),
+    );
+    await expect(executeSavedStatementTemplate(22, 7, { values: {} })).rejects.toMatchObject({
+      code: "query_result_disclosure_blocked",
+      status: 403,
+    });
+
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(403, "query_result_disclosure_blocked: leftover", undefined, "query_not_allowed"),
+    );
+    await expect(executeSavedStatementTemplate(22, 7, { values: {} })).rejects.toMatchObject({
+      code: "query_not_allowed",
+      status: 403,
     });
   });
 

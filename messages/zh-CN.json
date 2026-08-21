@@ -1184,6 +1184,12 @@
       "query_timeout": "查询超时",
       "query_backend_error": "目标数据库错误",
       "internal_error": "发生意外错误",
+      "service_unavailable": "查询服务暂时不可用",
+      "saved_statement_not_found": "此已保存语句已不可用",
+      "forbidden": "你没有权限运行此查询",
+      "not_found": "未找到请求的查询资源",
+      "unavailable": "查询未能完成",
+      "retry": "重试",
       "detailLabel": "详情",
       "query_explain_not_supported": "此目标不支持 Explain",
       "query_result_disclosure_blocked": "查询被结果披露策略阻止"
@@ -1393,7 +1399,10 @@
         "query_explain_not_supported": "此目标不支持 Explain",
         "query_timeout": "Explain 超时",
         "query_backend_error": "目标数据库拒绝了 Explain 请求",
-        "internal_error": "意外的服务器故障"
+        "query_result_disclosure_blocked": "Explain 被结果披露策略阻止",
+        "service_unavailable": "Explain 服务暂时不可用",
+        "internal_error": "意外的服务器故障",
+        "unavailable": "Explain 未能完成"
       },
       "operations": {
         "table_access": "表访问",

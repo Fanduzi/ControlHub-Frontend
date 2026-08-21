@@ -760,8 +760,8 @@ describe("QueryWorkbench execution (ready target)", () => {
     await user.click(screen.getByRole("button", { name: /^run$/i }));
 
     expect(screen.getByText(/Execution not allowed/)).toBeInTheDocument();
-    // Backend message is preserved without leaking a stack trace.
-    expect(screen.getByText(/target is not enabled/)).toBeInTheDocument();
+    expect(screen.queryByText(/target is not enabled/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/query_not_allowed/)).not.toBeInTheDocument();
   });
 
   it("renders a SQL guard error on 400 validation_failed", async () => {
@@ -774,7 +774,7 @@ describe("QueryWorkbench execution (ready target)", () => {
     await user.click(screen.getByRole("button", { name: /^run$/i }));
 
     expect(screen.getByText(/blocked by the SQL guard/i)).toBeInTheDocument();
-    expect(screen.getByText(/only a single SELECT statement is allowed/)).toBeInTheDocument();
+    expect(screen.queryByText(/only a single SELECT statement is allowed/)).not.toBeInTheDocument();
   });
 
   it("renders a timeout state on 408 query_timeout", async () => {
@@ -4464,13 +4464,11 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     });
   });
 
-  it("renders controlled error and retry without raw backend text", async () => {
+  it("renders a non-retryable explain error without raw backend text or Retry", async () => {
     const user = userEvent.setup();
-    mockExplainQueryTarget
-      .mockRejectedValueOnce(
-        new QueryExecuteError(409, "query_explain_not_supported", "raw driver boom"),
-      )
-      .mockResolvedValueOnce(buildExplainResponse());
+    mockExplainQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(409, "query_explain_not_supported", "raw driver boom"),
+    );
     renderExplainable();
 
     await user.click(await screen.findByTestId("explain-trigger"));
@@ -4479,8 +4477,27 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     });
     expect(screen.getByText("Explain is not supported for this target")).toBeInTheDocument();
     expect(screen.queryByText(/raw driver boom/i)).toBeNull();
+    expect(screen.queryByText(/query_explain_not_supported/i)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("explain-error")).queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("button", { name: /retry/i }));
+  it("renders Retry for a retryable explain code and recovers without raw backend text", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget
+      .mockRejectedValueOnce(
+        new QueryExecuteError(502, "query_backend_error", "raw driver boom"),
+      )
+      .mockResolvedValueOnce(buildExplainResponse());
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-error")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Target database rejected the explain request")).toBeInTheDocument();
+    expect(screen.queryByText(/raw driver boom/i)).toBeNull();
+
+    await user.click(within(screen.getByTestId("explain-error")).getByRole("button", { name: /retry/i }));
     await waitFor(() => {
       expect(mockExplainQueryTarget).toHaveBeenCalledTimes(2);
       expect(screen.getByTestId("explain-ready")).toBeInTheDocument();

@@ -1184,6 +1184,12 @@
       "query_timeout": "Query timed out",
       "query_backend_error": "Target database error",
       "internal_error": "Unexpected error",
+      "service_unavailable": "Query service is temporarily unavailable",
+      "saved_statement_not_found": "This saved statement is no longer available",
+      "forbidden": "You do not have permission to run this query",
+      "not_found": "The requested query resource was not found",
+      "unavailable": "The query could not be completed",
+      "retry": "Retry",
       "detailLabel": "Detail",
       "query_explain_not_supported": "Explain is not supported for this target",
       "query_result_disclosure_blocked": "Query blocked by result disclosure policy"
@@ -1393,7 +1399,10 @@
         "query_explain_not_supported": "Explain is not supported for this target",
         "query_timeout": "Explain exceeded the timeout",
         "query_backend_error": "Target database rejected the explain request",
-        "internal_error": "Unexpected server failure"
+        "query_result_disclosure_blocked": "Explain blocked by result disclosure policy",
+        "service_unavailable": "Explain service is temporarily unavailable",
+        "internal_error": "Unexpected server failure",
+        "unavailable": "Explain could not be completed"
       },
       "operations": {
         "table_access": "Table access",

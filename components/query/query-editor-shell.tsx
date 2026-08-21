@@ -28,10 +28,10 @@ import type { QuerySavedStatementParameterDefinition, QuerySavedStatementParamet
 import {
   executeQueryTarget,
   explainQueryTarget,
+  isRetryableControlledErrorCode,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
-  type QueryExecuteErrorCode,
 } from "@/services/query-executions";
 import { executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +195,7 @@ type RelatedRecordsState =
   | { readonly status: "idle"; readonly generation: number }
   | { readonly status: "loading"; readonly generation: number; readonly foreignKey: string }
   | { readonly status: "ready"; readonly generation: number; readonly response: RelatedRecordNavigationResponse }
-  | { readonly status: "error"; readonly generation: number; readonly code: QueryExecuteErrorCode };
+  | { readonly status: "error"; readonly generation: number; readonly code: string };
 
 /**
  * Worksheet-local Explain state. Independent from Run results/history.
@@ -208,7 +208,7 @@ type ExplainState = {
   statementIdentity: string | null;
   targetId: number | null;
   response: ExplainResponse | null;
-  errorCode: QueryExecuteErrorCode | null;
+  errorCode: string | null;
 };
 
 function createExplainState(): ExplainState {
@@ -2334,7 +2334,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {error ? (
-          <ExecuteErrorPanel error={error} />
+          <ExecuteErrorPanel error={error} onRetry={onRun} />
         ) : result ? (
           <>
             <ExecuteResult
@@ -2689,11 +2689,13 @@ function ExplainPanel({
             {t("explain.error.title")}
           </p>
           <p className="text-sm text-rose-700 dark:text-rose-300">
-            {t(`explain.error.${state.errorCode ?? "internal_error"}`)}
+            {t(`explain.error.${explainErrorCopyCode(state.errorCode)}`)}
           </p>
-          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-            {t("explain.retry")}
-          </Button>
+          {isRetryableControlledErrorCode(state.errorCode ?? "service_unavailable") ? (
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              {t("explain.retry")}
+            </Button>
+          ) : null}
         </div>
       )}
 
@@ -3184,25 +3186,69 @@ function ResultCell({ value }: { value: QueryResultCellValue }) {
   return <span className="font-mono text-xs text-foreground">{String(value)}</span>;
 }
 
-function ExecuteErrorPanel({ error }: { error: QueryExecuteError }) {
+const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
+  "validation_failed",
+  "query_not_allowed",
+  "query_target_not_found",
+  "query_explain_not_supported",
+  "query_result_disclosure_blocked",
+  "query_timeout",
+  "query_backend_error",
+  "internal_error",
+  "service_unavailable",
+  "forbidden",
+  "not_found",
+  "saved_statement_not_found",
+]);
+
+function executeErrorCopyCode(code: string): string {
+  return QUERY_EXECUTE_ERROR_COPY_CODES.has(code) ? code : "unavailable";
+}
+
+const EXPLAIN_ERROR_COPY_CODES = new Set([
+  "validation_failed",
+  "query_not_allowed",
+  "query_target_not_found",
+  "query_explain_not_supported",
+  "query_result_disclosure_blocked",
+  "query_timeout",
+  "query_backend_error",
+  "internal_error",
+  "service_unavailable",
+]);
+
+function explainErrorCopyCode(code: string | null): string {
+  if (code && EXPLAIN_ERROR_COPY_CODES.has(code)) {
+    return code;
+  }
+  return "unavailable";
+}
+
+function ExecuteErrorPanel({
+  error,
+  onRetry,
+}: {
+  error: QueryExecuteError;
+  onRetry: () => void;
+}) {
   const t = useTranslations("queryWorkbench");
-  const isDisclosureBlocked = error.code === "query_result_disclosure_blocked";
+  const copyCode = executeErrorCopyCode(error.code);
+  const showRetry = isRetryableControlledErrorCode(error.code);
 
   return (
     <div
       role="alert"
-      className="space-y-1 rounded-lg border border-rose-500/40 bg-rose-500/5 p-3"
+      className="space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/5 p-3"
     >
       <p className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
         <TriangleAlert className="size-4 shrink-0" aria-hidden />
-        {t(`error.${error.code}`)}
+        {t(`error.${copyCode}`)}
       </p>
-      {!isDisclosureBlocked && (
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium">{t("error.detailLabel")}: </span>
-          {error.message}
-        </p>
-      )}
+      {showRetry ? (
+        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+          {t("error.retry")}
+        </Button>
+      ) : null}
     </div>
   );
 }

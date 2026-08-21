@@ -287,7 +287,8 @@ describe("QuerySavedStatements", () => {
   it.each([
     [403, "forbidden", "Saved statements are unavailable for this target."],
     [404, "not_found", "This saved-statement context is no longer available."],
-  ] as const)("settles a %i response as a non-retryable controlled error", async (status, code, message) => {
+    [404, "saved_statement_not_found", "This saved-statement context is no longer available."],
+  ] as const)("settles a %s code as a non-retryable controlled error", async (status, code, message) => {
     mockListSavedStatements.mockRejectedValue(
       new SavedStatementError(status, code, "raw server detail"),
     );
@@ -295,7 +296,21 @@ describe("QuerySavedStatements", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(screen.queryByText("raw server detail")).not.toBeInTheDocument();
+    expect(screen.queryByText(code)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("settles a 403 without a business code as retryable unavailability, not forbidden", async () => {
+    mockListSavedStatements.mockRejectedValue(
+      new SavedStatementError(403, "service_unavailable", "raw server detail"),
+    );
+    renderComponent();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load saved statements.");
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByText("Saved statements are unavailable for this target.")).not.toBeInTheDocument();
+    expect(screen.queryByText("raw server detail")).not.toBeInTheDocument();
+    expect(screen.queryByText("service_unavailable")).not.toBeInTheDocument();
   });
 
   it("settles a transient failure with an accessible Retry action", async () => {

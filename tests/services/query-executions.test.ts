@@ -13,6 +13,7 @@ import { apiClient } from "@/services/api-client";
 import {
   executeQueryTarget,
   explainQueryTarget,
+  isRetryableControlledErrorCode,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
@@ -152,12 +153,11 @@ describe("executeQueryTarget", () => {
     ).resolves.toEqual(response);
   });
 
-  it("surfaces a controlled error with mapped code and no raw Response leakage", async () => {
-    // The shared apiClient throws ApiError(status, message). The execute service
-    // must convert that into a controlled QueryExecuteError carrying a stable
-    // machine code, while never exposing the raw fetch Response or stack.
+  it("surfaces a controlled error with the envelope code and no raw Response leakage", async () => {
+    // The shared apiClient throws ApiError with Controlled Error Code. Execute
+    // must copy that code onto QueryExecuteError and never expose a fetch Response.
     mockApiClient.mockRejectedValueOnce(
-      new ApiError(403, "target is not enabled for execution"),
+      new ApiError(403, "target is not enabled for execution", undefined, "query_not_allowed"),
     );
 
     await expect(
@@ -170,18 +170,22 @@ describe("executeQueryTarget", () => {
     });
   });
 
-  it("maps each documented status to its controlled error code", async () => {
+  it("classifies execute failures by Controlled Error Code, not HTTP status", async () => {
     const cases: Array<[number, string]> = [
       [400, "validation_failed"],
       [403, "query_not_allowed"],
+      [403, "query_result_disclosure_blocked"],
       [404, "query_target_not_found"],
       [408, "query_timeout"],
       [500, "internal_error"],
       [502, "query_backend_error"],
+      [503, "service_unavailable"],
+      // Same status as a policy refusal; the code is the identity.
+      [403, "query_timeout"],
     ];
 
     for (const [status, code] of cases) {
-      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked"));
+      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked", undefined, code));
       const error = await executeQueryTarget(22, {
         statement: "select 1",
         maxRows: 100,
@@ -192,9 +196,9 @@ describe("executeQueryTarget", () => {
     }
   });
 
-  it("maps 403 with disclosure_blocked message to query_result_disclosure_blocked", async () => {
+  it("maps 403 with query_result_disclosure_blocked from ApiError.code, not message text", async () => {
     mockApiClient.mockRejectedValueOnce(
-      new ApiError(403, "query_result_disclosure_blocked: column masked"),
+      new ApiError(403, "column masked", undefined, "query_result_disclosure_blocked"),
     );
 
     const error = await executeQueryTarget(22, {
@@ -206,6 +210,62 @@ describe("executeQueryTarget", () => {
       "query_result_disclosure_blocked",
     );
     expect((error as QueryExecuteError).status).toBe(403);
+  });
+
+  it("does not sniff disclosure_blocked out of message when the code is query_not_allowed", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(
+        403,
+        "query_result_disclosure_blocked: column masked",
+        undefined,
+        "query_not_allowed",
+      ),
+    );
+
+    const error = await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+    }).catch((value: unknown) => value as QueryExecuteError);
+    expect(error).toBeInstanceOf(QueryExecuteError);
+    expect((error as QueryExecuteError).code).toBe("query_not_allowed");
+  });
+
+  it("treats a JSON error missing a Controlled Error Code as retryable unavailability", async () => {
+    mockApiClient.mockRejectedValueOnce(new ApiError(403, "blocked"));
+
+    const error = await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+    }).catch((value: unknown) => value as QueryExecuteError);
+    expect(error).toBeInstanceOf(QueryExecuteError);
+    expect((error as QueryExecuteError).code).toBe("service_unavailable");
+    expect((error as QueryExecuteError).code).not.toBe("query_not_allowed");
+    expect((error as QueryExecuteError).status).toBe(403);
+  });
+
+  it("treats transport failure as retryable unavailability", async () => {
+    mockApiClient.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+    }).catch((value: unknown) => value as QueryExecuteError);
+    expect(error).toBeInstanceOf(QueryExecuteError);
+    expect((error as QueryExecuteError).code).toBe("service_unavailable");
+    expect((error as QueryExecuteError).status).toBe(0);
+  });
+
+  it("does not convert 401 into a feature QueryExecuteError", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(401, "unauthorized", undefined, "unauthorized"),
+    );
+
+    const error = await executeQueryTarget(22, {
+      statement: "select 1",
+      maxRows: 100,
+    }).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).not.toBeInstanceOf(QueryExecuteError);
   });
 });
 
@@ -342,10 +402,11 @@ describe("navigateRelatedRecords", () => {
     ).resolves.toEqual(response);
   });
 
-  it("maps each documented status to its controlled error code", async () => {
+  it("classifies related-record failures by Controlled Error Code, not HTTP status", async () => {
     const cases: Array<[number, string]> = [
       [400, "validation_failed"],
       [403, "query_not_allowed"],
+      [403, "query_result_disclosure_blocked"],
       [404, "query_target_not_found"],
       [408, "query_timeout"],
       [500, "internal_error"],
@@ -353,7 +414,7 @@ describe("navigateRelatedRecords", () => {
     ];
 
     for (const [status, code] of cases) {
-      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked"));
+      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked", undefined, code));
       const error = await navigateRelatedRecords(22, {
         source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
         localValues: ["42"],
@@ -441,7 +502,7 @@ describe("explainQueryTarget", () => {
     expect(init.signal).toBe(controller.signal);
   });
 
-  it("maps HTTP statuses including 409 to controlled error codes", async () => {
+  it("classifies explain failures by Controlled Error Code, including 409 unsupported", async () => {
     const cases: Array<[number, string]> = [
       [400, "validation_failed"],
       [403, "query_not_allowed"],
@@ -453,7 +514,7 @@ describe("explainQueryTarget", () => {
     ];
 
     for (const [status, code] of cases) {
-      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked"));
+      mockApiClient.mockRejectedValueOnce(new ApiError(status, "blocked", undefined, code));
       const error = await explainQueryTarget(22, { statement: "select 1" }).catch(
         (value: unknown) => value as QueryExecuteError,
       );
@@ -473,11 +534,30 @@ describe("query-executions module surface", () => {
         "QueryExecuteError",
         "executeQueryTarget",
         "explainQueryTarget",
+        "isRetryableControlledErrorCode",
         "listQueryExecutions",
         "navigateRelatedRecords",
         "toQueryExecuteError",
       ].sort(),
     );
+  });
+});
+
+describe("isRetryableControlledErrorCode", () => {
+  it("treats retry as a property of the Controlled Error Code, not HTTP status", () => {
+    expect(isRetryableControlledErrorCode("internal_error")).toBe(true);
+    expect(isRetryableControlledErrorCode("query_backend_error")).toBe(true);
+    expect(isRetryableControlledErrorCode("query_timeout")).toBe(true);
+    expect(isRetryableControlledErrorCode("service_unavailable")).toBe(true);
+    expect(isRetryableControlledErrorCode("forbidden")).toBe(false);
+    expect(isRetryableControlledErrorCode("query_not_allowed")).toBe(false);
+    expect(isRetryableControlledErrorCode("query_result_disclosure_blocked")).toBe(false);
+    expect(isRetryableControlledErrorCode("not_found")).toBe(false);
+    expect(isRetryableControlledErrorCode("saved_statement_not_found")).toBe(false);
+    expect(isRetryableControlledErrorCode("query_target_not_found")).toBe(false);
+    expect(isRetryableControlledErrorCode("validation_failed")).toBe(false);
+    expect(isRetryableControlledErrorCode("query_explain_not_supported")).toBe(false);
+    expect(isRetryableControlledErrorCode("brand_new_backend_code")).toBe(false);
   });
 });
 

@@ -975,11 +975,34 @@ describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Query blocked by result disclosure policy/i)).toBeInTheDocument();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/Query blocked by result disclosure policy/i);
     expect(screen.queryByText(/SIMULATED_RAW_SERVER_MESSAGE_SHOULD_NOT_APPEAR/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/query_result_disclosure_blocked/i)).not.toBeInTheDocument();
+    expect(within(alert).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
-  it("non-disclosure error still shows detail message", async () => {
+  it("query_not_allowed on the same HTTP 403 shows a distinct localized refusal without Retry", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(403, "query_not_allowed", "target is not enabled for execution"),
+    );
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/Execution not allowed for this target/i);
+    expect(screen.queryByText(/target is not enabled for execution/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/query_not_allowed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Query blocked by result disclosure policy/i)).not.toBeInTheDocument();
+    expect(within(alert).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("coded execute errors show localized copy and never the raw backend message", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockRejectedValueOnce(
       new QueryExecuteError(502, "query_backend_error", "target database query failed"),
@@ -991,8 +1014,49 @@ describe("QueryWorkbench disclosure error rendering (Phase 38Q repair)", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Target database error/i)).toBeInTheDocument();
-    expect(screen.getByText(/target database query failed/i)).toBeInTheDocument();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/Target database error/i);
+    expect(screen.queryByText(/target database query failed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/query_backend_error/i)).not.toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("unknown Controlled Error Code shows generic copy without the raw code or message", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(500, "brand_new_backend_code", "RAW_BACKEND_MESSAGE_MUST_NOT_APPEAR"),
+    );
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/The query could not be completed/i);
+    expect(screen.queryByText(/brand_new_backend_code/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/RAW_BACKEND_MESSAGE_MUST_NOT_APPEAR/i)).not.toBeInTheDocument();
+    expect(within(alert).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("Retry on a retryable execute error re-issues the execute request", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget
+      .mockRejectedValueOnce(new QueryExecuteError(408, "query_timeout", "RAW_TIMEOUT_DETAIL"))
+      .mockResolvedValueOnce(buildExecuteResponse());
+    renderReady();
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/timed out/i);
+    expect(screen.queryByText(/RAW_TIMEOUT_DETAIL/i)).not.toBeInTheDocument();
+
+    await user.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 

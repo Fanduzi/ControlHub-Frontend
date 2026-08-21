@@ -64,14 +64,76 @@ describe("listSavedStatements", () => {
     );
   });
 
-  it("maps ApiError to SavedStatementError", async () => {
-    mockApiClient.mockRejectedValueOnce(new ApiError(404, "missing"));
+  it("maps a coded 404 envelope to SavedStatementError without guessing from status", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(404, "missing", undefined, "not_found"),
+    );
     await expect(listSavedStatements(22)).rejects.toMatchObject({
       name: "SavedStatementError",
       status: 404,
       code: "not_found",
       message: "missing",
     });
+  });
+
+  it("preserves saved_statement_not_found from the envelope code", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(404, "missing", undefined, "saved_statement_not_found"),
+    );
+    await expect(listSavedStatements(22)).rejects.toMatchObject({
+      name: "SavedStatementError",
+      status: 404,
+      code: "saved_statement_not_found",
+    });
+  });
+
+  it("maps 403 with forbidden from the envelope code", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(403, "not allowed", undefined, "forbidden"),
+    );
+    await expect(listSavedStatements(22)).rejects.toMatchObject({
+      name: "SavedStatementError",
+      status: 403,
+      code: "forbidden",
+    });
+  });
+
+  it("does not invent forbidden from HTTP 403 when the envelope omits a code", async () => {
+    mockApiClient.mockRejectedValueOnce(new ApiError(403, "not allowed"));
+    const error = await listSavedStatements(22).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(SavedStatementError);
+    expect(error).toMatchObject({
+      name: "SavedStatementError",
+      status: 403,
+      code: "service_unavailable",
+    });
+    expect((error as SavedStatementError).code).not.toBe("forbidden");
+  });
+
+  it("does not invent not_found from HTTP 404 when the envelope omits a code", async () => {
+    mockApiClient.mockRejectedValueOnce(new ApiError(404, "missing"));
+    const error = await listSavedStatements(22).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(SavedStatementError);
+    expect((error as SavedStatementError).code).toBe("service_unavailable");
+    expect((error as SavedStatementError).code).not.toBe("not_found");
+  });
+
+  it("treats transport failure as retryable unavailability", async () => {
+    mockApiClient.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(listSavedStatements(22)).rejects.toMatchObject({
+      name: "SavedStatementError",
+      status: 0,
+      code: "service_unavailable",
+    });
+  });
+
+  it("does not convert 401 into a SavedStatementError", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(401, "unauthorized", undefined, "unauthorized"),
+    );
+    const error = await listSavedStatements(22).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).not.toBeInstanceOf(SavedStatementError);
   });
 });
 
@@ -201,20 +263,47 @@ describe("deleteSavedStatement", () => {
   });
 });
 
-describe("SavedStatementError", () => {
-  it("maps 400 to validation_failed", () => {
-    const error = new SavedStatementError(400, "validation_failed", "bad input");
-    expect(error.code).toBe("validation_failed");
-    expect(error.status).toBe(400);
+describe("createSavedStatement error mapping", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("maps validation_failed from the envelope code", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(400, "bad input", undefined, "validation_failed"),
+    );
+    await expect(
+      createSavedStatement(22, {
+        name: "test",
+        statement: "SELECT 1",
+        scope: "personal",
+        parameters: [],
+      }),
+    ).rejects.toMatchObject({
+      name: "SavedStatementError",
+      status: 400,
+      code: "validation_failed",
+    });
+  });
+});
+
+describe("deleteSavedStatement error mapping", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("maps forbidden from the envelope code, not HTTP 403", async () => {
+    mockApiClient.mockRejectedValueOnce(
+      new ApiError(403, "not allowed", undefined, "forbidden"),
+    );
+    await expect(deleteSavedStatement(22, 5)).rejects.toMatchObject({
+      name: "SavedStatementError",
+      code: "forbidden",
+      status: 403,
+    });
   });
 
-  it("maps 403 to forbidden", () => {
-    const error = new SavedStatementError(403, "forbidden", "not allowed");
-    expect(error.code).toBe("forbidden");
-  });
-
-  it("maps 404 to not_found", () => {
-    const error = new SavedStatementError(404, "not_found", "missing");
-    expect(error.code).toBe("not_found");
+  it("does not invent forbidden from HTTP 403 when the code is absent", async () => {
+    mockApiClient.mockRejectedValueOnce(new ApiError(403, "not allowed"));
+    const error = await deleteSavedStatement(22, 5).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(SavedStatementError);
+    expect((error as SavedStatementError).code).toBe("service_unavailable");
+    expect((error as SavedStatementError).code).not.toBe("forbidden");
   });
 });

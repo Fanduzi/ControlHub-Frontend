@@ -12,22 +12,22 @@ import type {
 
 /**
  * Controlled error from a query execution attempt. Wraps the shared
- * `ApiError` thrown by the authenticated API client and adds the stable
- * machine `code` the backend pairs with each documented HTTP status, so the UI
- * can render a distinct controlled state (validation, policy, timeout, backend
- * failure) without ever touching the raw fetch `Response` or a stack trace.
+ * `ApiError` thrown by the authenticated API client and copies the published
+ * Controlled Error Code so the UI can render a distinct state without reading
+ * HTTP status or `message`. Unknown codes are retained; missing codes and
+ * transport failures become retryable `service_unavailable`.
  *
  * The actor is derived from the verified Bearer token on the server; nothing in
  * this module accepts or sends `actorUserId`.
  */
 export class QueryExecuteError extends Error {
   status: number;
-  code: QueryExecuteErrorCode;
+  code: string;
   details?: Record<string, string>;
 
   constructor(
     status: number,
-    code: QueryExecuteErrorCode,
+    code: string,
     message: string,
     details?: Record<string, string>,
   ) {
@@ -40,14 +40,8 @@ export class QueryExecuteError extends Error {
 }
 
 /**
- * Machine-readable error codes returned by the Phase 37 sandbox. These pair 1:1
- * with the backend's documented HTTP statuses (see the Phase 37 spec error
- * table) — the frontend maps status to code so render logic keys off the code.
- *
- * Phase 38Q adds `query_result_disclosure_blocked` for 403 responses where the
- * backend's error message identifies a disclosure-policy block (the message
- * contains "disclosure_blocked"). The frontend disambiguates by inspecting the
- * `ApiError.message` before falling back to the status-based mapping.
+ * Known Controlled Error Codes the query-execution UI localizes. Classification
+ * still accepts any `ApiError.code`; unknown values stay on the error object.
  */
 export type QueryExecuteErrorCode =
   | "validation_failed"
@@ -57,44 +51,50 @@ export type QueryExecuteErrorCode =
   | "query_result_disclosure_blocked"
   | "query_timeout"
   | "query_backend_error"
-  | "internal_error";
+  | "internal_error"
+  | "service_unavailable"
+  | "forbidden"
+  | "not_found"
+  | "saved_statement_not_found";
 
-const STATUS_TO_ERROR_CODE: Readonly<Record<number, QueryExecuteErrorCode>> = {
-  400: "validation_failed",
-  403: "query_not_allowed",
-  404: "query_target_not_found",
-  408: "query_timeout",
-  409: "query_explain_not_supported",
-  500: "internal_error",
-  502: "query_backend_error",
-};
+const RETRYABLE_CONTROLLED_ERROR_CODES = new Set<string>([
+  "internal_error",
+  "query_backend_error",
+  "query_timeout",
+  "service_unavailable",
+]);
 
-/** Default to a safe internal_error for any unmapped status. */
-function errorCodeFromStatus(error: ApiError): QueryExecuteErrorCode {
-  if (
-    error.status === 403 &&
-    error.message.includes("disclosure_blocked")
-  ) {
-    return "query_result_disclosure_blocked";
+/** Retry follows the Controlled Error Code, never HTTP status, once a code is present. */
+export function isRetryableControlledErrorCode(code: string): boolean {
+  return RETRYABLE_CONTROLLED_ERROR_CODES.has(code);
+}
+
+function rethrowUnauthorized(error: unknown): void {
+  if (error instanceof ApiError && error.status === 401) {
+    throw error;
   }
-  return STATUS_TO_ERROR_CODE[error.status] ?? "internal_error";
+}
+
+function controlledErrorCodeFromApiError(error: ApiError): string {
+  return typeof error.code === "string" && error.code.length > 0
+    ? error.code
+    : "service_unavailable";
 }
 
 /** Convert the shared client's ApiError into a controlled QueryExecuteError. */
 export function toQueryExecuteError(error: unknown): QueryExecuteError {
+  rethrowUnauthorized(error);
   if (error instanceof ApiError) {
     return new QueryExecuteError(
       error.status,
-      errorCodeFromStatus(error),
+      controlledErrorCodeFromApiError(error),
       error.message,
       error.details,
     );
   }
-  // Network failures or unexpected throws: surface a controlled internal error
-  // rather than leaking the underlying value to the UI.
   return new QueryExecuteError(
     0,
-    "internal_error",
+    "service_unavailable",
     error instanceof Error ? error.message : "Query execution failed",
   );
 }
@@ -161,8 +161,8 @@ export async function listQueryExecutions(
  * `actorUserId`. The backend resolves referenced identifiers and constructs
  * parameterized SQL server-side.
  *
- * Rejects with a controlled `QueryExecuteError` on HTTP errors, using the same
- * status-to-code mapping as `executeQueryTarget`.
+ * Rejects with a controlled `QueryExecuteError` on HTTP errors, classified by
+ * Controlled Error Code the same way as `executeQueryTarget`.
  */
 export async function navigateRelatedRecords(
   targetResourceId: number,
@@ -193,9 +193,8 @@ export async function navigateRelatedRecords(
  * credential, DSN, or risk score. The backend owns wrapping the guarded
  * SELECT in EXPLAIN FORMAT=JSON and normalizing the raw plan.
  *
- * Rejects with a controlled `QueryExecuteError` on HTTP errors, using the
- * same status-to-code mapping as `executeQueryTarget` plus the 409
- * `query_explain_not_supported` code for unsupported engines.
+ * Rejects with a controlled `QueryExecuteError` on HTTP errors, classified by
+ * Controlled Error Code the same way as `executeQueryTarget`.
  */
 export async function explainQueryTarget(
   targetResourceId: number,

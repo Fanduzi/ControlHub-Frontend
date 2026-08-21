@@ -15,9 +15,9 @@ import type {
  */
 export class SavedStatementError extends Error {
   status: number;
-  code: SavedStatementErrorCode;
+  code: string;
 
-  constructor(status: number, code: SavedStatementErrorCode, message: string) {
+  constructor(status: number, code: string, message: string) {
     super(message);
     this.name = "SavedStatementError";
     this.status = status;
@@ -28,8 +28,10 @@ export class SavedStatementError extends Error {
 export type SavedStatementErrorCode =
   | "validation_failed"
   | "not_found"
+  | "saved_statement_not_found"
   | "forbidden"
-  | "internal_error";
+  | "internal_error"
+  | "service_unavailable";
 
 function sanitizeParameterDefinitions(
   parameters: QuerySavedStatementCreateRequest["parameters"],
@@ -37,24 +39,20 @@ function sanitizeParameterDefinitions(
   return parameters?.map(({ name, type }) => ({ name, type })) ?? [];
 }
 
-const STATUS_TO_ERROR_CODE: Readonly<Record<number, SavedStatementErrorCode>> = {
-  400: "validation_failed",
-  403: "forbidden",
-  404: "not_found",
-  500: "internal_error",
-};
-
 function toSavedStatementError(error: unknown): SavedStatementError {
+  if (error instanceof ApiError && error.status === 401) {
+    throw error;
+  }
   if (error instanceof ApiError) {
-    return new SavedStatementError(
-      error.status,
-      STATUS_TO_ERROR_CODE[error.status] ?? "internal_error",
-      error.message,
-    );
+    const code =
+      typeof error.code === "string" && error.code.length > 0
+        ? error.code
+        : "service_unavailable";
+    return new SavedStatementError(error.status, code, error.message);
   }
   return new SavedStatementError(
     0,
-    "internal_error",
+    "service_unavailable",
     error instanceof Error ? error.message : "Saved statement operation failed",
   );
 }

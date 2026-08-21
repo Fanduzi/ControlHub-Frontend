@@ -1,7 +1,7 @@
 // input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
 // output: QuerySavedStatements component (terminal list generations, create/edit/delete with terminal delete state machine, shared-template affordance gate)
 // pos: UI component for managing saved query statements within the query workbench
-// note: if this file changes, update header and components/query/README.md
+// note: list/delete terminal states key off Controlled Error Code; if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -188,7 +188,10 @@ export function QuerySavedStatements({
           error:
             error instanceof SavedStatementError && error.code === "forbidden"
               ? "forbidden"
-              : error instanceof SavedStatementError && error.code === "not_found"
+              : error instanceof SavedStatementError &&
+                  (error.code === "not_found" ||
+                    error.code === "saved_statement_not_found" ||
+                    error.code === "query_target_not_found")
                 ? "not_found"
                 : "retryable",
         }));
@@ -328,7 +331,10 @@ export function QuerySavedStatements({
         activeTargetRef.current !== requestTarget ||
         targetGenerationRef.current !== requestTargetGeneration
       ) return;
-      if (error instanceof SavedStatementError && error.code === "not_found") {
+      if (
+        error instanceof SavedStatementError &&
+        (error.code === "not_found" || error.code === "saved_statement_not_found")
+      ) {
         // Not a success: refresh the current list and announce absence.
         setDeleteDialog(null);
         restoreFocus(triggerRef);
