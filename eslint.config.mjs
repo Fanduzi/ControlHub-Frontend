@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     "test-results/**",
     ".worktrees/**",
+    "controlhub-backend/**",
     ".gitnexus/**",
     "out/**",
     "build/**",

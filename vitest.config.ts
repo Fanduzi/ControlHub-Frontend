@@ -9,7 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     css: true,
-    exclude: ["e2e/**", "node_modules/**", ".worktrees/**"],
+    exclude: ["e2e/**", "node_modules/**", ".worktrees/**", "controlhub-backend/**"],
   },
   resolve: {
     alias: {
