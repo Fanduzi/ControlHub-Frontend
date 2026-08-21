@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -7,6 +7,11 @@ import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
 import { resolveFixtureIdentity } from "./harness/fixtures";
 import { getAuthToken, apiFetch } from "./api.helpers";
+import {
+  installSavedStatementTeardown,
+  submitSavedStatementCreate,
+  trackSavedStatement,
+} from "./harness/saved-statement-teardown";
 import {
   assertClean,
   collectConsoleMessages,
@@ -3218,6 +3223,7 @@ test.describe("Relationship map (Phase 38O)", () => {
 // ─── Phase 38R: Governed saved statements ───────────────────────────────────
 
 test.describe("Saved statements (Phase 38R)", () => {
+  installSavedStatementTeardown();
   let consumableHttpErrors: ConsumableHttpExpectation[] = [];
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
@@ -3303,8 +3309,11 @@ test.describe("Saved statements (Phase 38R)", () => {
     const stmtValue = await stmtTextarea.inputValue();
     expect(stmtValue.length).toBeGreaterThan(0);
 
-    // Submit
-    await page.getByRole("button", { name: /^create$/i }).first().click();
+    // Submit — record the 201 id before later assertions so afterEach can
+    // DELETE even if load/run/delete UI assertions fail.
+    await submitSavedStatementCreate(page, () =>
+      page.getByRole("button", { name: /^create$/i }).first().click(),
+    );
 
     // The saved statement should appear in the list
     await expect(page.getByText(testName).first()).toBeVisible({
@@ -3414,8 +3423,9 @@ test.describe("Saved statements (Phase 38R)", () => {
     const mobileTestName = `Mobile test ${Date.now().toString(36)}`;
     await nameInput.fill(mobileTestName);
 
-    // Submit
-    await page.getByRole("button", { name: /^create$/i }).first().click();
+    await submitSavedStatementCreate(page, () =>
+      page.getByRole("button", { name: /^create$/i }).first().click(),
+    );
 
     // The saved statement should appear in the list
     await expect(page.getByText(mobileTestName)).toBeVisible({
@@ -3510,23 +3520,14 @@ test.describe("Saved statements (Phase 38R)", () => {
       .first()
       .click();
     await fillSaveDialog(page, name, "SELECT 1");
-    const createResponse = page.waitForResponse(
-      (resp) =>
-        resp.request().method() === "POST" &&
-        resp.url().includes("/saved-statements") &&
-        !resp.url().includes("/execute") &&
-        resp.status() === 201,
+    const created = await submitSavedStatementCreate(page, () =>
+      page
+        .getByRole("button", { name: locale === "en" ? /^create$/i : /^创建$/ })
+        .first()
+        .click(),
     );
-    await page
-      .getByRole("button", { name: locale === "en" ? /^create$/i : /^创建$/ })
-      .first()
-      .click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
-    const created = (await (await createResponse).json()) as {
-      id: number;
-      targetResourceId: number;
-    };
-    return { id: created.id, targetResourceId: created.targetResourceId };
+    return created;
   }
 
   test("desktop EN: deleting an already-removed saved statement closes the dialog, refreshes, and announces absence", async ({
@@ -3757,7 +3758,9 @@ async function exerciseParameterizedTemplateLoad(
   const createRequest = page.waitForRequest(
     (request) => request.method() === "POST" && /saved-statements$/.test(request.url()),
   );
-  await page.getByRole("button", { name: options.locale === "en" ? /^create$/i : /^创建$/ }).first().click();
+  await submitSavedStatementCreate(page, () =>
+    page.getByRole("button", { name: options.locale === "en" ? /^create$/i : /^创建$/ }).first().click(),
+  );
   expect((await createRequest).postDataJSON()).toMatchObject({
     name: savedName,
     statement: "SELECT :status AS status",
@@ -3804,6 +3807,7 @@ async function exerciseParameterizedTemplateLoad(
 }
 
 test.describe("Governed result paging (Phase 38S)", () => {
+  installSavedStatementTeardown();
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
 
@@ -3997,7 +4001,9 @@ test.describe("Governed result paging (Phase 38S)", () => {
     const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const savedName = `Paging invalidation ${suffix}`;
     await page.getByLabel(/statement name/i).first().fill(savedName);
-    await page.getByRole("button", { name: /^create$/i }).first().click();
+    await submitSavedStatementCreate(page, () =>
+      page.getByRole("button", { name: /^create$/i }).first().click(),
+    );
     await expect(page.getByText(savedName).first()).toBeVisible({ timeout: 10_000 });
 
     // Run a paged query and move to page 2.
@@ -4137,6 +4143,7 @@ test.describe("Governed result paging (Phase 38S)", () => {
 // ─── Phase 38W-3: Governed template execution ───────────────────────────────
 
 test.describe("Phase 38W-3: governed template execution", () => {
+  installSavedStatementTeardown();
   let consumableHttpErrors: ConsumableHttpExpectation[] = [];
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
@@ -4210,7 +4217,9 @@ test.describe("Phase 38W-3: governed template execution", () => {
     if (options.paramType !== "string") {
       await row.getByLabel(/type/i).selectOption(options.paramType);
     }
-    await page.getByRole("button", { name: /^create$/i }).first().click();
+    await submitSavedStatementCreate(page, () =>
+      page.getByRole("button", { name: /^create$/i }).first().click(),
+    );
     await expect(page.getByText(options.name).first()).toBeVisible({ timeout: 10_000 });
   }
 
@@ -4562,7 +4571,9 @@ test.describe("Phase 38W-3: governed template execution", () => {
     const row = page.getByTestId("parameter-row-0");
     await row.locator("input").fill("minimum_id");
     await row.getByLabel(/类型/i).selectOption("integer");
-    await page.getByRole("button", { name: /^创建$/i }).first().click();
+    await submitSavedStatementCreate(page, () =>
+      page.getByRole("button", { name: /^创建$/i }).first().click(),
+    );
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("button", { name: new RegExp(`加载 ${name}`, "i") }).first().click();
@@ -4599,6 +4610,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
 // ─── Issue #5: shared-template mutation affordance ──────────────────────────
 
 test.describe("Saved statements shared template affordance (Issue #5)", () => {
+  installSavedStatementTeardown();
   let consoleMessages: ConsoleMessage[];
   let networkErrors: string[];
   let consumableHttpErrors: Array<{
@@ -5258,105 +5270,74 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     if (!readyTarget) throw noReadyTargetFixtureError();
     const targetId = readyTarget.resourceId;
 
-    const seededIds: number[] = [];
-    const cleanupFailures: string[] = [];
     const SEED_PREFIX = "Pagination seed";
 
-    // Register cleanup before the first mutation so a partial seed still cleans up.
-    const cleanupSeeded = async () => {
-      for (const id of seededIds) {
-        const res = await fetch(
-          `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements/${id}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(5_000),
-          },
-        ).catch((error: unknown) => {
-          cleanupFailures.push(
-            `DELETE saved-statement ${id} threw: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          return null;
-        });
-        if (res && !res.ok && res.status !== 404) {
-          cleanupFailures.push(`DELETE saved-statement ${id} returned ${res.status}`);
-        }
-      }
-      if (cleanupFailures.length > 0) {
-        throw new Error(
-          `E2E cleanup failed for shared list pagination seeds:\n${cleanupFailures.join("\n")}`,
+    // Track each seed as soon as it exists so afterEach DELETE still runs
+    // when a later assertion or the test timeout fires.
+    for (let i = 0; i < 25; i++) {
+      const res = await fetch(
+        `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${SEED_PREFIX} ${String(i).padStart(2, "0")}`,
+            statement: "SELECT 1",
+            scope: "shared_template",
+            parameters: [],
+          }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!res.ok) {
+        throw fixtureSetupError(
+          `create pagination seed "${SEED_PREFIX} ${String(i).padStart(2, "0")}" returned ${res.status}: ${await res.text()}`,
         );
       }
-    };
-
-    try {
-      for (let i = 0; i < 25; i++) {
-        const res = await fetch(
-          `${PROBE_API_BASE}/query-targets/${targetId}/saved-statements`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: `${SEED_PREFIX} ${String(i).padStart(2, "0")}`,
-              statement: "SELECT 1",
-              scope: "shared_template",
-              parameters: [],
-            }),
-            signal: AbortSignal.timeout(10_000),
-          },
+      const body = (await res.json()) as { id?: number };
+      if (typeof body.id !== "number") {
+        throw fixtureSetupError(
+          `create pagination seed returned unexpected body: ${JSON.stringify(body)}`,
         );
-        if (!res.ok) {
-          throw fixtureSetupError(
-            `create pagination seed "${SEED_PREFIX} ${String(i).padStart(2, "0")}" returned ${res.status}: ${await res.text()}`,
-          );
-        }
-        const body = (await res.json()) as { id?: number };
-        if (typeof body.id !== "number") {
-          throw fixtureSetupError(
-            `create pagination seed returned unexpected body: ${JSON.stringify(body)}`,
-          );
-        }
-        seededIds.push(body.id);
       }
-
-      await openQueryWorkbench(page);
-      const readyIndex = await findReadyOptionIndex(page);
-      if (readyIndex === null) throw noReadyTargetFixtureError();
-      await selectConnectionTarget(page, readyIndex);
-
-      await page.getByRole("tab", { name: /saved sheets/i }).click();
-      await expect(
-        page.getByText(/E2E shared|Pagination|loading/i).first(),
-      ).toBeVisible({ timeout: 10_000 });
-
-      const nextBtn = page.getByRole("button", { name: /^next$/i });
-      const prevBtn = page.getByRole("button", { name: /^previous$/i });
-      const pageIndicator = page.getByText(/Page \d+ of \d+/);
-
-      await expect(nextBtn).toBeEnabled();
-      await expect(pageIndicator).toBeVisible();
-      const page1Text = await pageIndicator.textContent();
-
-      const listRequest = page.waitForResponse(
-        (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=2") && resp.ok(),
-        { timeout: 10_000 },
-      );
-      await nextBtn.click();
-      await listRequest;
-
-      await expect(pageIndicator).not.toHaveText(page1Text!, { timeout: 5_000 });
-      await expect(prevBtn).toBeEnabled();
-
-      const prevRequest = page.waitForResponse(
-        (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=1") && resp.ok(),
-        { timeout: 10_000 },
-      );
-      await prevBtn.click();
-      await prevRequest;
-
-      await expect(pageIndicator).toHaveText(page1Text!, { timeout: 5_000 });
-    } finally {
-      await cleanupSeeded();
+      trackSavedStatement({ id: body.id, targetResourceId: targetId });
     }
+
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw noReadyTargetFixtureError();
+    await selectConnectionTarget(page, readyIndex);
+
+    await page.getByRole("tab", { name: /saved sheets/i }).click();
+    await expect(
+      page.getByText(/E2E shared|Pagination|loading/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    const nextBtn = page.getByRole("button", { name: /^next$/i });
+    const prevBtn = page.getByRole("button", { name: /^previous$/i });
+    const pageIndicator = page.getByText(/Page \d+ of \d+/);
+
+    await expect(nextBtn).toBeEnabled();
+    await expect(pageIndicator).toBeVisible();
+    const page1Text = await pageIndicator.textContent();
+
+    const listRequest = page.waitForResponse(
+      (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=2") && resp.ok(),
+      { timeout: 10_000 },
+    );
+    await nextBtn.click();
+    await listRequest;
+
+    await expect(pageIndicator).not.toHaveText(page1Text!, { timeout: 5_000 });
+    await expect(prevBtn).toBeEnabled();
+
+    const prevRequest = page.waitForResponse(
+      (resp) => resp.url().includes("/saved-statements") && resp.url().includes("page=1") && resp.ok(),
+      { timeout: 10_000 },
+    );
+    await prevBtn.click();
+    await prevRequest;
+
+    await expect(pageIndicator).toHaveText(page1Text!, { timeout: 5_000 });
   });
 });
