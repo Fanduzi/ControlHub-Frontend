@@ -4729,6 +4729,17 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     };
     if (
       typeof created.id !== "number" ||
+      !Number.isInteger(created.id) ||
+      created.id <= 0
+    ) {
+      throw fixtureSetupError(
+        `create shared template "${spec.name}" returned no deletable id: ${JSON.stringify(created)}`,
+      );
+    }
+    // Track before validating the rest of the body: once the row exists it
+    // must be deletable even when the response contract check fails.
+    sharedTemplateFixtures.push({ id: created.id, targetResourceId: targetId });
+    if (
       created.name !== spec.name ||
       created.scope !== "shared_template" ||
       created.statement !== spec.statement ||
@@ -4738,7 +4749,6 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
         `create shared template "${spec.name}" returned unexpected body: ${JSON.stringify(created)}`,
       );
     }
-    sharedTemplateFixtures.push({ id: created.id, targetResourceId: targetId });
   }
 
   test.beforeAll(async () => {
