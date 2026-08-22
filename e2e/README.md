@@ -41,4 +41,4 @@ Query Workbench tests that create a Saved Statement must record `{ id, targetRes
 
 Call `installSavedStatementTeardown()` at the start of every describe that can create a row. UI creates go through `submitSavedStatementCreate()` (waits for POST 201, then records the id). Node/API creates call `trackSavedStatement()` immediately after the create body is parsed.
 
-Teardown DELETE 404 is success (the test may already have deleted the row). Any other teardown failure fails the test. Shared template fixtures created in `beforeAll` are not per-test rows and are left in place. Other E2E resource types are unchanged. No route mocks, `page.evaluate` HTTP, forced clicks, or skips.
+Teardown DELETE 404 is success (the test may already have deleted the row). Any other teardown failure fails the test. Shared template fixtures created in `beforeAll` are tracked as well and deleted in `afterAll` (404 is success). Other E2E resource types are unchanged. No route mocks, `page.evaluate` HTTP, forced clicks, or skips.

@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -11,6 +11,7 @@ import {
   installSavedStatementTeardown,
   submitSavedStatementCreate,
   trackSavedStatement,
+  teardownSavedStatements,
 } from "./harness/saved-statement-teardown";
 import {
   assertClean,
@@ -4627,6 +4628,10 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     "SELECT id, payload FROM qe_explain_big WHERE id > :minimum_id ORDER BY id";
   const SHARED_PARAM_DECLARATIONS = [{ name: "minimum_id", type: "integer" }] as const;
 
+  // beforeAll-created shared templates are still Saved Statements: track them
+  // so afterAll can delete them even when tests fail (AC1 of issue #50).
+  const sharedTemplateFixtures: Array<{ id: number; targetResourceId: number }> = [];
+
   function fixtureSetupError(detail: string): Error {
     return new Error(`E2E fixture setup error: ${detail}. ${FIXTURE_DIAGNOSTIC}`);
   }
@@ -4733,6 +4738,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
         `create shared template "${spec.name}" returned unexpected body: ${JSON.stringify(created)}`,
       );
     }
+    sharedTemplateFixtures.push({ id: created.id, targetResourceId: targetId });
   }
 
   test.beforeAll(async () => {
@@ -4770,6 +4776,15 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
       name: SHARED_PARAM_TEMPLATE_NAME,
       statement: SHARED_PARAM_TEMPLATE_STATEMENT,
       parameters: SHARED_PARAM_DECLARATIONS,
+    });
+  });
+
+  test.afterAll(async () => {
+    const identities = sharedTemplateFixtures.splice(0);
+    if (identities.length === 0) return;
+    await teardownSavedStatements(identities, {
+      apiBase: PROBE_API_BASE,
+      token: await getAuthToken(),
     });
   });
 
