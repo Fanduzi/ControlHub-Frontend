@@ -80,14 +80,9 @@ export function savedStatementCreateIdentityFromResponse(args: {
   if (args.body === null || typeof args.body !== "object") return null;
   const id = (args.body as { id?: unknown }).id;
   if (typeof id !== "number" || !Number.isInteger(id) || id <= 0) return null;
-  const bodyTarget = (args.body as { targetResourceId?: unknown }).targetResourceId;
-  const targetResourceId =
-    typeof bodyTarget === "number" &&
-    Number.isInteger(bodyTarget) &&
-    bodyTarget > 0
-      ? bodyTarget
-      : targetFromUrl;
-  return { id, targetResourceId };
+  // The create URL is authoritative for teardown routing: preferring a
+  // disagreeing body target would DELETE the wrong URL and leak the row.
+  return { id, targetResourceId: targetFromUrl };
 }
 
 /** DELETE 404 means the test already removed the row — that is teardown success. */

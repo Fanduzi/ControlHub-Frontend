@@ -83,6 +83,17 @@ describe("savedStatementCreateIdentityFromResponse", () => {
     ).toEqual({ id: 44, targetResourceId: 9 });
   });
 
+  it("keeps the URL target when the body disagrees so teardown deletes the created row, not the wrong one", () => {
+    expect(
+      savedStatementCreateIdentityFromResponse({
+        method: "POST",
+        url: createUrl,
+        status: 201,
+        body: { id: 44, targetResourceId: 7 },
+      }),
+    ).toEqual({ id: 44, targetResourceId: 9 });
+  });
+
   it("ignores execute POSTs even if status is 201 — deleting would hit the wrong resource", () => {
     expect(
       savedStatementCreateIdentityFromResponse({
