@@ -1549,6 +1549,10 @@
       "title": "没有匹配的查询目标",
       "description": "调整筛选或清空搜索，以查看可查询的数据库资源。"
     },
+    "unavailableTarget": {
+      "title": "此查询目标不可用。",
+      "description": "请选择可用连接以继续。"
+    },
     "readinessValues": {
       "ready": "就绪",
       "missing_connection": "连接缺失",

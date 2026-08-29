@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, mocked query services, and locale messages
-// output: QueryWorkbench search recovery, stale/abort guards, and interaction tests
+// output: QueryWorkbench unavailable-target recovery, search guards, and interaction tests
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
@@ -207,6 +207,7 @@ function renderWorkbench(
   messages: Record<string, unknown> = enMessages,
   initialFilters: WorkbenchFilters = EMPTY_FILTERS,
   environmentId?: number,
+  initialActiveTargetId?: number | null,
 ) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
@@ -215,6 +216,7 @@ function renderWorkbench(
         pageInfo={pageInfoFor(targets)}
         initialFilters={initialFilters}
         environmentId={environmentId}
+        initialActiveTargetId={initialActiveTargetId}
       />
     </NextIntlClientProvider>,
   );
@@ -271,6 +273,41 @@ describe("QueryWorkbench", () => {
       "data-theme-preference",
       "dark",
     );
+  });
+
+  it("keeps connections available when an expired URL target is unavailable so the user can recover", async () => {
+    const user = userEvent.setup();
+    const target = buildReadyWorkbenchTarget();
+    renderWorkbench([target], enMessages, EMPTY_FILTERS, undefined, null);
+
+    expect(screen.getByText("This query target is unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open connections" })).toBeInTheDocument();
+    expect(screen.queryByText("No query targets match")).toBeNull();
+    expect(screen.queryByLabelText("Statement")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Open connections" }));
+    await user.click(screen.getByRole("button", { name: target.displayName }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Statement")).toBeInTheDocument();
+    });
+    expect(replace).toHaveBeenLastCalledWith("/query?targetId=30");
+  });
+
+  it("keeps the global empty state only for zero targets, because there is no connection to recover with", () => {
+    renderWorkbench([], enMessages, EMPTY_FILTERS, undefined, null);
+
+    expect(screen.getByText("No query targets match")).toBeInTheDocument();
+    expect(screen.queryByText("This query target is unavailable.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open connections" })).toBeNull();
+    expect(screen.queryByLabelText("Statement")).toBeNull();
+  });
+
+  it("localizes unavailable-target guidance in Chinese", () => {
+    renderWorkbench([buildReadyWorkbenchTarget()], zhMessages, EMPTY_FILTERS, undefined, null);
+
+    expect(screen.getByText("此查询目标不可用。")).toBeInTheDocument();
+    expect(screen.getByText("请选择可用连接以继续。")).toBeInTheDocument();
   });
 
   it("keeps editor controls readable in dark mode", () => {

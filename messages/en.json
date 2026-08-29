@@ -1549,6 +1549,10 @@
       "title": "No query targets match",
       "description": "Adjust filters or clear the search to see query-capable database resources."
     },
+    "unavailableTarget": {
+      "title": "This query target is unavailable.",
+      "description": "Choose an available connection to continue."
+    },
     "readinessValues": {
       "ready": "Ready",
       "missing_connection": "Missing connection",

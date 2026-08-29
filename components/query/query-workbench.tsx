@@ -1,5 +1,5 @@
 // input: QueryWorkbench props, target/schema services, navigation, and messages
-// output: scoped target search with failure fallback/retry and editor state
+// output: scoped target search, unavailable-target recovery, and editor state
 // pos: top-level query workbench and target-search generation boundary
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -421,7 +421,7 @@ export function QueryWorkbench({
 
   return (
     <div className="flex min-h-0 flex-col gap-0">
-      {activeTarget ? (
+      {loadedTargets.length > 0 ? (
         <>
           <QueryContextBar
             target={activeTarget}
@@ -445,7 +445,8 @@ export function QueryWorkbench({
             onMobileObjectsOpenChange={setMobileObjectsOpen}
             mobileObjectsTriggerRef={mobileObjectsTriggerRef}
           />
-          <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
+          {activeTarget ? (
+            <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
             {/* Desktop objects pane — only mount explorer when open so locked
                 targets never issue unsolicited schema requests. */}
             {objectsOpen && (
@@ -551,7 +552,15 @@ export function QueryWorkbench({
                 onPreviewConsumed={() => setPendingPreviewEvent(null)}
               />
             </div>
-          </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 text-center">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t("unavailableTarget.title")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t("unavailableTarget.description")}</p>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <EmptyState title={t("empty.title")} description={t("empty.description")} />
@@ -561,7 +570,7 @@ export function QueryWorkbench({
 }
 
 type QueryContextBarProps = {
-  target: QueryTarget;
+  target: QueryTarget | null;
   activeDatabase: string | null;
   navigatorTargets: QueryTarget[];
   activeTargetId: number | null;
@@ -606,6 +615,34 @@ function QueryContextBar({
   mobileObjectsTriggerRef,
 }: QueryContextBarProps) {
   const t = useTranslations("queryWorkbench");
+  const navigator = (
+    <QueryWorkbenchNavigator
+      targets={navigatorTargets}
+      activeTargetId={activeTargetId}
+      filters={filters}
+      engines={engines}
+      pageInfo={pageInfo}
+      onSelect={onSelect}
+      onFilterChange={onFilterChange}
+      onLoadMore={onLoadMore}
+      loadingMore={loadingMore}
+      onLoadAllEngines={onLoadAllEngines}
+      loadingEngines={loadingEngines}
+      targetLoadError={targetLoadError}
+      searchError={searchError}
+      onRetrySearch={onRetrySearch}
+    />
+  );
+
+  if (!target) {
+    return (
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
+        <span className="flex-1" />
+        {navigator}
+      </div>
+    );
+  }
+
   const isProduction = target.connectionContext.environment === "production";
   const isReady = target.readiness === "ready";
   const truncatedName = target.displayName.length > 32
@@ -684,22 +721,7 @@ function QueryContextBar({
         {t("schema.objectsLabel")}
       </Button>
 
-      <QueryWorkbenchNavigator
-        targets={navigatorTargets}
-        activeTargetId={activeTargetId}
-        filters={filters}
-        engines={engines}
-        pageInfo={pageInfo}
-        onSelect={onSelect}
-        onFilterChange={onFilterChange}
-        onLoadMore={onLoadMore}
-        loadingMore={loadingMore}
-        onLoadAllEngines={onLoadAllEngines}
-        loadingEngines={loadingEngines}
-        targetLoadError={targetLoadError}
-        searchError={searchError}
-        onRetrySearch={onRetrySearch}
-      />
+      {navigator}
     </div>
   );
 }
