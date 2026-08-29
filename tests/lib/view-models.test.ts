@@ -164,6 +164,7 @@ describe("getResourceViewModel", () => {
     const viewModel = await getResourceViewModel(uncopiedResource.id);
 
     expect(viewModel?.summary).toBe("database_cluster · mysql · running");
+    expect(viewModel?.members).toEqual([]);
     expect(viewModel?.summary).not.toContain("Database Cluster");
     expect(viewModel?.summary).not.toContain("Running");
   });

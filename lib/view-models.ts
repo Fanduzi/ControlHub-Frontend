@@ -1,6 +1,6 @@
-// input: resource, relation, profile, audit, and lookup service responses
-// output: localized resource list/detail view models, including an unambiguous database-instance parent cluster
-// pos: server-side adapter between backend transport records and console presentation consumers
+// input: resource, relation, profile, audit, lookup, settings, and database service responses
+// output: localized resource/detail/database/overview/audit view models with unambiguous parent clusters and empty members
+// pos: server-side adapter between transport records and console presentation consumers
 // note: if this file changes, update this header and lib/README.md.
 import { formatLabel } from "@/lib/format";
 import {
@@ -373,7 +373,7 @@ async function toResourceDetailViewModel(
     ),
     auditEvents: auditViewModels,
     ...(isDatabase ? { recentAudits: auditViewModels.slice(0, 5) } : {}),
-    ...(members && members.length > 0 ? { members } : {}),
+    ...(members ? { members } : {}),
     ...(clusterResource ? {
       clusterInfo: {
         id: clusterResource.id,

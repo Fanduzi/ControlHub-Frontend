@@ -1,5 +1,5 @@
 // input: resource route id, localized resource view model, health evidence, and detail components
-// output: full resource detail page with server-derived completeness, health observation metadata, and directed relation creation context
+// output: full resource detail page with empty cluster members, completeness, health observations, and directed relation context
 // pos: server-rendered resource detail and operational health inspection surface
 // note: if this file changes, update this header and module README.md.
 
@@ -252,14 +252,12 @@ export default async function ResourceDetailPage({
         />
       )}
 
-      {resource.resourceType === "database_cluster" &&
-        resource.members &&
-        resource.members.length > 0 && (
+      {resource.resourceType === "database_cluster" && (
           <DetailPanel
             title={t("pages.resourceDetail.clusterMembers.title")}
             description={t("pages.resourceDetail.clusterMembers.description")}
           >
-            <ClusterMembersTable members={resource.members} />
+            <ClusterMembersTable members={resource.members ?? []} />
           </DetailPanel>
         )}
 

@@ -1,3 +1,8 @@
+// input: mocked localized resource detail page dependencies and rendered route fixtures
+// output: route-level regression coverage for resource detail rendering and database panels
+// pos: app boundary test for the localized resource detail page
+// note: if this file changes, update this header and tests/README.md.
+
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -404,6 +409,7 @@ describe("ResourceDetailPage", () => {
     const workbench = screen.getByTestId("database-operator-workbench");
     expect(workbench).toBeInTheDocument();
     expect(workbench).toHaveAttribute("data-resource-type", "database_cluster");
+    expect(screen.getByTestId("cluster-members-table")).toBeInTheDocument();
   });
 
   it("renders database operator workbench for database_instance resources", async () => {

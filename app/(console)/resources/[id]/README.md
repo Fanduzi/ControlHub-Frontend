@@ -6,7 +6,7 @@ Server-rendered full resource inspection page.
 
 | File | Responsibility |
 |------|---------------|
-| page.tsx | Loads a known resource or calls `notFound()` for malformed, unsafe, missing, or unavailable IDs; renders identity, health evidence, archive-state-remounted topology, directed relation creation context, and audit context |
+| page.tsx | Loads known resources or `notFound()`; renders health evidence, archive-state-remounted topology, directed relations, audit context, and an always-present localized cluster-members panel. |
 | not-found.tsx | Shows the localized missing-or-archived message and links back to `/resources` |
 
 ## Interfaces

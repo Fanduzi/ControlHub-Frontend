@@ -8,7 +8,7 @@ Shared frontend libraries.
 |------|----------------|
 | `list-page-search-params.ts` | Normalizes paginated resource/audit URL state and safely parses positive decimal IDs |
 | `environment-params.ts` | Resolves environment slugs to IDs |
-| `view-models.ts` | Maps backend transport records to console view models |
+| `view-models.ts` | Maps backend transport records to console view models; database-cluster detail models retain `members: []` for empty panels |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
 same-origin Operator Session endpoint. It does not trust browser storage or

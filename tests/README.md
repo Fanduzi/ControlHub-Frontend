@@ -17,7 +17,7 @@ taxonomy flow, and fail-closed behavior for unknown environment scopes.
 ## Interfaces
 
 - Vitest unit and component test suites run through `npm test`.
-- Page tests assert normalized URL parameters reach server data loaders.
+- Page tests assert normalized URL parameters reach server data loaders and empty database-cluster detail panels remain visible.
 
 ## Dependencies
 
