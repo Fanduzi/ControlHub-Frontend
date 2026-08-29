@@ -16,7 +16,6 @@ unknown slugs fail closed so those pages render an empty scoped result.
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
-
 `profile-field-registry.ts` catalogs typed-profile fields for host, database
 instance, database cluster, and service, plus domain_name (required FQDN) and
 virtual_ip (required single IP address). Required flags match backend minimum
@@ -32,3 +31,5 @@ use `ha_monitor`.
 
 `view-models.ts` Database Estate listing includes `database_instance`,
 `database_cluster`, and `database_proxy`.
+
+Resource name, alias, and external-identifier conflicts each have a distinct code.

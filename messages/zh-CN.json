@@ -47,6 +47,9 @@
       "owner": "负责人",
       "source": "来源",
       "externalId": "外部 ID",
+      "origin": "来源类型",
+      "aliases": "别名",
+      "externalIdentifiers": "外部标识",
       "lastUpdated": "最后更新",
       "updated": "更新于",
       "name": "名称",
@@ -69,6 +72,23 @@
       "port": "端口",
       "nodes": "节点数",
       "cluster": "集群"
+    },
+    "origins": {
+      "manual": "手动",
+      "imported": "导入",
+      "discovered": "发现"
+    },
+    "identityEditor": {
+      "addAlias": "添加别名",
+      "removeAlias": "删除别名 {number}",
+      "alias": "别名 {number}",
+      "addExternalIdentifier": "添加外部标识",
+      "remove": "移除",
+      "removeExternalIdentifier": "删除外部标识 {number}",
+      "system": "系统",
+      "value": "值",
+      "systemAriaLabel": "外部标识系统 {number}",
+      "valueAriaLabel": "外部标识值 {number}"
     }
   },
   "statusValues": {

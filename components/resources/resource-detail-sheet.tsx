@@ -149,18 +149,32 @@ export function ResourceDetailSheet({
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  {t("common.fields.source")}
+                  {t("common.fields.origin")}
                 </dt>
                 <dd className="mt-1 font-medium text-foreground">
-                  {resource.source}
+                  {t(`common.origins.${resource.origin ?? resource.source ?? "manual"}`)}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  {t("common.fields.externalId")}
+                  {t("common.fields.aliases")}
                 </dt>
                 <dd className="mt-1 break-all font-medium text-foreground">
-                  {resource.externalId || t("common.notSet")}
+                  {resource.aliases?.join(", ") || t("common.notSet")}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("common.fields.externalIdentifiers")}
+                </dt>
+                <dd className="mt-1 space-y-1 break-all font-mono text-xs text-foreground">
+                  {resource.externalIdentifiers?.length
+                    ? resource.externalIdentifiers.map((identifier) => (
+                        <div key={`${identifier.system}:${identifier.value}`}>
+                          {identifier.system}: {identifier.value}
+                        </div>
+                      ))
+                    : t("common.notSet")}
                 </dd>
               </div>
               <div>

@@ -24,3 +24,7 @@ Create and edit sheets render Database Proxy (technologySubtype, host, port,
 active/standby role, optional version) and Control Plane Component
 (componentSubtype, endpoint, optional version, active/standby role) from
 `lib/profile-field-registry.ts`. Ambiguous `ha` is not offered.
+
+Create/edit sheets manage immutable origin, normalized aliases, and external
+system/value identifiers through the shared accessible identity editor. Detail
+views expose the same identity, and backend uniqueness conflicts remain explicit.

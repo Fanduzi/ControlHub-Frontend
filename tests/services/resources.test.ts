@@ -1,7 +1,7 @@
-// input: Vitest and mocked resources API client
-// output: service contract coverage for resource/profile operations
-// pos: service seam tests for the resources API boundary
-// note: if this file changes, update this header and module README.md.
+// input: Vitest, resource service functions, and mocked API client
+// output: resource/profile transport mapping, managed-identity payloads, and request-shape regression tests
+// pos: service contract tests for the resources API boundary
+// note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -669,6 +669,7 @@ describe("createResource", () => {
     apiClientMock.mockResolvedValue(createdResource);
 
     const input: CreateResourceInput = {
+	  origin: "manual",
       resourceType: "database_instance",
       resourceSubtype: "mysql",
       name: "order-mysql-02-prod",
@@ -698,6 +699,7 @@ describe("createResource", () => {
     );
 
     const input: CreateResourceInput = {
+	  origin: "manual",
       resourceType: "invalid_type",
       name: "test",
       displayName: "Test",
@@ -717,6 +719,7 @@ describe("createResource", () => {
     );
 
     const input: CreateResourceInput = {
+	  origin: "manual",
       resourceType: "database_instance",
       name: "duplicate-name",
       displayName: "Duplicate",

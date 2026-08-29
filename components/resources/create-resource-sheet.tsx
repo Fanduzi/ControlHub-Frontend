@@ -1,8 +1,8 @@
-"use client";
-// input: react-hook-form, profile-field-registry, resources/settings services
-// output: CreateResourceSheet
-// pos: Console form for manual CI registration with typed-profile identity and backend field errors
+// input: react-hook-form, resource dictionaries, profile registry, services, translations, and shared identity fields
+// output: admin resource creation sheet with governed and typed-profile identity
+// pos: Console validation boundary for manual CI registration
 // note: if this file changes, update this header and components/resources/README.md
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LabelsEditor } from "@/components/blocks/labels-editor";
+import { ResourceIdentityFields } from "@/components/resources/resource-identity-fields";
 import { createResource } from "@/services/resources";
 import { ApiError } from "@/services/api-client";
 import {
@@ -50,7 +51,7 @@ import {
   listResourceTypes,
 } from "@/services/settings";
 import { getProfileSchema, hasProfileFields, mapControlledFieldPath } from "@/lib/profile-field-registry";
-import type { CreateResourceInput } from "@/types/resource";
+import type { CreateResourceInput, ResourceExternalIdentifier, ResourceOrigin } from "@/types/resource";
 import type {
   DictionaryItem,
   Environment,
@@ -68,12 +69,13 @@ type FormValues = {
   resourceSubtype?: string;
   name: string;
   displayName: string;
-  source: string;
+  origin: ResourceOrigin;
   environmentId: string;
   ownerId: string;
   lifecycleStatus: string;
   healthStatus: string;
-  externalId?: string;
+  aliases: string[];
+  externalIdentifiers: ResourceExternalIdentifier[];
   labels?: Record<string, string>;
   profile?: Record<string, string | number | boolean>;
 };
@@ -121,12 +123,16 @@ function buildFormSchema(profileFields: { key: string; required: boolean; inputT
     resourceSubtype: z.string().optional(),
     name: z.string().min(1, msg),
     displayName: z.string().min(1, msg),
-    source: z.string(),
+    origin: z.enum(["manual", "imported", "discovered"]),
     environmentId: z.string().min(1, msg),
     ownerId: z.string().min(1, msg),
     lifecycleStatus: z.string().min(1, msg),
     healthStatus: z.string().min(1, msg),
-    externalId: z.string().optional(),
+    aliases: z.array(z.string().trim().min(1, msg).max(255)),
+    externalIdentifiers: z.array(z.object({
+      system: z.string().trim().min(1, msg).max(128),
+      value: z.string().trim().min(1, msg).max(255),
+    })),
     labels: z.record(z.string(), z.string()).optional(),
     profile: z.object(profileShape).optional(),
   });
@@ -162,12 +168,13 @@ export function CreateResourceSheet({
       resourceSubtype: "",
       name: "",
       displayName: "",
-      source: "manual",
+      origin: "manual",
       environmentId: prefs.environmentId ?? "",
       ownerId: prefs.ownerId ?? "",
       lifecycleStatus: "",
       healthStatus: "",
-      externalId: "",
+      aliases: [],
+      externalIdentifiers: [],
       labels: {},
       profile: {},
     },
@@ -236,12 +243,13 @@ export function CreateResourceSheet({
       resourceSubtype: "",
       name: "",
       displayName: "",
-      source: "manual",
+      origin: "manual",
       environmentId: p.environmentId ?? "",
       ownerId: p.ownerId ?? "",
       lifecycleStatus: "",
       healthStatus: "",
-      externalId: "",
+      aliases: [],
+      externalIdentifiers: [],
       labels: {},
       profile: {},
     });
@@ -314,9 +322,13 @@ export function CreateResourceSheet({
         ownerId: Number(values.ownerId),
         lifecycleStatus: values.lifecycleStatus,
         healthStatus: values.healthStatus,
-        source: values.source || "manual",
+        origin: values.origin,
+        aliases: values.aliases.map((alias) => alias.trim().toLowerCase()),
+        externalIdentifiers: values.externalIdentifiers.map(({ system, value }) => ({
+          system: system.trim().toLowerCase(),
+          value: value.trim(),
+        })),
         ...(values.resourceSubtype && { resourceSubtype: values.resourceSubtype }),
-        ...(values.externalId && { externalId: values.externalId }),
         ...(values.labels && Object.keys(values.labels).length > 0 && { labels: values.labels }),
         ...(Object.keys(profileData).length > 0 && { profile: profileData }),
       };
@@ -339,7 +351,7 @@ export function CreateResourceSheet({
           }
         } else if (err instanceof ApiError) {
           if (err.status === 409) {
-            setError(t("errors.conflict"));
+            setError(err.message || t("errors.conflict"));
           } else if (err.status === 401) {
             setError(t("errors.unauthorized"));
           } else if (err.status === 400) {
@@ -364,12 +376,13 @@ export function CreateResourceSheet({
       resourceSubtype: "",
       name: "",
       displayName: "",
-      source: "manual",
+      origin: "manual",
       environmentId: p.environmentId ?? "",
       ownerId: p.ownerId ?? "",
       lifecycleStatus: "",
       healthStatus: "",
-      externalId: "",
+      aliases: [],
+      externalIdentifiers: [],
       labels: {},
       profile: {},
     });
@@ -702,15 +715,31 @@ export function CreateResourceSheet({
                 </div>
               </div>
 
-              {/* externalId */}
               <div>
-                <label htmlFor="create-externalId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  {ct("fields.externalId")}
+                <label htmlFor="create-origin" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {ct("fields.origin")} *
                 </label>
-                <Input
-                  id="create-externalId"
-                  {...form.register("externalId")}
-                  className="h-9 border-border bg-background"
+                <Select
+                  value={form.watch("origin")}
+                  onValueChange={(value) => value && form.setValue("origin", value as ResourceOrigin, { shouldDirty: true })}
+                >
+                  <SelectTrigger id="create-origin" aria-required="true" className="h-9 w-full border-border bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">{ct("origins.manual")}</SelectItem>
+                    <SelectItem value="imported">{ct("origins.imported")}</SelectItem>
+                    <SelectItem value="discovered">{ct("origins.discovered")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <ResourceIdentityFields
+                  aliases={form.watch("aliases")}
+                  externalIdentifiers={form.watch("externalIdentifiers")}
+                  onAliasesChange={(aliases) => form.setValue("aliases", aliases, { shouldDirty: true })}
+                  onExternalIdentifiersChange={(identifiers) => form.setValue("externalIdentifiers", identifiers, { shouldDirty: true })}
                 />
               </div>
 

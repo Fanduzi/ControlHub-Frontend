@@ -1,7 +1,7 @@
-// input: React Hook Form state, Next.js navigation, resource/profile services, and localized UI components
-// output: interactive resource metadata and typed-profile edit sheet
-// pos: client-side resource editing boundary for the resources feature
-// note: if this file changes, update this header and module README.md.
+// input: resource detail, React Hook Form state, navigation, resource/profile services, translations, and shared identity fields
+// output: admin resource edit sheet with immutable origin, governed identity, and typed-profile fields
+// pos: client-side resource update and validation boundary
+// note: if this file changes, update this header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LabelsEditor } from "@/components/blocks/labels-editor";
+import { ResourceIdentityFields } from "@/components/resources/resource-identity-fields";
 import { getProfileSchema, hasProfileFields } from "@/lib/profile-field-registry";
 import {
   deleteProfile,
@@ -74,7 +75,11 @@ function makeEditFormSchema(requiredMessage: string) {
     ownerId: z.string().min(1, msg),
     lifecycleStatus: z.string().min(1, msg),
     healthStatus: z.string().min(1, msg),
-    externalId: z.string(),
+    aliases: z.array(z.string().trim().min(1, msg).max(255)),
+    externalIdentifiers: z.array(z.object({
+      system: z.string().trim().min(1, msg).max(128),
+      value: z.string().trim().min(1, msg).max(255),
+    })),
     labels: z.record(z.string(), z.string()),
     profile: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.undefined()])),
   });
@@ -110,7 +115,8 @@ export function EditResourceSheet({
       ownerId: "",
       lifecycleStatus: "",
       healthStatus: "",
-      externalId: "",
+      aliases: [],
+      externalIdentifiers: [],
       labels: {},
       profile: {},
     },
@@ -177,7 +183,8 @@ export function EditResourceSheet({
         ownerId: String(resource.ownerId),
         lifecycleStatus: resource.lifecycleStatus,
         healthStatus: resource.healthStatus,
-        externalId: resource.externalId ?? "",
+        aliases: resource.aliases ?? [],
+        externalIdentifiers: resource.externalIdentifiers ?? [],
         labels: resource.labels ?? {},
         profile: profileDefaults,
       });
@@ -241,7 +248,6 @@ export function EditResourceSheet({
         "ownerId",
         "lifecycleStatus",
         "healthStatus",
-        "externalId",
       ] as const;
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used for type narrowing in loop body
@@ -259,6 +265,16 @@ export function EditResourceSheet({
         }
 
         changedBaseFields[key] = data[key] as string;
+      }
+
+      if (dirtyFields.aliases) {
+        changedBaseFields.aliases = data.aliases.map((alias) => alias.trim().toLowerCase());
+      }
+      if (dirtyFields.externalIdentifiers) {
+        changedBaseFields.externalIdentifiers = data.externalIdentifiers.map(({ system, value }) => ({
+          system: system.trim().toLowerCase(),
+          value: value.trim(),
+        }));
       }
 
       // Determine changed profile fields
@@ -752,17 +768,24 @@ export function EditResourceSheet({
                 </div>
               </div>
 
-              {/* External ID */}
               <div>
-                <label htmlFor="edit-externalId" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  {t("common.fields.externalId")}
+                <label htmlFor="edit-origin" className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("common.fields.origin")}
                 </label>
                 <Input
-                  id="edit-externalId"
-                  {...register("externalId")}
+                  id="edit-origin"
+                  value={t(`common.origins.${resource?.origin ?? resource?.source ?? "manual"}`)}
+                  disabled
                   className="h-9 border-border bg-background"
                 />
               </div>
+
+              <ResourceIdentityFields
+                aliases={watch("aliases")}
+                externalIdentifiers={watch("externalIdentifiers")}
+                onAliasesChange={(aliases) => setValue("aliases", aliases, { shouldDirty: true })}
+                onExternalIdentifiersChange={(identifiers) => setValue("externalIdentifiers", identifiers, { shouldDirty: true })}
+              />
 
               {/* Labels */}
               <div>

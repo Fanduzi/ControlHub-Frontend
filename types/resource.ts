@@ -1,3 +1,7 @@
+// input: backend resource JSON contract
+// output: resource identity, profile, relation, list, create, and update types
+// pos: frontend transport contract for resource APIs
+// note: if this file changes, update header and README.md
 export type ResourceType =
   | "host"
   | "database_instance"
@@ -7,6 +11,13 @@ export type ResourceType =
   | "virtual_ip"
   | "database_proxy"
   | "control_plane_component";
+
+export type ResourceOrigin = "manual" | "imported" | "discovered";
+
+export type ResourceExternalIdentifier = {
+  system: string;
+  value: string;
+};
 
 export type ProfileSummary = {
   hostname?: string;
@@ -42,8 +53,11 @@ export type Resource = {
   ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
-  source: string;
-  externalId: string;
+  origin?: ResourceOrigin;
+  aliases?: string[];
+  externalIdentifiers?: ResourceExternalIdentifier[];
+  source?: string;
+  externalId?: string;
   labels: Record<string, string>;
   profileSummary?: ProfileSummary | null;
   clusterId?: number | null;
@@ -122,7 +136,10 @@ export type CreateResourceInput = {
   ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
-  source: string;
+  origin: ResourceOrigin;
+  aliases?: string[];
+  externalIdentifiers?: ResourceExternalIdentifier[];
+  source?: string;
   externalId?: string;
   labels?: Record<string, string>;
   profile?: Record<string, string | number | boolean>;
@@ -136,7 +153,8 @@ export type UpdateResourceInput = {
   ownerId?: number;
   lifecycleStatus?: string;
   healthStatus?: string;
-  source?: string;
+  aliases?: string[];
+  externalIdentifiers?: ResourceExternalIdentifier[];
   externalId?: string;
   labels?: Record<string, string>;
 };

@@ -17,10 +17,10 @@ Vitest component tests for React UI components.
 | query-object-quick-navigator.test.tsx | Quick object navigator |
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map |
-| create-resource-sheet.test.tsx | Create resource sheet, including core CI identity fields, service worker subtype, Domain Name FQDN, Virtual IP address, Database Proxy, and Control Plane profile fields |
-| edit-resource-sheet.test.tsx | Edit resource sheet, including backend typed-profile field errors, Domain Name FQDN, Virtual IP address, Database Proxy profile load, PATCH clears, numeric rejection, and confirmed typed-profile removal |
+| create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
+| edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
 | resource-table.test.tsx | Resource table |
-| resource-detail-sheet.test.tsx | Resource detail sheet |
+| resource-detail-sheet.test.tsx | Resource detail sheet identity and empty states |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel |

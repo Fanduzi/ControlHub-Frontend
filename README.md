@@ -7,6 +7,7 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 - Shared `AppShell` across overview, resources, CMDB, databases, audits, and settings
 - Dense table-first layout with right-side detail sheets for list interactions
 - Full `/resources/[id]` page for deeper inspection
+- Resource create/edit/detail flows manage immutable origin, aliases, and external identifiers
 - One accent color, border-led separation, minimal shadow usage
 
 ## Routes

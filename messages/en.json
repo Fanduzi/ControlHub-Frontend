@@ -47,6 +47,9 @@
       "owner": "Owner",
       "source": "Source",
       "externalId": "External ID",
+      "origin": "Origin",
+      "aliases": "Aliases",
+      "externalIdentifiers": "External identifiers",
       "lastUpdated": "Last updated",
       "updated": "Updated",
       "name": "Name",
@@ -69,6 +72,23 @@
       "port": "Port",
       "nodes": "Nodes",
       "cluster": "Cluster"
+    },
+    "origins": {
+      "manual": "Manual",
+      "imported": "Imported",
+      "discovered": "Discovered"
+    },
+    "identityEditor": {
+      "addAlias": "Add alias",
+      "removeAlias": "Remove alias {number}",
+      "alias": "Alias {number}",
+      "addExternalIdentifier": "Add external identifier",
+      "remove": "Remove",
+      "removeExternalIdentifier": "Remove external identifier {number}",
+      "system": "System",
+      "value": "Value",
+      "systemAriaLabel": "External identifier system {number}",
+      "valueAriaLabel": "External identifier value {number}"
     }
   },
   "statusValues": {

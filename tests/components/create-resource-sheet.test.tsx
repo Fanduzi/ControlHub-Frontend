@@ -1,8 +1,7 @@
-// input: CreateResourceSheet, settings/resource service fakes, localized messages
-// output: create-form assertions including core CI identity, service worker subtype, Domain Name FQDN, and Virtual IP address fields
-// pos: component-level contract for typed profile create fields
-// note: if this file changes, update header and tests/components/README.md
-
+// input: CreateResourceSheet, translations, mocked dictionaries, settings/resource service fakes, and localized messages
+// output: create-form behavior for governed identity and all typed-profile identity fields
+// pos: component contract tests for resource creation
+// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -169,6 +168,20 @@ describe("CreateResourceSheet", () => {
     expect(screen.getByText(/Owner \*/)).toBeInTheDocument();
     expect(screen.getByText(/Lifecycle status \*/)).toBeInTheDocument();
     expect(screen.getByText(/Health status \*/)).toBeInTheDocument();
+  });
+
+  it("renders managed identity fields", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText(/Origin \*/)).toBeInTheDocument();
+    expect(screen.getByText("Aliases")).toBeInTheDocument();
+    expect(screen.getByText("External identifiers")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add alias" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add external identifier" })).toBeInTheDocument();
   });
 
   it("renders cancel and save buttons", async () => {

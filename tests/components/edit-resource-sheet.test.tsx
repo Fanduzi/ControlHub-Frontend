@@ -1,8 +1,7 @@
-// input: Vitest, React Testing Library, localized messages, mocked resource/settings services, ApiError
-// output: edit-save and typed-profile field assertions, including clear and removal behavior and backend field errors
-// pos: component-level contract for resource edit behavior including typed-profile identity errors
+// input: EditResourceSheet, Vitest, React Testing Library, translations, mocked resource/settings services, and ApiError
+// output: edit behavior for immutable origin, governed-identity conflicts, typed-profile fields/errors, clearing, and removal
+// pos: component contract tests for resource updates
 // note: if this file changes, update this header and tests/components/README.md
-
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -66,6 +65,11 @@ const resource: ResourceDetailViewModel = {
   healthStatus: "healthy",
   source: "manual",
   externalId: "aws:rds:orders-primary",
+  origin: "manual",
+  aliases: ["orders-primary"],
+  externalIdentifiers: [
+    { system: "aws-rds", value: "aws:rds:orders-primary" },
+  ],
   createdAt: "2026-04-11T12:00:00Z",
   updatedAt: "2026-04-11T13:00:00Z",
   labels: { team: "order" },
@@ -303,6 +307,46 @@ describe("EditResourceSheet", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows immutable origin and managed identity collections", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(await screen.findByText("Origin")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Manual")).toBeDisabled();
+    expect(screen.getByText("Aliases")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("orders-primary")).toBeInTheDocument();
+    expect(screen.getByText("External identifiers")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("aws-rds")).toBeInTheDocument();
+  });
+
+  it("shows an explicit identity conflict from the API", async () => {
+    const user = userEvent.setup();
+    mockedUpdateResource.mockRejectedValue(
+      new ApiError(409, "Alias already belongs to another resource in this environment."),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet open onOpenChange={() => undefined} resource={resource} />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => expect(mockedGetResourceProfileById).toHaveBeenCalled());
+    const aliasInput = screen.getByDisplayValue("orders-primary");
+    await user.clear(aliasInput);
+    await user.type(aliasInput, "shared-orders");
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Alias already belongs to another resource in this environment.")).toBeInTheDocument();
+  });
+
   it("pre-fills base form fields from the resource", async () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -320,10 +364,9 @@ describe("EditResourceSheet", () => {
 
     // Display name should be pre-filled
     expect(screen.getByDisplayValue("Orders DB Primary")).toBeInTheDocument();
-    // External ID should be pre-filled
-    expect(
-      screen.getByDisplayValue("aws:rds:orders-primary"),
-    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("orders-primary")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("aws-rds")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("aws:rds:orders-primary")).toBeInTheDocument();
     // Labels should be pre-filled
     expect(screen.getByDisplayValue("team")).toBeInTheDocument();
     expect(screen.getByDisplayValue("order")).toBeInTheDocument();

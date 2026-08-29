@@ -213,7 +213,7 @@ describe("ResourceDetailSheet", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText("Not set")).toBeInTheDocument();
+    expect(screen.getAllByText("Not set")).not.toHaveLength(0);
     expect(screen.getByText("No audit activity yet")).toBeInTheDocument();
   });
 
