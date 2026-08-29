@@ -1270,7 +1270,7 @@ describe("QueryWorkbench target picker search", () => {
         await vi.advanceTimersByTimeAsync(275);
       });
 
-      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to search targets.");
       expect(screen.getByRole("button", { name: "Successful Redis target" })).toBeInTheDocument();
       expect(screen.getByText("Showing 1 target")).toBeInTheDocument();
       expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
@@ -1303,7 +1303,7 @@ describe("QueryWorkbench target picker search", () => {
         await vi.advanceTimersByTimeAsync(275);
       });
 
-      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to search targets.");
       expect(screen.getByRole("button", { name: "Initial canonical target" })).toBeInTheDocument();
       expect(screen.getAllByText("Initial canonical target").length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
@@ -1344,7 +1344,7 @@ describe("QueryWorkbench target picker search", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(275);
       });
-      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to search targets.");
 
       fireEvent.click(screen.getByRole("button", { name: "Retry target search" }));
       await act(async () => {
@@ -1663,7 +1663,7 @@ describe("QueryWorkbench target picker search", () => {
       });
 
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("无法加载目标。");
+      expect(alert).toHaveTextContent("无法搜索目标。");
       expect(screen.getByRole("button", { name: "重试目标搜索" })).toHaveTextContent("重试");
       expect(screen.queryByText("raw backend search detail")).not.toBeInTheDocument();
       expect(screen.queryByText("没有匹配的目标。")).not.toBeInTheDocument();

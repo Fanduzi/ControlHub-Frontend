@@ -1599,6 +1599,7 @@
       "loadMore": "Load more targets",
       "loadAllEngines": "Load all engines",
       "targetLoadError": "Unable to load targets.",
+      "targetSearchError": "Unable to search targets.",
       "retrySearch": "Retry target search"
     },
     "retarget": {

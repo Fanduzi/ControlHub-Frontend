@@ -157,7 +157,7 @@ export function NavigatorBody({
 
       {searchError && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
-          <span>{t("connectionNavigator.targetLoadError")}</span>
+          <span>{t("connectionNavigator.targetSearchError")}</span>
           {onRetrySearch && (
             <Button
               type="button"
