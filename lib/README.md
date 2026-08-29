@@ -56,6 +56,7 @@ Resource name, alias, and external-identifier conflicts each have a distinct cod
 
 - `parseResourceListSearchParams` preserves the structured Inventory search contract while dropping pagination snapshots from saved views.
 - `parseAuditListSearchParams` normalizes audit pagination and repeated filters.
+- `parsePositiveDecimalInteger` accepts only safe positive decimal URL IDs.
 
 ## Dependencies
 
