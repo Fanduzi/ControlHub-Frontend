@@ -1,3 +1,7 @@
+// input: React Hook Form state, Next.js navigation, resource/profile services, and localized UI components
+// output: interactive resource metadata and typed-profile edit sheet
+// pos: client-side resource editing boundary for the resources feature
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -249,8 +253,10 @@ export function EditResourceSheet({
         for (const key of Object.keys(dirtyFields.profile)) {
           if (dirtyFields.profile[key]) {
             const rawVal = data.profile[key];
-            if (rawVal !== undefined && rawVal !== "") {
-              changedProfileFields[key] = editNumberFields.has(key) ? Number(rawVal) : rawVal;
+            if (rawVal !== undefined) {
+              changedProfileFields[key] = rawVal === "" || !editNumberFields.has(key)
+                ? rawVal
+                : Number(rawVal);
             }
           }
         }

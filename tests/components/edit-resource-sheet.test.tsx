@@ -1,3 +1,7 @@
+// input: Vitest, React Testing Library, localized messages, and mocked resource/settings services
+// output: caller-facing regression coverage for EditResourceSheet saves
+// pos: component seam tests for resource edit behavior
+// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -325,6 +329,56 @@ describe("EditResourceSheet", () => {
     );
 
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("sends an empty profile value so the backend clears that field", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
+    });
+
+    await user.clear(screen.getByDisplayValue("8.0"));
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateProfile).toHaveBeenCalledWith(1, { version: "" });
+    });
+  });
+
+  it("keeps an empty numeric profile value empty", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
+    });
+
+    await user.clear(screen.getByDisplayValue("3306"));
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateProfile).toHaveBeenCalledWith(1, { port: "" });
+    });
   });
 
   it("never sends id, resourceType, or createdAt in the PATCH payload", async () => {
