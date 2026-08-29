@@ -5,6 +5,7 @@ Resource interaction components.
 `health-evidence.tsx` renders localized effective-health freshness, observed
 time, observer, and manual override consistently in list and detail surfaces.
 
+## Files
 
 | File | Responsibility |
 |------|----------------|
@@ -65,5 +66,3 @@ Resource detail sheets show server-derived completeness plus effective values
 with provenance, and let admins set or clear only the backend-supported display
 name, lifecycle status, and health status overrides with expected-version
 conflict handling.
-## Files
-
