@@ -1,6 +1,6 @@
-// input: page search params, mocked environment/settings/inventory services, table mocks
-// output: route-level pagination, scoped-list, and taxonomy data-flow regression coverage
-// pos: server page composition test boundary
+// input: server-rendered page props and mocked environment/settings/view-model loaders
+// output: URL-owned pagination, scoped-list, taxonomy, and audit-search data-flow assertions
+// pos: regression coverage for server list-page composition
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
@@ -305,6 +305,28 @@ describe("list pages pagination contracts", () => {
       page: 4,
       pageSize: 25,
       targetResourceId: 2,
+      eventType: "resource.updated",
+      result: "success",
+    });
+  });
+
+  it("passes normalized audit URL search to the paginated data request", async () => {
+    const { default: AuditsPage } = await import("@/app/(console)/audits/page");
+
+    await AuditsPage({
+      searchParams: Promise.resolve({
+        page: "2",
+        pageSize: "25",
+        q: "  Admin  ",
+        eventType: "resource.updated",
+        result: "success",
+      }),
+    });
+
+    expect(listAuditEventViewModelsMock).toHaveBeenCalledWith({
+      page: 2,
+      pageSize: 25,
+      q: "Admin",
       eventType: "resource.updated",
       result: "success",
     });

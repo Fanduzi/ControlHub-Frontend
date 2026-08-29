@@ -16,8 +16,8 @@ failures become retryable `service_unavailable`. HTTP 401 stays a Controlled
 Authorization Error and is not wrapped as a workbench feature error.
 
 `audits.ts` maps a 403 from resource audit reads to an empty timeline for
-non-admin operators (the server stays authoritative); other failures surface
-normally.
+non-admin operators (the server stays authoritative); global audit list search
+is forwarded as `q`; other failures surface normally.
 
 `resources.ts` sends typed-profile edits through PATCH, exposes explicit
 profile deletion, and fetches source-specific relationship rules without

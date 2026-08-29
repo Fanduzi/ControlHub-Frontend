@@ -1,11 +1,11 @@
-// input: localized audit view models, URL filters, shared table primitives
-// output: searchable audit table with field-level before/after evidence
+// input: localized audit view models, URL-owned filters/search, shared table primitives
+// output: server-searchable audit table with field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -85,7 +85,24 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
 
   const selectedEventTypes = readMultiSelectValues(searchParams, "eventType");
   const selectedResults = readMultiSelectValues(searchParams, "result");
-  const [search, setSearch] = useState("");
+  const urlSearch = searchParams.get("q") ?? "";
+  const [search, setSearch] = useState(urlSearch);
+
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
+
+  function updateSearch(value: string) {
+    setSearch(value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value.trim()) {
+      params.set("q", value);
+    } else {
+      params.delete("q");
+    }
+    params.set("page", "1");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
 
   function getEventTypeLabel(eventType: string) {
     const key = eventType.replaceAll(".", "_");
@@ -209,20 +226,8 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     }),
   ];
 
-  const filteredEvents = useMemo(() => {
-    if (!search.trim()) return events;
-    const q = search.toLowerCase();
-    return events.filter((event) =>
-      event.targetResourceName.toLowerCase().includes(q) ||
-      event.actorLabel.toLowerCase().includes(q) ||
-      getEventTypeLabel(event.eventType).toLowerCase().includes(q) ||
-      event.environmentLabel.toLowerCase().includes(q)
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- getEventTypeLabel is derived from static translations
-  }, [events, search]);
-
   const table = useReactTable({
-    data: filteredEvents,
+    data: events,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -235,7 +240,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
         <>
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateSearch(e.target.value)}
             placeholder={t("tables.audits.searchPlaceholder")}
             className="h-9 w-[240px] border-border bg-background py-2"
           />

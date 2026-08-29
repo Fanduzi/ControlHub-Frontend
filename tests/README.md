@@ -1,17 +1,25 @@
-# tests
+# Frontend tests
 
 Frontend Vitest and route-level contract tests.
 
 List-page coverage verifies normalized pagination, settings taxonomy flow, and
 fail-closed behavior for unknown environment scopes.
 
-## Files
+## Members
 
-| File | Responsibility |
-|------|---------------|
+| Directory/file | Responsibility |
+|---|---|
+| `components/` | React component behavior, including URL-owned audit search |
+| `services/` | API service serialization and controlled-error behavior |
+| `lib/` | Shared list URL parsing and utility contracts |
 | `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, pagination requests, settings dictionaries, and table data flow. |
+
+## Interfaces
+
+- Vitest unit and component test suites run through `npm test`.
+- Page tests assert normalized URL parameters reach server data loaders.
 
 ## Dependencies
 
-- Upstream: application pages, view-model services, and settings services
-- Downstream: Vitest and Testing Library assertions
+- Upstream: frontend components, services, and shared libraries
+- Downstream: none

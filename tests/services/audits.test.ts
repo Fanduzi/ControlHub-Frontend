@@ -1,5 +1,5 @@
 // input: vitest, services/audits
-// output: audit service tests — pagination/filter forwarding, resource audit path, operator-boundary 403 degradation
+// output: audit service tests — pagination/search/filter forwarding, resource audit path, operator-boundary 403 degradation
 // pos: unit tests for audit list/read services
 // note: if this file changes, update header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,12 +64,13 @@ describe("listAuditEvents", () => {
       page: 3,
       pageSize: 5,
       targetResourceId: 1,
+      q: "Admin",
       eventType: "resource.updated",
       result: "success",
     });
 
     expect(apiClientMock).toHaveBeenCalledWith(
-      "/audit-events?page=3&pageSize=5&targetResourceId=1&eventType=resource.updated&result=success",
+      "/audit-events?page=3&pageSize=5&targetResourceId=1&q=Admin&eventType=resource.updated&result=success",
     );
     expect(result.pageInfo).toEqual(response.pageInfo);
     expect(result.items).toEqual(response.items);

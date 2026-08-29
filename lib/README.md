@@ -13,6 +13,9 @@ matrix.
 `environment-params.ts` resolves environment slugs for inventory list pages;
 unknown slugs fail closed so those pages render an empty scoped result.
 
+`list-page-search-params.ts` normalizes page, filter, and audit search values
+from shareable list URLs.
+
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.

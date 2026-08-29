@@ -1,5 +1,5 @@
-// input: AuditTable, localized messages, Testing Library user interactions
-// output: audit filtering, timestamps, and field-diff rendering assertions
+// input: AuditTable, URL search params, localized messages, Testing Library user interactions
+// output: URL-owned audit search/filtering, timestamps, and field-diff rendering assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
@@ -14,12 +14,15 @@ import messages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
 import type { AuditEventViewModel } from "@/types/view-models";
 
-const replace = vi.fn();
+let currentSearchParams = new URLSearchParams("page=4&pageSize=25");
+const replace = vi.fn((url: string) => {
+  currentSearchParams = new URL(url, "http://localhost").searchParams;
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   usePathname: () => "/audits",
-  useSearchParams: () => new URLSearchParams("page=4&pageSize=25"),
+  useSearchParams: () => currentSearchParams,
 }));
 
 function renderTable(locale = "en", localizedMessages: typeof messages = messages) {
@@ -66,6 +69,7 @@ function renderTable(locale = "en", localizedMessages: typeof messages = message
 describe("AuditTable", () => {
   beforeEach(() => {
     replace.mockClear();
+    currentSearchParams = new URLSearchParams("page=4&pageSize=25");
   });
 
   it("shows known audit filter options even when the current page omits them", async () => {
@@ -107,6 +111,25 @@ describe("AuditTable", () => {
 
     expect(replace).toHaveBeenLastCalledWith(
       "/audits?page=1&pageSize=25&result=success",
+    );
+  });
+
+  it("owns search in the URL and preserves it with filters and pagination state", async () => {
+    currentSearchParams = new URLSearchParams(
+      "page=4&pageSize=25&eventType=resource.updated&result=success&q=Admin",
+    );
+    const user = userEvent.setup();
+
+    renderTable();
+
+    const searchInput = screen.getByRole("textbox");
+    expect(searchInput).toHaveValue("Admin");
+
+    await user.clear(searchInput);
+    await user.type(searchInput, "Orders");
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/audits?page=1&pageSize=25&eventType=resource.updated&result=success&q=Orders",
     );
   });
 

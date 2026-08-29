@@ -1,5 +1,5 @@
 // input: shared pagination contract and backend audit-event JSON
-// output: typed audit list requests, responses, and server-owned field changes
+// output: typed audit list requests (including q), responses, and server-owned field changes
 // pos: frontend transport contract for global and per-resource audit reads
 // note: if this file changes, update header and the owning module README.md
 
@@ -26,6 +26,7 @@ export type AuditEventListParams = {
   targetResourceId?: number;
   eventType?: string | string[];
   result?: string | string[];
+  q?: string;
   page?: number;
   pageSize?: number;
 };

@@ -1,3 +1,8 @@
+// input: URL search parameter records
+// output: normalized resource and audit list request parameters
+// pos: shared page URL parser for server-rendered list routes
+// note: if this file changes, update header and lib/README.md
+
 import type { AuditEventListParams } from "@/types/audit";
 import type { ResourceListParams } from "@/types/resource";
 
@@ -109,6 +114,7 @@ export async function parseAuditListSearchParams(
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     targetResourceId: normalizeOptionalPositiveInt(resolved.targetResourceId),
+    q: normalizeText(resolved.q),
     eventType,
     result,
   };
