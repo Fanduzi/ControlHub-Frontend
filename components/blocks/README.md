@@ -13,5 +13,6 @@
 
 ## Dependencies
 
+- `app/(console)/resources/[id]/page.tsx` renders `ResourceRelationPanel`.
 - Relation services provide relation types, rules, creation, and deletion.
 - Shared UI, localization, and resource-summary utilities provide presentation.
