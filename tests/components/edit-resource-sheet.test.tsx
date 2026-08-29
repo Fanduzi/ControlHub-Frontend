@@ -377,10 +377,19 @@ describe("EditResourceSheet", () => {
       expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
     });
 
+    const displayNameInput = screen.getByDisplayValue("Orders DB Primary");
+    await user.clear(displayNameInput);
+    await user.type(displayNameInput, "Unsaved name");
+
     await user.click(
       screen.getByRole("button", { name: /Clear typed profile/i }),
     );
     expect(mockedDeleteProfile).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "This removes all type-specific operational fields from this resource and discards your unsaved edits. The resource itself will not be deleted.",
+      ),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Clear profile/i }));
 
@@ -389,6 +398,37 @@ describe("EditResourceSheet", () => {
     });
     expect(refresh).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("does not submit an empty numeric profile value", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={onOpenChange}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
+    });
+
+    await user.clear(screen.getByDisplayValue("3306"));
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(mockedUpdateProfile).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "Use Clear typed profile to remove numeric profile fields.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("never sends id, resourceType, or createdAt in the PATCH payload", async () => {

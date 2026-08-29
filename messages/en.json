@@ -640,6 +640,7 @@
       "button": "Clear typed profile",
       "title": "Clear typed profile?",
       "description": "This removes all type-specific operational fields from this resource. The resource itself will not be deleted.",
+      "dirtyDescription": "This removes all type-specific operational fields from this resource and discards your unsaved edits. The resource itself will not be deleted.",
       "confirm": "Clear profile",
       "clearing": "Clearing..."
     },

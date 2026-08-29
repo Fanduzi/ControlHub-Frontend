@@ -18,7 +18,7 @@ Vitest component tests for React UI components.
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map |
 | create-resource-sheet.test.tsx | Create resource sheet |
-| edit-resource-sheet.test.tsx | Edit resource sheet, including PATCH clears and confirmed typed-profile removal |
+| edit-resource-sheet.test.tsx | Edit resource sheet, including PATCH clears, numeric rejection, and confirmed typed-profile removal |
 | resource-table.test.tsx | Resource table |
 | resource-detail-sheet.test.tsx | Resource detail sheet |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |

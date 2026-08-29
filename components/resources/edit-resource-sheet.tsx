@@ -835,7 +835,9 @@ export function EditResourceSheet({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("mutations.profileClear.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("mutations.profileClear.description")}
+              {isDirty
+                ? t("mutations.profileClear.dirtyDescription")
+                : t("mutations.profileClear.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
