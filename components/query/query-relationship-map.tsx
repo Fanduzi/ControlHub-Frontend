@@ -1,9 +1,14 @@
+// input: relationship-map responses, ApiError codes, localized UI primitives, and one-shot refresh requests
+// output: accessible localized relationship map and controlled relationship error states
+// pos: query workbench relationship-map surface
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/services/api-client";
 import { getRelationshipMap } from "@/services/query-schema";
 import type {
   RelationshipMapEdge,
@@ -22,18 +27,39 @@ type RelationshipMapState =
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly response: RelationshipMapResponse }
-  | { readonly status: "error"; readonly code: number };
+  | { readonly status: "error"; readonly code?: string; readonly httpStatus: number };
 
-function mapRelationshipError(status: number, t: (key: string) => string): string {
-  switch (status) {
+function mapRelationshipError(
+  code: string | undefined,
+  httpStatus: number,
+  t: (key: string) => string,
+): { message: string; retryable: boolean } {
+  switch (code) {
+    case "schema_validation_failed":
+      return { message: t("schema.relationshipErrorValidation"), retryable: false };
+    case "schema_not_allowed":
+      return { message: t("schema.definitionErrorAccessDenied"), retryable: false };
+    case "schema_object_not_found":
+      return { message: t("schema.relationshipErrorObjectNotFound"), retryable: false };
+    case "schema_target_not_found":
+      return { message: t("schema.relationshipErrorTargetNotFound"), retryable: false };
+    case "schema_timeout":
+      return { message: t("schema.definitionErrorTimeout"), retryable: true };
+    case "schema_backend_error":
+      return { message: t("schema.relationshipErrorBackend"), retryable: true };
+    case "relationship_map_not_supported":
+      return { message: t("schema.relationshipErrorUnsupported"), retryable: false };
+  }
+
+  switch (httpStatus) {
     case 403:
-      return t("schema.definitionErrorAccessDenied");
+      return { message: t("schema.definitionErrorAccessDenied"), retryable: true };
     case 404:
-      return t("schema.definitionErrorNotFound");
+      return { message: t("schema.definitionErrorNotFound"), retryable: true };
     case 408:
-      return t("schema.definitionErrorTimeout");
+      return { message: t("schema.definitionErrorTimeout"), retryable: true };
     default:
-      return t("schema.relationshipError");
+      return { message: t("schema.relationshipError"), retryable: true };
   }
 }
 
@@ -229,12 +255,12 @@ export function QueryRelationshipMap({
       },
       (error: unknown) => {
         if (!controller.signal.aborted && gen === generation.current) {
-          const code =
-            error instanceof Error && "status" in error
-              ? (error as { status: number }).status
-              : 502;
+          const apiError = error instanceof ApiError ? error : undefined;
+          const httpStatus = apiError?.status ?? (error instanceof Error && "status" in error
+            ? (error as { status: number }).status
+            : 502);
           startTransition(() => {
-            setState({ status: "error", code });
+            setState({ status: "error", code: apiError?.code, httpStatus });
           });
         }
       },
@@ -244,6 +270,10 @@ export function QueryRelationshipMap({
       controller.abort();
     };
   }, [targetId, database, name, refreshNonce, retryNonce]);
+
+  const error = state.status === "error"
+    ? mapRelationshipError(state.code, state.httpStatus, t)
+    : null;
 
   return (
     <div className="space-y-4 py-2">
@@ -276,19 +306,19 @@ export function QueryRelationshipMap({
         <p className="text-xs text-muted-foreground">{t("schema.loading")}</p>
       )}
 
-      {state.status === "error" && (
+      {error && (
         <div className="space-y-2">
-          <p className="text-xs text-destructive">
-            {mapRelationshipError(state.code, t)}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setRetryNonce((n) => n + 1)}
-          >
-            {t("schema.relationshipRetry")}
-          </Button>
+          <p className="text-xs text-destructive">{error.message}</p>
+          {error.retryable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRetryNonce((n) => n + 1)}
+            >
+              {t("schema.relationshipRetry")}
+            </Button>
+          )}
         </div>
       )}
 

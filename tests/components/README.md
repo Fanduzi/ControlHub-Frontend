@@ -22,11 +22,11 @@ Vitest component tests for React UI components.
 | query-credential-settings.test.tsx | Query credential settings |
 | query-disclosure-settings.test.tsx | Query disclosure settings |
 | query-object-explorer.test.tsx | Schema object explorer |
-| query-object-inspector.test.tsx | Object inspector |
+| query-object-inspector.test.tsx | Object inspector controlled error codes, retry behavior, localization, and raw-message isolation |
 | query-object-quick-navigator.test.tsx | Quick object navigator |
 | command-palette.test.tsx | Command palette navigation, resource search, and admin gating |
 | query-object-tree.test.tsx | Object tree |
-| query-relationship-map.test.tsx | Relationship map |
+| query-relationship-map.test.tsx | Relationship map controlled error codes, retry behavior, localization, and raw-message isolation |
 | create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
 | edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, manual health override set/clear, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
 | resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, completeness and health evidence fields, reviewed admin bulk-label request shapes, and localized error feedback |

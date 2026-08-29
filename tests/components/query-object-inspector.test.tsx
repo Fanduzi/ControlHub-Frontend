@@ -1,3 +1,7 @@
+// input: QueryObjectInspector, real ApiError instances, localized messages, and mocked schema services
+// output: definition error, retry, localization, and no-leakage coverage
+// pos: Vitest/Testing Library tests for the query object inspector surface
+// note: if this file changes, update this header and module README.md.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -56,8 +60,10 @@ vi.mock("@/services/query-schema", () => ({
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { QuerySchemaStore } from "@/lib/query-schema-store";
 import { getObjectDetails, getSchemaDatabases, getSchemaObjects, getTableDefinition } from "@/services/query-schema";
+import { ApiError } from "@/services/api-client";
 import type { ObjectDetailResponse } from "@/types/query-schema";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
@@ -94,10 +100,11 @@ function buildDetail(overrides: Partial<ObjectDetailResponse> = {}): ObjectDetai
   };
 }
 
-function renderExplorer(targetId = 1) {
+function renderExplorer(targetId = 1, locale = "en") {
   const onPreviewRequest = vi.fn();
+  const messages = locale === "zh-CN" ? zhMessages : enMessages;
   const result = render(
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <QueryObjectExplorer
         targetId={targetId}
         store={new QuerySchemaStore()}
@@ -110,7 +117,7 @@ function renderExplorer(targetId = 1) {
     ...result,
     rerenderWithTarget: (newTargetId: number) =>
       result.rerender(
-        <NextIntlClientProvider locale="en" messages={enMessages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryObjectExplorer
             targetId={newTargetId}
             store={new QuerySchemaStore()}
@@ -121,7 +128,7 @@ function renderExplorer(targetId = 1) {
   };
 }
 
-async function openInspector(detail: ObjectDetailResponse = buildDetail()) {
+async function openInspector(detail: ObjectDetailResponse = buildDetail(), locale = "en") {
   mockGetSchemaDatabases.mockResolvedValue({
     targetResourceId: 1,
     defaultDatabase: "test_db",
@@ -136,7 +143,7 @@ async function openInspector(detail: ObjectDetailResponse = buildDetail()) {
   });
   mockGetObjectDetails.mockResolvedValue(detail);
 
-  renderExplorer();
+  renderExplorer(1, locale);
 
   const user = userEvent.setup();
   const dbButton = await screen.findByRole("button", { name: "test_db" });
@@ -145,7 +152,9 @@ async function openInspector(detail: ObjectDetailResponse = buildDetail()) {
   const tableButton = await screen.findByRole("button", { name: "test_table" });
   await user.click(tableButton);
 
-  const inspectButton = await screen.findByRole("button", { name: "Inspect" });
+  const inspectButton = await screen.findByRole("button", {
+    name: locale === "zh-CN" ? "检查" : "Inspect",
+  });
   await user.click(inspectButton);
 
   return { user };
@@ -509,6 +518,105 @@ describe("QueryObjectInspector", () => {
     await waitFor(() => {
       expect(screen.getByText("Definition may be truncated.")).toBeVisible();
     });
+  });
+
+  it("prioritizes a controlled unsupported code over HTTP status and hides raw backend text", async () => {
+    mockGetTableDefinition.mockRejectedValueOnce(
+      new ApiError(
+        500,
+        "raw backend definition failure",
+        undefined,
+        "schema_definition_not_supported",
+      ),
+    );
+
+    const { user } = await openInspector();
+    await user.click(screen.getByTestId("view-definition-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Table definition is not supported for this object.")).toBeVisible();
+    });
+    expect(screen.queryByText("raw backend definition failure")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("prioritizes a controlled timeout code over HTTP status and keeps an accessible retry", async () => {
+    mockGetTableDefinition.mockRejectedValueOnce(
+      new ApiError(403, "raw timeout failure", undefined, "schema_timeout"),
+    );
+    mockGetTableDefinition.mockResolvedValueOnce({
+      targetResourceId: 1,
+      database: "test_db",
+      name: "test_table",
+      kind: "table",
+      dialect: "mysql",
+      definition: "CREATE TABLE test_table (id INT);",
+      truncated: false,
+    });
+
+    const { user } = await openInspector();
+    await user.click(screen.getByTestId("view-definition-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Metadata request timed out.")).toBeVisible();
+    });
+    expect(screen.queryByText("raw timeout failure")).not.toBeInTheDocument();
+
+    const retryButton = screen.getByRole("button", { name: "Retry" });
+    expect(retryButton).toHaveAccessibleName("Retry");
+    await user.click(retryButton);
+    await waitFor(() => expect(mockGetTableDefinition).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/CREATE TABLE test_table/)).toBeVisible();
+  });
+
+  it.each([
+    ["schema_validation_failed", 500, "This table definition request is invalid.", false],
+    ["schema_not_allowed", 500, "Target access is not allowed.", false],
+    ["schema_object_not_found", 500, "This schema object is no longer available.", false],
+    ["schema_target_not_found", 500, "This query target is no longer available.", false],
+    ["schema_backend_error", 400, "The schema backend could not provide this definition.", true],
+  ] as const)("maps %s before its conflicting HTTP status", async (code, status, message, retryable) => {
+    const rawMessage = `raw ${code} backend detail`;
+    mockGetTableDefinition.mockRejectedValueOnce(
+      new ApiError(status, rawMessage, undefined, code),
+    );
+
+    const { user } = await openInspector();
+    await user.click(screen.getByTestId("view-definition-button"));
+
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" }) !== null).toBe(retryable);
+  });
+
+  it("localizes controlled object errors in zh-CN without exposing backend text", async () => {
+    mockGetTableDefinition.mockRejectedValueOnce(
+      new ApiError(500, "raw object detail", undefined, "schema_object_not_found"),
+    );
+
+    const { user } = await openInspector(buildDetail(), "zh-CN");
+    await user.click(screen.getByTestId("view-definition-button"));
+
+    expect(await screen.findByText("该 Schema 对象已不可用。")).toBeVisible();
+    expect(screen.queryByText("raw object detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["unknown", "schema_unknown"],
+    ["missing", undefined],
+  ] as const)("falls back to the existing status mapping for a %s code", async (_kind, code) => {
+    const rawMessage = "raw fallback backend detail";
+    mockGetTableDefinition.mockRejectedValueOnce(
+      new ApiError(404, rawMessage, undefined, code),
+    );
+
+    const { user } = await openInspector();
+    await user.click(screen.getByTestId("view-definition-button"));
+
+    expect(await screen.findByText("Table is no longer available.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toHaveAccessibleName("Retry");
+    expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
   });
 
   it("controlled error shows localized message and Retry makes a second request", async () => {

@@ -1,3 +1,7 @@
+// input: QueryRelationshipMap, real ApiError instances, localized messages, and mocked map services
+// output: relationship error, retry, localization, and no-leakage coverage
+// pos: Vitest/Testing Library tests for the query relationship-map surface
+// note: if this file changes, update this header and module README.md.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -8,6 +12,7 @@ vi.mock("@/services/query-schema", () => ({
 }));
 
 import { QueryRelationshipMap } from "@/components/query/query-relationship-map";
+import { ApiError } from "@/services/api-client";
 import { getRelationshipMap } from "@/services/query-schema";
 import type { RelationshipMapResponse } from "@/types/query-schema";
 import enMessages from "@/messages/en.json";
@@ -123,6 +128,75 @@ describe("QueryRelationshipMap", () => {
 
     expect(await screen.findByText("Failed to load relationships.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+  });
+
+  it("prioritizes relationship unsupported code over HTTP status and hides raw backend text", async () => {
+    mockGetRelationshipMap.mockRejectedValueOnce(
+      new ApiError(
+        500,
+        "raw relationship backend detail",
+        undefined,
+        "relationship_map_not_supported",
+      ),
+    );
+
+    renderComponent();
+
+    expect(
+      await screen.findByText("Relationship maps are not supported for this object or target."),
+    ).toBeVisible();
+    expect(screen.queryByText("raw relationship backend detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["schema_validation_failed", 500, "This relationship map request is invalid.", false],
+    ["schema_not_allowed", 500, "Target access is not allowed.", false],
+    ["schema_object_not_found", 500, "This schema object is no longer available.", false],
+    ["schema_target_not_found", 500, "This query target is no longer available.", false],
+    ["schema_timeout", 403, "Metadata request timed out.", true],
+    ["schema_backend_error", 400, "The schema backend could not load relationships.", true],
+  ] as const)("maps %s before its conflicting HTTP status", async (code, status, message, retryable) => {
+    const rawMessage = `raw ${code} relationship detail`;
+    mockGetRelationshipMap.mockRejectedValueOnce(
+      new ApiError(status, rawMessage, undefined, code),
+    );
+
+    renderComponent();
+
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
+    const retry = screen.queryByRole("button", { name: "Retry" });
+    expect(retry !== null).toBe(retryable);
+    if (retryable) expect(retry).toHaveAccessibleName("Retry");
+  });
+
+  it("localizes relationship unsupported errors in zh-CN without exposing backend text", async () => {
+    mockGetRelationshipMap.mockRejectedValueOnce(
+      new ApiError(500, "raw relationship detail", undefined, "relationship_map_not_supported"),
+    );
+
+    renderComponent({}, "zh-CN");
+
+    expect(await screen.findByText("该对象或目标不支持关系图。")).toBeVisible();
+    expect(screen.queryByText("raw relationship detail")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["unknown", "relationship_unknown"],
+    ["missing", undefined],
+  ] as const)("falls back to the existing status mapping for a %s code", async (_kind, code) => {
+    const rawMessage = "raw relationship fallback detail";
+    mockGetRelationshipMap.mockRejectedValueOnce(
+      new ApiError(404, rawMessage, undefined, code),
+    );
+
+    renderComponent();
+
+    expect(await screen.findByText("Table is no longer available.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toHaveAccessibleName("Retry");
+    expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
   });
 
   it("retry button triggers a second request", async () => {

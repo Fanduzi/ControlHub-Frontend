@@ -16,10 +16,10 @@ React client components for the query workbench feature.
 | query-governance-panel.tsx | Governance and access detail panel |
 | query-history-panel.tsx | Query execution history panel |
 | query-object-explorer.tsx | Schema object explorer with tree and inspector |
-| query-object-inspector.tsx | Object metadata inspector (columns, indexes, FKs, definition) |
+| query-object-inspector.tsx | Object metadata inspector (columns, indexes, FKs, definition) with localized controlled definition errors and transient-only retry |
 | query-object-quick-navigator.tsx | Cmd+P quick object search |
 | query-object-tree.tsx | Schema tree rendering |
-| query-relationship-map.tsx | FK relationship map dialog |
+| query-relationship-map.tsx | FK relationship map dialog with localized controlled errors and transient-only retry |
 | query-schema-browser.tsx | Mobile schema browser sheet |
 | sql-code-editor.tsx | Lazy-loaded CodeMirror SQL editor |
 | sql-code-editor-client.tsx | Client-side CodeMirror SQL editor with completions |

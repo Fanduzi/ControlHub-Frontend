@@ -1,3 +1,7 @@
+// input: query schema object details, table-definition responses, ApiError codes, and localized UI primitives
+// output: accessible localized object metadata inspector with controlled definition error states
+// pos: query workbench object-inspection surface
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -6,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { QueryRelationshipMap } from "@/components/query/query-relationship-map";
 import { SqlCodeEditorClient } from "@/components/query/sql-code-editor-client";
+import { ApiError } from "@/services/api-client";
 import { getTableDefinition } from "@/services/query-schema";
 import {
   Dialog,
@@ -269,20 +274,43 @@ type DefinitionState =
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly response: TableDefinitionResponse }
-  | { readonly status: "error"; readonly code: number };
+  | { readonly status: "error"; readonly code?: string; readonly httpStatus: number };
 
-function mapDefinitionError(status: number, t: (key: string) => string): string {
-  switch (status) {
+function mapDefinitionError(
+  code: string | undefined,
+  httpStatus: number,
+  t: (key: string) => string,
+): { message: string; retryable: boolean } {
+  if (code === "schema_definition_not_supported") {
+    return { message: t("schema.definitionErrorUnsupported"), retryable: false };
+  }
+  if (code === "schema_timeout") {
+    return { message: t("schema.definitionErrorTimeout"), retryable: true };
+  }
+  switch (code) {
+    case "schema_validation_failed":
+      return { message: t("schema.definitionErrorValidation"), retryable: false };
+    case "schema_not_allowed":
+      return { message: t("schema.definitionErrorAccessDenied"), retryable: false };
+    case "schema_object_not_found":
+      return { message: t("schema.definitionErrorObjectNotFound"), retryable: false };
+    case "schema_target_not_found":
+      return { message: t("schema.definitionErrorTargetNotFound"), retryable: false };
+    case "schema_backend_error":
+      return { message: t("schema.definitionErrorBackend"), retryable: true };
+  }
+
+  switch (httpStatus) {
     case 400:
-      return t("schema.definitionErrorUnavailable");
+      return { message: t("schema.definitionErrorUnavailable"), retryable: true };
     case 403:
-      return t("schema.definitionErrorAccessDenied");
+      return { message: t("schema.definitionErrorAccessDenied"), retryable: true };
     case 404:
-      return t("schema.definitionErrorNotFound");
+      return { message: t("schema.definitionErrorNotFound"), retryable: true };
     case 408:
-      return t("schema.definitionErrorTimeout");
+      return { message: t("schema.definitionErrorTimeout"), retryable: true };
     default:
-      return t("schema.definitionErrorGeneric");
+      return { message: t("schema.definitionErrorGeneric"), retryable: true };
   }
 }
 
@@ -313,16 +341,19 @@ function DefinitionSection({
   }
 
   if (state.status === "error") {
+    const error = mapDefinitionError(state.code, state.httpStatus, t);
     return (
       <section aria-label={t("schema.definitionTitle")}>
         <h3 className="mb-2 text-sm font-medium text-foreground">
           {t("schema.definitionTitle")}
         </h3>
         <div className="space-y-2">
-          <p className="text-xs text-destructive">{mapDefinitionError(state.code, t)}</p>
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-            {t("schema.retryDefinition")}
-          </Button>
+          <p className="text-xs text-destructive">{error.message}</p>
+          {error.retryable && (
+            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+              {t("schema.retryDefinition")}
+            </Button>
+          )}
         </div>
       </section>
     );
@@ -456,10 +487,11 @@ export function QueryObjectInspector({
       },
       (error: unknown) => {
         if (!controller.signal.aborted && generation === definitionGeneration.current) {
-          const status = error instanceof Error && "status" in error
+          const apiError = error instanceof ApiError ? error : undefined;
+          const httpStatus = apiError?.status ?? (error instanceof Error && "status" in error
             ? (error as { status: number }).status
-            : 502;
-          setDefinitionState({ status: "error", code: status });
+            : 502);
+          setDefinitionState({ status: "error", code: apiError?.code, httpStatus });
         }
       },
     );
