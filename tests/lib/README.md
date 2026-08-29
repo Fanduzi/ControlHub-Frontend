@@ -27,4 +27,3 @@ Operator Session BFF tests (Phase 38X-1C):
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
 | `view-models.test.ts` | Resource and Database Estate view-model composition, including paginated database_proxy merge |
 | `list-page-search-params.test.ts` | Resource/audit URL parsing, including repeated environment/label and owner filters |
-# note: auth-role recovery tests cover role-cookie path

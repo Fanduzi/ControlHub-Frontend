@@ -3,6 +3,8 @@
 Console shell chrome (sidebar, topbar, layout). The topbar reads the current
 operator email/display name and role from the no-store BFF session response;
 it does not use translations as identity or persist credentials.
+It refreshes that identity on console route changes and clears it if the BFF
+session read fails or returns unauthenticated.
 
 The topbar uses the trusted BFF session role to hide resource-creation affordances
 for non-admin users; it never trusts browser storage or readable role cookies.

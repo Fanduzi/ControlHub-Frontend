@@ -50,7 +50,7 @@ Vitest component tests for React UI components.
 | audit-table.test.tsx | Audit table, including URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar, including environment-scoped Query navigation |
 | topbar.test.tsx | App topbar, including scoped Query/disclosure selection and fail-closed sign-out |
-| topbar-operator-identity.test.tsx | Topbar identity and role rendering from the BFF session response |
+| topbar-operator-identity.test.tsx | Topbar identity/role rendering and stale-identity clearing from the BFF session response |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |
 | language-switcher.test.tsx | Language switcher |
@@ -60,6 +60,6 @@ Vitest component tests for React UI components.
 | select.test.tsx | Select component |
 | environment-provider.test.tsx | Environment provider |
 
-`environment-provider.test.tsx` verifies the environment probe starts from
-BFF presentation role state rather than browser bearer storage and refreshes
-Server Components after an environment selection.
+`environment-provider.test.tsx` verifies the single authenticated BFF
+environments probe does not trust browser role state; persisted selection uses
+the Topbar's single route replacement to refresh Server Components.

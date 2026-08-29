@@ -6,7 +6,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 
 | Spec | Coverage |
 |------|----------|
-| operator-session.spec.ts | Console BFF boundary (38X-1C/38X-1D): BFF login seals HttpOnly Operator Session cookie; proxy forwards server-held credential; client Authorization and unsafe Origin rejected; logout (API + real UI) and forged/tampered/expired page gate; fail-closed UI sign-out under network failure; legacy controlhub.token alone rejected; desktop EN / 375px EN / desktop zh-CN coverage; no backend bearer in browser storage/DOM/readable cookies |
+| operator-session.spec.ts | Console BFF boundary (38X-1C/38X-1D): BFF login seals HttpOnly Operator Session cookie; proxy forwards server-held credential; client Authorization and unsafe Origin rejected; logout (API + real UI) and forged/tampered/expired page gate; fail-closed UI sign-out under network failure; legacy controlhub.token alone rejected; desktop EN / 375px EN / desktop zh-CN coverage; no browser-readable bearer or role state |
 | query-workbench.spec.ts | Query workbench shell, schema explorer, FK navigation, object inspector, paging, saved statements, guaranteed Saved Statement teardown (`afterEach`; DELETE 404 is success), terminal delete 404-absence (desktop EN / 375px EN / desktop zh-CN), 375 search-on-own-row and no overflow, explain, relationship map, shared-template affordance, shared template execution, disposal, schema metadata identity isolation (one database-list request per load generation, reuse on database selection, null-default behavior, 375/zh-CN no-overflow), 375/zh-CN session, no-leakage assertions, list pagination |
 | console-ux.spec.ts | Console layout and UX checks |
 | databases-sheet.spec.ts | Databases sheet interactions |
@@ -15,7 +15,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | operator-console-smoke.spec.ts | Operator console smoke tests |
 | operator-database-workflow.spec.ts | Operator database workflow |
 | operator-interaction-stability.spec.ts | Operator interaction stability |
-| query-credential-settings.spec.ts | Query credential settings (admin flows; cookie-only role recovery under BFF) |
+| query-credential-settings.spec.ts | Query credential settings (BFF-session-backed admin flows with no readable browser role state) |
 | resource-archive.spec.ts | Resource archiving |
 | resources-sheet.spec.ts | Resources sheet |
 | settings.spec.ts | Settings page |

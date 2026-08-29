@@ -1,5 +1,5 @@
 // input: vitest, testing-library, environment-provider
-// output: tests for authenticated BFF session gate on environments probe
+// output: tests for the authenticated BFF environments probe without browser role state
 // pos: component unit tests
 // note: if this file changes, update header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -37,8 +37,7 @@ describe("EnvironmentProvider", () => {
     document.cookie = "controlhub.role=; path=/; max-age=0";
   });
 
-  it("does not expose environment slug fallbacks before backend environments load", async () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
+  it("loads environments through the authenticated BFF path without browser role state", async () => {
     mockedListEnvironments.mockResolvedValue([
       {
         id: 1,
@@ -64,21 +63,19 @@ describe("EnvironmentProvider", () => {
     });
   });
 
-  it("skips the environments probe when no legacy credential or BFF role exists", async () => {
+  it("fails closed when the authenticated BFF environments request is rejected", async () => {
+    mockedListEnvironments.mockRejectedValue(new Error("unauthorized"));
     render(
       <EnvironmentProvider>
         <EnvironmentIds />
       </EnvironmentProvider>,
     );
 
-    await waitFor(() => {
-      expect(mockedListEnvironments).not.toHaveBeenCalled();
-    });
+    await waitFor(() => expect(mockedListEnvironments).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("1")).not.toBeInTheDocument();
   });
 
-  it("loads environments for an authenticated BFF presentation role", async () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
+  it("does not duplicate the authenticated environments request", async () => {
     mockedListEnvironments.mockResolvedValue([
       {
         id: 2,
@@ -98,11 +95,10 @@ describe("EnvironmentProvider", () => {
     await waitFor(() => {
       expect(screen.getByText("2")).toBeInTheDocument();
     });
-    expect(mockedListEnvironments).toHaveBeenCalled();
+    expect(mockedListEnvironments).toHaveBeenCalledTimes(1);
   });
 
   it("persists an environment selection without its own route refresh", async () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
     mockedListEnvironments.mockResolvedValue([]);
 
     render(

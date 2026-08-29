@@ -1,5 +1,5 @@
 // input: react, services/settings, lib/preferences
-// output: environment list context loaded for an authenticated BFF session and persisted client selection
+// output: environment list through the authenticated BFF path and persisted client selection
 // pos: console environment selector data source
 // note: if this file changes, update header and components/providers/README.md
 "use client";
@@ -44,19 +44,6 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const currentEnvironmentId = mounted ? readStoredEnvironmentId() : envId;
 
   useEffect(() => {
-    // The sealed session cookie is HttpOnly, so role presentation state is the
-    // only browser-visible signal available before the first BFF request.
-    const hasBffPresentation =
-      Boolean(window.sessionStorage.getItem("controlhub.role")) ||
-      document.cookie
-        .split(";")
-        .some((part) => part.trim().startsWith("controlhub.role="));
-    if (!hasBffPresentation) {
-      // Defer so we don't sync-set state inside the effect body (lint).
-      void Promise.resolve().then(() => setLoading(false));
-      return;
-    }
-
     listEnvironments()
       .then((envs) => {
         setEnvironments(envs);

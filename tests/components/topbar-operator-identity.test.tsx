@@ -1,3 +1,7 @@
+// input: Topbar, React Testing Library, mocked BFF session responses
+// output: Topbar identity rendering and stale-session clearing contracts
+// pos: component-level operator identity tests at the BFF session boundary
+// note: if this file changes, update this header and tests/components/README.md
 import type { ReactNode } from "react";
 
 import { render, screen, waitFor } from "@testing-library/react";
@@ -105,5 +109,30 @@ describe("Topbar operator identity", () => {
     expect(screen.queryByText("translation:shell.userName")).not.toBeInTheDocument();
     expect(screen.queryByText("must-not-render")).not.toBeInTheDocument();
     expect(window.sessionStorage).toHaveLength(0);
+  });
+
+  it("clears a previously displayed identity when a later BFF session read is unauthorized", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ email: "operator@example.com", role: "admin" }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 401 })),
+    );
+
+    const { rerender } = render(<Topbar pathname="/overview" />);
+
+    await screen.findByText("operator@example.com");
+    rerender(<Topbar pathname="/resources" />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("operator@example.com")).not.toBeInTheDocument();
+      expect(screen.getAllByText("—")).toHaveLength(2);
+    });
   });
 });

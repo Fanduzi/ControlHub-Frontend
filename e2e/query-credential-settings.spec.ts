@@ -1,6 +1,6 @@
 // input: @playwright/test, ./harness/*
 // output: Playwright E2E for query credential settings admin flows
-// pos: browser verification of credential settings including cookie-only role recovery under BFF
+// pos: browser verification of BFF-session-backed credential admin controls without browser role persistence
 // note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 
@@ -324,26 +324,19 @@ test.describe("Query credential settings", () => {
     );
   });
 
-  test("direct URL /settings/query-credentials shows admin controls after role recovery (cookie-only)", async ({
+  test("direct URL /settings/query-credentials shows admin controls from the BFF session without browser role state", async ({
     page,
   }) => {
-    // BFF login seals HttpOnly operator session and sets presentation role cookie.
     await loginViaUI(page);
 
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
 
-    // Clear sessionStorage auth state. BFF bearer stays HttpOnly; presentation
-    // role remains in the controlhub.role cookie for new-tab / direct-URL recovery.
-    const cookieRole = await page.evaluate(() => {
-        window.sessionStorage.removeItem("controlhub.role");
-      const match = document.cookie
-        .split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith("controlhub.role="));
-      return match ? match.slice("controlhub.role=".length) : null;
-    });
-    expect(cookieRole).toBe("admin");
+    const browserRoleState = await page.evaluate(() => ({
+      sessionRole: window.sessionStorage.getItem("controlhub.role"),
+      hasRoleCookie: document.cookie.includes("controlhub.role="),
+    }));
+    expect(browserRoleState).toEqual({ sessionRole: null, hasRoleCookie: false });
 
     await page.goto("/settings/query-credentials");
     await expect(page).toHaveURL(/\/settings\/query-credentials/);
@@ -355,10 +348,6 @@ test.describe("Query credential settings", () => {
     const tableRows = page.locator("table tbody tr");
     await expect(tableRows.first()).toBeVisible({ timeout: 15_000 });
 
-    const backfilledRole = await page.evaluate(() =>
-      window.sessionStorage.getItem("controlhub.role"),
-    );
-    expect(backfilledRole).toBe("admin");
   });
 
   test("selecting a credential target opens the credential dialog", async ({

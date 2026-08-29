@@ -1,7 +1,7 @@
-// input: @playwright/test, ./harness/{auth,console-guards}, lib/operator-session/{config,seal}
-// output: Playwright E2E for the Console BFF operator session boundary (login, sealed cookie, proxy, origin, UI logout incl. fail-closed, forged/tampered/expired page gate, legacy-token rejection, viewport/locale coverage, storage leaks)
-// pos: browser-level verification of the 38X-1C/38X-1D same-origin BFF boundary against the real backend
-// note: if this file changes, update header and e2e/README.md
+// input: Playwright, BFF session helpers, Operator Session seal/config
+// output: Browser-level BFF session and no-readable-role-state contracts
+// pos: Operator Session boundary E2E coverage against the real backend
+// note: if this file changes, update e2e/README.md
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -86,14 +86,14 @@ function assertNoCredentialLeak(snapshot: {
   expect(allKeys).not.toContain("controlhub.role");
   expect(allValues.join("\n")).not.toContain("Bearer ");
   expect(snapshot.cookieHeader).not.toContain("controlhub.token=");
+  expect(snapshot.cookieHeader).not.toContain("controlhub.role=");
   expect(snapshot.cookieHeader).not.toContain(SESSION_COOKIE);
 }
 
 /**
- * Bearer-exposure assertion for flows that signed in through the real UI:
- * the presentation-only `controlhub.role` state is expected by design, but
- * the Backend Bearer Credential (and any browser-readable token cookie)
- * must never appear in browser storage, readable cookies, or values.
+ * Browser-state assertion for flows that signed in through the real UI: the
+ * Backend Bearer Credential and operator role must remain server-held and
+ * never appear in browser storage or readable cookies.
  */
 function assertNoBearerExposure(snapshot: {
   sessionStorageKeys: string[];
@@ -111,8 +111,10 @@ function assertNoBearerExposure(snapshot: {
     ...snapshot.localStorageValues,
   ];
   expect(allKeys).not.toContain("controlhub.token");
+  expect(allKeys).not.toContain("controlhub.role");
   expect(allValues.join("\n")).not.toContain("Bearer ");
   expect(snapshot.cookieHeader).not.toContain("controlhub.token=");
+  expect(snapshot.cookieHeader).not.toContain("controlhub.role=");
   expect(snapshot.cookieHeader).not.toContain(SESSION_COOKIE);
 }
 
