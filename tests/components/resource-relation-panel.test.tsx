@@ -1,6 +1,6 @@
 // input: rendered relation panel, auth-role boundary, service mocks, and English/Chinese locale messages
-// output: public UI contract for localized directions, resilient row removal, and controlled mutations
-// pos: relation-panel rendered seam for role gates, candidates, accessibility, and controlled errors
+// output: public UI contract for localized directions, source-path mutations, resilient row removal, and controlled errors
+// pos: relation-panel rendered seam for role gates, candidates, accessibility, taxonomy rules, and controlled errors
 // note: if this file changes, update this header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -55,6 +55,7 @@ vi.mock("@/components/blocks/resource-search-combobox", () => ({
       id: number;
       displayName: string;
       resourceType: string;
+      environmentId: number;
     }) => void;
     excludeIds?: number[];
     resourceTypes?: string[];
@@ -72,7 +73,8 @@ vi.mock("@/components/blocks/resource-search-combobox", () => ({
         onSelect({
           id: 9,
           displayName: "orders-replica",
-          resourceType: "database_instance",
+          resourceType: resourceTypes?.[0] ?? "database_instance",
+          environmentId: environmentId ?? 1,
         })
       }
     >
@@ -127,7 +129,9 @@ describe("ResourceRelationPanel", () => {
     mockedListRelationTypes.mockResolvedValue([
       { key: "member_of", label: "Member of", description: "" },
       { key: "depends_on", label: "Depends on", description: "" },
-	  { key: "runs_on", label: "Runs on", description: "" },
+      { key: "runs_on", label: "Runs on", description: "" },
+      { key: "points_to", label: "Points to", description: "" },
+      { key: "fronts", label: "Fronts", description: "" },
     ]);
 	 mockedGetRelationRules.mockResolvedValue({
 	   sourceResourceId: 101,
@@ -287,6 +291,162 @@ describe("ResourceRelationPanel", () => {
     });
 
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["member_of", "Member of"],
+    ["fronts", "Fronts"],
+    ["points_to", "Points to"],
+  ])("defaults cluster %s relations to incoming and submits from the selected resource", async (relationType, label) => {
+    const user = userEvent.setup();
+    mockedCreateRelation.mockResolvedValue({
+      id: 10,
+      fromResourceId: 9,
+      toResourceId: 101,
+      relationType,
+      createdAt: "2026-04-11T14:00:00Z",
+    });
+    mockedGetRelationRules
+      .mockResolvedValueOnce({
+        sourceResourceId: 101,
+        sourceEnvironmentId: 1,
+        rules: [],
+      })
+      .mockResolvedValueOnce({
+        sourceResourceId: 9,
+        sourceEnvironmentId: 1,
+        rules: [{
+          relationType,
+          targetResourceTypes: ["database_cluster"],
+          sameEnvironment: true,
+        }],
+      });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel
+          relations={[]}
+          resourceId={101}
+          resourceType="database_cluster"
+          environmentId={1}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: label }));
+    expect(screen.getByRole("radio", { name: "Selected resource points to this resource" })).toBeChecked();
+    await user.click(screen.getByTestId("resource-search-combobox"));
+
+    await waitFor(() => expect(mockedGetRelationRules).toHaveBeenCalledWith(9));
+    await user.click(screen.getByRole("button", { name: "Add relation" }));
+
+    expect(mockedCreateRelation).toHaveBeenCalledWith(9, {
+      toResourceId: 101,
+      relationType,
+    });
+  });
+
+  it("does not submit an incoming relation when the selected source cannot target this resource type", async () => {
+    const user = userEvent.setup();
+    mockedGetRelationRules
+      .mockResolvedValueOnce({
+        sourceResourceId: 101,
+        sourceEnvironmentId: 1,
+        rules: [],
+      })
+      .mockResolvedValueOnce({
+        sourceResourceId: 9,
+        sourceEnvironmentId: 1,
+        rules: [{
+          relationType: "member_of",
+          targetResourceTypes: ["host"],
+          sameEnvironment: true,
+        }],
+      });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel
+          relations={[]}
+          resourceId={101}
+          resourceType="database_cluster"
+          environmentId={1}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Member of" }));
+    await user.click(screen.getByTestId("resource-search-combobox"));
+
+    expect(await screen.findByText("The selected relationship is not allowed.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add relation" })).toBeDisabled();
+    expect(mockedCreateRelation).not.toHaveBeenCalled();
+  });
+
+  it("does not submit an incoming same-environment relation across environments", async () => {
+    const user = userEvent.setup();
+    mockedGetRelationRules
+      .mockResolvedValueOnce({
+        sourceResourceId: 101,
+        sourceEnvironmentId: 1,
+        rules: [],
+      })
+      .mockResolvedValueOnce({
+        sourceResourceId: 9,
+        sourceEnvironmentId: 2,
+        rules: [{
+          relationType: "member_of",
+          targetResourceTypes: ["database_cluster"],
+          sameEnvironment: true,
+        }],
+      });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel
+          relations={[]}
+          resourceId={101}
+          resourceType="database_cluster"
+          environmentId={1}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Member of" }));
+    await user.click(screen.getByTestId("resource-search-combobox"));
+
+    expect(await screen.findByText("The selected relationship is not allowed.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add relation" })).toBeDisabled();
+  });
+
+  it.each([
+    ["en", enMessages, "Direction", "This resource points to selected resource", "Selected resource points to this resource"],
+    ["zh-CN", zhMessages, "方向", "此资源指向所选资源", "所选资源指向此资源"],
+  ])("exposes the direction choice as an accessible localized group in %s", async (locale, localizedMessages, groupName, outgoing, incoming) => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale={locale} messages={localizedMessages}>
+        <ResourceRelationPanel
+          relations={[]}
+          resourceId={101}
+          resourceType="database_cluster"
+          environmentId={1}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText(locale === "en" ? "Add relation" : "添加关系"));
+
+    expect(screen.getByRole("group", { name: groupName })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: outgoing })).toBeChecked();
+    expect(screen.getByRole("radio", { name: incoming })).toBeEnabled();
   });
 
   it("renders a controlled backend matrix rejection", async () => {

@@ -1,3 +1,7 @@
+// input: resource, relation, profile, audit, and lookup service responses
+// output: localized resource list/detail view models, including an unambiguous database-instance parent cluster
+// pos: server-side adapter between backend transport records and console presentation consumers
+// note: if this file changes, update this header and lib/README.md.
 import { formatLabel } from "@/lib/format";
 import {
   listRecentAuditEvents,
@@ -345,9 +349,17 @@ async function toResourceDetailViewModel(
   ]);
 
   const members = fetchedMembers ?? inlineMembers;
-  const clusterResource = resource.resourceType === "database_instance" && resource.clusterId
-    ? resourceMap.get(resource.clusterId)
-    : undefined;
+  const inferredClusterIds = resource.resourceType === "database_instance" && resource.clusterId == null
+    ? relations
+      .filter((relation) =>
+        relation.fromResourceId === resource.id &&
+        relation.relationType === "member_of" &&
+        resourceMap.get(relation.toResourceId)?.resourceType === "database_cluster",
+      )
+      .map((relation) => relation.toResourceId)
+    : [];
+  const clusterId = resource.clusterId ?? (inferredClusterIds.length === 1 ? inferredClusterIds[0] : undefined);
+  const clusterResource = clusterId === undefined ? undefined : resourceMap.get(clusterId);
 
   const auditViewModels = auditEvents.map((event) =>
     toAuditEventViewModel(event, resourceMap, environmentMap),

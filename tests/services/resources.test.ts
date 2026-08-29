@@ -1,5 +1,5 @@
 // input: Vitest, mocked resources API client, and resource service contracts
-// output: resource/profile/relation-rule transport, server-derived completeness write exclusion, managed-identity/effective-value override payloads, and request-shape coverage
+// output: resource/profile/relation-rule transport, source-specific relation paths, server-derived completeness write exclusion, managed-identity/effective-value override payloads, and request-shape coverage
 // pos: service contract tests for the resources API boundary
 // note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -999,17 +999,17 @@ describe("createResourceRelation", () => {
     createdAt: "2026-04-14T12:00:00Z",
   };
 
-  it("sends POST /resources/{id}/relations with correct payload", async () => {
+  it("uses the supplied source ID in POST /resources/{fromId}/relations", async () => {
     apiClientMock.mockResolvedValue(createdRelation);
 
     const input: CreateResourceRelationInput = {
-      toResourceId: 2,
+      toResourceId: 101,
       relationType: "depends_on",
     };
 
-    const result = await createResourceRelation(1, input);
+    const result = await createResourceRelation(9, input);
 
-    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/relations", {
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/9/relations", {
       method: "POST",
       body: JSON.stringify(input),
     });

@@ -843,6 +843,9 @@
     "relation": {
       "addTitle": "Add relation",
       "addDescription": "Link this resource to another resource.",
+      "directionLabel": "Direction",
+      "directionOutgoing": "This resource points to selected resource",
+      "directionIncoming": "Selected resource points to this resource",
       "targetLabel": "Target resource",
       "targetPlaceholder": "Search by name or ID",
       "typeLabel": "Relation type",

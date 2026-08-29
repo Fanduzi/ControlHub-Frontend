@@ -25,5 +25,6 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-response.test.ts` | BFF `bffJson` synthesized bodies include a snake_case Controlled Error Code on `error` |
 | `auth-role.test.ts` | Presentation-only admin gate from the trusted BFF session; browser role tampering fails closed |
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
-| `view-models.test.ts` | Resource and Database Estate view-model composition, including scoped server search across paginated database types |
+| `view-models.test.ts` | Resource and Database Estate view-model composition, including unambiguous relation-derived database parents and scoped server search across paginated database types |
+| `database-read-model-consistency.test.ts` | Database member, parent, profile, and topology consistency outcomes |
 | `list-page-search-params.test.ts` | Resource/audit URL parsing, including safe pagination/search normalization and repeated environment/label and owner filters |

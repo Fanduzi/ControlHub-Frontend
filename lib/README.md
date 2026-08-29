@@ -48,7 +48,10 @@ version, and role (active or standby). Ambiguous `ha` is not a component subtype
 use `ha_monitor`.
 
 `view-models.ts` Database Estate listing includes `database_instance`,
-`database_cluster`, and `database_proxy`.
+`database_cluster`, and `database_proxy`. A database instance uses its explicit
+`clusterId` first; only an unambiguous outgoing `member_of` relation to a
+database cluster fills a missing parent, so conflicting relation records remain
+visible without inventing a parent.
 
 Overview view models use the paginating resource helper and derive attention
 from the same scoped complete list, retaining an optional environment filter.

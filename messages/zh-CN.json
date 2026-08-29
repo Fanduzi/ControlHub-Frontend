@@ -843,6 +843,9 @@
     "relation": {
       "addTitle": "添加关系",
       "addDescription": "将此资源关联到另一个资源。",
+      "directionLabel": "方向",
+      "directionOutgoing": "此资源指向所选资源",
+      "directionIncoming": "所选资源指向此资源",
       "targetLabel": "目标资源",
       "targetPlaceholder": "按名称或 ID 搜索",
       "typeLabel": "关系类型",

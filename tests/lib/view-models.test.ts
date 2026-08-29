@@ -1,5 +1,5 @@
 // input: Vitest, mocked resource/settings services, and view-model contracts
-// output: resource and database view-model composition and scoped paginated-list regression coverage
+// output: resource and database view-model composition, parent-cluster resolution, and scoped paginated-list regression coverage
 // pos: library contract coverage for frontend view-model adapters
 // note: if this file changes, update this header and tests/lib/README.md
 import {
@@ -181,6 +181,88 @@ describe("getResourceViewModel", () => {
     const viewModel = await getResourceViewModel(resource.id);
 
     expect(viewModel?.profile).toEqual({});
+  });
+
+  it("uses one valid outgoing member_of relation as the database instance parent when clusterId is absent", async () => {
+    const cluster = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster" as const,
+      displayName: "Orders DB Cluster",
+    };
+    mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: null } });
+    mockedListAllResources.mockResolvedValue([resource, cluster] as never);
+    mockedListResourceRelations.mockResolvedValue([{
+      id: 1,
+      fromResourceId: resource.id,
+      toResourceId: cluster.id,
+      relationType: "member_of",
+      createdAt: "2026-04-12T12:00:00Z",
+    }]);
+
+    const viewModel = await getResourceViewModel(resource.id);
+
+    expect(viewModel?.clusterInfo).toMatchObject({
+      id: cluster.id,
+      displayName: "Orders DB Cluster",
+    });
+  });
+
+  it("keeps explicit clusterId authoritative while retaining a conflicting relation", async () => {
+    const explicitCluster = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster" as const,
+      displayName: "Explicit cluster",
+    };
+    const relatedCluster = {
+      ...explicitCluster,
+      id: 15,
+      displayName: "Related cluster",
+    };
+    mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: explicitCluster.id } });
+    mockedListAllResources.mockResolvedValue([resource, explicitCluster, relatedCluster] as never);
+    mockedListResourceRelations.mockResolvedValue([{
+      id: 1,
+      fromResourceId: resource.id,
+      toResourceId: relatedCluster.id,
+      relationType: "member_of",
+      createdAt: "2026-04-12T12:00:00Z",
+    }]);
+
+    const viewModel = await getResourceViewModel(resource.id);
+
+    expect(viewModel?.clusterInfo?.id).toBe(explicitCluster.id);
+    expect(viewModel?.relations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ toResourceId: relatedCluster.id }),
+    ]));
+  });
+
+  it.each([
+    ["incoming relation", { fromResourceId: 14, toResourceId: resource.id, relationType: "member_of" }],
+    ["wrong target type", { fromResourceId: resource.id, toResourceId: 15, relationType: "member_of" }],
+    ["multiple cluster relations", [
+      { fromResourceId: resource.id, toResourceId: 14, relationType: "member_of" },
+      { fromResourceId: resource.id, toResourceId: 16, relationType: "member_of" },
+    ]],
+  ])("does not guess a cluster parent from %s", async (_caseName, relationOrRelations) => {
+    const cluster = {
+      ...resource,
+      id: 14,
+      resourceType: "database_cluster" as const,
+    };
+    const host = { ...resource, id: 15, resourceType: "host" as const };
+    const secondCluster = { ...cluster, id: 16 };
+    const relations = (Array.isArray(relationOrRelations) ? relationOrRelations : [relationOrRelations]).map(
+      (relation, index) => ({ id: index + 1, createdAt: "2026-04-12T12:00:00Z", ...relation }),
+    );
+    mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: null } });
+    mockedListAllResources.mockResolvedValue([resource, cluster, host, secondCluster] as never);
+    mockedListResourceRelations.mockResolvedValue(relations);
+
+    const viewModel = await getResourceViewModel(resource.id);
+
+    expect(viewModel?.clusterInfo).toBeUndefined();
   });
 
   it("builds list view models without issuing per-resource profile fetches", async () => {

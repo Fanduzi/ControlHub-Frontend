@@ -1,6 +1,6 @@
 // input: React, root/namespace next-intl, next/navigation, auth-role, and server relation services
-// output: localized relation rows with resilient successful-delete removal, refresh, and controlled errors
-// pos: shared relation read/mutation surface that consumes, but never owns, the server relationship matrix
+// output: localized relation rows, explicit directed relation creation, resilient successful-delete removal, refresh, and controlled errors
+// pos: shared relation read/mutation surface that validates server-owned rules at the selected source-to-target boundary
 // note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
@@ -43,13 +43,17 @@ import { listRelationTypes } from "@/services/settings";
 import { localizeResourceType, localizeRelationType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 import type { RelationTypeDefinition } from "@/types/settings";
-import type { RelationshipRule } from "@/types/resource";
+import type { RelationshipRule, Resource, ResourceType } from "@/types/resource";
+
+type RelationDirection = "outgoing" | "incoming";
 
 type ResourceRelationPanelProps = {
   relations: ResourceRelationViewModel[];
   emptyTitle?: string;
   emptyDescription?: string;
   resourceId?: number;
+  resourceType?: ResourceType;
+  environmentId?: number;
 };
 
 export function ResourceRelationPanel({
@@ -57,6 +61,8 @@ export function ResourceRelationPanel({
   emptyTitle,
   emptyDescription,
   resourceId,
+  resourceType,
+  environmentId,
 }: ResourceRelationPanelProps) {
   const t = useTranslations();
   const rt = useTranslations("relations");
@@ -66,11 +72,15 @@ export function ResourceRelationPanel({
   const isAdmin = useAdminRole();
 
   const [showAddForm, setShowAddForm] = useState(false);
-  const [targetId, setTargetId] = useState<number | null>(null);
+  const [target, setTarget] = useState<Resource | null>(null);
   const [relationType, setRelationType] = useState("");
+  const [direction, setDirection] = useState<RelationDirection>("outgoing");
   const [relationTypes, setRelationTypes] = useState<RelationTypeDefinition[]>([]);
   const [relationRules, setRelationRules] = useState<RelationshipRule[]>([]);
   const [sourceEnvironmentId, setSourceEnvironmentId] = useState<number>();
+  const [selectedSourceRules, setSelectedSourceRules] = useState<RelationshipRule[]>([]);
+  const [selectedSourceEnvironmentId, setSelectedSourceEnvironmentId] = useState<number>();
+  const [loadingSelectedSourceRules, setLoadingSelectedSourceRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const deletingIdsRef = useRef(new Set<number>());
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
@@ -85,31 +95,87 @@ export function ResourceRelationPanel({
     Promise.all([listRelationTypes(), getResourceRelationRules(resourceId)])
       .then(([definitions, response]) => {
         const allowed = new Set(response.rules.map((rule) => rule.relationType));
-        setRelationTypes(definitions.filter((definition) => allowed.has(definition.key)));
+        setRelationTypes(resourceType ? definitions : definitions.filter((definition) => allowed.has(definition.key)));
         setRelationRules(response.rules);
         setSourceEnvironmentId(response.sourceEnvironmentId);
       })
       .catch(() => setError(mt("errors.backend")));
-  }, [resourceId, isAdmin, mt]);
+  }, [resourceId, resourceType, isAdmin, mt]);
 
-  const selectedRule = relationRules.find(
+  useEffect(() => {
+    if (direction !== "incoming" || !target) {
+      setSelectedSourceRules([]);
+      setSelectedSourceEnvironmentId(undefined);
+      setLoadingSelectedSourceRules(false);
+      return;
+    }
+
+    let current = true;
+    setLoadingSelectedSourceRules(true);
+    getResourceRelationRules(target.id)
+      .then((response) => {
+        if (!current) return;
+        setSelectedSourceRules(response.rules);
+        setSelectedSourceEnvironmentId(response.sourceEnvironmentId);
+      })
+      .catch(() => {
+        if (current) setError(mt("errors.backend"));
+      })
+      .finally(() => {
+        if (current) setLoadingSelectedSourceRules(false);
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [direction, target, mt]);
+
+  const selectedRule = (direction === "outgoing" ? relationRules : selectedSourceRules).find(
     (rule) => rule.relationType === relationType,
+  );
+  const targetResourceType = direction === "outgoing" ? target?.resourceType : resourceType;
+  const sourceEnvironment = direction === "outgoing"
+    ? sourceEnvironmentId
+    : selectedSourceEnvironmentId;
+  const targetEnvironment = direction === "outgoing"
+    ? target?.environmentId
+    : environmentId;
+  const selectedBoundaryIsValid = Boolean(
+    target &&
+      selectedRule &&
+      targetResourceType &&
+      selectedRule.targetResourceTypes.includes(targetResourceType) &&
+      (!selectedRule.sameEnvironment ||
+        (sourceEnvironment !== undefined && sourceEnvironment === targetEnvironment)),
+  );
+  const isInvalidSelectedBoundary = Boolean(
+    target &&
+      relationType &&
+      !loadingSelectedSourceRules &&
+      !selectedBoundaryIsValid,
   );
 
   const handleAddRelation = useCallback(async () => {
-    if (!resourceId || !targetId || !relationType) return;
+    if (!resourceId || !target || !relationType) return;
+
+    if (!selectedBoundaryIsValid) {
+      setError(mt("errors.relationRejected"));
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
 
     try {
-      await createResourceRelation(resourceId, {
-        toResourceId: targetId,
+      const sourceId = direction === "outgoing" ? resourceId : target.id;
+      const toResourceId = direction === "outgoing" ? target.id : resourceId;
+      await createResourceRelation(sourceId, {
+        toResourceId,
         relationType,
       });
       router.refresh();
       setShowAddForm(false);
-      setTargetId(null);
+      setTarget(null);
       setRelationType("");
     } catch (err) {
       if (err instanceof ApiError) {
@@ -128,7 +194,7 @@ export function ResourceRelationPanel({
     } finally {
       setSubmitting(false);
     }
-  }, [resourceId, targetId, relationType, router, mt]);
+  }, [resourceId, target, relationType, direction, selectedBoundaryIsValid, router, mt]);
 
   const handleDeleteRelation = useCallback(
     async (relationId: number) => {
@@ -184,20 +250,40 @@ export function ResourceRelationPanel({
       {showAddForm && (
         <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
           <div>
-            <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              {mt("relation.targetLabel")}
-            </label>
-            <ResourceSearchCombobox
-              key={relationType}
-              onSelect={(resource) => {
-                setTargetId(resource.id);
-                setError(null);
-              }}
-              excludeIds={resourceId ? [resourceId] : []}
-              resourceTypes={selectedRule?.targetResourceTypes}
-              environmentId={selectedRule?.sameEnvironment ? sourceEnvironmentId : undefined}
-              disabled={!selectedRule}
-            />
+            <fieldset>
+              <legend className="mb-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {mt("relation.directionLabel")}
+              </legend>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="relation-direction"
+                    checked={direction === "outgoing"}
+                    onChange={() => {
+                      setDirection("outgoing");
+                      setTarget(null);
+                      setError(null);
+                    }}
+                  />
+                  {mt("relation.directionOutgoing")}
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="relation-direction"
+                    checked={direction === "incoming"}
+                    onChange={() => {
+                      setDirection("incoming");
+                      setTarget(null);
+                      setError(null);
+                    }}
+                    disabled={!resourceType || !environmentId}
+                  />
+                  {mt("relation.directionIncoming")}
+                </label>
+              </div>
+            </fieldset>
           </div>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -206,7 +292,14 @@ export function ResourceRelationPanel({
             <Select value={relationType} onValueChange={(v) => {
               if (v !== null) {
                 setRelationType(v);
-                setTargetId(null);
+                setDirection(
+                  resourceType === "database_cluster" &&
+                    ["member_of", "fronts", "points_to"].includes(v)
+                    ? "incoming"
+                    : "outgoing",
+                );
+                setTarget(null);
+                setError(null);
               }
             }}>
               <SelectTrigger className="h-8 w-full border-border bg-background text-sm">
@@ -221,11 +314,27 @@ export function ResourceRelationPanel({
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {mt("relation.targetLabel")}
+            </label>
+            <ResourceSearchCombobox
+              key={`${direction}-${relationType}`}
+              onSelect={(resource) => {
+                setTarget(resource);
+                setError(null);
+              }}
+              excludeIds={resourceId ? [resourceId] : []}
+              resourceTypes={direction === "outgoing" ? selectedRule?.targetResourceTypes : undefined}
+              environmentId={direction === "outgoing" && selectedRule?.sameEnvironment ? sourceEnvironmentId : undefined}
+              disabled={direction === "outgoing" ? !selectedRule : !relationType || !resourceType || !environmentId}
+            />
+          </div>
           <div className="flex justify-end">
             <Button
               size="xs"
               onClick={handleAddRelation}
-              disabled={submitting || !targetId || !relationType}
+              disabled={submitting || !selectedBoundaryIsValid}
             >
               {submitting ? mt("relation.submitting") : mt("relation.addTitle")}
             </Button>
@@ -233,9 +342,9 @@ export function ResourceRelationPanel({
         </div>
       )}
 
-      {error && (
+      {(error || isInvalidSelectedBoundary) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          {error}
+          {error ?? mt("errors.relationRejected")}
         </div>
       )}
 

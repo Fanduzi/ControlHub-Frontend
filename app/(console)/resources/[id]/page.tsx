@@ -1,5 +1,5 @@
 // input: resource route id, localized resource view model, health evidence, and detail components
-// output: full resource detail page with server-derived completeness and health observation metadata
+// output: full resource detail page with server-derived completeness, health observation metadata, and directed relation creation context
 // pos: server-rendered resource detail and operational health inspection surface
 // note: if this file changes, update this header and module README.md.
 
@@ -410,7 +410,12 @@ export default async function ResourceDetailPage({
               title={t("pages.resourceDetail.relations.title")}
               description={t("pages.resourceDetail.relations.description")}
             >
-              <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
+              <ResourceRelationPanel
+                relations={resource.relations}
+                resourceId={resource.id}
+                resourceType={resource.resourceType}
+                environmentId={resource.environmentId}
+              />
             </DetailPanel>
           }
           fullWidth={
@@ -451,7 +456,12 @@ export default async function ResourceDetailPage({
               title={t("pages.resourceDetail.relations.title")}
               description={t("pages.resourceDetail.relations.description")}
             >
-              <ResourceRelationPanel relations={resource.relations} resourceId={resource.id} />
+              <ResourceRelationPanel
+                relations={resource.relations}
+                resourceId={resource.id}
+                resourceType={resource.resourceType}
+                environmentId={resource.environmentId}
+              />
             </DetailPanel>
           </div>
 

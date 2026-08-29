@@ -1,3 +1,7 @@
+// input: database detail view-model fixtures, topology records, and consistency builders
+// output: database parent, member, profile, and topology consistency contracts
+// pos: public consistency-helper seam for database detail consumers
+// note: if this file changes, update this header and tests/lib/README.md.
 import { describe, expect, it } from "vitest";
 
 import type { ClusterMember, TopologyResponse } from "@/types/resource";
@@ -375,6 +379,17 @@ describe("database read-model consistency", () => {
           id: "instance-parent-cluster-missing",
           kind: "missing_relation",
         }),
+      );
+    });
+
+    it("does not report a missing parent when the detail view model resolved one from its relation", () => {
+      const result = buildInstanceConsistency({
+        resource: instanceResource(),
+        topology: topology([14, 22]),
+      });
+
+      expect(result.issues).not.toContainEqual(
+        expect.objectContaining({ id: "instance-parent-cluster-missing" }),
       );
     });
 

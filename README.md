@@ -216,6 +216,7 @@ types mirror OpenAPI, and shared libraries normalize URL and view-model state.
 - Wire types in `types/*.ts` align with the OpenAPI camelCase contract
 - View-model fields such as `environmentName`, `ownerName`, `actorLabel`, `targetResourceName`, and `summary` are frontend-only presentation fields derived in `lib/view-models.ts`
 - Resource `profile` content is fetched from `GET /resources/{id}/profile` and normalized into frontend-friendly string values in `lib/view-models.ts`
+- Database instance parent context uses explicit `clusterId`; when it is absent, one unambiguous outgoing `member_of` relation to a database cluster may supply the parent without hiding conflicting relation records
 - Resource list/detail payloads expose effective `healthStatus`, `healthFreshness`, `healthObservedAt`, `healthObserver`, and nullable `manualHealthOverride`; the UI fails closed to `Never · — · —` during a rolling deployment if an older backend omits the new fields
 - The backend does not provide `actorName`, `targetResourceName`, `ownerName`, or `environmentName` in its endpoints
 - Supporting dictionaries (resourceType, lifecycleStatus, healthStatus values) are local static data in `services/settings.ts`
