@@ -26,7 +26,12 @@ describe("performBackendLogin", () => {
     vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://backend.test");
     stubLoginResponse(200, { token: TOKEN, role: "admin" });
     const outcome = await performBackendLogin("admin@example.com", PASSWORD);
-    expect(outcome).toEqual({ ok: true, token: TOKEN, role: "admin" });
+    expect(outcome).toEqual({
+      ok: true,
+      token: TOKEN,
+      email: "admin@example.com",
+      role: "admin",
+    });
   });
 
   it("maps backend 401 to invalid-credentials without leaking details", async () => {

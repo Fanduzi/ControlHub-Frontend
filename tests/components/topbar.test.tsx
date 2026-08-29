@@ -236,7 +236,7 @@ describe("Topbar", () => {
     });
 
     async function openMenuAndClickSignOut(user: ReturnType<typeof userEvent.setup>) {
-      await user.click(screen.getByRole("button", { name: /chen hao/i }));
+      await user.click(screen.getByRole("button", { name: /CH/ }));
       await user.click(await screen.findByRole("menuitem", { name: /sign out/i }));
     }
 

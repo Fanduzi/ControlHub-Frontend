@@ -1,9 +1,15 @@
 // input: none (server-side env only)
-// output: server-side BFF login against the existing backend login API with generic outcome mapping
+// output: server-side BFF login against the existing backend login API with generic outcome mapping and identity
 // pos: BFF-only translation from console credentials to a Backend Bearer Credential, never exposed to browsers
 // note: if this file changes, update header and lib/operator-session/README.md
 export type LoginOutcome =
-  | { ok: true; token: string; role: string }
+  | {
+      ok: true;
+      token: string;
+      role: string;
+      email: string;
+      displayName?: string;
+    }
   | { ok: false; kind: "invalid-credentials" }
   | { ok: false; kind: "backend-unavailable" };
 
@@ -65,10 +71,31 @@ export async function performBackendLogin(
     typeof body === "object" && body !== null
       ? (body as { role?: unknown }).role
       : undefined;
+  const backendEmail =
+    typeof body === "object" && body !== null
+      ? (body as { email?: unknown }).email
+      : undefined;
+  const displayName =
+    typeof body === "object" && body !== null
+      ? (body as { displayName?: unknown }).displayName
+      : undefined;
 
   if (typeof token !== "string" || token.length === 0 || typeof role !== "string") {
     return { ok: false, kind: "backend-unavailable" };
   }
 
-  return { ok: true, token, role };
+  return {
+    ok: true,
+    token,
+    role,
+    // A successful backend authentication binds the submitted login identity
+    // to this sealed server-side session when the backend omits a display field.
+    email:
+      typeof backendEmail === "string" && backendEmail.length > 0
+        ? backendEmail
+        : email,
+    ...(typeof displayName === "string" && displayName.length > 0
+      ? { displayName }
+      : {}),
+  };
 }

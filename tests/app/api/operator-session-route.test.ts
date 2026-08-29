@@ -67,7 +67,7 @@ describe("POST /api/operator-session", () => {
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as Record<string, unknown>;
-    expect(body).toEqual({ role: "admin" });
+    expect(body).toEqual({ email: "admin@example.com", role: "admin" });
     expect(JSON.stringify(body)).not.toContain(TOKEN);
     expect(response.headers.get("cache-control")).toBe("no-store");
 

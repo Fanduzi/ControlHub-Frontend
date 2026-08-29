@@ -1,6 +1,8 @@
 # components/app-shell
 
-Console shell chrome (sidebar, topbar, layout).
+Console shell chrome (sidebar, topbar, layout). The topbar reads the current
+operator email/display name and role from the no-store BFF session response;
+it does not use translations as identity or persist credentials.
 
 The topbar uses presentation-only role state to hide resource-creation affordances
 for non-admin users. Sign-out calls `DELETE /api/operator-session` and clears

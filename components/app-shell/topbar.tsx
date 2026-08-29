@@ -1,5 +1,5 @@
 // input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar controls including admin-only resource creation and fail-closed sign-out (leaves only after the BFF confirms session clearing)
+// output: console topbar identity/role controls, admin-only resource creation, and fail-closed sign-out
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
 
@@ -43,11 +43,17 @@ import { CreateResourceSheet } from "@/components/resources/create-resource-shee
 import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
 import { useAdminRole } from "@/lib/auth-role";
 import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";
+import type { SealedSessionPayload } from "@/lib/operator-session/seal";
 
 type TopbarProps = {
   pathname: string;
   onMobileMenuOpen?: () => void;
 };
+
+type OperatorIdentity = Pick<
+  SealedSessionPayload,
+  "email" | "displayName" | "role"
+>;
 
 export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const t = useTranslations();
@@ -56,7 +62,38 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
+  const [operator, setOperator] = useState<OperatorIdentity | null>(null);
   const isAdmin = useAdminRole();
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/operator-session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const body = (await response.json()) as {
+          email?: unknown;
+          displayName?: unknown;
+          role?: unknown;
+        };
+        if (typeof body.role !== "string" || body.role.length === 0) {
+          return null;
+        }
+        const email = typeof body.email === "string" ? body.email : undefined;
+        const displayName =
+          typeof body.displayName === "string" ? body.displayName : undefined;
+        return email || displayName
+          ? { email, displayName, role: body.role }
+          : null;
+      })
+      .then((identity) => {
+        if (active && identity) setOperator(identity);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handleOpenCreate() {
@@ -73,6 +110,8 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
     ? t(`navigation.${sectionId}.title`)
     : t("common.brand");
   const section = consoleNavigation.find((item) => item.id === sectionId);
+  const operatorName = operator?.displayName || operator?.email || "—";
+  const operatorRole = operator?.role || "—";
   const supportsEnvironment = section?.supportsEnvironment || pathname === "/settings/query-disclosure-policies";
   const { environments, currentEnvironmentId, setEnvironmentId } =
     useEnvironment();
@@ -238,10 +277,10 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
           </Avatar>
           <div className="hidden text-left sm:block">
             <p className="text-xs font-medium text-foreground">
-              {t("shell.userName")}
+              {operatorName}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {t("shell.role")}
+              {operatorRole}
             </p>
           </div>
           <ChevronsUpDown className="size-4 text-muted-foreground" />

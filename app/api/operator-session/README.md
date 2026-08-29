@@ -4,7 +4,8 @@ Console BFF session routes (Phase 38X-1C).
 
 | Method | Purpose |
 |--------|---------|
-| `POST /api/operator-session` | Interactive login: calls the backend login API server-side and seals the Backend Bearer Credential into an HttpOnly Operator Session cookie; the response contains only the role |
+| `POST /api/operator-session` | Interactive login: calls the backend login API server-side, seals the Backend Bearer Credential and operator identity into an HttpOnly Operator Session cookie, and returns identity + role without the credential |
+| `GET /api/operator-session` | Returns the authenticated operator email/display name and role from the sealed session; never returns the credential |
 | `DELETE /api/operator-session` | Logout: clears the Operator Session cookie |
 
 Unsafe methods require the exact configured Console Origin. All authentication

@@ -1,5 +1,5 @@
 // input: node:crypto, @/lib/operator-session/config, @/lib/operator-session/constants
-// output: sealed Operator Session cookie values (AES-256-GCM, active + previous key, fixed eight-hour age)
+// output: sealed Operator Session cookie values (AES-256-GCM, identity, active + previous key, fixed eight-hour age)
 // pos: authenticated-encryption primitive for the Sealed Operator Session cookie
 // note: if this file changes, update header and lib/operator-session/README.md
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
@@ -13,6 +13,8 @@ import {
 export interface SealedSessionPayload {
   token: string;
   role: string;
+  email?: string;
+  displayName?: string;
   iat: number;
   exp: number;
 }
@@ -39,7 +41,12 @@ function keyId(key: Buffer): string {
  * The maximum session age is fixed at eight hours from issuance.
  */
 export function sealSession(
-  session: { token: string; role: string },
+  session: {
+    token: string;
+    role: string;
+    email?: string;
+    displayName?: string;
+  },
   config: OperatorSessionConfig,
   nowMs: number = Date.now(),
 ): string {
@@ -48,6 +55,8 @@ export function sealSession(
   const plaintext = JSON.stringify({
     token: session.token,
     role: session.role,
+    ...(session.email ? { email: session.email } : {}),
+    ...(session.displayName ? { displayName: session.displayName } : {}),
     iat,
     exp,
   });

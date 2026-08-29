@@ -1,5 +1,5 @@
 // input: react, next/navigation, next-intl, same-origin /api/operator-session
-// output: interactive login via Console BFF; localized validation; stores presentation role only (no bearer)
+// output: interactive login via Console BFF; localized validation; stores presentation role only (no bearer or identity)
 // pos: public login UI for the 38X-1C Operator Session boundary
 // note: if this file changes, update header and app/login/README.md
 "use client";
@@ -52,8 +52,8 @@ export default function LoginPage() {
 
     try {
       // Same-origin BFF login: the server seals the Backend Bearer Credential
-      // into an HttpOnly Operator Session cookie. The response body carries only
-      // the presentation role — never a bearer token.
+      // into an HttpOnly Operator Session cookie. The response body carries
+      // presentation identity and role — never a bearer token.
       const response = await fetch("/api/operator-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
