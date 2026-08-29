@@ -1,3 +1,7 @@
+// input: query targets, policy state, admin role, and policy mutations
+// output: localized disclosure policy controls with safe failure feedback
+// pos: query disclosure settings presentation and mutation boundary
+// note: keep policy target selection and target/policy behavior unchanged
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -167,16 +171,14 @@ export function QueryDisclosureSettings({
       try {
         const response = await listDisclosurePolicies(targetId);
         setPolicies(response.items);
-      } catch (caught) {
-        setError(
-          caught instanceof Error ? caught.message : "Failed to load policies",
-        );
+      } catch {
+        setError(t("loadError"));
         setPolicies([]);
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -256,10 +258,10 @@ export function QueryDisclosureSettings({
       if (selectedTargetId !== null) {
         void fetchPolicies(selectedTargetId);
       }
-    } catch (caught) {
+    } catch {
       setFeedback({
         type: "error",
-        message: caught instanceof Error ? caught.message : "Operation failed",
+        message: t("operationError"),
       });
     } finally {
       setSubmitting(false);
@@ -282,10 +284,10 @@ export function QueryDisclosureSettings({
       if (selectedTargetId !== null) {
         void fetchPolicies(selectedTargetId);
       }
-    } catch (caught) {
+    } catch {
       setFeedback({
         type: "error",
-        message: caught instanceof Error ? caught.message : "Delete failed",
+        message: t("deleteError"),
       });
     } finally {
       setSubmitting(false);
@@ -361,7 +363,7 @@ export function QueryDisclosureSettings({
                 setTargetSearch(value);
                 void loadTargetPage(1, value);
               }}
-              placeholder={selectedTarget?.displayName ?? t("targetSearchPlaceholder")}
+              placeholder={selectedTarget?.displayName ?? t("targetSelectPlaceholder")}
               className="h-8 w-full bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
             />
             <CommandList className="max-h-48 overflow-y-auto p-1">
@@ -470,7 +472,7 @@ export function QueryDisclosureSettings({
                     <th className="px-4 py-2.5">{t("columnLabel")}</th>
                     <th className="px-4 py-2.5">{t("modeLabel")}</th>
                     <th className="px-4 py-2.5 text-right">
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t("actions")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -659,7 +661,7 @@ function PolicyFormDialog({
               onChange={(e) =>
                 onFormDataChange({ ...formData, databaseName: e.target.value })
               }
-              placeholder="e.g. production"
+              placeholder={t("databasePlaceholder")}
               className="mt-1"
               disabled={isEditing}
             />
@@ -679,7 +681,7 @@ function PolicyFormDialog({
               onChange={(e) =>
                 onFormDataChange({ ...formData, objectName: e.target.value })
               }
-              placeholder="e.g. users"
+              placeholder={t("tablePlaceholder")}
               className="mt-1"
               disabled={isEditing}
             />
@@ -699,7 +701,7 @@ function PolicyFormDialog({
               onChange={(e) =>
                 onFormDataChange({ ...formData, columnName: e.target.value })
               }
-              placeholder="e.g. email"
+              placeholder={t("columnPlaceholder")}
               className="mt-1"
               disabled={isEditing}
             />

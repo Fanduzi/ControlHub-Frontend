@@ -1,5 +1,5 @@
 // input: query target page, client filters, search failure/retry state, and navigator callbacks
-// output: grouped connection target navigator with localized paging/error presentation
+// output: grouped connection target navigator with localized loaded/total paging and error presentation
 // pos: connection navigator filtering and grouping boundary
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -70,8 +70,12 @@ export function QueryConnectionNavigator({
   );
 
   const pageInfoLabel = useMemo(
-    () => t("connectionNavigator.showing", { count: filteredTargets.length }),
-    [filteredTargets.length, t],
+    () =>
+      t("connectionNavigator.showing", {
+        loaded: filteredTargets.length,
+        total: pageInfo.totalItems,
+      }),
+    [filteredTargets.length, pageInfo.totalItems, t],
   );
 
   return (

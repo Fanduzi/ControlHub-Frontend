@@ -214,7 +214,7 @@ describe("QueryConnectionNavigator", () => {
     });
 
     expect(
-      screen.getByText("Showing 1 target"),
+      screen.getByText("Showing 1 of 64 targets"),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Load more targets" }));
     expect(onLoadMore).toHaveBeenCalledOnce();
@@ -223,12 +223,22 @@ describe("QueryConnectionNavigator", () => {
   it("localizes the current target count in Chinese", () => {
     render(
       renderNavigatorElement(
-        { filters: { ...EMPTY_FILTERS, engine: "clickhouse" } },
+        {
+          filters: { ...EMPTY_FILTERS, engine: "clickhouse" },
+          pageInfo: {
+            page: 1,
+            pageSize: 2,
+            totalItems: 64,
+            totalPages: 32,
+            hasNextPage: true,
+            hasPreviousPage: false,
+          },
+        },
         zhMessages,
         "zh-CN",
       ),
     );
 
-    expect(screen.getByText("当前显示 1 个目标")).toBeInTheDocument();
+    expect(screen.getByText("已加载 1 / 共 64 个目标")).toBeInTheDocument();
   });
 });

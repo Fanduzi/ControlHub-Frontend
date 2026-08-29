@@ -36,6 +36,7 @@ import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 import type { DisclosurePolicy } from "@/types/query-disclosure";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const mockListDisclosurePolicies = vi.mocked(listDisclosurePolicies);
 const mockCreateDisclosurePolicy = vi.mocked(createDisclosurePolicy);
@@ -95,6 +96,7 @@ function renderSettings(
   messages: Record<string, unknown> = enMessages,
   options: {
     environmentId?: number;
+    locale?: string;
     pageInfo?: {
       page: number;
       pageSize: number;
@@ -106,7 +108,7 @@ function renderSettings(
   } = {},
 ) {
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale={options.locale ?? "en"} messages={messages}>
       <QueryDisclosureSettings
         targets={targets}
         environmentId={options.environmentId}
@@ -233,8 +235,36 @@ describe("QueryDisclosureSettings policy list", () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("Network error")).toBeInTheDocument();
+      expect(screen.getByText("Unable to load disclosure policies.")).toBeInTheDocument();
     });
+    expect(screen.queryByText("Network error")).toBeNull();
+  });
+
+  it("localizes the target and policy field placeholders in Chinese", async () => {
+    const user = userEvent.setup();
+
+    mockListDisclosurePolicies.mockResolvedValue({ items: [] });
+    renderSettings(buildTargets(), zhMessages, { locale: "zh-CN" });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "新增策略" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "新增策略" }));
+
+    expect(screen.getByPlaceholderText("例如 production")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 users")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 email")).toBeInTheDocument();
+  });
+
+  it("localizes the actions column label in Chinese", async () => {
+    mockListDisclosurePolicies.mockResolvedValue({ items: [buildPolicy()] });
+
+    renderSettings(buildTargets(), zhMessages, { locale: "zh-CN" });
+
+    await waitFor(() => {
+      expect(screen.getByText("users")).toBeInTheDocument();
+    });
+    expect(screen.getByText("操作")).toBeInTheDocument();
   });
 });
 
@@ -354,6 +384,26 @@ describe("QueryDisclosureSettings create dialog", () => {
       );
     });
   });
+
+  it("uses safe localized copy when saving fails", async () => {
+    const user = userEvent.setup();
+    mockCreateDisclosurePolicy.mockRejectedValue(new Error("backend secret"));
+
+    renderSettings();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add policy/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /add policy/i }));
+    await user.type(screen.getByPlaceholderText(/e\.g\. production/i), "production");
+    await user.type(screen.getByPlaceholderText(/e\.g\. users/i), "users");
+    await user.type(screen.getByPlaceholderText(/e\.g\. email/i), "email");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /add policy/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to save disclosure policy.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("backend secret")).toBeNull();
+  });
 });
 
 describe("QueryDisclosureSettings delete confirmation", () => {
@@ -442,6 +492,23 @@ describe("QueryDisclosureSettings delete confirmation", () => {
     await waitFor(() => {
       expect(screen.getByText(/disclosure policy deleted/i)).toBeInTheDocument();
     });
+  });
+
+  it("uses safe localized copy when deletion fails", async () => {
+    const user = userEvent.setup();
+    mockDeleteDisclosurePolicy.mockRejectedValue(new Error("delete secret"));
+
+    renderSettings();
+    await waitFor(() => {
+      expect(screen.getByText("users")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /delete policy/i }));
+    await user.click(screen.getByRole("button", { name: /delete$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to delete disclosure policy.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("delete secret")).toBeNull();
   });
 });
 
