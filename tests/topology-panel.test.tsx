@@ -4,6 +4,7 @@
 // note: if this file changes, update this header and module README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { act } from "react";
 
@@ -127,6 +128,40 @@ const mockTopologyResponse: TopologyResponse = {
 };
 
 describe("TopologyPanel", () => {
+  it("offers localized relation filters and preserves topology URL state", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    searchParams = new URLSearchParams(
+      "keep=1&topologyDepth=2&topologyDirection=upstream",
+    );
+    mockGetTopology.mockResolvedValue(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId={1} urlSync />);
+
+    await waitFor(() => expect(screen.getByTestId("topology-relation-type-select")).toBeInTheDocument());
+    await user.click(screen.getByTestId("topology-relation-type-select"));
+
+    expect(screen.getAllByTestId(/^topology-relation-type-/)).toHaveLength(9);
+    await user.click(screen.getByTestId("topology-relation-type-depends_on"));
+    await waitFor(() => expect(push).toHaveBeenLastCalledWith(
+      "/resources/1?keep=1&topologyDepth=2&topologyDirection=upstream&topologyRelationType=depends_on",
+    ));
+
+    await user.click(screen.getByTestId("topology-relation-type-select"));
+    await user.click(screen.getByTestId("topology-relation-type-all"));
+    await waitFor(() => expect(push).toHaveBeenLastCalledWith(
+      "/resources/1?keep=1&topologyDepth=2&topologyDirection=upstream",
+    ));
+  });
+
+  it("fails closed for an invalid relation type in the URL", async () => {
+    searchParams = new URLSearchParams("topologyRelationType=not-supported");
+    mockGetTopology.mockResolvedValue(mockTopologyResponse);
+
+    renderWithProviders(<TopologyPanel resourceId={1} urlSync />);
+
+    await waitFor(() => expect(mockGetTopology).toHaveBeenCalledWith(1, { depth: 1 }));
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();

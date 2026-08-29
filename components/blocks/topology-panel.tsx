@@ -27,7 +27,10 @@ import type { TopologyParams, TopologyResponse } from "@/types/resource";
 import { NODE_TYPES } from "./topology/topology-nodes";
 import { TopologyNodePopup } from "./topology/topology-node-popup";
 import { TopologyProblemsPanel } from "./topology/topology-problems-panel";
-import { TopologyControls } from "./topology/topology-controls";
+import {
+  TOPOLOGY_RELATION_TYPES,
+  TopologyControls,
+} from "./topology/topology-controls";
 
 type TopologyPanelProps = {
   resourceId?: number;
@@ -57,14 +60,20 @@ function TopologyPanelInner({
   const urlDepth = Number(urlParams.get("topologyDepth")) || defaultDepth;
   const urlDirection =
     (urlParams.get("topologyDirection") ?? "both") as TopologyParams["direction"];
+  const urlRelationType = urlParams.get("topologyRelationType");
+  const parsedUrlRelationType = TOPOLOGY_RELATION_TYPES.includes(
+    urlRelationType as (typeof TOPOLOGY_RELATION_TYPES)[number],
+  ) ? urlRelationType as (typeof TOPOLOGY_RELATION_TYPES)[number] : undefined;
   const urlExpanded = urlParams.get("topologyExpanded") === "1";
 
   const [localDepth, setLocalDepth] = useState(defaultDepth);
   const [localDirection, setLocalDirection] = useState<TopologyParams["direction"]>("both");
+  const [localRelationType, setLocalRelationType] = useState<string>();
   const [localExpanded, setLocalExpanded] = useState(false);
 
   const depth = urlSync ? urlDepth : localDepth;
   const direction = urlSync ? urlDirection : localDirection;
+  const relationType = urlSync ? parsedUrlRelationType : localRelationType;
   const expanded = urlSync ? urlExpanded : localExpanded;
   const [rootResourceId, setRootResourceId] = useState<number>();
 
@@ -76,7 +85,7 @@ function TopologyPanelInner({
   // Track params that current topology data was loaded with,
   // so we can skip re-fetching when params haven't changed.
   const loadedParamsRef = useRef<string | null>(
-    initialTopology ? `:${defaultDepth}:both` : null,
+    initialTopology ? `:${defaultDepth}:both:` : null,
   );
   const [selectedNodePopup, setSelectedNodePopup] = useState<{
     data: TopologyNodeData;
@@ -124,6 +133,18 @@ function TopologyPanelInner({
     [urlSync, updateUrlParams],
   );
 
+  const setRelationTypeValue = useCallback(
+    (v: string) => {
+      const value = v && v !== "all" ? v : null;
+      if (urlSync) {
+        updateUrlParams({ topologyRelationType: value });
+      } else {
+        setLocalRelationType(value ?? undefined);
+      }
+    },
+    [urlSync, updateUrlParams],
+  );
+
   const setExpandedValue = useCallback(
     (v: boolean) => {
       if (urlSync) {
@@ -136,7 +157,7 @@ function TopologyPanelInner({
   );
 
   const fetchTopology = useCallback(
-    async (d: number, dir: TopologyParams["direction"]) => {
+    async (d: number, dir: TopologyParams["direction"], rel?: string) => {
       setLoading(true);
       setError(null);
       setUnavailable(false);
@@ -150,9 +171,10 @@ function TopologyPanelInner({
           : await getResourceTopology(resourceId!, {
               depth: d as 1 | 2,
               ...(dir && dir !== "both" ? { direction: dir } : {}),
+              ...(rel ? { relationType: rel } : {}),
             });
         setTopology(result);
-        loadedParamsRef.current = `${rootResourceId ?? ""}:${d}:${dir ?? "both"}`;
+        loadedParamsRef.current = `${rootResourceId ?? ""}:${d}:${dir ?? "both"}:${rel ?? ""}`;
       } catch (err) {
         if (err instanceof TopologyNotAvailableError) {
           setUnavailable(true);
@@ -169,12 +191,12 @@ function TopologyPanelInner({
   );
 
   useEffect(() => {
-    const loadKey = `${rootResourceId ?? ""}:${depth}:${direction ?? "both"}`;
+    const loadKey = `${rootResourceId ?? ""}:${depth}:${direction ?? "both"}:${relationType ?? ""}`;
     if (loadedParamsRef.current === loadKey) {
       return;
     }
-    fetchTopology(depth, direction);
-  }, [depth, direction, fetchTopology, rootResourceId]);
+    fetchTopology(depth, direction, relationType);
+  }, [depth, direction, fetchTopology, relationType, rootResourceId]);
 
   const flowData = useMemo(() => {
     if (!topology) return null;
@@ -220,8 +242,8 @@ function TopologyPanelInner({
   );
 
   const handleRetry = useCallback(() => {
-    fetchTopology(depth, direction);
-  }, [depth, direction, fetchTopology]);
+    fetchTopology(depth, direction, relationType);
+  }, [depth, direction, fetchTopology, relationType]);
 
   const hasEdges = !!topology && topology.edges.length > 0;
   const hasNodes = !!topology && topology.nodes.length > 0;
@@ -378,10 +400,12 @@ function TopologyPanelInner({
         isEnvironmentTopology ? renderEnvironmentControls() : <TopologyControls
             depth={depth as 1 | 2}
             direction={direction ?? "both"}
+            relationType={relationType}
             expanded={false}
             hasEdges={!!hasEdges}
             onDepthChange={setDepthValue}
             onDirectionChange={setDirectionValue}
+            onRelationTypeChange={setRelationTypeValue}
             onExpandedChange={setExpandedValue}
           />
       )}
@@ -461,10 +485,12 @@ function TopologyPanelInner({
               {isEnvironmentTopology ? renderEnvironmentControls(true) : <TopologyControls
                   depth={depth as 1 | 2}
                   direction={direction ?? "both"}
+                  relationType={relationType}
                   expanded={true}
                   hasEdges={!!hasEdges}
                   onDepthChange={setDepthValue}
                   onDirectionChange={setDirectionValue}
+                  onRelationTypeChange={setRelationTypeValue}
                   onExpandedChange={setExpandedValue}
                 />}
             </div>

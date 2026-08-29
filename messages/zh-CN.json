@@ -696,6 +696,17 @@
     "description": "可视化相关资源及其依赖关系。",
     "depthLabel": "深度",
     "directionLabel": "方向",
+    "relationTypeLabel": "关系类型",
+    "relationTypeAll": "全部",
+    "relationTypes": {
+      "depends_on": "依赖",
+      "member_of": "成员属于",
+      "runs_on": "运行于",
+      "points_to": "指向",
+      "fronts": "前置代理",
+      "manages": "管理",
+      "replicates_to": "复制到"
+    },
     "directionBoth": "双向",
     "directionUpstream": "上游",
     "directionDownstream": "下游",

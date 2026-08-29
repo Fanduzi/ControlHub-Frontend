@@ -696,6 +696,17 @@
     "description": "Visualize related resources and their dependencies.",
     "depthLabel": "Depth",
     "directionLabel": "Direction",
+    "relationTypeLabel": "Relation type",
+    "relationTypeAll": "All",
+    "relationTypes": {
+      "depends_on": "Depends on",
+      "member_of": "Member of",
+      "runs_on": "Runs on",
+      "points_to": "Points to",
+      "fronts": "Fronts",
+      "manages": "Manages",
+      "replicates_to": "Replicates to"
+    },
     "directionBoth": "Both",
     "directionUpstream": "Upstream",
     "directionDownstream": "Downstream",
