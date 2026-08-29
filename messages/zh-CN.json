@@ -1598,7 +1598,8 @@
       "showing": "当前显示 {count} 个目标",
       "loadMore": "加载更多目标",
       "loadAllEngines": "加载全部引擎",
-      "targetLoadError": "无法加载目标。"
+      "targetLoadError": "无法加载目标。",
+      "retrySearch": "重试目标搜索"
     },
     "retarget": {
       "title": "更改工作表目标",

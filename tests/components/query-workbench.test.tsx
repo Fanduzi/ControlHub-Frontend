@@ -1,5 +1,5 @@
-// input: @testing-library/react, @/components/query/query-workbench, mocked query services and trusted-role seam
-// output: QueryWorkbench integration tests including synchronized asynchronous select interactions
+// input: Testing Library, QueryWorkbench, mocked query services, and locale messages
+// output: QueryWorkbench search recovery, stale/abort guards, and interaction tests
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
@@ -1233,6 +1233,137 @@ describe("QueryWorkbench target picker search", () => {
     }
   });
 
+  it("preserves the last successful search page when a newer search fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const successfulTarget = buildQueryTarget({
+        resourceId: 88,
+        displayName: "Successful Redis target",
+        resourceName: "successful-redis-target",
+      });
+      mockGetQueryTargets
+        .mockResolvedValueOnce({
+          items: [successfulTarget],
+          pageInfo: {
+            page: 1,
+            pageSize: 50,
+            totalItems: 1,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        })
+        .mockRejectedValueOnce(new Error("backend details must not render"));
+
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS, 7);
+      openConnections();
+      const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
+
+      fireEvent.change(searchInput, { target: { value: "redis" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+      expect(screen.getByRole("button", { name: "Successful Redis target" })).toBeInTheDocument();
+
+      fireEvent.change(searchInput, { target: { value: "mysql" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+      expect(screen.getByRole("button", { name: "Successful Redis target" })).toBeInTheDocument();
+      expect(screen.getByText("Showing 1 target")).toBeInTheDocument();
+      expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
+      expect(screen.queryByText("backend details must not render")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry target search" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to the initial target page when the first search fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const initialTarget = buildQueryTarget({
+        resourceId: 88,
+        displayName: "Initial canonical target",
+        resourceName: "initial-canonical-target",
+      });
+      mockGetQueryTargets.mockRejectedValue(new Error("initial raw failure"));
+
+      renderWorkbench(
+        [initialTarget],
+        enMessages,
+        { ...EMPTY_FILTERS, q: "temporarily unavailable" },
+        7,
+      );
+      openConnections();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+      expect(screen.getByRole("button", { name: "Initial canonical target" })).toBeInTheDocument();
+      expect(screen.getAllByText("Initial canonical target").length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
+      expect(screen.queryByText("initial raw failure")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries the current search scope and clears the error after success", async () => {
+    vi.useFakeTimers();
+    try {
+      const retryTarget = buildQueryTarget({
+        resourceId: 89,
+        displayName: "Retry success target",
+        resourceName: "retry-success-target",
+        connectionContext: {
+          environment: "Production",
+          owner: "DBA",
+          engine: "redis",
+          host: "retry.internal",
+          port: 6379,
+        },
+      });
+      const retryPageInfo = pageInfoFor([retryTarget]);
+      mockGetQueryTargets
+        .mockRejectedValueOnce(new Error("retry raw failure"))
+        .mockResolvedValueOnce({ items: [retryTarget], pageInfo: retryPageInfo });
+
+      renderWorkbench(
+        buildThreeTargets(),
+        enMessages,
+        { ...EMPTY_FILTERS, q: "retry", engine: "redis" },
+        9,
+      );
+      openConnections();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("Unable to load targets.");
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry target search" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(mockGetQueryTargets).toHaveBeenLastCalledWith(
+        { page: 1, pageSize: 50, q: "retry", engine: "redis", environmentId: 9 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(screen.getByRole("button", { name: "Retry success target" })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Engine" })).toHaveTextContent("redis");
+      expect(screen.queryByText("retry raw failure")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("requests an engine-only filter from the server and keeps its deep-link scope", async () => {
     const user = userEvent.setup();
     const redisTarget = buildQueryTarget({
@@ -1424,6 +1555,146 @@ describe("QueryWorkbench target picker search", () => {
       await act(async () => {});
       expect(screen.queryByRole("button", { name: "First result" })).toBeNull();
       expect(screen.getByRole("button", { name: "Second result" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("discards a stale search failure after a newer query resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      let rejectFirstSearch: ((reason?: unknown) => void) | undefined;
+      let resolveSecondSearch: ((response: { items: QueryTarget[]; pageInfo: PageInfo }) => void) | undefined;
+      const secondTarget = buildQueryTarget({ resourceId: 82, displayName: "Second successful result" });
+      const searchPageInfo = pageInfoFor([secondTarget]);
+      mockGetQueryTargets
+        .mockImplementationOnce(
+          (_params, options) =>
+            new Promise((_resolve, reject) => {
+              rejectFirstSearch = reject;
+              options?.signal?.addEventListener("abort", () => undefined);
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecondSearch = resolve;
+            }),
+        );
+
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS, 7);
+      openConnections();
+      const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
+
+      fireEvent.change(searchInput, { target: { value: "first" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+      fireEvent.change(searchInput, { target: { value: "second" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      resolveSecondSearch?.({ items: [secondTarget], pageInfo: searchPageInfo });
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Second successful result" })).toBeInTheDocument();
+
+      rejectFirstSearch?.(new Error("stale raw failure"));
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Second successful result" })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("stale raw failure")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores an aborted search without showing an error", async () => {
+    vi.useFakeTimers();
+    try {
+      let rejectSearch: ((reason?: unknown) => void) | undefined;
+      let searchSignal: AbortSignal | undefined;
+      mockGetQueryTargets.mockImplementationOnce(
+        (_params, options) =>
+          new Promise((_resolve, reject) => {
+            rejectSearch = reject;
+            searchSignal = options?.signal;
+          }),
+      );
+
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS, 7);
+      openConnections();
+      const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
+      fireEvent.change(searchInput, { target: { value: "abort-me" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      await act(async () => {
+        fireEvent.change(searchInput, { target: { value: "" } });
+      });
+      expect(searchSignal?.aborted).toBe(true);
+
+      rejectSearch?.(new DOMException("The operation was aborted", "AbortError"));
+      await act(async () => {});
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Payment Redis Cache" })).toBeInTheDocument();
+      expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("localizes the search error and accessible retry control in Chinese", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetQueryTargets.mockRejectedValue(new Error("raw backend search detail"));
+
+      renderWorkbench(
+        buildThreeTargets(),
+        zhMessages,
+        { ...EMPTY_FILTERS, q: "不可用" },
+        7,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "打开连接" }));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("无法加载目标。");
+      expect(screen.getByRole("button", { name: "重试目标搜索" })).toHaveTextContent("重试");
+      expect(screen.queryByText("raw backend search detail")).not.toBeInTheDocument();
+      expect(screen.queryByText("没有匹配的目标。")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows no matches only after a successful empty search response", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetQueryTargets.mockResolvedValue({
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 50,
+          totalItems: 0,
+          totalPages: 0,
+          hasPreviousPage: false,
+          hasNextPage: false,
+        },
+      });
+
+      renderWorkbench(buildThreeTargets(), enMessages, { ...EMPTY_FILTERS, q: "empty" }, 7);
+      openConnections();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(screen.getByText("No targets match your filters.")).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

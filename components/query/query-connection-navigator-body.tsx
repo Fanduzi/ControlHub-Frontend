@@ -1,3 +1,7 @@
+// input: grouped targets, filters, localized controls, paging state, and search/load errors
+// output: accessible query target search/filter controls, result list, errors, and retry actions
+// pos: connection navigator body presentation seam
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -42,6 +46,8 @@ type NavigatorBodyProps = {
   onLoadAllEngines?: () => void;
   loadingEngines?: boolean;
   targetLoadError?: string | null;
+  searchError?: boolean;
+  onRetrySearch?: () => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 };
 
@@ -59,6 +65,8 @@ export function NavigatorBody({
   onLoadAllEngines,
   loadingEngines = false,
   targetLoadError,
+  searchError = false,
+  onRetrySearch,
   searchInputRef,
 }: NavigatorBodyProps) {
   const t = useTranslations("queryWorkbench");
@@ -131,6 +139,7 @@ export function NavigatorBody({
           activeTarget={activeTarget}
           groups={groupedTargets}
           onSelect={onSelect}
+          suppressEmptyState={searchError}
         />
       </div>
 
@@ -144,6 +153,23 @@ export function NavigatorBody({
         <p role="alert" className="text-xs text-destructive">
           {targetLoadError}
         </p>
+      )}
+
+      {searchError && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          <span>{t("connectionNavigator.targetLoadError")}</span>
+          {onRetrySearch && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={t("connectionNavigator.retrySearch")}
+              onClick={onRetrySearch}
+            >
+              {t("error.retry")}
+            </Button>
+          )}
+        </div>
       )}
 
       {canLoadMore && onLoadMore && (

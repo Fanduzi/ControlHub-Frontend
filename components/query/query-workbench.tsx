@@ -1,3 +1,7 @@
+// input: QueryWorkbench props, target/schema services, navigation, and messages
+// output: scoped target search with failure fallback/retry and editor state
+// pos: top-level query workbench and target-search generation boundary
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -47,6 +51,10 @@ type TargetSearchResult = {
   readonly pageInfo: PageInfo;
 };
 
+type TargetSearchError = {
+  readonly key: string;
+};
+
 function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
   return (
     targets.find((target) => target.availableActions.run === true)?.resourceId ??
@@ -71,6 +79,8 @@ export function QueryWorkbench({
   const [loadedTargets, setLoadedTargets] = useState<QueryTarget[]>(targets);
   const [loadedPageInfo, setLoadedPageInfo] = useState<PageInfo>(pageInfo);
   const [searchResult, setSearchResult] = useState<TargetSearchResult | null>(null);
+  const [searchError, setSearchError] = useState<TargetSearchError | null>(null);
+  const [searchRetryVersion, setSearchRetryVersion] = useState(0);
   const [targetsLoading, setTargetsLoading] = useState(false);
   const [allEngines, setAllEngines] = useState<string[] | null>(null);
   const [enginesLoading, setEnginesLoading] = useState(false);
@@ -186,15 +196,17 @@ export function QueryWorkbench({
     setLoadedTargets(targets);
     setLoadedPageInfo(pageInfo);
     setSearchResult(null);
+    setSearchError(null);
     setAllEngines(null);
   }, [pageInfo, targets]);
 
   useEffect(() => {
     const generation = searchGeneration.current + 1;
     searchGeneration.current = generation;
+    setSearchError(null);
     const query = filters.q.trim();
     const engine = isAllFilter(filters.engine) ? "" : filters.engine;
-    const key = `${query}\u0000${engine}`;
+    const key = `${environmentId ?? ""}\u0000${query}\u0000${engine}`;
 
     if (
       (query.length === 0 && engine === "") ||
@@ -202,6 +214,7 @@ export function QueryWorkbench({
       environmentId === null
     ) {
       setSearchResult(null);
+      setTargetsLoading(false);
       return;
     }
 
@@ -223,24 +236,14 @@ export function QueryWorkbench({
             return;
           }
           setSearchResult({ key, items: response.items, pageInfo: response.pageInfo });
+          setSearchError(null);
           setTargetsLoading(false);
         },
         () => {
           if (controller.signal.aborted || generation !== searchGeneration.current) {
             return;
           }
-          setSearchResult({
-            key,
-            items: [],
-            pageInfo: {
-              page: 1,
-              pageSize: 50,
-              totalItems: 0,
-              totalPages: 0,
-              hasNextPage: false,
-              hasPreviousPage: false,
-            },
-          });
+          setSearchError({ key });
           setTargetsLoading(false);
         },
       );
@@ -255,7 +258,7 @@ export function QueryWorkbench({
       if (timeout !== undefined) window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [environmentId, filters.engine, filters.q]);
+  }, [environmentId, filters.engine, filters.q, searchRetryVersion]);
 
   const cachedTargets = useMemo(() => {
     const combined = new Map(targetCache);
@@ -270,17 +273,21 @@ export function QueryWorkbench({
   );
   const query = filters.q.trim();
   const engine = isAllFilter(filters.engine) ? "" : filters.engine;
-  const targetSearchKey = `${query}\u0000${engine}`;
+  const targetSearchKey = `${environmentId ?? ""}\u0000${query}\u0000${engine}`;
   const usesServerFilter = query.length > 0 || engine !== "";
+  const hasCurrentSearchResult = searchResult?.key === targetSearchKey;
+  const hasCurrentSearchError = searchError?.key === targetSearchKey;
+  const visibleSearchResult =
+    hasCurrentSearchResult || hasCurrentSearchError ? searchResult : null;
   const navigatorTargets = useMemo(() => {
     if (!usesServerFilter) {
       return loadedTargets;
     }
-    return searchResult?.key === targetSearchKey ? searchResult.items : loadedTargets;
-  }, [loadedTargets, searchResult, targetSearchKey, usesServerFilter]);
+    return visibleSearchResult?.items ?? loadedTargets;
+  }, [loadedTargets, usesServerFilter, visibleSearchResult]);
   const navigatorPageInfo =
-    usesServerFilter && searchResult?.key === targetSearchKey
-      ? searchResult.pageInfo
+    usesServerFilter && visibleSearchResult !== null
+      ? visibleSearchResult.pageInfo
       : loadedPageInfo;
   const engines = useMemo(() => {
     const knownEngines = allEngines ?? collectEngines(loadedTargets);
@@ -378,6 +385,10 @@ export function QueryWorkbench({
     }
   }
 
+  function retrySearch() {
+    setSearchRetryVersion((version) => version + 1);
+  }
+
   function setActiveTargetFromNavigator(resourceId: number) {
     const selectedTarget =
       targetsById.get(resourceId) ??
@@ -427,6 +438,8 @@ export function QueryWorkbench({
             onLoadAllEngines={loadAllEngines}
             loadingEngines={enginesLoading}
             targetLoadError={targetLoadError}
+            searchError={hasCurrentSearchError}
+            onRetrySearch={retrySearch}
             objectsOpen={objectsOpen}
             onObjectsToggle={() => setObjectsOpen((prev) => !prev)}
             onMobileObjectsOpenChange={setMobileObjectsOpen}
@@ -562,6 +575,8 @@ type QueryContextBarProps = {
   onLoadAllEngines: () => void;
   loadingEngines: boolean;
   targetLoadError: string | null;
+  searchError: boolean;
+  onRetrySearch: () => void;
   objectsOpen: boolean;
   onObjectsToggle: () => void;
   onMobileObjectsOpenChange: (open: boolean) => void;
@@ -583,6 +598,8 @@ function QueryContextBar({
   onLoadAllEngines,
   loadingEngines,
   targetLoadError,
+  searchError,
+  onRetrySearch,
   objectsOpen,
   onObjectsToggle,
   onMobileObjectsOpenChange,
@@ -680,6 +697,8 @@ function QueryContextBar({
         onLoadAllEngines={onLoadAllEngines}
         loadingEngines={loadingEngines}
         targetLoadError={targetLoadError}
+        searchError={searchError}
+        onRetrySearch={onRetrySearch}
       />
     </div>
   );

@@ -1,3 +1,7 @@
+// input: query target page, client filters, search failure/retry state, and navigator callbacks
+// output: grouped connection target navigator with localized paging/error presentation
+// pos: connection navigator filtering and grouping boundary
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { type RefObject, useMemo } from "react";
@@ -25,6 +29,8 @@ export type QueryConnectionNavigatorProps = {
   onLoadAllEngines?: () => void;
   loadingEngines?: boolean;
   targetLoadError?: string | null;
+  searchError?: boolean;
+  onRetrySearch?: () => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 };
 
@@ -41,6 +47,8 @@ export function QueryConnectionNavigator({
   onLoadAllEngines,
   loadingEngines,
   targetLoadError,
+  searchError,
+  onRetrySearch,
   searchInputRef,
 }: QueryConnectionNavigatorProps) {
   const t = useTranslations("queryWorkbench");
@@ -49,8 +57,12 @@ export function QueryConnectionNavigator({
     [targets, activeTargetId],
   );
   const filteredTargets = useMemo(
-    () => filterTargets(targets, filters),
-    [targets, filters],
+    () =>
+      filterTargets(
+        targets,
+        searchError ? { ...filters, q: "", engine: "" } : filters,
+      ),
+    [filters, searchError, targets],
   );
   const groupedTargets = useMemo(
     () => groupTargetsByEnvironmentAndCluster(filteredTargets),
@@ -69,7 +81,7 @@ export function QueryConnectionNavigator({
       groupedTargets={groupedTargets}
       engines={engines}
       pageInfo={pageInfoLabel}
-      canLoadMore={pageInfo.hasNextPage}
+      canLoadMore={pageInfo.hasNextPage && !searchError}
       loadingMore={loadingMore}
       onFilterChange={onFilterChange}
       onSelect={onSelect}
@@ -77,6 +89,8 @@ export function QueryConnectionNavigator({
       onLoadAllEngines={onLoadAllEngines}
       loadingEngines={loadingEngines}
       targetLoadError={targetLoadError}
+      searchError={searchError}
+      onRetrySearch={onRetrySearch}
       searchInputRef={searchInputRef}
     />
   );

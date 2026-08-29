@@ -1,3 +1,7 @@
+// input: grouped query targets, active target, selection callback, and empty-state policy
+// output: accessible environment/cluster target groups and target buttons
+// pos: connection navigator target-list rendering seam
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -16,12 +20,14 @@ type ConnectionTargetGroupsProps = {
   activeTarget: QueryTarget | null;
   groups: TargetGroup[];
   onSelect: (resourceId: number) => void;
+  suppressEmptyState?: boolean;
 };
 
 export function ConnectionTargetGroups({
   activeTarget,
   groups,
   onSelect,
+  suppressEmptyState = false,
 }: ConnectionTargetGroupsProps) {
   const t = useTranslations("queryWorkbench");
 
@@ -53,7 +59,7 @@ export function ConnectionTargetGroups({
           ))}
         </div>
       ))}
-      {groups.length === 0 && (
+      {groups.length === 0 && !suppressEmptyState && (
         <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
           {t("connectionNavigator.noMatches")}
         </div>

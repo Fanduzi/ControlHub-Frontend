@@ -1598,7 +1598,8 @@
       "showing": "{count, plural, one {Showing # target} other {Showing # targets}}",
       "loadMore": "Load more targets",
       "loadAllEngines": "Load all engines",
-      "targetLoadError": "Unable to load targets."
+      "targetLoadError": "Unable to load targets.",
+      "retrySearch": "Retry target search"
     },
     "retarget": {
       "title": "Change worksheet target",

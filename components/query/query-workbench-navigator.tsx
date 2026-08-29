@@ -1,3 +1,7 @@
+// input: scoped query targets, filters, paging controls, and localized navigator callbacks
+// output: responsive desktop/mobile connection navigator wrappers
+// pos: query workbench navigator presentation boundary
+// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useRef, useState } from "react";
@@ -35,6 +39,8 @@ type QueryWorkbenchNavigatorProps = {
   readonly onLoadAllEngines?: () => void;
   readonly loadingEngines?: boolean;
   readonly targetLoadError?: string | null;
+  readonly searchError?: boolean;
+  readonly onRetrySearch?: () => void;
 };
 
 export function QueryWorkbenchNavigator({
@@ -50,6 +56,8 @@ export function QueryWorkbenchNavigator({
   onLoadAllEngines,
   loadingEngines,
   targetLoadError,
+  searchError,
+  onRetrySearch,
 }: QueryWorkbenchNavigatorProps) {
   const t = useTranslations("queryWorkbench");
   const [desktopOpen, setDesktopOpen] = useState(false);
@@ -76,6 +84,8 @@ export function QueryWorkbenchNavigator({
       onLoadAllEngines={onLoadAllEngines}
       loadingEngines={loadingEngines}
       targetLoadError={targetLoadError}
+      searchError={searchError}
+      onRetrySearch={onRetrySearch}
     />
   );
   const mobileNavigator = (
@@ -92,6 +102,8 @@ export function QueryWorkbenchNavigator({
       onLoadAllEngines={onLoadAllEngines}
       loadingEngines={loadingEngines}
       targetLoadError={targetLoadError}
+      searchError={searchError}
+      onRetrySearch={onRetrySearch}
       searchInputRef={mobileSearchInputRef}
     />
   );
