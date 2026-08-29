@@ -82,9 +82,13 @@ export async function parseResourceListSearchParams(
   // Values: "all" (default, active only), "includeArchived", "archivedOnly".
   const archiveFilter = normalizeText(resolved.archiveFilter);
   const includeArchived =
-    archiveFilter === "includeArchived" ? true : undefined;
+    archiveFilter === "includeArchived" || resolved.includeArchived === "true"
+      ? true
+      : undefined;
   const archivedOnly =
-    archiveFilter === "archivedOnly" ? true : undefined;
+    archiveFilter === "archivedOnly" || resolved.archivedOnly === "true"
+      ? true
+      : undefined;
 
   return {
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),

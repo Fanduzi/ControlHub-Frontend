@@ -5,6 +5,9 @@ Resource interaction components.
 `health-evidence.tsx` renders localized effective-health freshness, observed
 time, observer, and manual override consistently in list and detail surfaces.
 
+`named-inventory-view-controls.tsx` saves personal resource-filter URLs and
+applies personal or shared saved views without caching their results.
+
 Admin-only mutation affordances (`CreateResourceSheet`, resource edit,
 archive/restore, and the table-level create button) are presentation hints;
 the backend remains the authorization boundary for every write.
@@ -37,11 +40,11 @@ views expose the same identity, and backend uniqueness conflicts remain explicit
 
 | File | Responsibility |
 |------|---------------|
-| `resource-table.tsx` | Renders the inventory table and filters, including lifecycle and health options supplied by settings. |
+| `resource-table.tsx` | Renders the inventory table, saved views, and filters, including lifecycle and health options supplied by settings. |
 
 ## Interfaces
 
-- `ResourceTable` receives lifecycle and health dictionaries from the resources server page, preserves the existing URL filter contract, and displays effective health with freshness and observation evidence.
+- `ResourceTable` receives lifecycle and health dictionaries from the resources server page, preserves the existing URL filter contract, hosts saved view controls, and displays effective health with freshness and observation evidence.
 
 ## Dependencies
 

@@ -1,6 +1,6 @@
-// input: react, navigation, table primitives, auth role, settings taxonomies, and resource health evidence
-// output: inventory table with taxonomy filters, health freshness/observation metadata, and admin create affordance
-// pos: inventory list view, mutation entry point, and compact health evidence surface
+// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, and resource health evidence
+// output: inventory table with taxonomy filters, named-view controls, health evidence, and admin create affordance
+// pos: inventory list view, mutation entry point, saved-view host, and compact health evidence surface
 // note: if this file changes, update header and components/resources/README.md
 "use client";
 
@@ -59,6 +59,7 @@ import { saveResourceListUrl } from "@/lib/resource-list-persistence";
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 import { CreateResourceSheet } from "./create-resource-sheet";
 import { HealthEvidence } from "./health-evidence";
+import { NamedInventoryViewControls } from "./named-inventory-view-controls";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
@@ -110,7 +111,9 @@ export function ResourceTable({
   });
 
   const search = searchParams.get("q") ?? "";
-  const archiveFilter = searchParams.get("archiveFilter") ?? "all";
+  const archiveFilter = searchParams.get("archiveFilter")
+    ?? (searchParams.get("archivedOnly") === "true" ? "archivedOnly" : null)
+    ?? (searchParams.get("includeArchived") === "true" ? "includeArchived" : "all");
   const [searchDraft, setSearchDraft] = useState(search);
 
   const selectedTypeValues = useMemo(
@@ -440,6 +443,9 @@ export function ResourceTable({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <NamedInventoryViewControls
+              columns={table.getVisibleLeafColumns().map((column) => column.id)}
+            />
             <Input
               value={searchDraft}
               onChange={(event) => {
@@ -484,6 +490,8 @@ export function ResourceTable({
                 replaceSearchParams({
                   archiveFilter:
                     !value || value === "all" ? null : value,
+                  includeArchived: null,
+                  archivedOnly: null,
                 })
               }
             >

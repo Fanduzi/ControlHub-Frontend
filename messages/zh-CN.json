@@ -511,7 +511,18 @@
       "allSubtypes": "全部子类型",
       "includeArchived": "包含已归档",
       "archivedOnly": "仅已归档",
-      "columnVisibility": "列"
+      "columnVisibility": "列",
+      "savedViews": {
+        "selectLabel": "已保存视图",
+        "selectPlaceholder": "已保存视图",
+        "shared": "（共享）",
+        "apply": "应用",
+        "nameLabel": "视图名称",
+        "namePlaceholder": "视图名称",
+        "save": "保存视图",
+        "loadError": "无法加载已保存视图。",
+        "saveError": "无法保存此视图。"
+      }
     },
     "databases": {
       "title": "数据库资源",

@@ -511,7 +511,18 @@
       "allSubtypes": "All subtypes",
       "includeArchived": "Include archived",
       "archivedOnly": "Archived only",
-      "columnVisibility": "Columns"
+      "columnVisibility": "Columns",
+      "savedViews": {
+        "selectLabel": "Saved views",
+        "selectPlaceholder": "Saved views",
+        "shared": "(Shared)",
+        "apply": "Apply",
+        "nameLabel": "View name",
+        "namePlaceholder": "View name",
+        "save": "Save view",
+        "loadError": "Could not load saved views.",
+        "saveError": "Could not save this view."
+      }
     },
     "databases": {
       "title": "Database resources",

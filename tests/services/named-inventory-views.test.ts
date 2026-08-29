@@ -1,5 +1,5 @@
 // input: Vitest, named inventory view service functions, and mocked API client
-// output: named inventory view request-shape and controlled-error regression tests
+// output: typed named inventory view request-shape and controlled-error regression tests
 // pos: service contract tests for saved inventory view API boundary
 // note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,8 +27,8 @@ const apiClientMock = vi.mocked(apiClient);
 const state = {
   filters: {
     q: "orders + primary",
-    environmentId: "001",
-    includeArchived: "false",
+    environmentId: 1,
+    includeArchived: false,
   },
   sort: { field: "displayName", direction: "asc" as const },
   columns: ["displayName", "ownerId"],
