@@ -1,6 +1,6 @@
-// input: react
-// output: useAdminRole presentation-only admin gate from role storage/cookies
-// pos: UI role recovery from BFF presentation role state
+// input: react, same-origin /api/operator-session
+// output: useAdminRole presentation-only admin gate from trusted BFF session identity
+// pos: UI role lookup from the sealed Operator Session
 // note: if this file changes, update header and lib/README.md
 /**
  * Presentation-only admin-role detection for the BFF login role state.
@@ -14,21 +14,9 @@
 
 import { useEffect, useState } from "react";
 
-function readRoleFromCookie(): string | null {
-  try {
-    const prefix = "controlhub.role=";
-    const match = document.cookie
-      .split(";")
-      .map((c) => c.trim())
-      .find((c) => c.startsWith(prefix));
-    return match ? match.slice(prefix.length) || null : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Resolve the current user's admin status for UI gating.
+ * Resolve the current user's admin status for UI gating from the sealed BFF
+ * session. Browser storage and readable cookies are untrusted input.
  *
  * This is a **presentation-only hint**.  The decoded role controls
  * whether admin UI controls (credential edit forms, settings links)
@@ -36,40 +24,30 @@ function readRoleFromCookie(): string | null {
  * API calls go through the backend which verifies the token signature
  * and enforces role-based access control server-side.
  *
- * Resolution order:
- * 1. `sessionStorage["controlhub.role"]` — set at BFF login time.
- * 2. `document.cookie` `controlhub.role` (direct URL / new-tab).
- * 3. `false` (unauthenticated / malformed — fail closed to non-admin UI).
- *
  * The hook is hydration-safe: it returns `null` during SSR and the first
- * client render, then resolves in a `useEffect`.
+ * client render, then fetches the same-origin session endpoint.
  */
 export function useAdminRole(): boolean | null {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    try {
-      // 1. Fast path: role already cached
-      const storedRole = window.sessionStorage.getItem("controlhub.role");
-      if (storedRole) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsAdmin(storedRole === "admin");
-        return;
-      }
+    let active = true;
+    void fetch("/api/operator-session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        const body = (await response.json()) as { role?: unknown };
+        return body.role === "admin";
+      })
+      .then((admin) => {
+        if (active) setIsAdmin(admin);
+      })
+      .catch(() => {
+        if (active) setIsAdmin(false);
+      });
 
-      // 2. Role cookie (presentation-only BFF login state).
-      const cookieRole = readRoleFromCookie();
-      if (cookieRole) {
-        window.sessionStorage.setItem("controlhub.role", cookieRole);
-        setIsAdmin(cookieRole === "admin");
-        return;
-      }
-
-      // 3. Fail closed: no valid role → non-admin UI
-      setIsAdmin(false);
-    } catch {
-      setIsAdmin(false);
-    }
+    return () => {
+      active = false;
+    };
   }, []);
 
   return isAdmin;

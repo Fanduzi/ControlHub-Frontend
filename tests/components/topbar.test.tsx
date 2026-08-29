@@ -1,5 +1,5 @@
 // input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
-// output: Vitest tests for the console topbar (environment switching, URL params, fail-closed sign-out)
+// output: Vitest tests for the console topbar (environment switching, URL params, server-confirmed fail-closed sign-out)
 // pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -261,9 +261,6 @@ describe("Topbar", () => {
         });
         expect(locationMock.href).toBe("/login");
       });
-      expect(window.sessionStorage.getItem("controlhub.role")).toBeNull();
-      expect(window.sessionStorage.getItem("controlhub.token")).toBeNull();
-      expect(document.cookie).not.toContain("controlhub.role");
       expect(screen.queryByRole("alert")).toBeNull();
     });
 

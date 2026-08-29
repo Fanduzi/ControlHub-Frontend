@@ -1,4 +1,4 @@
-// input: @testing-library/react, @/components/query/query-workbench, mocked query services
+// input: @testing-library/react, @/components/query/query-workbench, mocked query services and trusted-role seam
 // output: QueryWorkbench integration tests including synchronized asynchronous select interactions
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
@@ -11,11 +11,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const replace = vi.fn();
 const stableSearchParams = new URLSearchParams();
 const stableRouter = { replace };
+const auth = vi.hoisted(() => ({ isAdmin: false }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/query",
   useRouter: () => stableRouter,
   useSearchParams: () => stableSearchParams,
+}));
+
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => auth.isAdmin,
 }));
 
 vi.mock("@/services/query-executions", async () => {
@@ -1641,14 +1646,14 @@ describe("QueryWorkbench credential status (Phase 38A)", () => {
   });
 
   it("renders the admin settings link for admin users", () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
+    auth.isAdmin = true;
     renderWithCredentialState("missing_readonly_credential");
 
     const link = screen.getByRole("link", { name: /open credential settings/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/settings/query-credentials");
 
-    window.sessionStorage.removeItem("controlhub.role");
+    auth.isAdmin = false;
   });
 
   it("renders contact administrator message for non-admin users", () => {
@@ -1691,6 +1696,7 @@ describe("QueryWorkbench credential status (Phase 38A)", () => {
 describe("QueryGovernancePanel hydration safety", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.isAdmin = false;
     window.sessionStorage.clear();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
   });
@@ -1718,7 +1724,7 @@ describe("QueryGovernancePanel hydration safety", () => {
   });
 
   it("shows admin link only after role is confirmed as admin", async () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
+    auth.isAdmin = true;
 
     renderWithCredentialState("missing_readonly_credential");
 

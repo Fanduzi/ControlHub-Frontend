@@ -1,5 +1,5 @@
 // input: react, next/navigation, next-intl, same-origin /api/operator-session
-// output: interactive login via Console BFF; localized validation; stores presentation role only (no bearer or identity)
+// output: interactive login via Console BFF and localized validation without browser role persistence
 // pos: public login UI for the 38X-1C Operator Session boundary
 // note: if this file changes, update header and app/login/README.md
 "use client";
@@ -26,9 +26,12 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("reason") === "session-expired") {
-      setError(t("errors.sessionExpired"));
-    }
+    const timeout = window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("reason") === "session-expired") {
+        setError(t("errors.sessionExpired"));
+      }
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [t]);
 
   const loginSchema = z.object({
@@ -73,25 +76,6 @@ export default function LoginPage() {
         return;
       }
 
-      let role = "";
-      try {
-        const body = (await response.json()) as { role?: unknown };
-        if (typeof body.role === "string") role = body.role;
-      } catch {
-        setError(t("errors.backend"));
-        return;
-      }
-      if (!role) {
-        setError(t("errors.backend"));
-        return;
-      }
-
-      window.sessionStorage.removeItem("controlhub.token");
-      window.sessionStorage.setItem("controlhub.role", role);
-      // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
-      document.cookie = "controlhub.token=; path=/; max-age=0";
-      // eslint-disable-next-line react-hooks/immutability -- cookie set in event handler, not during render
-      document.cookie = `controlhub.role=${role}; path=/; max-age=28800; SameSite=Strict`;
       router.push("/overview");
     } catch (submitError) {
       if (submitError instanceof TypeError) {

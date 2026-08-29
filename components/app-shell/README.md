@@ -4,9 +4,9 @@ Console shell chrome (sidebar, topbar, layout). The topbar reads the current
 operator email/display name and role from the no-store BFF session response;
 it does not use translations as identity or persist credentials.
 
-The topbar uses presentation-only role state to hide resource-creation affordances
-for non-admin users. Sign-out calls `DELETE /api/operator-session` and clears
-browser-readable presentation state; it is fail-closed — if the BFF logout fails
+The topbar uses the trusted BFF session role to hide resource-creation affordances
+for non-admin users; it never trusts browser storage or readable role cookies.
+Sign-out calls `DELETE /api/operator-session`; it is fail-closed — if the BFF logout fails
 (network or non-2xx), the console stays put with a controlled error instead of
 presenting a logged-out UI while the HttpOnly Operator Session cookie survives.
 

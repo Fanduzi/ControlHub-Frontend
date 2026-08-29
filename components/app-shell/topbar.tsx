@@ -1,5 +1,5 @@
 // input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar identity/role controls, admin-only resource creation, and fail-closed sign-out
+// output: console topbar identity/role controls, BFF-backed admin UI, and fail-closed sign-out
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
 
@@ -343,10 +343,6 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
                   setSignOutFailed(true);
                   return;
                 }
-                sessionStorage.removeItem("controlhub.token");
-                sessionStorage.removeItem("controlhub.role");
-                document.cookie = "controlhub.token=; path=/; max-age=0";
-                document.cookie = "controlhub.role=; path=/; max-age=0";
                 window.location.href = "/login";
               })();
             }}

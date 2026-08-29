@@ -134,11 +134,16 @@ export function unsealSession(
   if (typeof payload !== "object" || payload === null) {
     return { ok: false, reason: "malformed" };
   }
-  const { token, role, iat, exp } = payload as Record<string, unknown>;
+  const { token, role, email, displayName, iat, exp } = payload as Record<
+    string,
+    unknown
+  >;
   if (
     typeof token !== "string" ||
     token.length === 0 ||
     typeof role !== "string" ||
+    (email !== undefined && typeof email !== "string") ||
+    (displayName !== undefined && typeof displayName !== "string") ||
     typeof iat !== "number" ||
     typeof exp !== "number" ||
     !Number.isInteger(iat) ||
@@ -167,5 +172,15 @@ export function unsealSession(
     return { ok: false, reason: "expired" };
   }
 
-  return { ok: true, payload: { token, role, iat, exp } };
+  return {
+    ok: true,
+    payload: {
+      token,
+      role,
+      ...(typeof email === "string" ? { email } : {}),
+      ...(typeof displayName === "string" ? { displayName } : {}),
+      iat,
+      exp,
+    },
+  };
 }

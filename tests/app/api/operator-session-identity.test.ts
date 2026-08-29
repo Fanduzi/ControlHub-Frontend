@@ -1,22 +1,32 @@
+// input: Vitest, NextRequest, Operator Session route and seal primitive
+// output: route contracts for sealed operator identity without credential disclosure
+// pos: integration-level identity tests at the sealed-session GET boundary
+// note: if this file changes, update this header and tests/app/api/README.md
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const mocks = vi.hoisted(() => ({
-  loadOperatorSessionConfig: vi.fn(() => ({
+const mocks = vi.hoisted(() => {
+  const config = {
+    activeKey: Buffer.from(
+      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "hex",
+    ),
+    previousKey: null,
+    consoleOrigin: "http://localhost:3000",
+    secureCookies: false,
+  };
+  return {
+    config,
+    loadOperatorSessionConfig: vi.fn(() => ({
     ok: true,
-    value: { consoleOrigin: "http://localhost:3000", secureCookies: false },
-  })),
-  unsealSession: vi.fn(),
-  performBackendLogin: vi.fn(),
-  sealSession: vi.fn(() => "sealed-session"),
-}));
+      value: config,
+    })),
+    performBackendLogin: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/operator-session/config", () => ({
   loadOperatorSessionConfig: mocks.loadOperatorSessionConfig,
-}));
-vi.mock("@/lib/operator-session/seal", () => ({
-  sealSession: mocks.sealSession,
-  unsealSession: mocks.unsealSession,
 }));
 vi.mock("@/lib/operator-session/backend", () => ({
   performBackendLogin: mocks.performBackendLogin,
@@ -31,25 +41,28 @@ vi.mock("@/lib/operator-session/session-cookie", () => ({
 }));
 vi.mock("@/lib/operator-session/constants", () => ({
   SESSION_COOKIE_NAME: "controlhub.operator-session",
+  SESSION_MAX_AGE_SECONDS: 8 * 60 * 60,
+  SESSION_PREVIOUS_KEY_WINDOW_SECONDS: 15 * 60,
 }));
 
 import { GET, POST } from "@/app/api/operator-session/route";
+import { sealSession } from "@/lib/operator-session/seal";
 
 describe("/api/operator-session identity contract", () => {
-  it("returns trusted session identity without the backend credential", async () => {
-    mocks.unsealSession.mockReturnValue({
-      ok: true,
-      payload: {
+  it("round-trips sealed identity through GET without the backend credential", async () => {
+    const sealed = sealSession(
+      {
         token: "server-token",
         email: "operator@example.com",
         displayName: "Lin Operator",
         role: "admin",
       },
-    });
+      mocks.config,
+    );
 
     const response = await GET(
       new NextRequest("http://localhost:3000/api/operator-session", {
-        headers: { cookie: "controlhub.operator-session=sealed-session" },
+        headers: { cookie: `controlhub.operator-session=${sealed}` },
       }),
     );
     const body = await response.json();

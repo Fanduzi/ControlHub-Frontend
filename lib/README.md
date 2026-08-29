@@ -10,8 +10,9 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs |
 | `view-models.ts` | Maps backend transport records to console view models |
 
-`auth-role.ts` recovers the presentation-only admin gate from `controlhub.role`
-storage/cookies. It does not read or decode Backend Bearer Credentials.
+`auth-role.ts` reads the presentation-only admin gate from the trusted,
+same-origin Operator Session endpoint. It does not trust browser storage or
+readable cookies, and never reads or decodes Backend Bearer Credentials.
 Operator Session BFF primitives live in `lib/operator-session/`.
 
 `navigation.ts` marks the audits entry `adminOnly`; sidebar and command

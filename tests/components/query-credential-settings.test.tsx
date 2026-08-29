@@ -1,7 +1,21 @@
+// input: QueryCredentialSettings, mocked credential services and trusted-role seam
+// output: component tests for credential administration and non-admin denial
+// pos: presentation-level coverage for query credential settings
+// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const auth = vi.hoisted(() => ({ isAdmin: true }));
+
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => auth.isAdmin,
+}));
+
+afterEach(() => {
+  auth.isAdmin = true;
+});
 
 vi.mock("@/services/query-credentials", async () => {
   const actual = await vi.importActual("@/services/query-credentials");
@@ -148,6 +162,7 @@ function createDeferred<T>(): {
 describe("QueryCredentialSettings admin gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.isAdmin = false;
     window.sessionStorage.clear();
   });
 
@@ -156,12 +171,8 @@ describe("QueryCredentialSettings admin gate", () => {
   });
 
   it("does not leak admin UI to non-admin users (hydration-safe gate)", async () => {
-    // This test verifies the core hydration-safety guarantee: the admin gate
-    // never shows admin UI to a non-admin user. The component uses
-    // useState(null) + useEffect to read sessionStorage after hydration,
-    // ensuring SSR and client first render both produce the loading skeleton.
-    // In the test environment (jsdom + act()), effects fire synchronously,
-    // so we verify the end-state behavior: non-admin never sees admin UI.
+    // The trusted-role seam is non-admin, so browser storage cannot grant
+    // credential-management UI.
     window.sessionStorage.setItem("controlhub.role", "viewer");
 
     renderSettings();
@@ -196,7 +207,7 @@ describe("QueryCredentialSettings admin gate", () => {
   });
 
   it("renders the full management UI for admin users", async () => {
-    window.sessionStorage.setItem("controlhub.role", "admin");
+    auth.isAdmin = true;
     mockGetQueryCredential.mockResolvedValue(credentialResponse());
 
     renderSettings();
@@ -858,6 +869,7 @@ describe("QueryCredentialSettings — credential status fan-out", () => {
 describe("QueryCredentialSettings — Phase 38B non-admin boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.isAdmin = false;
     window.sessionStorage.clear();
   });
 

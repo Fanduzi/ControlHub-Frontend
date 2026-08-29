@@ -32,8 +32,8 @@ Phase 38X-1C establishes a same-origin Console BFF boundary. Interactive login
 API server-side and seals the Backend Bearer Credential into an HttpOnly
 Operator Session cookie (`controlhub.operator-session`, `SameSite=Strict`,
 eight-hour maximum age, AES-256-GCM with an active key plus a short
-previous-key rotation window of 15 minutes). The login response body returns
-only `{ role }` — never a bearer token. Browser client fetches without client Authorization use `/api/proxy/[...path]`, which attaches the server-held credential and
+previous-key rotation window of 15 minutes). The login and session responses
+return trusted operator identity and role — never a bearer token. Browser client fetches without client Authorization use `/api/proxy/[...path]`, which attaches the server-held credential and
 rejects client-supplied `Authorization` headers, blocked prefixes such as
 `auth/*`, and unsafe cross-origin requests. The console route guard (`proxy.ts`)
 accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
@@ -42,6 +42,8 @@ leaves for `/login` only after the BFF confirms the session cookie is cleared;
 a failed logout (network or non-2xx) keeps the operator in the console with a
 controlled error instead of presenting a logged-out UI while the session survives.
 There is no open `/__api` rewrite to the backend; browser API access is only via `/api/proxy`.
+Admin presentation gates read the same-origin sealed-session response and do not
+trust browser storage or readable role cookies.
 
 ### BFF environment
 

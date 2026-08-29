@@ -39,7 +39,12 @@ describe("sealSession / unsealSession", () => {
   it("round-trips a payload with a fixed eight-hour maximum age", () => {
     const config = makeConfig();
     const sealed = sealSession(
-      { token: "server-token-123", role: "admin" },
+      {
+        token: "server-token-123",
+        role: "admin",
+        email: "operator@example.com",
+        displayName: "Lin Operator",
+      },
       config,
       NOW_MS,
     );
@@ -49,6 +54,8 @@ describe("sealSession / unsealSession", () => {
     expect(result.payload).toEqual({
       token: "server-token-123",
       role: "admin",
+      email: "operator@example.com",
+      displayName: "Lin Operator",
       iat: NOW_MS / 1000,
       exp: NOW_MS / 1000 + SESSION_MAX_AGE_SECONDS,
     });
@@ -162,7 +169,7 @@ describe("sealSession / unsealSession", () => {
       NOW_MS,
     );
     const parts = sealed.split(".");
-    parts[3] = `${parts[3].slice(0, -2)}AA`;
+    parts[3] = `${parts[3][0] === "A" ? "B" : "A"}${parts[3].slice(1)}`;
     const result = unsealSession(parts.join("."), config, NOW_MS);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("tampered");

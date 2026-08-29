@@ -1,7 +1,17 @@
+// input: QueryDisclosureSettings, mocked query services and trusted-role seam
+// output: component tests for disclosure-policy administration and non-admin denial
+// pos: presentation-level coverage for query disclosure settings
+// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const auth = vi.hoisted(() => ({ isAdmin: true }));
+
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => auth.isAdmin,
+}));
 
 vi.mock("@/services/query-disclosure", () => ({
   listDisclosurePolicies: vi.fn(),
@@ -92,15 +102,16 @@ function renderSettings(
 describe("QueryDisclosureSettings admin gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
+    auth.isAdmin = true;
   });
 
   afterEach(() => {
+    auth.isAdmin = true;
     window.sessionStorage.clear();
   });
 
   it("shows non-admin message for viewer role", async () => {
-    window.sessionStorage.setItem("controlhub.role", "viewer");
+    auth.isAdmin = false;
 
     renderSettings();
 
@@ -129,7 +140,7 @@ describe("QueryDisclosureSettings admin gate", () => {
   });
 
   it("never calls API for non-admin users", async () => {
-    window.sessionStorage.setItem("controlhub.role", "viewer");
+    auth.isAdmin = false;
 
     renderSettings();
 
