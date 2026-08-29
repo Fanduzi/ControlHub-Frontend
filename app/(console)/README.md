@@ -12,6 +12,8 @@ missing or archived resources; it links back to `/resources` while the root
 
 Resources and databases pages fail closed to an empty result when their
 environment slug is unknown; they do not issue an unscoped inventory request.
+Audits use the same canonical `environment` slug and fail closed to an empty
+table, resolving known slugs to the backend's numeric `environmentId` filter.
 Database URL search and pagination are server-owned, so deep links and
 navigation request the current scoped result rather than filtering a capped
 client-side slice.

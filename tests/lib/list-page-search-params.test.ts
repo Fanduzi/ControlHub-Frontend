@@ -1,5 +1,5 @@
 // input: Vitest and list-page URL search-param parsers
-// output: resource/audit pagination and structured-filter normalization regression tests
+// output: resource/audit pagination and structured-filter normalization, including audit environment URL state
 // pos: public parser contract tests for list-page URL state
 // note: if this file changes, update this header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
@@ -164,6 +164,28 @@ describe("parseResourceListSearchParams", () => {
 });
 
 describe("parseAuditListSearchParams", () => {
+  it("preserves an audit environment slug alongside filters and pagination", async () => {
+    const result = await parseAuditListSearchParams(
+      Promise.resolve({
+        environment: "prod",
+        page: "4",
+        pageSize: "25",
+        targetResourceId: "2",
+        eventType: "resource.updated",
+        result: "success",
+      }),
+    );
+
+    expect(result).toEqual({
+      environmentSlug: "prod",
+      page: 4,
+      pageSize: 25,
+      targetResourceId: 2,
+      eventType: "resource.updated",
+      result: "success",
+    });
+  });
+
   it("rejects malformed numeric targetResourceId values", async () => {
     const result = await parseAuditListSearchParams(
       Promise.resolve({ targetResourceId: "9oops" }),

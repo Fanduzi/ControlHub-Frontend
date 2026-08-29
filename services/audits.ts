@@ -1,5 +1,5 @@
 // input: @/services/api-client, @/lib/pagination, @/types/audit
-// output: audit list/read services with q forwarding; resource audit reads degrade to empty on the operator-boundary 403
+// output: audit list/read services with q/environment forwarding; resource audit reads degrade to empty on the operator-boundary 403
 // pos: audit data services with server-authoritative access-boundary handling
 // note: if this file changes, update header and services/README.md
 import { apiClient, ApiError } from "@/services/api-client";
@@ -21,6 +21,9 @@ function buildAuditListPath(params: AuditEventListParams = {}) {
   }
   if (params.targetResourceId !== undefined) {
     searchParams.set("targetResourceId", String(params.targetResourceId));
+  }
+  if (params.environmentId !== undefined) {
+    searchParams.set("environmentId", String(params.environmentId));
   }
   if (params.q) {
     searchParams.set("q", params.q);

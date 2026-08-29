@@ -11,8 +11,8 @@ Vitest unit tests for frontend library modules.
 - Upstream: production `lib/` modules and Vitest
 - Downstream: none
 
-`environment-params.test.ts` covers known-slug resolution and the fail-closed
-unknown-slug behavior used by inventory list pages.
+`environment-params.test.ts` covers known-slug resolution for inventory and
+audit list pages plus fail-closed unknown-slug behavior.
 
 `format.test.ts` covers safe caller-locale relative timestamp labels and the
 24-hour/future date-time fallback.

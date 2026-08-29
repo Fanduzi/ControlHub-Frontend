@@ -20,7 +20,7 @@ deployment fails closed against an older backend payload.
 `audit.ts` defines the append-only audit event contract. Inventory events may
 include server-owned field changes with a domain field name, operation, and
 optional before/after values; legacy and non-inventory events omit `changes`.
-Audit list requests include the optional server-owned `q` search term.
+Audit list requests include optional server-owned `q` search and numeric `environmentId` filters.
 
 `resource.ts` defines immutable resource origin plus managed aliases and global
 external system/value identifiers for create, update, and response contracts,

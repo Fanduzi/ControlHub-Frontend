@@ -1,11 +1,12 @@
 // input: vitest, environment params resolver, mocked settings service
-// output: resolver tests including fail-closed unknown environment scopes
+// output: resolver tests including audit scopes and fail-closed unknown environment slugs
 // pos: shared environment URL-scope unit tests
 // note: if this file changes, update header and tests/lib/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import type { ResourceListParams } from "@/types/resource";
+import type { AuditEventListParams } from "@/types/audit";
 
 const MOCK_ENVIRONMENTS = [
   { id: 1, name: "Production", slug: "prod" },
@@ -83,5 +84,18 @@ describe("resolveEnvironmentSlugToId", () => {
     expect(result?.pageSize).toBe(50);
     expect(result?.q).toBe("orders");
     expect(result?.resourceType).toBe("service");
+  });
+
+  it("resolves audit slugs to numeric environment IDs without dropping filters", async () => {
+    const params: AuditEventListParams = {
+      environmentSlug: "prod",
+      page: 2,
+      eventType: "resource.updated",
+    };
+
+    await expect(resolveEnvironmentSlugToId(params)).resolves.toEqual({
+      ...params,
+      environmentId: 1,
+    });
   });
 });

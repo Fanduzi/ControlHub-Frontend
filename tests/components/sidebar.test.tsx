@@ -166,7 +166,7 @@ describe("Sidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Audits" })).toHaveAttribute(
       "href",
-      "/audits",
+      "/audits?environment=prod",
     );
   });
 
@@ -189,7 +189,7 @@ describe("Sidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Audits" })).toHaveAttribute(
       "href",
-      "/audits",
+      "/audits?environment=prod",
     );
   });
 
@@ -213,7 +213,7 @@ describe("Sidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Audits" })).toHaveAttribute(
       "href",
-      "/audits",
+      "/audits?environment=staging",
     );
   });
 

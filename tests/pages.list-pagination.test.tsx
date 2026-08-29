@@ -1,5 +1,5 @@
 // input: server-rendered page props and mocked environment/settings/view-model loaders
-// output: URL-owned pagination/search, scoped-list, taxonomy, and audit-search data-flow assertions
+// output: URL-owned pagination/search, scoped-list, taxonomy, and audit environment server-data-flow assertions
 // pos: regression coverage for server list-page composition
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
@@ -350,6 +350,49 @@ describe("list pages pagination contracts", () => {
       eventType: "resource.updated",
       result: "success",
     });
+  });
+
+  it("resolves an audit environment slug before requesting the server-filtered table", async () => {
+    listEnvironmentsMock.mockResolvedValueOnce([
+      { id: 42, name: "Production", slug: "prod", description: "", createdAt: "" },
+    ]);
+    const { default: AuditsPage } = await import("@/app/(console)/audits/page");
+
+    await AuditsPage({
+      searchParams: Promise.resolve({
+        environment: "prod",
+        page: "4",
+        pageSize: "25",
+        targetResourceId: "2",
+        eventType: "resource.updated",
+        result: "success",
+      }),
+    });
+
+    expect(listAuditEventViewModelsMock).toHaveBeenCalledWith({
+      environmentSlug: "prod",
+      environmentId: 42,
+      page: 4,
+      pageSize: 25,
+      targetResourceId: 2,
+      eventType: "resource.updated",
+      result: "success",
+    });
+  });
+
+  it("renders an empty audit table for an unknown environment without an unscoped request", async () => {
+    const { default: AuditsPage } = await import("@/app/(console)/audits/page");
+
+    const element = await AuditsPage({
+      searchParams: Promise.resolve({ environment: "missing" }),
+    });
+    render(element);
+
+    expect(auditTableMock).toHaveBeenCalledWith(expect.objectContaining({
+      events: [],
+      pageInfo: expect.objectContaining({ totalItems: 0, totalPages: 0 }),
+    }));
+    expect(listAuditEventViewModelsMock).not.toHaveBeenCalled();
   });
 
   it("passes normalized audit URL search to the paginated data request", async () => {

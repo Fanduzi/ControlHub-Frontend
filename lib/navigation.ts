@@ -62,7 +62,7 @@ export const consoleNavigation: readonly ConsoleNavigationItem[] = [
     id: "audits",
     href: "/audits",
     icon: Activity,
-    supportsEnvironment: false,
+    supportsEnvironment: true,
     adminOnly: true,
   },
   {

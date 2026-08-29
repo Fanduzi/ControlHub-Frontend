@@ -22,7 +22,7 @@ mirroring the server-owned access matrix. `machine-principal-copy.ts` supplies
 the localized one-time-secret, expiry, and explicit-rotation copy for that
 admin UI.
 
-`environment-params.ts` resolves environment slugs for inventory list pages;
+`environment-params.ts` resolves environment slugs for console list pages;
 unknown slugs fail closed so those pages render an empty scoped result.
 
 `list-page-search-params.ts` normalizes page, filter, and audit search values
@@ -65,7 +65,7 @@ Resource name, alias, and external-identifier conflicts each have a distinct cod
 ## Interfaces
 
 - `parseResourceListSearchParams` preserves the structured Inventory search contract while dropping pagination snapshots from saved views.
-- `parseAuditListSearchParams` normalizes audit pagination and repeated filters.
+- `parseAuditListSearchParams` normalizes audit pagination, environment URL state, and repeated filters.
 - `parsePositiveDecimalInteger` accepts only safe positive decimal URL IDs.
 
 ## Dependencies

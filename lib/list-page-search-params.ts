@@ -1,5 +1,5 @@
 // input: Next.js list-page URL search params and resource/audit list parameter types
-// output: normalized resource/audit list parameters and strict positive-decimal URL ID parsing
+// output: normalized resource/audit list parameters, including environment slugs, and strict positive-decimal URL ID parsing
 // pos: shared URL-state parser for paginated list pages and environment-scoped routes
 // note: if this file changes, update this header and lib/README.md
 import type { AuditEventListParams } from "@/types/audit";
@@ -127,6 +127,7 @@ export async function parseAuditListSearchParams(
     page: normalizePositiveInt(resolved.page, DEFAULT_PAGE),
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     targetResourceId: normalizeOptionalPositiveInt(resolved.targetResourceId),
+    environmentSlug: normalizeText(resolved.environment),
     q: normalizeText(resolved.q),
     eventType,
     result,

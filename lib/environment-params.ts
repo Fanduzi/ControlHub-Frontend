@@ -1,13 +1,16 @@
 // input: environment list service, resource list params
-// output: resource list params scoped by a known environment slug, or null when unknown
-// pos: shared environment URL-scope resolver for inventory list pages
+// output: environment-scoped list params with a known slug resolved to its numeric ID, or null when unknown
+// pos: shared environment URL-scope resolver for console list pages
 // note: if this file changes, update header and lib/README.md
 import { listEnvironments } from "@/services/settings";
-import type { ResourceListParams } from "@/types/resource";
+type EnvironmentScopedParams = {
+  environmentSlug?: string;
+  environmentId?: number | number[];
+};
 
-export async function resolveEnvironmentSlugToId(
-  params: ResourceListParams,
-): Promise<ResourceListParams | null> {
+export async function resolveEnvironmentSlugToId<T extends EnvironmentScopedParams>(
+  params: T,
+): Promise<T | null> {
   if (!params.environmentSlug || params.environmentId) {
     return params;
   }
@@ -24,5 +27,5 @@ export async function resolveEnvironmentSlugToId(
   return {
     ...params,
     environmentId: environment.id,
-  };
+  } as T;
 }

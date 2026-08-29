@@ -51,7 +51,7 @@ Vitest component tests for React UI components.
 | sidebar.test.tsx | App sidebar, including environment-scoped Query navigation |
 | machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |
-| topbar.test.tsx | App topbar, including scoped Query/disclosure selection and fail-closed sign-out |
+| topbar.test.tsx | App topbar, including scoped Query/audit/disclosure selection and fail-closed sign-out |
 | topbar-operator-identity.test.tsx | Topbar identity/role rendering and stale-identity clearing from the BFF session response |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |

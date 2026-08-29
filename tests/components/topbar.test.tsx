@@ -1,5 +1,5 @@
 // input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
-// output: Vitest tests for the console topbar (environment switching, URL params, server-confirmed fail-closed sign-out)
+// output: Vitest tests for the console topbar (including audit environment URL switching and server-confirmed fail-closed sign-out)
 // pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -82,6 +82,9 @@ describe("Topbar", () => {
     searchParams.delete("environment");
     searchParams.delete("engine");
     searchParams.delete("pageSize");
+    searchParams.delete("targetResourceId");
+    searchParams.delete("eventType");
+    searchParams.delete("result");
     searchParams.set("page", "3");
     searchParams.set("q", "orders");
   });
@@ -196,8 +199,11 @@ describe("Topbar", () => {
     expect(setEnvironmentId).not.toHaveBeenCalled();
   });
 
-  it("does not append environmentId to unsupported audits URLs", async () => {
+  it("scopes audits with the visible selector and preserves audit filters", async () => {
     const user = userEvent.setup();
+    searchParams.set("targetResourceId", "2");
+    searchParams.set("eventType", "resource.updated");
+    searchParams.set("result", "success");
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -209,7 +215,9 @@ describe("Topbar", () => {
     await user.click(await screen.findByRole("option", { name: "Production" }));
 
     expect(setEnvironmentId).toHaveBeenCalledWith(10000000);
-    expect(replace).toHaveBeenCalledWith("/audits?page=1&q=orders");
+    expect(replace).toHaveBeenCalledWith(
+      "/audits?page=1&q=orders&targetResourceId=2&eventType=resource.updated&result=success&environment=prod",
+    );
   });
 
   describe("sign-out", () => {

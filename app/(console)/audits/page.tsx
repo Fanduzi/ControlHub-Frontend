@@ -1,7 +1,12 @@
+// input: Next search params, environment catalog, audit view models
+// output: admin audit page with fail-closed environment-scoped server results
+// pos: authenticated console audit route
+// note: if this file changes, update this header and app/(console)/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
 import { AuditTable } from "@/components/audits/audit-table";
+import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseAuditListSearchParams } from "@/lib/list-page-search-params";
 import { listAuditEventViewModels } from "@/lib/view-models";
 
@@ -11,7 +16,20 @@ export default async function AuditsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getTranslations();
-  const params = await parseAuditListSearchParams(searchParams);
+  const parsedParams = await parseAuditListSearchParams(searchParams);
+  const params = await resolveEnvironmentSlugToId(parsedParams);
+
+  if (!params) {
+    return <AuditTable events={[]} pageInfo={{
+      page: parsedParams.page ?? 1,
+      pageSize: parsedParams.pageSize ?? 10,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    }} />;
+  }
+
   const { items: events, pageInfo } = await listAuditEventViewModels(params);
 
   return (
