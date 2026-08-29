@@ -1,6 +1,6 @@
 // input: shared API client, pagination helper, and resource wire types
 // output: resource/profile/relation/effective-value reads and mutations, override controls, and relationship-rule discovery
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints and override versions unchanged
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, and override versions unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -56,6 +56,15 @@ function buildResourceListPath(params: ResourceListParams = {}) {
 
   const query = searchParams.toString();
   return query ? `/resources?${query}` : "/resources";
+}
+
+function resourceWriteBody(input: CreateResourceInput | UpdateResourceInput) {
+  const write = { ...input } as typeof input & {
+    completeness?: unknown;
+  };
+  delete write.completeness;
+
+  return JSON.stringify(write);
 }
 
 export async function listResources(
@@ -247,7 +256,7 @@ export async function createResource(
 ): Promise<Resource> {
   return apiClient<Resource>("/resources", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: resourceWriteBody(input),
   });
 }
 
@@ -257,7 +266,7 @@ export async function updateResource(
 ): Promise<Resource> {
   return apiClient<Resource>(`/resources/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(input),
+    body: resourceWriteBody(input),
   });
 }
 

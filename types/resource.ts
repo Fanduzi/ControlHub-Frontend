@@ -1,5 +1,5 @@
 // input: backend resource, profile, relation, topology, health, effective-value, identity, override, and rule JSON contracts
-// output: governed resource identity, health/provenance, override, and server-owned relationship-rule transport types
+// output: governed resource identity, server-derived completeness, health/provenance, override, and server-owned relationship-rule transport types
 // pos: shared TypeScript transport boundary between resource services and UI
 // note: if this file changes, update this header and types/README.md.
 export type ResourceType =
@@ -45,6 +45,12 @@ export type DatabaseOperationalSummary = {
 
 export type HealthFreshness = "fresh" | "stale" | "never";
 
+export type ResourceCompleteness = {
+  score: number;
+  status: "complete" | "partial";
+  missingRequirements: string[];
+};
+
 export type Resource = {
   id: number;
   resourceType: ResourceType;
@@ -65,6 +71,7 @@ export type Resource = {
   source?: string;
   externalId?: string;
   labels: Record<string, string>;
+  completeness?: ResourceCompleteness;
   profileSummary?: ProfileSummary | null;
   clusterId?: number | null;
   databaseOperationalSummary?: DatabaseOperationalSummary | null;
@@ -185,6 +192,7 @@ export type CreateResourceInput = {
   externalId?: string;
   labels?: Record<string, string>;
   profile?: Record<string, string | number | boolean>;
+  completeness?: never;
 };
 
 export type UpdateResourceInput = {
@@ -199,6 +207,7 @@ export type UpdateResourceInput = {
   externalIdentifiers?: ResourceExternalIdentifier[];
   externalId?: string;
   labels?: Record<string, string>;
+  completeness?: never;
 };
 
 export type CreateResourceRelationInput = {

@@ -71,7 +71,8 @@
       "hostname": "Hostname",
       "port": "Port",
       "nodes": "Nodes",
-      "cluster": "Cluster"
+      "cluster": "Cluster",
+      "completeness": "Completeness"
     },
     "origins": {
       "manual": "Manual",
@@ -94,6 +95,24 @@
       "clearOverride": "Clear manual override",
       "manualOverride": "Manual override: {status}",
       "ariaLabel": "Health evidence: {freshness}; observed {observedAt}; observer {observer}; manual override {override}"
+    },
+    "completeness": {
+      "score": "{score}%",
+      "scoreLabel": "Score",
+      "missingRequirements": "Missing requirements",
+      "status": {
+        "complete": "Complete",
+        "partial": "Partial"
+      },
+      "requirements": {
+        "name": "Name",
+        "displayName": "Display name",
+        "environment": "Environment",
+        "owner": "Owner",
+        "minimumIdentity": "Minimum identity",
+        "aliasOrExternalCIIdentifier": "Alias or external CI identifier",
+        "structuralRelationship": "Structural relationship"
+      }
     },
     "identityEditor": {
       "addAlias": "Add alias",
@@ -599,6 +618,7 @@
   },
   "detailSheet": {
     "summary": "Summary",
+    "completenessDescription": "Server-derived and read-only.",
     "profile": "Operational profile",
     "profileDescription": "Key operational fields for this resource.",
     "effectiveValues": "Effective values",

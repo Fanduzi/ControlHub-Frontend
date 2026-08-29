@@ -1,5 +1,5 @@
 // input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries
-// output: resource table tests including taxonomy filters, health evidence, and admin-only create affordance
+// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, and admin-only create affordance
 // pos: component tests for inventory health evidence and role-gated mutation control
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -65,6 +65,11 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       source: "manual",
       externalId: "svc:orders-api",
       labels: {},
+      completeness: {
+        score: 71,
+        status: "partial",
+        missingRequirements: ["minimumIdentity", "structuralRelationship"],
+      },
       createdAt: "2026-04-14T10:00:00Z",
       updatedAt: "2026-04-14T10:00:00Z",
       archivedAt: null,
@@ -92,6 +97,11 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       source: "manual",
       externalId: "db:orders-mysql-primary",
       labels: {},
+      completeness: {
+        score: 100,
+        status: "complete",
+        missingRequirements: [],
+      },
       createdAt: "2026-04-14T11:00:00Z",
       updatedAt: "2026-04-14T11:00:00Z",
       archivedAt: null,
@@ -274,6 +284,15 @@ describe("ResourceTable", () => {
 	expect(screen.getByText("Fresh")).toBeInTheDocument();
 	expect(screen.getByText(observedAt)).toBeInTheDocument();
 	expect(screen.getByText("prometheus")).toBeInTheDocument();
+  });
+
+  it("renders server-derived completeness for every resource type in the list", () => {
+    renderTable();
+
+    expect(screen.getByText("71%")).toBeInTheDocument();
+    expect(screen.getByText("Partial")).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText("Complete")).toBeInTheDocument();
   });
 
   it("renders the default archive filter as a self-describing active-only label", () => {

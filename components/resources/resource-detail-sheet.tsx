@@ -1,6 +1,6 @@
 // input: resource view models, health/effective-value evidence, localization, auth role, services, and mutation controls
-// output: resource detail sheet with observation/provenance metadata and admin edit/archive/override affordances
-// pos: authenticated resource detail, health evidence, and effective-value interaction surface
+// output: resource detail sheet with server-derived completeness, observation/provenance metadata, and admin edit/archive/override affordances
+// pos: authenticated resource detail, completeness, health evidence, and effective-value interaction surface
 // note: if this file changes, update this header and module README.md.
 "use client";
 
@@ -49,6 +49,7 @@ import type {
 
 import { EditResourceSheet } from "./edit-resource-sheet";
 import { ResourceArchiveButton } from "./resource-archive-button";
+import { ResourceCompletenessPanel } from "./resource-completeness-panel";
 import { HealthEvidence } from "./health-evidence";
 
 type ResourceDetailSheetProps = {
@@ -209,6 +210,7 @@ export function ResourceDetailSheet({
   const effectiveEntries = Object.entries(effectiveValues);
   const relations = detailResource?.relations ?? [];
   const auditEvents = detailResource?.auditEvents ?? [];
+  const completeness = resource.completeness;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -352,6 +354,10 @@ export function ResourceDetailSheet({
                 </div>
               </dl>
             </DetailPanel>
+          )}
+
+          {completeness && (
+            <ResourceCompletenessPanel completeness={completeness} />
           )}
 
           <DetailPanel

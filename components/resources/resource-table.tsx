@@ -1,6 +1,6 @@
 // input: react, navigation, table primitives, auth role, settings taxonomies, saved views, and resource health evidence
-// output: inventory table with taxonomy filters, named-view controls, health evidence, and admin create affordance
-// pos: inventory list view, mutation entry point, saved-view host, and compact health evidence surface
+// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, and admin create affordance
+// pos: inventory list view, mutation entry point, saved-view host, compact completeness, and health evidence surface
 // note: if this file changes, update header and components/resources/README.md
 "use client";
 
@@ -203,6 +203,25 @@ export function ResourceTable({
           <HealthEvidence resource={row.original} locale={locale} />
         </div>
       ),
+    }),
+    columnHelper.display({
+      id: "completeness",
+      header: t("common.fields.completeness"),
+      cell: ({ row }) => {
+        const completeness = row.original.completeness;
+        if (!completeness) return <span className="text-muted-foreground">&mdash;</span>;
+
+        return (
+          <div className="text-sm">
+            <div className="font-medium text-foreground">
+              {t("common.completeness.score", { score: completeness.score })}
+            </div>
+            <div className="text-muted-foreground">
+              {t(`common.completeness.status.${completeness.status}`)}
+            </div>
+          </div>
+        );
+      },
     }),
     columnHelper.display({
       id: "hostname",

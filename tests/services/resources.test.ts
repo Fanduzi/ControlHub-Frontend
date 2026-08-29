@@ -1,5 +1,5 @@
 // input: Vitest, mocked resources API client, and resource service contracts
-// output: resource/profile/relation-rule transport, managed-identity/effective-value override payloads, and request-shape coverage
+// output: resource/profile/relation-rule transport, server-derived completeness write exclusion, managed-identity/effective-value override payloads, and request-shape coverage
 // pos: service contract tests for the resources API boundary
 // note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -711,6 +711,28 @@ describe("createResource", () => {
     expect(result.name).toBe("order-mysql-02-prod");
   });
 
+  it("never sends server-derived completeness on create", async () => {
+    apiClientMock.mockResolvedValue(createdResource);
+    const input = {
+      origin: "manual" as const,
+      resourceType: "service",
+      name: "orders-api",
+      displayName: "Orders API",
+      environmentId: 101,
+      ownerId: 201,
+      lifecycleStatus: "running",
+      healthStatus: "healthy",
+      completeness: { score: 100, status: "complete", missingRequirements: [] },
+    } as unknown as CreateResourceInput & { completeness: unknown };
+
+    await createResource(input);
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources", {
+      method: "POST",
+      body: JSON.stringify({ ...input, completeness: undefined }),
+    });
+  });
+
   it("propagates validation error from backend", async () => {
     apiClientMock.mockRejectedValue(
       new Error("Request failed: 400"),
@@ -793,6 +815,21 @@ describe("updateResource", () => {
     });
     expect(result.displayName).toBe("Orders DB Primary (Updated)");
     expect(result.healthStatus).toBe("warning");
+  });
+
+  it("never sends server-derived completeness on update", async () => {
+    apiClientMock.mockResolvedValue(updatedResource);
+    const input = {
+      displayName: "Orders DB Primary (Updated)",
+      completeness: { score: 100, status: "complete", missingRequirements: [] },
+    } as unknown as UpdateResourceInput & { completeness: unknown };
+
+    await updateResource(1, input);
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1", {
+      method: "PATCH",
+      body: JSON.stringify({ displayName: "Orders DB Primary (Updated)" }),
+    });
   });
 
   it("propagates not-found error", async () => {

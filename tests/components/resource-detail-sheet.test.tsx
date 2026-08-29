@@ -1,6 +1,6 @@
 // input: vitest, testing-library, resource detail sheet, auth-role
-// output: detail sheet tests including health evidence, effective-value provenance, admin-only controls, and override conflicts
-// pos: component tests for the resource detail sheet and Issue 78/81 evidence and override behavior
+// output: detail sheet tests including server-derived completeness, health evidence, effective-value provenance, admin-only controls, and override conflicts
+// pos: component tests for the resource detail sheet and Issue 78/80/81 evidence and override behavior
 // note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
@@ -76,6 +76,11 @@ const resource: ResourceDetailViewModel = {
   labels: {
     team: "order",
     role: "primary",
+  },
+  completeness: {
+    score: 71,
+    status: "partial",
+    missingRequirements: ["minimumIdentity", "structuralRelationship"],
   },
   summary: "Primary transactional database handling checkout and order writes.",
   archivedAt: null,
@@ -305,6 +310,9 @@ describe("ResourceDetailSheet", () => {
     expect(screen.getByText("Fresh")).toBeInTheDocument();
     expect(screen.getByText(formatDateTime(resource.healthObservedAt!, "en"))).toBeInTheDocument();
     expect(screen.getByText("prometheus")).toBeInTheDocument();
+    expect(screen.getByText("71%")).toBeInTheDocument();
+    expect(screen.getByText("Partial")).toBeInTheDocument();
+    expect(screen.getByText("Minimum identity, Structural relationship")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /open full detail/i }),
     ).toHaveAttribute("href", "/resources/101");
@@ -326,6 +334,8 @@ describe("ResourceDetailSheet", () => {
 
     expect(screen.getByText("新鲜")).toBeInTheDocument();
     expect(screen.getByText("手动覆盖：严重")).toBeInTheDocument();
+    expect(screen.getByText("部分完整")).toBeInTheDocument();
+    expect(screen.getByText("最小身份信息, 结构关系")).toBeInTheDocument();
   });
 
   it("shows empty states when profile, relations, or audit events are absent", () => {

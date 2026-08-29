@@ -9,7 +9,8 @@ time, observer, and manual override consistently in list and detail surfaces.
 
 | File | Responsibility |
 |------|----------------|
-| `resource-table.tsx` | Inventory filters, column visibility, rows, and saved-view integration |
+| `resource-table.tsx` | Inventory filters, column visibility, rows, saved-view integration, and compact completeness/health evidence |
+| `resource-completeness-panel.tsx` | Read-only server-derived completeness score and missing-requirement presentation |
 | `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
 
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
@@ -54,6 +55,7 @@ Create/edit sheets manage immutable origin, normalized aliases, and external
 system/value identifiers through the shared accessible identity editor. Detail
 views expose the same identity, and backend uniqueness conflicts remain explicit.
 
-Resource detail sheets show effective values with provenance and let admins set
-or clear only the backend-supported display name, lifecycle status, and health
-status overrides with expected-version conflict handling.
+Resource detail sheets show server-derived completeness plus effective values
+with provenance, and let admins set or clear only the backend-supported display
+name, lifecycle status, and health status overrides with expected-version
+conflict handling.

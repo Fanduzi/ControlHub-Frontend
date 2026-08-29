@@ -27,10 +27,11 @@ Authorization Error and is not wrapped as a workbench feature error.
 non-admin operators (the server stays authoritative); global audit list search
 is forwarded as `q`; other failures surface normally.
 
-`resources.ts` sends typed-profile edits through PATCH, exposes explicit
-profile deletion, and fetches source-specific relationship rules without
-embedding the matrix in the console; it also owns effective-value reads and
-versioned override set/clear requests.
+`resources.ts` sends typed-profile edits through PATCH, strips server-derived
+completeness from resource writes, exposes explicit profile deletion, and
+fetches source-specific relationship rules without embedding the matrix in the
+console; it also owns effective-value reads and versioned override set/clear
+requests.
 
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
 personal and shared view CRUD; update matches the backend's body-less 204

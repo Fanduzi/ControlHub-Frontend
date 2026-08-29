@@ -71,7 +71,8 @@
       "hostname": "主机名",
       "port": "端口",
       "nodes": "节点数",
-      "cluster": "集群"
+      "cluster": "集群",
+      "completeness": "完整性"
     },
     "origins": {
       "manual": "手动",
@@ -94,6 +95,24 @@
       "clearOverride": "清除手动覆盖",
       "manualOverride": "手动覆盖：{status}",
       "ariaLabel": "健康证据：{freshness}；观测时间 {observedAt}；观测者 {observer}；手动覆盖 {override}"
+    },
+    "completeness": {
+      "score": "{score}%",
+      "scoreLabel": "得分",
+      "missingRequirements": "缺失要求",
+      "status": {
+        "complete": "完整",
+        "partial": "部分完整"
+      },
+      "requirements": {
+        "name": "名称",
+        "displayName": "显示名称",
+        "environment": "环境",
+        "owner": "负责人",
+        "minimumIdentity": "最小身份信息",
+        "aliasOrExternalCIIdentifier": "别名或外部配置项标识",
+        "structuralRelationship": "结构关系"
+      }
     },
     "identityEditor": {
       "addAlias": "添加别名",
@@ -599,6 +618,7 @@
   },
   "detailSheet": {
     "summary": "摘要",
+    "completenessDescription": "由服务端派生，只读。",
     "profile": "运行画像",
     "profileDescription": "该资源的关键运行参数。",
     "effectiveValues": "有效值",

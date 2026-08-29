@@ -15,6 +15,10 @@ vi.mock("next-intl/server", () => ({
   getLocale: getLocaleMock,
 }));
 
+vi.mock("next-intl", () => ({
+  useTranslations: () => t,
+}));
+
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
 }));
@@ -176,6 +180,11 @@ const resource: ResourceDetailViewModel = {
   createdAt: "2026-04-11T12:00:00Z",
   updatedAt: "2026-04-11T13:00:00Z",
   labels: { role: "primary" },
+  completeness: {
+    score: 71,
+    status: "partial",
+    missingRequirements: ["minimumIdentity", "structuralRelationship"],
+  },
   summary: "Primary transactional database handling checkout and order writes.",
   archivedAt: null,
   archivedBy: null,
@@ -205,6 +214,20 @@ describe("ResourceDetailPage", () => {
 
     expect(notFoundMock).toHaveBeenCalled();
     expect(getResourceViewModelMock).not.toHaveBeenCalled();
+  });
+
+  it("renders server-derived completeness on the full detail page", async () => {
+    const { default: ResourceDetailPage } = await import("@/app/(console)/resources/[id]/page");
+
+    const element = await ResourceDetailPage({
+      params: Promise.resolve({ id: String(resource.id) }),
+    });
+
+    render(element);
+
+    expect(screen.getByText("common.completeness.score")).toBeInTheDocument();
+    expect(screen.getByText("common.completeness.status.partial")).toBeInTheDocument();
+    expect(screen.getByText("minimumIdentity, structuralRelationship")).toBeInTheDocument();
   });
 
   it("rejects unsafe numeric route params", async () => {

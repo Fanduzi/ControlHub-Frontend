@@ -1,5 +1,5 @@
 // input: resource route id, localized resource view model, health evidence, and detail components
-// output: full resource detail page with status freshness, observed time, and observer
+// output: full resource detail page with server-derived completeness and health observation metadata
 // pos: server-rendered resource detail and operational health inspection surface
 // note: if this file changes, update this header and module README.md.
 
@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/blocks/status-badge";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { ResourceDetailEditButton } from "@/components/resources/resource-detail-edit-button";
 import { ResourceArchiveButton } from "@/components/resources/resource-archive-button";
+import { ResourceCompletenessPanel } from "@/components/resources/resource-completeness-panel";
 import { DatabaseOperatorWorkbench } from "@/components/resources/database-operator-workbench";
 import { DatabaseDecisionDeck } from "@/components/resources/database-decision-deck";
 import { DatabaseConsistencyPanel } from "@/components/resources/database-consistency-panel";
@@ -76,6 +77,7 @@ export default async function ResourceDetailPage({
 
   const summary = buildLocalizedFallbackSummary(resource, t);
   const profileEntries = Object.entries(resource.profile);
+  const completeness = resource.completeness;
   const isDatabaseResource =
     resource.resourceType === "database_cluster" ||
     resource.resourceType === "database_instance";
@@ -237,6 +239,10 @@ export default async function ResourceDetailPage({
           </div>
         </DetailPanel>
       </div>
+
+      {completeness && (
+        <ResourceCompletenessPanel completeness={completeness} />
+      )}
 
       {isDatabaseResource && (
         <DatabaseDecisionDeck
