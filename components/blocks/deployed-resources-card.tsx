@@ -1,3 +1,7 @@
+// input: rendered resource relations and root/deployed-resource locale translators
+// output: localized table of resources deployed on the current host
+// pos: detail-page read-only deployment relation view
+// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -15,6 +19,7 @@ type DeployedResourcesCardProps = {
 
 export function DeployedResourcesCard({ relations }: DeployedResourcesCardProps) {
   const t = useTranslations("pages.resourceDetail.deployedResources");
+  const pt = useTranslations();
 
   const deployed = relations.filter(
     (r) => r.relationType === "runs_on" && r.direction === "incoming",
@@ -67,7 +72,7 @@ export function DeployedResourcesCard({ relations }: DeployedResourcesCardProps)
                       {(related.resourceType === "database_instance" || related.resourceType === "database_cluster" || related.resourceType === "database_proxy") && (
                         <DbTypeIcon subtype={related.resourceSubtype} className="size-3.5" />
                       )}
-                      {localizeResourceType(related.resourceType, t)}
+                      {localizeResourceType(related.resourceType, pt)}
                     </span>
                   )}
                 </td>

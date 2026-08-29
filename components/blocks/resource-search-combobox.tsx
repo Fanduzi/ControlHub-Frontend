@@ -1,6 +1,6 @@
-// input: React, resource list service, and optional server-derived type/environment filters
-// output: Debounced resource search selector constrained by caller-supplied relationship rules
-// pos: Reusable target candidate picker; never owns relationship policy
+// input: React, root/relations translators, resource list service, and server-derived type/environment filters
+// output: localized, debounced resource selector constrained by caller-supplied relationship rules
+// pos: reusable relation-target picker; never owns relationship policy or resource-type translations
 // note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { localizeResourceType } from "@/lib/resource-summary";
 import { listResources } from "@/services/resources";
 import type { Resource } from "@/types/resource";
 
@@ -41,6 +42,7 @@ export function ResourceSearchCombobox({
   disabled = false,
 }: ResourceSearchComboboxProps) {
   const t = useTranslations("relations");
+  const pt = useTranslations();
   const ct = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<Resource[]>([]);
@@ -140,7 +142,7 @@ export function ResourceSearchCombobox({
                   />
                   <span className="font-medium">{resource.displayName}</span>
                   <span className="ml-2 text-xs text-muted-foreground">
-                    {resource.resourceType}
+                    {localizeResourceType(resource.resourceType, pt)}
                   </span>
                 </CommandItem>
               ))}

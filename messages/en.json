@@ -671,7 +671,9 @@
     "emptyTitle": "No linked resources",
     "emptyDescription": "Use relations to capture containment, ownership, and service dependency context.",
     "cancelAdd": "Cancel",
-    "searchPlaceholder": "Search resources..."
+    "searchPlaceholder": "Search resources...",
+    "directionIncoming": "Incoming",
+    "directionOutgoing": "Outgoing"
   },
   "timeline": {
     "emptyTitle": "No audit activity yet",
@@ -840,6 +842,7 @@
       "typeLabel": "Relation type",
       "typePlaceholder": "Select relation type",
       "confirmDelete": "Remove this relation?",
+      "deleteConfirmDescription": "This only removes the relation. The target resource is not archived.",
       "success": "Relation added successfully.",
       "deleteSuccess": "Relation removed.",
       "submitting": "Adding...",

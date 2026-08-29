@@ -1,7 +1,7 @@
-// input: react, next-intl, next/navigation, auth-role, server relation-rule and mutation services
-// output: resource relation list plus rule-filtered admin add/delete affordances and controlled errors
-// pos: relation read/mutation surface that consumes, but never owns, the server relationship matrix
-// note: if this file changes, update header and components/blocks/README.md
+// input: React, root/namespace next-intl, next/navigation, auth-role, and server relation services
+// output: localized relation rows with immediate successful-delete removal, refresh, and controlled errors
+// pos: shared relation read/mutation surface that consumes, but never owns, the server relationship matrix
+// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -58,7 +58,8 @@ export function ResourceRelationPanel({
   emptyDescription,
   resourceId,
 }: ResourceRelationPanelProps) {
-  const t = useTranslations("relations");
+  const t = useTranslations();
+  const rt = useTranslations("relations");
   const mt = useTranslations("mutations");
   const ct = useTranslations("common");
   const router = useRouter();
@@ -74,6 +75,10 @@ export function ResourceRelationPanel({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [visibleRelations, setVisibleRelations] = useState(relations);
+
+  useEffect(() => setVisibleRelations(relations), [relations]);
 
   useEffect(() => {
     if (!resourceId || isAdmin !== true) return;
@@ -129,9 +134,12 @@ export function ResourceRelationPanel({
     async (relationId: number) => {
       setDeletingId(relationId);
       setError(null);
+      setSuccess(null);
 
       try {
         await deleteResourceRelation(relationId);
+        setVisibleRelations((current) => current.filter((relation) => relation.id !== relationId));
+        setSuccess(mt("relation.deleteSuccess"));
         router.refresh();
       } catch (err) {
         if (err instanceof ApiError) {
@@ -160,7 +168,7 @@ export function ResourceRelationPanel({
             onClick={() => setShowAddForm((prev) => !prev)}
           >
             {showAddForm
-              ? t("cancelAdd")
+              ? rt("cancelAdd")
               : mt("relation.addTitle")}
           </Button>
         </div>
@@ -224,13 +232,15 @@ export function ResourceRelationPanel({
         </div>
       )}
 
-      {!relations.length && !showAddForm ? (
+      {success && <div role="status" aria-live="polite">{success}</div>}
+
+      {!visibleRelations.length && !showAddForm ? (
         <EmptyState
-          title={emptyTitle ?? t("emptyTitle")}
-          description={emptyDescription ?? t("emptyDescription")}
+          title={emptyTitle ?? rt("emptyTitle")}
+          description={emptyDescription ?? rt("emptyDescription")}
         />
       ) : (
-        relations.map((relation) => {
+        visibleRelations.map((relation) => {
           const related = relation.relatedResource;
           const displayName = related?.displayName ?? relation.relatedResourceName;
 
@@ -253,7 +263,7 @@ export function ResourceRelationPanel({
                   </span>
                 )}
                 <p className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <span>{localizeRelationType(relation.relationType, mt)} &middot; {relation.direction}</span>
+                  <span>{localizeRelationType(relation.relationType, t)} &middot; {t(`relations.direction${relation.direction === "incoming" ? "Incoming" : "Outgoing"}`)}</span>
                   {related && (
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium lowercase tracking-normal text-muted-foreground">
                       {(related.resourceType === "database_instance" ||
@@ -261,7 +271,7 @@ export function ResourceRelationPanel({
                         related.resourceType === "database_proxy") && (
                         <DbTypeIcon subtype={related.resourceSubtype} className="size-3.5" />
                       )}
-                      {localizeResourceType(related.resourceType, mt)}
+                      {localizeResourceType(related.resourceType, t)}
                     </span>
                   )}
                 </p>
@@ -289,7 +299,7 @@ export function ResourceRelationPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>{mt("relation.confirmDelete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {mt("relation.deleteSuccess")}
+              {mt("relation.deleteConfirmDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

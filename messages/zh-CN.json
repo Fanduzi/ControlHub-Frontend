@@ -671,7 +671,9 @@
     "emptyTitle": "暂无关联资源",
     "emptyDescription": "使用关系来捕获包含、负责人和服务依赖上下文。",
     "cancelAdd": "取消",
-    "searchPlaceholder": "搜索资源..."
+    "searchPlaceholder": "搜索资源...",
+    "directionIncoming": "入向",
+    "directionOutgoing": "出向"
   },
   "timeline": {
     "emptyTitle": "暂无审计活动",
@@ -840,6 +842,7 @@
       "typeLabel": "关系类型",
       "typePlaceholder": "选择关系类型",
       "confirmDelete": "确定移除此关系？",
+      "deleteConfirmDescription": "此操作仅移除关系，不会归档目标资源。",
       "success": "关系添加成功。",
       "deleteSuccess": "关系已移除。",
       "submitting": "添加中...",

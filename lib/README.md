@@ -62,3 +62,6 @@ Resource name, alias, and external-identifier conflicts each have a distinct cod
 
 - Upstream: Next.js route search params and transport types
 - Downstream: app routes and services
+# Resource summaries
+
+`resource-summary.ts` centralizes root-translator resource and relation type labels with readable fallbacks.

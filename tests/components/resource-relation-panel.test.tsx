@@ -1,7 +1,7 @@
-// input: vitest, testing-library, resource relation panel, auth-role
-// output: relation panel tests — server-rule-filtered admin mutations and read surface for all operators
-// pos: component contract for role gates, relationship discovery, candidates, and controlled errors
-// note: if this file changes, update this header and module README.md.
+// input: rendered relation panel, auth-role boundary, service mocks, and English/Chinese locale messages
+// output: public UI contract for localized directions, successful row removal, and controlled mutations
+// pos: relation-panel rendered seam for role gates, candidates, accessibility, and controlled errors
+// note: if this file changes, update this header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -11,8 +11,11 @@ import { ResourceRelationPanel } from "@/components/blocks/resource-relation-pan
 import { ApiError } from "@/services/api-client";
 import * as relationService from "@/services/resources";
 import * as settingsService from "@/services/settings";
-import messages from "@/messages/en.json";
+import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 import type { ResourceRelationViewModel } from "@/types/view-models";
+
+const messages = enMessages;
 
 let isAdmin = true;
 vi.mock("@/lib/auth-role", () => ({
@@ -97,6 +100,24 @@ const relations: ResourceRelationViewModel[] = [
   },
 ];
 
+const relationsInBothDirections: ResourceRelationViewModel[] = [
+  ...relations,
+  {
+    ...relations[0],
+    id: 2,
+    relationType: "fronts",
+    direction: "incoming",
+    relatedResourceId: 3,
+    relatedResourceName: "orders-proxy",
+    relatedResource: {
+      id: 3,
+      displayName: "orders-proxy",
+      resourceType: "database_proxy",
+      healthStatus: "healthy",
+    },
+  },
+];
+
 describe("ResourceRelationPanel", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -155,10 +176,10 @@ describe("ResourceRelationPanel", () => {
 
     // Relation type and direction are still shown
     expect(screen.getByText(/Member Of/)).toBeInTheDocument();
-    expect(screen.getByText(/outgoing/)).toBeInTheDocument();
+    expect(screen.getByText(/Outgoing/)).toBeInTheDocument();
 
     // Resource type badge is shown
-    expect(screen.getByText("Database Cluster")).toBeInTheDocument();
+    expect(screen.getByText("DB Cluster")).toBeInTheDocument();
   });
 
   it("shows empty state when no relations and no resourceId", () => {
@@ -319,6 +340,46 @@ describe("ResourceRelationPanel", () => {
 
     expect(refresh).toHaveBeenCalledOnce();
   });
+
+  it("removes the deleted row and announces success only after confirmation", async () => {
+    const user = userEvent.setup();
+    mockedDeleteRelation.mockResolvedValue(undefined);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={relations} resourceId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Remove this relation/i }));
+    expect(screen.getByText("This only removes the relation. The target resource is not archived.")).toBeInTheDocument();
+    expect(screen.queryByText("Relation removed.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(mockedDeleteRelation).toHaveBeenCalledWith(1));
+    expect(screen.queryByRole("link", { name: "orders-cluster" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Relation removed.");
+  });
+
+  it.each([
+    ["en", enMessages, "Member Of · Outgoing", "Fronts · Incoming", "DB Cluster", "DB Proxy"],
+    ["zh-CN", zhMessages, "归属 · 出向", "前置代理 · 入向", "数据库集群", "数据库代理"],
+  ])(
+    "localizes relation types, directions, and resource types in %s",
+    (locale, localizedMessages, firstRelation, secondRelation, firstType, secondType) => {
+      render(
+        <NextIntlClientProvider locale={locale} messages={localizedMessages}>
+          <ResourceRelationPanel relations={relationsInBothDirections} />
+        </NextIntlClientProvider>,
+      );
+
+      expect(screen.getByText(firstRelation)).toBeInTheDocument();
+      expect(screen.getByText(secondRelation)).toBeInTheDocument();
+      expect(screen.getByText(firstType)).toBeInTheDocument();
+      expect(screen.getByText(secondType)).toBeInTheDocument();
+    },
+  );
 
   it("shows no error when delete succeeds (204)", async () => {
     const user = userEvent.setup();
