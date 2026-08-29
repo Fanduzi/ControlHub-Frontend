@@ -239,7 +239,7 @@ test.describe("List pagination and backend query params", () => {
     // Event type filter (MultiSelectFilter uses DropdownMenu, not combobox)
     await resetRecordedRequests("/audit-events");
     await page.locator('[data-slot="multi-select-trigger"]').filter({ hasText: "Event type" }).first().click();
-    await page.getByRole("menuitemcheckbox", { name: "Resource updated" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Resource updated", exact: true }).click();
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "eventType", "resource.updated");
     await expectRequestParam("/audit-events", "eventType", "resource.updated", page);
