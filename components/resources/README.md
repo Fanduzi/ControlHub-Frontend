@@ -32,3 +32,18 @@ active/standby role, optional version) and Control Plane Component
 Create/edit sheets manage immutable origin, normalized aliases, and external
 system/value identifiers through the shared accessible identity editor. Detail
 views expose the same identity, and backend uniqueness conflicts remain explicit.
+
+## Files
+
+| File | Responsibility |
+|------|---------------|
+| `resource-table.tsx` | Renders the inventory table and filters, including lifecycle options supplied by settings. |
+
+## Interfaces
+
+- `ResourceTable` receives `lifecycleStatuses` from the resources server page, preserves the existing URL filter contract, and displays effective health with freshness and observation evidence.
+
+## Dependencies
+
+- Upstream: `app/(console)/resources/page.tsx`, `services/settings`
+- Downstream: shared table, filter, pagination, and resource-detail components

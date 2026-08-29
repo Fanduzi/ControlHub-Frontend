@@ -1,6 +1,6 @@
-// input: page search params, mocked environment and inventory service seams
-// output: regression coverage for scoped list-page behavior
-// pos: app page integration tests
+// input: page search params, mocked environment/settings/inventory services, table mocks
+// output: route-level pagination, scoped-list, and taxonomy data-flow regression coverage
+// pos: server page composition test boundary
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
@@ -14,6 +14,7 @@ const listAuditEventViewModelsMock = vi.fn();
 const listRecentAuditEventViewModelsMock = vi.fn();
 const getDatabasePostureCountsMock = vi.fn();
 const listResourceTypesMock = vi.fn();
+const listLifecycleStatusesMock = vi.fn();
 const listEnvironmentsMock = vi.fn();
 const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
@@ -34,6 +35,7 @@ vi.mock("@/lib/view-models", () => ({
 
 vi.mock("@/services/settings", () => ({
   listResourceTypes: listResourceTypesMock,
+  listLifecycleStatuses: listLifecycleStatusesMock,
   listEnvironments: listEnvironmentsMock,
 }));
 
@@ -152,6 +154,7 @@ describe("list pages pagination contracts", () => {
     vi.clearAllMocks();
     getTranslationsMock.mockResolvedValue(t);
     listResourceTypesMock.mockResolvedValue([]);
+    listLifecycleStatusesMock.mockResolvedValue([]);
     listEnvironmentsMock.mockResolvedValue([
       {
         id: "env-prod",

@@ -1,7 +1,7 @@
-// input: react, navigation, table primitives, auth role, and resource health evidence
-// output: inventory table with status freshness, observation metadata, and admin create affordance
-// pos: inventory list view and compact health evidence surface
-// note: if this file changes, update this header and module README.md.
+// input: react, navigation, table primitives, auth role, settings taxonomies, and resource health evidence
+// output: inventory table with taxonomy filters, health freshness/observation metadata, and admin create affordance
+// pos: inventory list view, mutation entry point, and compact health evidence surface
+// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -50,7 +50,7 @@ import { formatLabel, formatRelativeDateTime } from "@/lib/format";
 import { localizeResourceType } from "@/lib/resource-summary";
 import type { PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
-import type { ResourceTypeDefinition } from "@/types/settings";
+import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
 
 import { Columns3 } from "lucide-react";
 
@@ -64,12 +64,12 @@ type ResourceTableProps = {
   resources: ResourceListViewModel[];
   pageInfo: PageInfo;
   resourceTypes: ResourceTypeDefinition[];
+  lifecycleStatuses: DictionaryItem[];
   availableSubtypes?: string[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
-const LIFECYCLE_OPTIONS = ["running", "active", "provisioning", "retired"] as const;
 const HEALTH_OPTIONS = ["healthy", "warning", "critical"] as const;
 
 function updateMultiSelectParams(
@@ -87,6 +87,7 @@ export function ResourceTable({
   resources,
   pageInfo,
   resourceTypes,
+  lifecycleStatuses,
   availableSubtypes,
 }: ResourceTableProps) {
   const t = useTranslations();
@@ -379,11 +380,13 @@ export function ResourceTable({
 
   const lifecycleOptions = useMemo(
     () =>
-      LIFECYCLE_OPTIONS.map((status) => ({
-        value: status,
-        label: t(`statusValues.${status}`),
+      lifecycleStatuses.map((status) => ({
+        value: status.key,
+        label: t.has(`statusValues.${status.key}`)
+          ? t(`statusValues.${status.key}`)
+          : status.label,
       })),
-    [t],
+    [lifecycleStatuses, t],
   );
 
   const healthOptions = useMemo(

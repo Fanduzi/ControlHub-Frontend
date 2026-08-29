@@ -1,7 +1,7 @@
-// input: Next search params, environment/resource services, resource table
-// output: scoped resource inventory page; unknown environments render an empty result
-// pos: authenticated console resources route
-// note: if this file changes, update header and app/(console)/README.md
+// input: Next search params, environment/resource services, settings dictionaries, resource table
+// output: scoped resource inventory page with taxonomy-backed filters; unknown environments fail closed
+// pos: authenticated console resources route composition
+// note: if this file changes, update header and app/(console)/resources/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
@@ -9,7 +9,7 @@ import { ResourceTable } from "@/components/resources/resource-table";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
-import { listResourceTypes } from "@/services/settings";
+import { listLifecycleStatuses, listResourceTypes } from "@/services/settings";
 import type { ResourceListParams } from "@/types/resource";
 
 const SUBTYPE_OPTIONS_PAGE_SIZE = 500;
@@ -60,7 +60,6 @@ export default async function ResourcesPage({
   const t = await getTranslations();
   const parsedParams = await parseResourceListSearchParams(searchParams);
   const params = await resolveEnvironmentSlugToId(parsedParams);
-
   if (!params) {
     return (
       <div className="space-y-6">
@@ -81,15 +80,17 @@ export default async function ResourcesPage({
             hasPreviousPage: false,
           }}
           resourceTypes={[]}
+          lifecycleStatuses={[]}
           availableSubtypes={[]}
         />
       </div>
     );
   }
 
-  const [{ items: resources, pageInfo }, resourceTypes, availableSubtypes] = await Promise.all([
+  const [{ items: resources, pageInfo }, resourceTypes, lifecycleStatuses, availableSubtypes] = await Promise.all([
     listResourceViewModels(params),
     listResourceTypes().catch(() => []),
+    listLifecycleStatuses(),
     listAvailableSubtypes(params),
   ]);
 
@@ -105,6 +106,7 @@ export default async function ResourcesPage({
         resources={resources}
         pageInfo={pageInfo}
         resourceTypes={resourceTypes}
+        lifecycleStatuses={lifecycleStatuses}
         availableSubtypes={availableSubtypes}
       />
     </div>

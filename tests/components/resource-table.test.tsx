@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ResourceTable } from "@/components/resources/resource-table";
 import messages from "@/messages/en.json";
-import type { ResourceTypeDefinition } from "@/types/settings";
+import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 let isAdmin = true;
@@ -19,6 +19,14 @@ vi.mock("@/lib/auth-role", () => ({
 }));
 
 const replace = vi.fn();
+
+const lifecycleStatuses: DictionaryItem[] = [
+  { key: "provisioning", label: "Provisioning", description: "" },
+  { key: "running", label: "Running", description: "" },
+  { key: "stopped", label: "Stopped", description: "" },
+  { key: "degraded", label: "Degraded", description: "" },
+  { key: "decommissioning", label: "Decommissioning", description: "" },
+];
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
@@ -114,6 +122,7 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
           hasPreviousPage: true,
         }}
         resourceTypes={resourceTypes}
+        lifecycleStatuses={lifecycleStatuses}
         availableSubtypes={availableSubtypes}
       />
     </NextIntlClientProvider>,
@@ -194,6 +203,23 @@ describe("ResourceTable", () => {
     expect(replace).toHaveBeenLastCalledWith(
       "/resources?environmentId=1&page=1&lifecycleStatus=running",
     );
+  });
+
+  it("renders the canonical lifecycle settings taxonomy in the filter", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.click(screen.getByRole("button", { name: "Lifecycle status" }));
+
+    const options = await screen.findAllByRole("menuitemcheckbox");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Provisioning",
+      "Running",
+      "Stopped",
+      "Degraded",
+      "Decommissioning",
+    ]);
   });
 
   it("updates healthStatus in the URL and resets to the first page", async () => {
@@ -352,6 +378,7 @@ describe("ResourceTable", () => {
             hasPreviousPage: false,
           }}
           resourceTypes={[]}
+          lifecycleStatuses={lifecycleStatuses}
         />
       </NextIntlClientProvider>,
     );
