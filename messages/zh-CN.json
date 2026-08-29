@@ -231,6 +231,18 @@
     "notFound": "未找到请求的资源。",
     "unexpected": "发生未知错误：{message}"
   },
+  "notFound": {
+    "eyebrow": "404",
+    "title": "页面未找到",
+    "description": "你要访问的页面不存在或已被移动。",
+    "backToConsole": "返回控制台",
+    "resource": {
+      "eyebrow": "资源",
+      "title": "未找到资源",
+      "description": "此资源不存在或已归档。",
+      "backToResources": "返回资源列表"
+    }
+  },
   "pages": {
     "overview": {
       "eyebrow": "概览",

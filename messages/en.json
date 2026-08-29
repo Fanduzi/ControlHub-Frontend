@@ -231,6 +231,18 @@
     "notFound": "The requested resource was not found.",
     "unexpected": "An unexpected error occurred: {message}"
   },
+  "notFound": {
+    "eyebrow": "404",
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "backToConsole": "Return to console",
+    "resource": {
+      "eyebrow": "Resource",
+      "title": "Resource not found",
+      "description": "This resource doesn't exist or has been archived.",
+      "backToResources": "Back to resources"
+    }
+  },
   "pages": {
     "overview": {
       "eyebrow": "Overview",

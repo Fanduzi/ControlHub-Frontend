@@ -20,6 +20,10 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 - `/audits`
 - `/settings`
 
+Unmatched routes use the localized root `app/not-found.tsx` boundary. Missing
+or archived resource detail IDs use the console-localized boundary at
+`app/(console)/resources/[id]/not-found.tsx` and link back to `/resources`.
+
 ## Console BFF (Operator Sessions)
 
 Phase 38X-1C establishes a same-origin Console BFF boundary. Interactive login

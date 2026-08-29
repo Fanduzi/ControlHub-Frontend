@@ -1,12 +1,12 @@
 // input: next/link, next-intl/server
-// output: localized generic 404 boundary with a console recovery link
-// pos: root app boundary for unmatched routes and missing pages outside console segments
-// note: if this file changes, update header and README.md
+// output: localized resource-specific 404 boundary with a resources recovery link
+// pos: resource detail segment boundary for missing or archived resources
+// note: if this file changes, update header and app/(console)/README.md
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
-export default async function NotFound() {
-  const t = await getTranslations("notFound");
+export default async function ResourceNotFound() {
+  const t = await getTranslations("notFound.resource");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
@@ -21,10 +21,10 @@ export default async function NotFound() {
           {t("description")}
         </p>
         <Link
-          href="/overview"
+          href="/resources"
           className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          {t("backToConsole")}
+          {t("backToResources")}
         </Link>
       </div>
     </main>
