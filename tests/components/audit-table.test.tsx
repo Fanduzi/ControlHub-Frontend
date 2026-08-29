@@ -1,5 +1,5 @@
 // input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: URL-owned audit search/filtering, timestamps, and field-diff rendering assertions
+// output: URL-owned audit search/filtering, stable presets, localized timestamps, and field-diff rendering assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
@@ -7,7 +7,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuditTable } from "@/components/audits/audit-table";
 import messages from "@/messages/en.json";
@@ -67,6 +67,8 @@ function renderTable(locale = "en", localizedMessages: typeof messages = message
 }
 
 describe("AuditTable", () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     replace.mockClear();
     currentSearchParams = new URLSearchParams("page=4&pageSize=25");
@@ -84,6 +86,8 @@ describe("AuditTable", () => {
     expect(screen.getByRole("menuitemcheckbox", { name: "Relation created" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Inventory profile updated" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Inventory relationship deleted" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Query.Executed" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Related Record Navigation" })).toBeVisible();
   });
 
   it("updates eventType in the URL and resets to the first page", async () => {
@@ -139,6 +143,15 @@ describe("AuditTable", () => {
     renderTable();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("renders recent timestamps with the active locale", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-14T10:01:00Z"));
+
+    renderTable("zh-CN", zhMessages);
+
+    expect(screen.getByText("1分钟前")).toBeInTheDocument();
   });
 
   it("shows server-owned field changes with before and after values", () => {

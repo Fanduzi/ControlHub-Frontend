@@ -1,5 +1,5 @@
 // input: Vitest, localized messages, mocked Next navigation, and database table props
-// output: database table search/navigation, pagination, selection, and localization regression coverage
+// output: database table search/navigation, pagination, selection, and localized timestamp regression coverage
 // pos: component contract coverage for the database inventory table
 // note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -234,6 +234,23 @@ describe("DatabaseTable", () => {
     expect(
       screen.getByText(formatDateTime("2026-04-14T10:00:00Z", "en")),
     ).toBeInTheDocument();
+  });
+
+  it("renders recent updated timestamps with the active locale", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-14T12:00:00Z"));
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable
+          resources={[makeInstance(1, "Orders Primary", undefined)]}
+          totalClusters={0}
+          totalInstances={1}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("2 hours ago")).toBeInTheDocument();
   });
 
   it("uses resource-status column header instead of generic status", () => {

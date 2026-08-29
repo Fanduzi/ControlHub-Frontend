@@ -29,6 +29,9 @@ unknown slugs fail closed so those pages render an empty scoped result.
 from shareable list URLs. `parsePositiveDecimalInteger` is the shared strict
 parser for URL IDs.
 
+`format.ts` provides the caller-locale absolute and native relative timestamp
+labels; relative labels use date-time formatting after 24 hours.
+
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.

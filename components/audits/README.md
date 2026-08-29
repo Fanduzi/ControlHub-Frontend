@@ -10,5 +10,6 @@ field changes keep the legacy summary row and render an em dash in the change
 column.
 
 The filter keeps every backend-emitted inventory resource/profile/relationship
-event available even when it is absent from the current page. Change operations
+event plus the stable `query.executed` and `related_record_navigation` presets
+available even when they are absent from the current page. Change operations
 use the localized closed add/update/remove vocabulary.

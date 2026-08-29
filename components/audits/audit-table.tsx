@@ -1,4 +1,4 @@
-// input: localized audit view models, URL-owned filters/search, shared table primitives
+// input: localized audit view models, stable event-type presets, URL-owned filters/search, shared table primitives
 // output: server-searchable audit table with field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
@@ -52,6 +52,8 @@ const KNOWN_AUDIT_EVENT_TYPES = [
   "inventory.profile.deleted",
   "inventory.relationship.created",
   "inventory.relationship.deleted",
+  "query.executed",
+  "related_record_navigation",
 ] as const;
 
 const KNOWN_AUDIT_RESULTS = ["success", "warning", "error"] as const;
