@@ -1,5 +1,5 @@
 // input: react, next/navigation, next-intl, same-origin /api/operator-session
-// output: interactive login via Console BFF; stores presentation role only (no bearer)
+// output: interactive login via Console BFF; localized validation; stores presentation role only (no bearer)
 // pos: public login UI for the 38X-1C Operator Session boundary
 // note: if this file changes, update header and app/login/README.md
 "use client";
@@ -32,7 +32,10 @@ export default function LoginPage() {
   }, [t]);
 
   const loginSchema = z.object({
-    email: z.string().email(),
+    email: z
+      .string()
+      .min(1, t("form.emailRequired"))
+      .email(t("form.emailInvalid")),
     password: z.string().min(1, t("form.passwordRequired")),
   });
 
@@ -153,7 +156,11 @@ export default function LoginPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <form
+              className="space-y-4"
+              noValidate
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
               <div className="space-y-2">
                 <label
                   className="text-sm font-medium text-foreground"

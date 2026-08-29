@@ -210,6 +210,8 @@
       "title": "登录",
       "description": "连接 ControlHub 后端以管理资源和审计。",
       "email": "邮箱",
+      "emailRequired": "请输入邮箱",
+      "emailInvalid": "请输入有效的邮箱地址",
       "password": "密码",
       "passwordRequired": "请输入密码",
       "submit": "进入控制台"

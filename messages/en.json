@@ -210,6 +210,8 @@
       "title": "Sign in",
       "description": "Connect to the ControlHub backend to manage resources and audits.",
       "email": "Email",
+      "emailRequired": "Email is required",
+      "emailInvalid": "Please enter a valid email address",
       "password": "Password",
       "passwordRequired": "Password is required",
       "submit": "Enter console"
