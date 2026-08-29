@@ -38,7 +38,7 @@ Vitest component tests for React UI components.
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel localization, deferred/stale/concurrent deletion behavior, rule discovery, target constraints, controlled rejection, role gates, and mutations |
 | resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
-| database-table.test.tsx | Database table, including Database Proxy rows in Database Estate |
+| database-table.test.tsx | Database table, including Database Proxy rows, server-search URL navigation, localized server-empty state, and page-local signal scope |
 | database-instance-facts-panel.test.tsx | Database instance facts |
 | database-consistency-panel.test.tsx | Database consistency |
 | database-decision-deck.test.tsx | Database decision deck |

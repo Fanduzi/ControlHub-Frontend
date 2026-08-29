@@ -1,5 +1,5 @@
 // input: server-rendered page props and mocked environment/settings/view-model loaders
-// output: URL-owned pagination, scoped-list, taxonomy, and audit-search data-flow assertions
+// output: URL-owned pagination/search, scoped-list, taxonomy, and audit-search data-flow assertions
 // pos: regression coverage for server list-page composition
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
@@ -266,7 +266,7 @@ describe("list pages pagination contracts", () => {
     expect(getDatabasePostureCountsMock).not.toHaveBeenCalled();
   });
 
-  it("passes normalized page params to databases", async () => {
+  it("passes normalized URL search, page, and environment scope to databases", async () => {
     const { default: DatabasesPage } = await import("@/app/(console)/databases/page");
 
     await DatabasesPage({
@@ -279,11 +279,53 @@ describe("list pages pagination contracts", () => {
     });
 
     expect(listDatabaseResourceViewModelsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        page: 1,
-        pageSize: 200,
+      {
+        page: 3,
+        pageSize: 10,
         environmentId: 42,
         q: "mysql",
+      },
+    );
+  });
+
+  it("reloads the scoped server result when browser navigation restores a database URL", async () => {
+    const { default: DatabasesPage } = await import("@/app/(console)/databases/page");
+
+    await DatabasesPage({
+      searchParams: Promise.resolve({
+        environment: "prod",
+        page: "21",
+        pageSize: "10",
+        q: "db-201",
+      }),
+    });
+    await DatabasesPage({
+      searchParams: Promise.resolve({
+        environment: "prod",
+        page: "1",
+        pageSize: "10",
+        q: "orders",
+      }),
+    });
+
+    expect(listDatabaseResourceViewModelsMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        environmentSlug: "prod",
+        environmentId: "env-prod",
+        page: 21,
+        pageSize: 10,
+        q: "db-201",
+      }),
+    );
+    expect(listDatabaseResourceViewModelsMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        environmentSlug: "prod",
+        environmentId: "env-prod",
+        page: 1,
+        pageSize: 10,
+        q: "orders",
       }),
     );
   });
@@ -385,6 +427,7 @@ describe("list pages pagination contracts", () => {
     expect(databaseTableMock).toHaveBeenCalledWith(
       expect.objectContaining({
         resources: response.items,
+        pageInfo: response.pageInfo,
         totalClusters: 2,
         totalInstances: 2,
       }),

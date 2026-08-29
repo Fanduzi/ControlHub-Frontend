@@ -1,6 +1,10 @@
+// input: server-paginated database view models, URL filters, locale messages, and row-detail interaction
+// output: scoped database estate table with server-owned search/pagination and local operational controls
+// pos: client database inventory presentation for the authenticated console
+// note: if this file changes, update this header and components/databases/README.md
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDebounceCallback } from "@/hooks/use-debounce";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -47,6 +51,7 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 
 type DatabaseTableProps = {
   resources: ResourceListViewModel[];
+  pageInfo?: PageInfo;
   totalClusters: number;
   totalInstances: number;
 };
@@ -68,29 +73,6 @@ const ENGINE_OPTIONS = [
   "proxysql",
   "chproxy",
 ] as const;
-
-function databaseRowMatchesSearch(row: TreeRow, query: string): boolean {
-  const q = query.toLowerCase();
-  const searchable = [
-    row.displayName,
-    row.name,
-    row.resourceSubtype,
-    row.profileSummary?.hostname,
-    row.profileSummary?.port != null ? String(row.profileSummary.port) : undefined,
-    row.profileSummary?.role,
-    ...(row.subRows ?? []).flatMap((child) => [
-      child.displayName,
-      child.name,
-      child.resourceSubtype,
-      child.profileSummary?.hostname,
-      child.profileSummary?.port != null ? String(child.profileSummary.port) : undefined,
-      child.profileSummary?.role,
-    ]),
-  ];
-  return searchable.some(
-    (value) => value?.toLowerCase().includes(q),
-  );
-}
 
 function buildTree(resources: ResourceListViewModel[]): TreeRow[] {
   const clusterMap = new Map<number, TreeRow>();
@@ -171,10 +153,9 @@ function updateMultiSelectParams(
   _router.replace(`${pathname}?${params.toString()}`);
 }
 
-export { databaseRowMatchesSearch };
-
 export function DatabaseTable({
   resources,
+  pageInfo,
   totalClusters: _totalClusters, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
   totalInstances: _totalInstances, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
 }: DatabaseTableProps) {
@@ -197,10 +178,8 @@ export function DatabaseTable({
     useState<ResourceListViewModel | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean> | true>({});
 
-  // Search is client-only to avoid triggering server component re-render
-  // on every keystroke. URL sync via replaceState is for bookmarkability.
-  const urlSearchRef = useRef(searchParams.get("q") ?? "");
-  const [searchQuery, setSearchQuery] = useState(urlSearchRef.current);
+  const urlSearchQuery = searchParams.get("q") ?? "";
+  const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
 
   const page = parseInt(searchParams.get("page") ?? "1", 10) || 1;
   const clustersPerPage = parseInt(searchParams.get("pageSize") ?? "10", 10) || 10;
@@ -208,6 +187,9 @@ export function DatabaseTable({
   useEffect(() => {
     setExpanded({});
   }, [page]);
+  useEffect(() => {
+    setSearchQuery(urlSearchQuery);
+  }, [urlSearchQuery]);
   const selectedEngines = readMultiSelectValues(searchParams, "resourceSubtype");
   const signalFilterParam = searchParams.get("databaseSignal");
   const signalFilter: DatabaseSignalFilter =
@@ -216,16 +198,12 @@ export function DatabaseTable({
   const sortParam = searchParams.get("databaseSort");
   const signalSort: DatabaseSignalSort =
     sortParam === "name" || sortParam === "updated" ? sortParam : "abnormal_first";
-  const hasActiveFilters = searchQuery.trim().length > 0 || selectedEngines.length > 0 || signalFilter !== "all";
+  const hasActiveFilters = urlSearchQuery.length > 0 || selectedEngines.length > 0 || signalFilter !== "all";
 
   const fullTree = useMemo(() => buildTree(resources), [resources]);
 
   const preSignalTree = useMemo(() => {
     let tree = fullTree;
-
-    if (searchQuery.trim().length > 0) {
-      tree = tree.filter((row) => databaseRowMatchesSearch(row, searchQuery.trim()));
-    }
 
     if (selectedEngines.length > 0) {
       tree = tree.filter((row) => {
@@ -238,7 +216,7 @@ export function DatabaseTable({
     }
 
     return tree;
-  }, [fullTree, searchQuery, selectedEngines]);
+  }, [fullTree, selectedEngines]);
 
   const signalCounts = useMemo(
     () => countDatabaseSignals(preSignalTree),
@@ -267,6 +245,7 @@ export function DatabaseTable({
   );
 
   const totalTopLevels = filteredTree.filter((r) => !r.clusterId).length;
+  const tableData: TreeRow[] = pageInfo ? filteredTree : pagedTree;
 
   const clusterPageInfo = useMemo((): PageInfo => ({
     page: safePage,
@@ -554,7 +533,7 @@ export function DatabaseTable({
   ], [locale, t, formatRole]);
 
   const table = useReactTable({
-    data: pagedTree,
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
@@ -568,14 +547,14 @@ export function DatabaseTable({
 
   const syncSearchToUrl = useDebounceCallback(
     (value: string) => {
-      const url = new URL(window.location.href);
+      const params = new URLSearchParams(searchParams.toString());
       if (value.trim()) {
-        url.searchParams.set("q", value.trim());
+        params.set("q", value.trim());
       } else {
-        url.searchParams.delete("q");
+        params.delete("q");
       }
-      url.searchParams.delete("page");
-      window.history.replaceState(null, "", url.toString());
+      params.delete("page");
+      router.replace(`${pathname}?${params.toString()}`);
     },
     500,
   );
@@ -661,6 +640,11 @@ export function DatabaseTable({
                 <SelectItem value="unknown">{t("tables.databases.signalFilterUnknown")} ({signalCounts.unknown})</SelectItem>
               </SelectContent>
             </Select>
+            {pageInfo && signalFilter !== "all" ? (
+              <span className="text-xs text-muted-foreground">
+                {t("tables.databases.signalFilterPageScope")}
+              </span>
+            ) : null}
             <Select value={signalSort} onValueChange={(v) => updateSortParam(v as DatabaseSignalSort)}>
               <SelectTrigger
                 aria-label={t("tables.databases.sortLabel")}
@@ -677,7 +661,7 @@ export function DatabaseTable({
             </Select>
           </>
         }
-        pagination={<PaginationControls pageInfo={clusterPageInfo} />}
+        pagination={<PaginationControls pageInfo={pageInfo ?? clusterPageInfo} />}
       >
         <Table>
           <TableHeader>

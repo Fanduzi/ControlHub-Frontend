@@ -1,20 +1,25 @@
+// input: Vitest, localized messages, mocked Next navigation, and database table props
+// output: database table search/navigation, pagination, selection, and localization regression coverage
+// pos: component contract coverage for the database inventory table
+// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DatabaseTable } from "@/components/databases/database-table";
-import { databaseRowMatchesSearch } from "@/components/databases/database-table";
 import { formatDateTime } from "@/lib/format";
 import messages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 import type { ResourceListViewModel } from "@/types/view-models";
 
 const replace = vi.fn();
+let currentSearch = "page=1";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   usePathname: () => "/databases",
-  useSearchParams: () => new URLSearchParams("page=1"),
+  useSearchParams: () => new URLSearchParams(currentSearch),
 }));
 
 vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
@@ -26,6 +31,15 @@ vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
     resource: ResourceListViewModel | null;
   }) => (open && resource ? <div role="dialog">{resource.displayName}</div> : null),
 }));
+
+beforeEach(() => {
+  currentSearch = "page=1";
+  replace.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function makeCluster(
   id: number,
@@ -643,63 +657,76 @@ describe("DatabaseTable", () => {
     expect(screen.getByText("Needs attention (1)")).toBeInTheDocument();
     expect(screen.getByText("Healthy (1)")).toBeInTheDocument();
   });
-});
 
-describe("databaseRowMatchesSearch", () => {
-  const clusterWithChildren: ResourceListViewModel & { subRows?: ResourceListViewModel[] } = {
-    ...makeCluster(14, "Analytics CH Cluster", 2),
-    subRows: [
-      makeInstance(22, "Node 01", 14, {
-        hostname: "prod-ch-host-01.internal",
-        port: 8123,
-        role: "replica",
-      }),
-      makeInstance(23, "Node 02", 14, {
-        hostname: "prod-ch-host-02.internal",
-        port: 8123,
-        role: "replica",
-      }),
-    ],
-  };
+  it("navigates server search within the current environment and resets the page", () => {
+    vi.useFakeTimers();
+    currentSearch = "environment=prod&page=5&pageSize=10";
 
-  it("matches display name", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "Analytics")).toBe(true);
-  });
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={[]} totalClusters={0} totalInstances={0} />
+      </NextIntlClientProvider>,
+    );
 
-  it("matches instance hostname in subRows", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "prod-ch-host-02.internal")).toBe(true);
-  });
-
-  it("matches port in subRows", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "8123")).toBe(true);
-  });
-
-  it("matches role in subRows", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "replica")).toBe(true);
-  });
-
-  it("matches resourceSubtype", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "mysql")).toBe(true);
-  });
-
-  it("does not match unrelated text", () => {
-    expect(databaseRowMatchesSearch(clusterWithChildren, "postgresql")).toBe(false);
-  });
-
-  it("matches standalone instance hostname", () => {
-    const instance = makeInstance(22, "Node 01", undefined, {
-      hostname: "prod-ch-host-01.internal",
-      port: 8123,
-      role: "replica",
+    fireEvent.change(screen.getByPlaceholderText("Search database name, host, port, or role"), {
+      target: { value: "db-201.internal" },
     });
-    expect(databaseRowMatchesSearch(instance, "prod-ch-host-01.internal")).toBe(true);
+    act(() => vi.advanceTimersByTime(500));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/databases?environment=prod&pageSize=10&q=db-201.internal",
+    );
   });
 
-  it("matches standalone instance port", () => {
-    const instance = makeInstance(22, "Node 01", undefined, {
-      hostname: "prod-ch-host-01.internal",
-      port: 8123,
-    });
-    expect(databaseRowMatchesSearch(instance, "8123")).toBe(true);
+  it("uses the server page for a deep-linked result beyond the old cap and follows URL navigation", async () => {
+    const user = userEvent.setup();
+    const pageInfo = {
+      page: 21,
+      pageSize: 10,
+      totalItems: 205,
+      totalPages: 21,
+      hasNextPage: false,
+      hasPreviousPage: true,
+    };
+    const resources = [makeInstance(201, "Database 201", undefined)];
+    currentSearch = "environment=prod&q=db-201&page=21&pageSize=10";
+
+    const view = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} pageInfo={pageInfo} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByDisplayValue("db-201")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Page 21" })).toHaveAttribute("aria-current", "page");
+    await user.click(screen.getByRole("row", { name: /view details for database 201/i }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Database 201");
+
+    currentSearch = "environment=prod&q=orders&page=1&pageSize=10";
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} pageInfo={pageInfo} totalClusters={0} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByDisplayValue("orders")).toBeInTheDocument();
+  });
+
+  it("shows the localized filtered empty state for an empty server response", () => {
+    currentSearch = "q=missing&databaseSignal=healthy";
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <DatabaseTable
+          resources={[]}
+          pageInfo={{ page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }}
+          totalClusters={0}
+          totalInstances={0}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("未找到匹配的数据库")).toBeInTheDocument();
+    expect(screen.getByText("运维信号筛选仅适用于当前页。")).toBeInTheDocument();
   });
 });

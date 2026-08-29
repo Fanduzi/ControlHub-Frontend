@@ -619,6 +619,7 @@
       "signalFilterNeedsAttention": "Needs attention",
       "signalFilterHealthy": "Healthy",
       "signalFilterUnknown": "Insufficient info",
+      "signalFilterPageScope": "Operational signal filtering applies to this page.",
       "sortLabel": "Sort",
       "sortAbnormalFirst": "Abnormal first",
       "sortName": "Name",

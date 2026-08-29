@@ -2,8 +2,8 @@
 
 Frontend Vitest and route-level contract tests.
 
-List-page coverage verifies normalized pagination, settings taxonomy flow, and
-fail-closed behavior for unknown environment scopes.
+List-page coverage verifies normalized pagination and server search, settings
+taxonomy flow, and fail-closed behavior for unknown environment scopes.
 
 ## Members
 
@@ -12,7 +12,7 @@ fail-closed behavior for unknown environment scopes.
 | `components/` | React component behavior, including URL-owned audit search |
 | `services/` | API service serialization and controlled-error behavior |
 | `lib/` | Shared list URL parsing and utility contracts |
-| `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, pagination requests, settings dictionaries, and table data flow. |
+| `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, server search/pagination requests, settings dictionaries, and table data flow. |
 
 ## Interfaces
 

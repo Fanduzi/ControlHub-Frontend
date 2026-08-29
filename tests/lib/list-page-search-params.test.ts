@@ -112,6 +112,15 @@ describe("parseResourceListSearchParams", () => {
     expect(result.q).toBe("orders");
   });
 
+  it("falls back safely for invalid pagination and empty search", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({ page: "0", pageSize: "not-a-number", q: "   " }),
+    );
+
+    expect(result).toMatchObject({ page: 1, pageSize: 10 });
+    expect(result.q).toBeUndefined();
+  });
+
   it("reads multi-select resourceSubtype values", async () => {
     const result = await parseResourceListSearchParams(
       Promise.resolve({ resourceSubtype: ["mysql", "clickhouse"] }),

@@ -41,10 +41,10 @@ export default async function DatabasesPage({
   }
 
   const [
-    { items: databaseResources },
+    { items: databaseResources, pageInfo },
     { clusters, instances },
   ] = await Promise.all([
-    listDatabaseResourceViewModels({ ...params, page: 1, pageSize: 200 }),
+    listDatabaseResourceViewModels(params),
     getDatabasePostureCounts(params),
   ]);
 
@@ -74,6 +74,7 @@ export default async function DatabasesPage({
 
       <DatabaseTable
         resources={databaseResources}
+        pageInfo={pageInfo}
         totalClusters={clusters}
         totalInstances={instances}
       />

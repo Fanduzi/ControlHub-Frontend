@@ -1,3 +1,7 @@
+// input: Vitest, mocked resource/settings services, and view-model contracts
+// output: resource and database view-model composition and scoped paginated-list regression coverage
+// pos: library contract coverage for frontend view-model adapters
+// note: if this file changes, update this header and tests/lib/README.md
 import {
   getResourceViewModel,
   listAuditEventViewModels,
@@ -408,6 +412,8 @@ describe("getResourceViewModel", () => {
       page: 1,
       pageSize: 10,
       resourceSubtype: "mysql",
+      environmentId: 42,
+      q: "db-201",
     });
 
     // Must use backend's totalItems, not items.length
@@ -464,6 +470,8 @@ describe("getResourceViewModel", () => {
       page: 1,
       pageSize: 10,
       resourceSubtype: "mysql",
+      environmentId: 42,
+      q: "db-201",
     });
 
     // resourceSubtype is passed to both backend calls
@@ -472,18 +480,24 @@ describe("getResourceViewModel", () => {
       pageSize: 10,
       resourceType: "database_instance",
       resourceSubtype: "mysql",
+      environmentId: 42,
+      q: "db-201",
     });
     expect(mockedListResources).toHaveBeenNthCalledWith(2, {
       page: 1,
       pageSize: 10,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
+      environmentId: 42,
+      q: "db-201",
     });
     expect(mockedListResources).toHaveBeenNthCalledWith(3, {
       page: 1,
       pageSize: 10,
       resourceType: "database_proxy",
       resourceSubtype: "mysql",
+      environmentId: 42,
+      q: "db-201",
     });
 
     // totalItems = 7 + 3 = 10 (sum of backend totals, not items.length)

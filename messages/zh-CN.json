@@ -619,6 +619,7 @@
       "signalFilterNeedsAttention": "需关注",
       "signalFilterHealthy": "正常",
       "signalFilterUnknown": "信息不足",
+      "signalFilterPageScope": "运维信号筛选仅适用于当前页。",
       "sortLabel": "排序",
       "sortAbnormalFirst": "异常优先",
       "sortName": "名称",
