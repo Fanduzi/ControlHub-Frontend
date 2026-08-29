@@ -13,6 +13,7 @@ time, observer, and manual override consistently in list and detail surfaces.
 | `resource-completeness-panel.tsx` | Read-only server-derived completeness score and missing-requirement presentation |
 | `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
 | `ingestion-dialog.tsx` | Sends one CSV/JSON file for server preview, renders localized counts and returned diffs/conflicts including fresh 409 previews, and confirms only a reviewed fingerprint |
+| `resource-archive-button.tsx` | Admin archive/restore control that refreshes Server Components and same-id detail data after successful mutations |
 
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
 resource-filter URLs, applies personal or shared saved views without caching

@@ -1,3 +1,7 @@
+// input: resource list view model, open state, and detail view-model service
+// output: client detail-sheet loader with same-id archive/restore refetches
+// pos: resource table to detail sheet data boundary
+// note: if this file changes, update header and components/resources/README.md.
 "use client";
 
 import { useEffect, useState } from "react";
@@ -23,6 +27,7 @@ export function ResourceDetailSheetLoader({
 }: ResourceDetailSheetLoaderProps) {
   const [detailResource, setDetailResource] =
     useState<ResourceDetailViewModel | null>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
   const requestedResourceId = open ? (resource?.id ?? null) : null;
   const loading =
     requestedResourceId !== null && detailResource?.id !== requestedResourceId;
@@ -48,7 +53,7 @@ export function ResourceDetailSheetLoader({
     return () => {
       cancelled = true;
     };
-  }, [requestedResourceId]);
+  }, [detailRefresh, requestedResourceId]);
 
   return (
     <ResourceDetailSheet
@@ -58,6 +63,10 @@ export function ResourceDetailSheetLoader({
         detailResource?.id === requestedResourceId ? detailResource : resource
       }
       loading={loading}
+      onArchiveChange={() => {
+        setDetailResource(null);
+        setDetailRefresh((value) => value + 1);
+      }}
     />
   );
 }

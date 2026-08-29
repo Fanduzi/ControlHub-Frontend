@@ -5,6 +5,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export function ResourceArchiveButton({
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const isAdmin = useAdminRole();
+  const router = useRouter();
 
   if (isAdmin !== true) return null;
 
@@ -45,6 +47,7 @@ export function ResourceArchiveButton({
       await archiveResource(resource.id, reason.trim() || undefined);
       setConfirming(false);
       setReason("");
+      router.refresh();
       onArchiveChange?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -69,6 +72,7 @@ export function ResourceArchiveButton({
     try {
       await unarchiveResource(resource.id);
       setConfirming(false);
+      router.refresh();
       onArchiveChange?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {

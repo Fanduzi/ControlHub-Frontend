@@ -270,7 +270,12 @@ export default async function ResourceDetailPage({
           className="xl:col-span-2"
         >
           <div data-resource-topology-surface="prominent">
-            <TopologyPanel resourceId={resource.id} urlSync initialTopology={topology} />
+            <TopologyPanel
+              key={`${resource.id}:${resource.isArchived}`}
+              resourceId={resource.id}
+              urlSync
+              initialTopology={topology}
+            />
           </div>
         </DetailPanel>
       )}
@@ -456,7 +461,11 @@ export default async function ResourceDetailPage({
             className="xl:col-span-2"
           >
             <div data-resource-topology-surface="prominent">
-              <TopologyPanel resourceId={resource.id} urlSync />
+              <TopologyPanel
+                key={`${resource.id}:${resource.isArchived}`}
+                resourceId={resource.id}
+                urlSync
+              />
             </div>
           </DetailPanel>
 

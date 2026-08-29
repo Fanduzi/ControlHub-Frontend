@@ -3,7 +3,7 @@
 // pos: component tests for role-gated resource mutations
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,14 +17,19 @@ let isAdmin = true;
 vi.mock("@/lib/auth-role", () => ({
   useAdminRole: () => isAdmin,
 }));
-const { archiveMock, unarchiveMock } = vi.hoisted(() => ({
+const { archiveMock, refreshMock, unarchiveMock } = vi.hoisted(() => ({
   archiveMock: vi.fn(),
+  refreshMock: vi.fn(),
   unarchiveMock: vi.fn(),
 }));
 
 vi.mock("@/services/resources", () => ({
   archiveResource: archiveMock,
   unarchiveResource: unarchiveMock,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: refreshMock }),
 }));
 
 const activeResource: ResourceListViewModel = {
@@ -117,10 +122,15 @@ describe("ResourceArchiveButton", () => {
       ).toBeInTheDocument();
     });
 
-    it("calls archiveResource and fires onArchiveChange on confirm", async () => {
+    it("refreshes before firing onArchiveChange after archive success", async () => {
       const user = userEvent.setup();
-      const onArchiveChange = vi.fn();
-      archiveMock.mockResolvedValue({ ...archivedResource });
+      const events: string[] = [];
+      const onArchiveChange = vi.fn(() => events.push("callback"));
+      archiveMock.mockImplementation(async () => {
+        events.push("archive");
+        return { ...archivedResource };
+      });
+      refreshMock.mockImplementation(() => events.push("refresh"));
 
       renderArchiveButton(activeResource, onArchiveChange);
 
@@ -128,7 +138,21 @@ describe("ResourceArchiveButton", () => {
       await user.click(screen.getAllByRole("button", { name: "Archive" }).pop()!);
 
       expect(archiveMock).toHaveBeenCalledWith(1, undefined);
-      expect(onArchiveChange).toHaveBeenCalled();
+      expect(events).toEqual(["archive", "refresh", "callback"]);
+      expect(refreshMock).toHaveBeenCalledTimes(1);
+      expect(onArchiveChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes server components after archive success without a callback", async () => {
+      const user = userEvent.setup();
+      archiveMock.mockResolvedValue({ ...archivedResource });
+
+      renderArchiveButton(activeResource);
+
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+      await user.click(screen.getAllByRole("button", { name: "Archive" }).pop()!);
+
+      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     });
 
     it("calls archiveResource with reason when provided", async () => {
@@ -147,11 +171,33 @@ describe("ResourceArchiveButton", () => {
       expect(archiveMock).toHaveBeenCalledWith(1, "Decommissioned");
     });
 
-    it("shows error on archive failure", async () => {
+    it("prevents duplicate archive submissions while the request is pending", async () => {
       const user = userEvent.setup();
-      archiveMock.mockRejectedValue(new ApiError(404, "Not Found"));
+      let resolveArchive: (resource: ResourceListViewModel) => void = () => undefined;
+      archiveMock.mockImplementation(
+        () => new Promise((resolve) => { resolveArchive = resolve; }),
+      );
 
       renderArchiveButton(activeResource);
+
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+      const confirmButton = screen.getAllByRole("button", { name: "Archive" }).pop()!;
+      await user.click(confirmButton);
+      expect(confirmButton).toBeDisabled();
+
+      await user.click(confirmButton);
+      expect(archiveMock).toHaveBeenCalledTimes(1);
+
+      resolveArchive({ ...archivedResource });
+      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    });
+
+    it("shows error on archive failure", async () => {
+      const user = userEvent.setup();
+      const onArchiveChange = vi.fn();
+      archiveMock.mockRejectedValue(new ApiError(404, "Not Found"));
+
+      renderArchiveButton(activeResource, onArchiveChange);
 
       await user.click(screen.getByRole("button", { name: "Archive" }));
       await user.click(screen.getAllByRole("button", { name: "Archive" }).pop()!);
@@ -159,6 +205,9 @@ describe("ResourceArchiveButton", () => {
       expect(
         await screen.findByText("The target resource was not found."),
       ).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Optional reason for archiving")).toBeInTheDocument();
+      expect(refreshMock).not.toHaveBeenCalled();
+      expect(onArchiveChange).not.toHaveBeenCalled();
     });
 
     it("dismisses confirmation on Cancel", async () => {
@@ -187,10 +236,15 @@ describe("ResourceArchiveButton", () => {
       ).toBeInTheDocument();
     });
 
-    it("calls unarchiveResource and fires onArchiveChange", async () => {
+    it("refreshes before firing onArchiveChange after restore success", async () => {
       const user = userEvent.setup();
-      const onArchiveChange = vi.fn();
-      unarchiveMock.mockResolvedValue({ ...activeResource, id: 2 });
+      const events: string[] = [];
+      const onArchiveChange = vi.fn(() => events.push("callback"));
+      unarchiveMock.mockImplementation(async () => {
+        events.push("restore");
+        return { ...activeResource, id: 2 };
+      });
+      refreshMock.mockImplementation(() => events.push("refresh"));
 
       renderArchiveButton(archivedResource, onArchiveChange);
 
@@ -202,14 +256,29 @@ describe("ResourceArchiveButton", () => {
       await user.click(confirmButtons[confirmButtons.length - 1]);
 
       expect(unarchiveMock).toHaveBeenCalledWith(2);
-      expect(onArchiveChange).toHaveBeenCalled();
+      expect(events).toEqual(["restore", "refresh", "callback"]);
+      expect(refreshMock).toHaveBeenCalledTimes(1);
+      expect(onArchiveChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes server components after restore success without a callback", async () => {
+      const user = userEvent.setup();
+      unarchiveMock.mockResolvedValue({ ...activeResource, id: 2 });
+
+      renderArchiveButton(archivedResource);
+
+      await user.click(screen.getByRole("button", { name: "Restore" }));
+      await user.click(screen.getAllByRole("button", { name: "Restore" }).pop()!);
+
+      await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     });
 
     it("shows error on unarchive failure", async () => {
       const user = userEvent.setup();
+      const onArchiveChange = vi.fn();
       unarchiveMock.mockRejectedValue(new ApiError(404, "Not Found"));
 
-      renderArchiveButton(archivedResource);
+      renderArchiveButton(archivedResource, onArchiveChange);
 
       // First click opens confirmation
       await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -221,6 +290,9 @@ describe("ResourceArchiveButton", () => {
       expect(
         await screen.findByText("The target resource was not found."),
       ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
+      expect(refreshMock).not.toHaveBeenCalled();
+      expect(onArchiveChange).not.toHaveBeenCalled();
     });
   });
 });

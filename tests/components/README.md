@@ -34,10 +34,10 @@ Vitest component tests for React UI components.
 | ingestion-dialog.test.tsx | Admin ingestion preview/confirm, localized summary, server conflict, malformed upload, and fresh-409 review handling |
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized completeness and health/override evidence, empty states, effective-value provenance, and admin override conflicts |
 | named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view save, apply, rename, and delete controls |
-| resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
+| resource-detail-sheet-loader.test.tsx | Resource detail sheet loader, same-id archive/restore refetches, real callback forwarding, and deferred race protection |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel localization, deferred/stale/concurrent deletion behavior, rule discovery, target constraints, controlled rejection, role gates, and mutations |
-| resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
+| resource-archive-button.test.tsx | Resource archive/restore button, success refresh/callback ordering, failure rollback, and admin gating |
 | database-table.test.tsx | Database table, including Database Proxy rows, server-search URL navigation, localized server-empty state, and page-local signal scope |
 | database-instance-facts-panel.test.tsx | Database instance facts |
 | database-consistency-panel.test.tsx | Database consistency |

@@ -57,6 +57,7 @@ type ResourceDetailSheetProps = {
   onOpenChange: (open: boolean) => void;
   resource: ResourceListViewModel | ResourceDetailViewModel | null;
   loading?: boolean;
+  onArchiveChange?: () => void;
 };
 
 function hasDetailData(
@@ -114,6 +115,7 @@ export function ResourceDetailSheet({
   onOpenChange,
   resource,
   loading = false,
+  onArchiveChange,
 }: ResourceDetailSheetProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -240,7 +242,13 @@ export function ResourceDetailSheet({
               >
                 {t("common.actions.openFullDetail")}
               </Link>
-              {isAdmin === true && <ResourceArchiveButton resource={resource} compact />}
+              {isAdmin === true && (
+                <ResourceArchiveButton
+                  resource={resource}
+                  compact
+                  onArchiveChange={onArchiveChange}
+                />
+              )}
               {isAdmin === true && (
                 <Button
                   variant="outline"
@@ -507,7 +515,11 @@ export function ResourceDetailSheet({
             title={t("topology.title")}
             description={t("topology.description")}
           >
-            <TopologyPanel resourceId={resource.id} compact />
+            <TopologyPanel
+              key={`${resource.id}:${resource.isArchived}`}
+              resourceId={resource.id}
+              compact
+            />
           </DetailPanel>
 
           <DetailPanel
