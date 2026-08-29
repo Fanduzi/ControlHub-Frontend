@@ -896,6 +896,8 @@
       "relationsAdded": "Relations added",
       "relationsRemoved": "Relations removed",
       "conflictsBlock": "Resolve every server-reported conflict and preview again before confirming.",
+      "summary": "{created} created · {updated} updated · {conflicts} conflicts",
+      "reviewRequired": "The import changed. Review the latest server preview before confirming.",
       "invalid": "The upload is invalid or too large. Correct it and preview again.",
       "stale": "Preview is stale. Preview the file again before confirming.",
       "error": "The ingestion request could not be completed. Try previewing again.",

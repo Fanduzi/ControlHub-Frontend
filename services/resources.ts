@@ -1,6 +1,6 @@
 // input: shared API client, pagination helper, and resource wire types
-// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, reviewed bulk label mutations, and server-owned ingestion multipart calls
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, bulk review fingerprints, and ingestion fingerprints unchanged
+// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, reviewed bulk label mutations, and server-owned ingestion multipart calls with recoverable fresh previews
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, bulk review fingerprints, and ingestion fingerprints/replacement previews unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -52,6 +52,31 @@ export type IngestionPreview = {
     };
   }>;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isIngestionPreview(value: unknown): value is IngestionPreview {
+  if (!isRecord(value) || typeof value.confirmable !== "boolean" || typeof value.fingerprint !== "string" || !Array.isArray(value.rows)) return false;
+  return value.rows.every((row) => isRecord(row)
+    && typeof row.row === "number"
+    && (row.action === "create" || row.action === "update" || row.action === "conflict")
+    && isRecord(row.diff)
+    && isRecord(row.diff.fields)
+    && isRecord(row.diff.profile)
+    && isRecord(row.diff.observed)
+    && isRecord(row.diff.relations)
+    && Array.isArray(row.diff.relations.added)
+    && Array.isArray(row.diff.relations.removed));
+}
+
+/** Returns a server-supplied replacement preview for recoverable confirm conflicts. */
+export function getIngestionPreview(error: unknown): IngestionPreview | undefined {
+  if (!(error instanceof ApiError) || error.status !== 409 || (error.code !== "ingestion_conflict" && error.code !== "ingestion_preview_stale")) return undefined;
+  const preview = error.body?.preview;
+  return isIngestionPreview(preview) ? preview : undefined;
+}
 
 function ingestionFormData(
   file: File,

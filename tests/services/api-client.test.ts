@@ -1,5 +1,5 @@
 // input: vitest, api-client
-// output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling, Controlled Error Code ingest
+// output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling, Controlled Error Code and error-body ingest
 // pos: unit tests for shared API client
 // note: if this file changes, update this header and module README.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -119,6 +119,27 @@ describe("apiClient", () => {
       status: 403,
       message: "blocked by result disclosure policy",
       code: "query_result_disclosure_blocked",
+    });
+  });
+
+  it("keeps a 409 JSON response body available to feature services", async () => {
+    const preview = { confirmable: false, fingerprint: "b".repeat(64), rows: [] };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: "ingestion_preview_stale",
+        message: "preview is stale",
+        preview,
+      }),
+    } as Response);
+
+    const failure = await apiClient("/admin/ingestions/confirm").catch((error) => error);
+
+    expect(failure).toMatchObject({
+      status: 409,
+      code: "ingestion_preview_stale",
+      body: { preview },
     });
   });
 

@@ -5,14 +5,13 @@ Resource interaction components.
 `health-evidence.tsx` renders localized effective-health freshness, observed
 time, observer, and manual override consistently in list and detail surfaces.
 
-## Files
 
 | File | Responsibility |
 |------|----------------|
 | `resource-table.tsx` | Inventory filters, column visibility, rows, saved-view integration, and compact completeness/health evidence |
 | `resource-completeness-panel.tsx` | Read-only server-derived completeness score and missing-requirement presentation |
 | `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
-| `ingestion-dialog.tsx` | Sends one CSV/JSON file for server preview, renders returned diffs/conflicts, and confirms the reviewed fingerprint |
+| `ingestion-dialog.tsx` | Sends one CSV/JSON file for server preview, renders localized counts and returned diffs/conflicts including fresh 409 previews, and confirms only a reviewed fingerprint |
 
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
 resource-filter URLs, applies personal or shared saved views without caching
@@ -22,7 +21,7 @@ their results, and manages selected views when authorized.
 
 - `ResourceTable` renders the current server-owned Inventory result page.
 - `NamedInventoryViewControls` saves URL filters and visible columns, then reapplies them on page 1.
-- `IngestionDialog` retains the chosen native `File` and format, then forwards server preview/confirm responses without client matching, parsing, or writes.
+- `IngestionDialog` retains the chosen native `File` and format, renders server previews without client matching or writes, and requires explicit operator confirmation after a returned 409 preview.
 
 ## Dependencies
 
@@ -66,3 +65,5 @@ Resource detail sheets show server-derived completeness plus effective values
 with provenance, and let admins set or clear only the backend-supported display
 name, lifecycle status, and health status overrides with expected-version
 conflict handling.
+## Files
+

@@ -1,14 +1,18 @@
-// input: Vitest, resource ingestion service, mocked shared API client, and File/FormData
-// output: exact preview/confirm multipart request-shape coverage
-// pos: service seam tests for server-owned ingestion parsing and fingerprint binding
-// note: if this file changes, update this header and module README.md.
+// input: Vitest, ingestion service, and API client mock
+// output: ingestion service coverage
+// pos: ingestion service tests
+// note: update this header and README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { confirmIngestion, previewIngestion } from "@/services/resources";
+import { ApiError } from "@/services/api-client";
+import { confirmIngestion, getIngestionPreview, previewIngestion } from "@/services/resources";
 
 const { apiClientMock } = vi.hoisted(() => ({ apiClientMock: vi.fn() }));
 
-vi.mock("@/services/api-client", () => ({ apiClient: apiClientMock }));
+vi.mock("@/services/api-client", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/services/api-client")>(),
+  apiClient: apiClientMock,
+}));
 
 describe("ingestion service", () => {
   beforeEach(() => {
@@ -38,5 +42,11 @@ describe("ingestion service", () => {
       ["file", file],
       ["fingerprint", fingerprint],
     ]);
+  });
+
+  it.each(["ingestion_conflict", "ingestion_preview_stale"])("extracts the fresh preview from %s 409 responses", (code) => {
+    const preview = { confirmable: false, fingerprint: "b".repeat(64), rows: [] };
+
+    expect(getIngestionPreview(new ApiError(409, "review required", undefined, code, { preview }))).toEqual(preview);
   });
 });

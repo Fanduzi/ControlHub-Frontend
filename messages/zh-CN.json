@@ -896,6 +896,8 @@
       "relationsAdded": "新增关系",
       "relationsRemoved": "移除关系",
       "conflictsBlock": "请解决服务端报告的所有冲突，并重新预览后再确认。",
+      "summary": "新建 {created} 项 · 更新 {updated} 项 · 冲突 {conflicts} 项",
+      "reviewRequired": "导入内容已变化。请查看最新服务端预览后再确认。",
       "invalid": "上传内容无效或过大。请修正后重新预览。",
       "stale": "预览已过期。请重新预览文件后再确认。",
       "error": "导入请求未能完成。请重新预览。",

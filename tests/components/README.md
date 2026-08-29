@@ -31,7 +31,7 @@ Vitest component tests for React UI components.
 | edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, manual health override set/clear, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
 | resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, completeness and health evidence fields, reviewed admin bulk-label request shapes, and localized error feedback |
 | resource-table-ingestion.test.tsx | Resource-table editor gate for the inventory import control |
-| ingestion-dialog.test.tsx | Admin ingestion preview/confirm, server conflict, malformed upload, and stale-review handling |
+| ingestion-dialog.test.tsx | Admin ingestion preview/confirm, localized summary, server conflict, malformed upload, and fresh-409 review handling |
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized completeness and health/override evidence, empty states, effective-value provenance, and admin override conflicts |
 | named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view save, apply, rename, and delete controls |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |

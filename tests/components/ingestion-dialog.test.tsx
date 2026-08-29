@@ -1,7 +1,7 @@
-// input: Vitest, Testing Library, ingestion dialog, translations, and mocked ingestion service
-// output: admin ingestion preview/confirm, error, conflict, and stale-review UI coverage
-// pos: component seam tests for the server-owned ingestion workflow
-// note: if this file changes, update this header and module README.md.
+// input: Vitest, Testing Library, and ingestion dialog
+// output: ingestion dialog coverage
+// pos: ingestion dialog component tests
+// note: update this header and README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IngestionDialog } from "@/components/resources/ingestion-dialog";
 import { ApiError } from "@/services/api-client";
 import messages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const { confirmIngestionMock, previewIngestionMock } = vi.hoisted(() => ({
   confirmIngestionMock: vi.fn(),
@@ -18,6 +19,7 @@ const { confirmIngestionMock, previewIngestionMock } = vi.hoisted(() => ({
 
 vi.mock("@/services/resources", () => ({
   confirmIngestion: confirmIngestionMock,
+  getIngestionPreview: (error: { body?: { preview?: unknown } }) => error.body?.preview,
   previewIngestion: previewIngestionMock,
 }));
 
@@ -49,19 +51,19 @@ const confirmablePreview = {
   ],
 };
 
-function renderDialog() {
+function renderDialog(locale = "en", localeMessages = messages) {
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={localeMessages}>
       <IngestionDialog open onOpenChange={() => undefined} />
     </NextIntlClientProvider>,
   );
 }
 
-async function preview(file = new File(["[]"], "inventory.json", { type: "application/json" })) {
+async function preview(file = new File(["[]"], "inventory.json", { type: "application/json" }), locale = "en", localeMessages = messages) {
   const user = userEvent.setup();
-  renderDialog();
-  await user.upload(screen.getByLabelText("Ingestion file"), file);
-  await user.click(screen.getByRole("button", { name: "Preview" }));
+  renderDialog(locale, localeMessages);
+  await user.upload(screen.getByLabelText(locale === "en" ? "Ingestion file" : "导入文件"), file);
+  await user.click(screen.getByRole("button", { name: locale === "en" ? "Preview" : "预览" }));
   return { file, user };
 }
 
@@ -117,14 +119,34 @@ describe("IngestionDialog", () => {
     expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
   });
 
-  it("requires a new preview when the reviewed fingerprint is stale", async () => {
+  it("localizes summary counts", async () => {
     previewIngestionMock.mockResolvedValue(confirmablePreview);
-    confirmIngestionMock.mockRejectedValue(new ApiError(409, "ingestion preview is stale; preview again", undefined, "ingestion_preview_stale"));
+
+    await preview(undefined, "zh-CN", zhMessages);
+
+    expect(await screen.findByText("新建 1 项 · 更新 1 项 · 冲突 0 项")).toBeInTheDocument();
+  });
+
+  it.each(["ingestion_conflict", "ingestion_preview_stale"])("replaces the reviewed preview with the fresh 409 %s preview", async (code) => {
+    previewIngestionMock.mockResolvedValue(confirmablePreview);
+    confirmIngestionMock.mockRejectedValue(new ApiError(409, "review the returned preview", undefined, code, {
+      preview: {
+        confirmable: false,
+        fingerprint: "b".repeat(64),
+        rows: [{
+          row: 1,
+          action: "conflict",
+          conflict: "Returned fresh conflict.",
+          diff: { fields: {}, profile: {}, observed: {}, relations: { added: [], removed: [] } },
+        }],
+      },
+    }));
 
     const { user } = await preview();
     await user.click(screen.getByRole("button", { name: "Confirm import" }));
 
-    expect(await screen.findByText("Preview is stale. Preview the file again before confirming.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirm import" })).toBeNull();
+    expect(await screen.findByText("Returned fresh conflict.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
+    expect(confirmIngestionMock).toHaveBeenCalledTimes(1);
   });
 });

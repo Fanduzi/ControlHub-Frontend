@@ -13,8 +13,9 @@ Frontend API service modules.
 `api-client.ts` routes every fetch (browser and server/RSC) through the
 same-origin BFF `/api/proxy` without client Authorization; the proxy attaches
 the server-held credential from the HttpOnly Operator Session cookie. JSON
-error envelopes preserve `error` as `ApiError.code`; a body that omits `error`
-does not invent a business code from HTTP status. Browser 401 responses still
+error envelopes preserve `error` as `ApiError.code` and the parsed body as
+`ApiError.body`; a body that omits `error` does not invent a business code
+from HTTP status. Browser 401 responses still
 clear presentation state and redirect to login, and they keep `code` when the
 envelope carries it.
 
@@ -35,7 +36,8 @@ requests. It also exposes bulk resource mutation preview and reviewed
 confirmation calls; the server owns diffing, conflicts, and review
 fingerprints. It sends controlled ingestion as native multipart `file`/`format`
 requests and resubmits that exact file with the server-issued fingerprint; it
-does not parse or reconcile inventory locally.
+validates and exposes the returned replacement preview for recoverable ingestion
+409s without parsing or reconciling inventory locally.
 
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
 personal and shared view CRUD; update matches the backend's body-less 204
