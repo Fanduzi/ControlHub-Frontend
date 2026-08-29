@@ -44,7 +44,7 @@ There is no open `/__api` rewrite to the backend; browser API access is only via
 |---------|----------|---------|
 | `CONTROLHUB_BFF_SESSION_KEY` | yes | Active 32-byte sealing key (44 base64 chars; hex encoding rejected) |
 | `CONTROLHUB_BFF_PREVIOUS_SESSION_KEY` | no | Previous key accepted during the short rotation window (base64 only) |
-| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (HTTPS required in production; HTTP allowed only in local development, for example `http://localhost:3100`) |
+| `CONTROLHUB_BFF_CONSOLE_ORIGIN` | yes | The single configured Console Origin (HTTPS required in production; HTTP allowed only in local development, for example `http://localhost:3000`, matching `npm run dev`) |
 | `CONTROLHUB_BFF_SECURE_COOKIES` | no | `true` (default) or `false`; `false` is the explicit local-development non-Secure exception and is rejected in production |
 
 Production startup (`next start`) fails closed when any of these are missing,
@@ -96,6 +96,8 @@ Start an isolated backend and configure the BFF server target:
 ```bash
 export CONTROLHUB_API_BASE_URL=http://localhost:8080
 ```
+
+The Console Origin port must match the port where the frontend is running.
 
 Then run `npm run dev` and smoke-test these pages:
    - `/login` — sign in with backend credentials
