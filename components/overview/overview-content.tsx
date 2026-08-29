@@ -75,7 +75,7 @@ function computeMetrics(resources: ResourceListViewModel[]): Metrics {
       (r) => r.healthStatus === "critical",
     ).length,
     warning: resources.filter((r) => r.healthStatus === "warning").length,
-    pending: resources.filter((r) => r.lifecycleStatus === "pending").length,
+    pending: resources.filter(isActionableAttention).length,
   };
 }
 

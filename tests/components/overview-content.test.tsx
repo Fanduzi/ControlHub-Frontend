@@ -181,4 +181,22 @@ describe("OverviewContent attention reason", () => {
 
     expect(screen.getByText(/健康状态：严重/)).toBeInTheDocument();
   });
+
+  it("counts pending posture as actionable-attention membership for non-running lifecycle values", () => {
+    const resources = [
+      makeResource({ id: 1, displayName: "Stopped cluster", lifecycleStatus: "stopped" }),
+      makeResource({ id: 2, displayName: "Failed cluster", lifecycleStatus: "failed" }),
+      makeResource({ id: 3, displayName: "Provisioning cluster", lifecycleStatus: "provisioning" }),
+      makeResource({ id: 4, displayName: "Running cluster", lifecycleStatus: "running" }),
+    ];
+
+    renderEn(
+      <OverviewContent resources={resources} attentionResources={resources} />,
+    );
+
+    const attentionRows = screen.getAllByRole("row").filter((row) => row.closest("tbody"));
+    expect(screen.getByText("Pending").nextElementSibling?.textContent).toBe(
+      String(attentionRows.length),
+    );
+  });
 });
