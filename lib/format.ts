@@ -1,5 +1,5 @@
 // input: date/time values and the caller's validated application locale
-// output: native locale-aware absolute and relative date-time labels
+// output: safe native locale-aware absolute and relative date-time labels
 // pos: shared presentation formatter for console timestamps
 // note: if this file changes, update this header and lib/README.md
 
@@ -34,6 +34,7 @@ export function formatShortDate(value: string, locale?: AppLocale) {
 export function formatRelativeDateTime(value: string | Date, locale?: AppLocale): string {
   const now = new Date();
   const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
   const diffMs = now.getTime() - d.getTime();
 
   const isoString = typeof value === "string" ? value : value.toISOString();

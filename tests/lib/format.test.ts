@@ -1,5 +1,5 @@
 // input: exported date formatting helpers and fixed clock values
-// output: localized relative timestamps with date-time fallback after 24 hours
+// output: safe, localized relative timestamps with date-time fallback after 24 hours
 // pos: shared formatting boundary regression contract
 // note: if this file changes, update this header and tests/lib/README.md
 
@@ -19,6 +19,17 @@ describe("formatRelativeDateTime", () => {
     expect(formatRelativeDateTime("2026-04-14T10:00:00Z", "en")).toBe("2 hours ago");
     expect(formatRelativeDateTime("2026-04-13T12:00:00Z", "zh-CN")).toBe(
       formatDateTime("2026-04-13T12:00:00Z", "zh-CN"),
+    );
+  });
+
+  it("returns the safe placeholder for invalid values and keeps future values absolute", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-14T12:00:00Z"));
+
+    expect(formatRelativeDateTime("not-a-date", "zh-CN")).toBe("—");
+    expect(formatRelativeDateTime(new Date("not-a-date"), "en")).toBe("—");
+    expect(formatRelativeDateTime("2026-04-14T12:01:00Z", "zh-CN")).toBe(
+      formatDateTime("2026-04-14T12:01:00Z", "zh-CN"),
     );
   });
 });

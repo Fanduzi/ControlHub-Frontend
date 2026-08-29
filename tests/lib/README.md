@@ -14,8 +14,8 @@ Vitest unit tests for frontend library modules.
 `environment-params.test.ts` covers known-slug resolution and the fail-closed
 unknown-slug behavior used by inventory list pages.
 
-`format.test.ts` covers caller-locale relative timestamp labels and the
-24-hour date-time fallback.
+`format.test.ts` covers safe caller-locale relative timestamp labels and the
+24-hour/future date-time fallback.
 
 Operator Session BFF tests (Phase 38X-1C):
 
