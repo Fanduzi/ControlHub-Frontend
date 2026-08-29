@@ -324,16 +324,10 @@
     },
     "cmdb": {
       "eyebrow": "CMDB",
-      "title": "Configuration item inventory",
-      "description": "Browse resources by configuration attributes: identifiers, ownership, source, and labels.",
-      "records": {
-        "title": "Configuration records",
-        "description": "All registered resources organized by configuration attributes.",
-        "emptyTitle": "No configuration records",
-        "emptyDescription": "Resources will appear here once they are registered through the resource inventory.",
-        "allEnvironments": "All environments"
-      },
-      "searchPlaceholder": "Search config item name, external ID, or labels"
+      "title": "CMDB is now in Resources",
+      "description": "The CMDB view moved to the unified resource inventory.",
+      "message": "CMDB is now available at /resources.",
+      "openResources": "Open Resources"
     },
     "databases": {
       "eyebrow": "Databases",

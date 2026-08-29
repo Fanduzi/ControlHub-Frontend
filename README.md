@@ -15,7 +15,7 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 - `/overview`
 - `/resources`
 - `/resources/[id]`
-- `/cmdb`
+- `/cmdb` — retained bookmark notice linking to `/resources`
 - `/databases`
 - `/audits`
 - `/settings`
@@ -104,7 +104,7 @@ Then run `npm run dev` and smoke-test these pages:
    - `/overview` — attention queue, posture metrics, environment lanes, recent audits
    - `/resources` — resource table with search/filter and detail sheet
    - `/resources/[id]` — full detail page for a known resource ID
-   - `/cmdb` — configuration maintenance table
+   - `/cmdb` — retained bookmark notice linking to `/resources`
    - `/databases` — database instance and cluster view
    - `/audits` — audit event table and recent timeline
    - `/settings` — environments, owners, roles, and dictionaries

@@ -324,16 +324,10 @@
     },
     "cmdb": {
       "eyebrow": "CMDB",
-      "title": "配置项清单",
-      "description": "按配置属性浏览资源：标识符、归属、来源和标签。",
-      "records": {
-        "title": "配置记录",
-        "description": "按配置属性组织的所有已登记资源。",
-        "emptyTitle": "暂无配置记录",
-        "emptyDescription": "资源通过资源清单登记后会出现在这里。",
-        "allEnvironments": "全部环境"
-      },
-      "searchPlaceholder": "搜索配置项名称、外部 ID 或标签"
+      "title": "CMDB 已迁移至资源",
+      "description": "CMDB 视图已迁移至统一资源清单。",
+      "message": "CMDB 现已在 /resources 提供。",
+      "openResources": "打开资源"
     },
     "databases": {
       "eyebrow": "数据库",
