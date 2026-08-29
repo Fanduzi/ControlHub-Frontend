@@ -1,3 +1,7 @@
+// input: Vitest and mocked resources API client
+// output: service contract coverage for resource/profile operations
+// pos: service seam tests for the resources API boundary
+// note: if this file changes, update this header and module README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,6 +16,7 @@ import {
 import {
   createResource,
   createResourceRelation,
+  deleteProfile,
   deleteResourceRelation,
   updateResource,
 } from "@/services/resources";
@@ -845,6 +850,22 @@ describe("createResourceRelation", () => {
         relationType: "depends_on",
       }),
     ).rejects.toThrow("Request failed: 404");
+  });
+});
+
+describe("deleteProfile", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("sends DELETE /resources/{id}/profile", async () => {
+    apiClientMock.mockResolvedValue(undefined);
+
+    await deleteProfile(1);
+
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/profile", {
+      method: "DELETE",
+    });
   });
 });
 
