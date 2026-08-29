@@ -1,6 +1,6 @@
-// input: react, next-intl, next/navigation, auth-role, relation services
-// output: resource relation list (all operators) with admin-only add/delete affordances
-// pos: read surface for every operator; mutations mirror the server access matrix
+// input: react, next-intl, next/navigation, auth-role, server relation-rule and mutation services
+// output: resource relation list plus rule-filtered admin add/delete affordances and controlled errors
+// pos: relation read/mutation surface that consumes, but never owns, the server relationship matrix
 // note: if this file changes, update header and components/blocks/README.md
 "use client";
 
@@ -34,11 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createResourceRelation, deleteResourceRelation } from "@/services/resources";
+import {
+  createResourceRelation,
+  deleteResourceRelation,
+  getResourceRelationRules,
+} from "@/services/resources";
 import { listRelationTypes } from "@/services/settings";
 import { localizeResourceType, localizeRelationType } from "@/lib/resource-summary";
 import type { ResourceRelationViewModel } from "@/types/view-models";
 import type { RelationTypeDefinition } from "@/types/settings";
+import type { RelationshipRule } from "@/types/resource";
 
 type ResourceRelationPanelProps = {
   relations: ResourceRelationViewModel[];
@@ -63,14 +68,28 @@ export function ResourceRelationPanel({
   const [targetId, setTargetId] = useState<number | null>(null);
   const [relationType, setRelationType] = useState("");
   const [relationTypes, setRelationTypes] = useState<RelationTypeDefinition[]>([]);
+  const [relationRules, setRelationRules] = useState<RelationshipRule[]>([]);
+  const [sourceEnvironmentId, setSourceEnvironmentId] = useState<number>();
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listRelationTypes().catch(() => []).then(setRelationTypes);
-  }, []);
+    if (!resourceId || isAdmin !== true) return;
+    Promise.all([listRelationTypes(), getResourceRelationRules(resourceId)])
+      .then(([definitions, response]) => {
+        const allowed = new Set(response.rules.map((rule) => rule.relationType));
+        setRelationTypes(definitions.filter((definition) => allowed.has(definition.key)));
+        setRelationRules(response.rules);
+        setSourceEnvironmentId(response.sourceEnvironmentId);
+      })
+      .catch(() => setError(mt("errors.backend")));
+  }, [resourceId, isAdmin, mt]);
+
+  const selectedRule = relationRules.find(
+    (rule) => rule.relationType === relationType,
+  );
 
   const handleAddRelation = useCallback(async () => {
     if (!resourceId || !targetId || !relationType) return;
@@ -89,7 +108,9 @@ export function ResourceRelationPanel({
       setRelationType("");
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 409) {
+        if (err.code === "validation_failed") {
+          setError(mt("errors.relationRejected"));
+        } else if (err.status === 409) {
           setError(mt("errors.relationConflict"));
         } else if (err.status === 404) {
           setError(mt("errors.notFound"));
@@ -152,18 +173,27 @@ export function ResourceRelationPanel({
               {mt("relation.targetLabel")}
             </label>
             <ResourceSearchCombobox
+              key={relationType}
               onSelect={(resource) => {
                 setTargetId(resource.id);
                 setError(null);
               }}
               excludeIds={resourceId ? [resourceId] : []}
+              resourceTypes={selectedRule?.targetResourceTypes}
+              environmentId={selectedRule?.sameEnvironment ? sourceEnvironmentId : undefined}
+              disabled={!selectedRule}
             />
           </div>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-[0.14em] text-muted-foreground">
               {mt("relation.typeLabel")}
             </label>
-            <Select value={relationType} onValueChange={(v) => { if (v !== null) setRelationType(v); }}>
+            <Select value={relationType} onValueChange={(v) => {
+              if (v !== null) {
+                setRelationType(v);
+                setTargetId(null);
+              }
+            }}>
               <SelectTrigger className="h-8 w-full border-border bg-background text-sm">
                 <SelectValue placeholder={mt("relation.typePlaceholder")} />
               </SelectTrigger>

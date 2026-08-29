@@ -1,6 +1,6 @@
-// input: API client and resource wire types
-// output: resource and typed-profile read/mutation service functions
-// pos: frontend API boundary for the resources feature
+// input: shared API client, pagination helper, and resource wire types
+// output: resource/profile/relation reads and mutations plus relationship-rule discovery
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -15,6 +15,7 @@ import type {
   ResourceProfileResponse,
   ResourceRelation,
   ResourceRelationListResponse,
+  RelationshipRulesResponse,
   UpdateResourceInput,
 } from "@/types/resource";
 
@@ -108,6 +109,14 @@ export async function listResourceRelations(
   );
 
   return response.items;
+}
+
+export async function getResourceRelationRules(
+  resourceId: number,
+): Promise<RelationshipRulesResponse> {
+  return apiClient<RelationshipRulesResponse>(
+    `/resources/${resourceId}/relation-rules`,
+  );
 }
 
 export async function listClusterMembers(

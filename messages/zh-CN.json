@@ -766,6 +766,7 @@
       "validation": "校验失败，请检查表单字段。",
       "conflict": "此环境下已存在同名资源。",
       "relationConflict": "此关系已存在。",
+      "relationRejected": "不允许所选关系。",
       "notFound": "目标资源未找到。",
       "unauthorized": "会话已过期，请重新登录。",
       "unknown": "发生未知错误。",

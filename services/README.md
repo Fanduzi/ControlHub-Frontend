@@ -19,5 +19,6 @@ Authorization Error and is not wrapped as a workbench feature error.
 non-admin operators (the server stays authoritative); other failures surface
 normally.
 
-`resources.ts` sends typed-profile edits through PATCH and exposes the
-explicit DELETE profile action used by the resource edit sheet.
+`resources.ts` sends typed-profile edits through PATCH, exposes explicit
+profile deletion, and fetches source-specific relationship rules without
+embedding the matrix in the console.

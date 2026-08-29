@@ -13,4 +13,5 @@ include server-owned field changes with a domain field name, operation, and
 optional before/after values; legacy and non-inventory events omit `changes`.
 
 `resource.ts` defines immutable resource origin plus managed aliases and global
-external system/value identifiers for create, update, and response contracts.
+external system/value identifiers for create, update, and response contracts,
+plus the backend-owned relationship-rule discovery response used by the console.

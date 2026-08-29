@@ -1,7 +1,7 @@
 // input: vitest, testing-library, resource relation panel, auth-role
-// output: relation panel tests — read surface for all operators, add/delete mutations admin-only
-// pos: component tests for role-gated relation mutations
-// note: if this file changes, update header and tests/components/README.md
+// output: relation panel tests — server-rule-filtered admin mutations and read surface for all operators
+// pos: component contract for role gates, relationship discovery, candidates, and controlled errors
+// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -28,6 +28,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/services/resources", () => ({
   createResourceRelation: vi.fn(),
   deleteResourceRelation: vi.fn(),
+  getResourceRelationRules: vi.fn(),
 }));
 
 vi.mock("@/services/settings", () => ({
@@ -36,12 +37,16 @@ vi.mock("@/services/settings", () => ({
 
 const mockedCreateRelation = vi.mocked(relationService.createResourceRelation);
 const mockedDeleteRelation = vi.mocked(relationService.deleteResourceRelation);
+const mockedGetRelationRules = vi.mocked(relationService.getResourceRelationRules);
 const mockedListRelationTypes = vi.mocked(settingsService.listRelationTypes);
 
 vi.mock("@/components/blocks/resource-search-combobox", () => ({
   ResourceSearchCombobox: ({
     onSelect,
     excludeIds,
+    resourceTypes,
+    environmentId,
+    disabled,
   }: {
     onSelect: (resource: {
       id: number;
@@ -49,11 +54,17 @@ vi.mock("@/components/blocks/resource-search-combobox", () => ({
       resourceType: string;
     }) => void;
     excludeIds?: number[];
+    resourceTypes?: string[];
+    environmentId?: number;
+    disabled?: boolean;
   }) => (
     <button
       type="button"
       data-testid="resource-search-combobox"
       data-exclude-ids={excludeIds?.join(",") ?? ""}
+	  data-resource-types={resourceTypes?.join(",") ?? ""}
+	  data-environment-id={environmentId ?? ""}
+	  disabled={disabled}
       onClick={() =>
         onSelect({
           id: 9,
@@ -95,7 +106,24 @@ describe("ResourceRelationPanel", () => {
     mockedListRelationTypes.mockResolvedValue([
       { key: "member_of", label: "Member of", description: "" },
       { key: "depends_on", label: "Depends on", description: "" },
+	  { key: "runs_on", label: "Runs on", description: "" },
     ]);
+	 mockedGetRelationRules.mockResolvedValue({
+	   sourceResourceId: 101,
+	   sourceEnvironmentId: 1,
+	   rules: [
+	     {
+	       relationType: "member_of",
+	       targetResourceTypes: ["database_cluster"],
+	       sameEnvironment: true,
+	     },
+	     {
+	       relationType: "depends_on",
+	       targetResourceTypes: ["host", "database_instance"],
+	       sameEnvironment: false,
+	     },
+	   ],
+	 });
   });
 
   it("hides add and delete relation affordances for non-admin operators (server stays authoritative)", async () => {
@@ -180,6 +208,33 @@ describe("ResourceRelationPanel", () => {
     expect(screen.getByText("Cancel")).toBeInTheDocument();
   });
 
+  it("uses backend rules to limit relation types and target candidates", async () => {
+	const user = userEvent.setup();
+
+	render(
+	  <NextIntlClientProvider locale="en" messages={messages}>
+		<ResourceRelationPanel relations={[]} resourceId={101} />
+	  </NextIntlClientProvider>,
+	);
+
+	await user.click(screen.getByText("Add relation"));
+	await waitFor(() => expect(mockedGetRelationRules).toHaveBeenCalledWith(101));
+	await user.click(screen.getByRole("combobox"));
+	expect(await screen.findByText("Member of")).toBeInTheDocument();
+	expect(screen.getByText("Depends on")).toBeInTheDocument();
+	expect(screen.queryByText("Runs on")).not.toBeInTheDocument();
+	await user.click(screen.getByText("Member of"));
+
+	expect(screen.getByTestId("resource-search-combobox")).toHaveAttribute(
+	  "data-resource-types",
+	  "database_cluster",
+	);
+	expect(screen.getByTestId("resource-search-combobox")).toHaveAttribute(
+	  "data-environment-id",
+	  "1",
+	);
+  });
+
   it("creates a relation with numeric source and target ids", async () => {
     const user = userEvent.setup();
     mockedCreateRelation.mockResolvedValue({
@@ -197,9 +252,10 @@ describe("ResourceRelationPanel", () => {
     );
 
     await user.click(screen.getByText("Add relation"));
-    await user.click(screen.getByTestId("resource-search-combobox"));
+	await waitFor(() => expect(mockedGetRelationRules).toHaveBeenCalledWith(1));
     await user.click(screen.getByRole("combobox"));
-    await user.click(await screen.findByText("Member of"));
+	await user.click(await screen.findByRole("option", { name: "Member of" }));
+	await user.click(screen.getByTestId("resource-search-combobox"));
     await user.click(screen.getByRole("button", { name: "Add relation" }));
 
     await waitFor(() => {
@@ -210,6 +266,30 @@ describe("ResourceRelationPanel", () => {
     });
 
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("renders a controlled backend matrix rejection", async () => {
+    const user = userEvent.setup();
+    mockedCreateRelation.mockRejectedValue(
+      new ApiError(400, "relation rejected", undefined, "validation_failed"),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={[]} resourceId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await waitFor(() => expect(mockedGetRelationRules).toHaveBeenCalledWith(1));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Member of" }));
+    await user.click(screen.getByTestId("resource-search-combobox"));
+    await user.click(screen.getByRole("button", { name: "Add relation" }));
+
+    expect(
+      await screen.findByText("The selected relationship is not allowed."),
+    ).toBeInTheDocument();
   });
 
   it("deletes a relation when the remove button is clicked", async () => {

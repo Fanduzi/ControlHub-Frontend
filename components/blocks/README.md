@@ -2,6 +2,7 @@
 
 Reusable blocks shared across console pages and sheets.
 
-`resource-relation-panel.tsx` renders the read-only relation list for every
-operator; the add/delete relation affordances are admin-only presentation
-hints (the backend enforces the operator access boundary on every write).
+`resource-relation-panel.tsx` renders relations for every operator. Its
+admin-only add form consumes backend relation rules to limit relation types
+and passes their target type/environment constraints to
+`resource-search-combobox.tsx`; backend create validation remains authoritative.

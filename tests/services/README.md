@@ -2,8 +2,8 @@
 
 Vitest unit tests for `services/*`.
 
-`resources.test.ts` also locks the typed-profile DELETE service contract used
-by the confirmed resource-edit clear action.
+`resources.test.ts` locks typed-profile deletion and source-specific
+relationship-rule discovery at the frontend API boundary.
 
 | File | Coverage |
 |------|----------|

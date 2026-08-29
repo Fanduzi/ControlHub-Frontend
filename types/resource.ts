@@ -1,7 +1,7 @@
-// input: backend resource, topology, relation, and health JSON contracts
-// output: governed resource identity, profile, relation, topology, health, list, create, and update types
-// pos: shared TypeScript boundary between ControlHub API data and UI view models
-// note: if this file changes, update this header and module README.md.
+// input: backend resource, profile, relation, topology, health, identity, and rule JSON contracts
+// output: governed resource identity, health, and server-owned relationship-rule transport types
+// pos: shared TypeScript transport boundary between resource services and UI
+// note: if this file changes, update this header and types/README.md.
 export type ResourceType =
   | "host"
   | "database_instance"
@@ -131,6 +131,18 @@ export type ResourceRelation = {
 
 export type ResourceRelationListResponse = {
   items: ResourceRelation[];
+};
+
+export type RelationshipRule = {
+  relationType: string;
+  targetResourceTypes: ResourceType[];
+  sameEnvironment: boolean;
+};
+
+export type RelationshipRulesResponse = {
+  sourceResourceId: number;
+  sourceEnvironmentId: number;
+  rules: RelationshipRule[];
 };
 
 export type CreateResourceInput = {

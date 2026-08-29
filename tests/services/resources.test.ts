@@ -1,12 +1,13 @@
-// input: Vitest, resource service functions, and mocked API client
-// output: resource/profile transport mapping, managed-identity payloads, and request-shape regression tests
+// input: Vitest, mocked resources API client, and resource service contracts
+// output: resource/profile/relation-rule transport, managed-identity payload, and request-shape coverage
 // pos: service contract tests for the resources API boundary
-// note: if this file changes, update this header and tests/services/README.md
+// note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archiveResource,
   getOverviewMetrics,
+  getResourceRelationRules,
   listAttentionResources,
   listClusterMembers,
   listDatabaseResources,
@@ -853,6 +854,31 @@ describe("createResourceRelation", () => {
         relationType: "depends_on",
       }),
     ).rejects.toThrow("Request failed: 404");
+  });
+});
+
+describe("getResourceRelationRules", () => {
+  it("gets the server-owned rules for the source resource", async () => {
+    const response = {
+      sourceResourceId: 1,
+      sourceEnvironmentId: 101,
+      rules: [
+        {
+          relationType: "member_of",
+          targetResourceTypes: ["database_cluster"],
+          sameEnvironment: true,
+        },
+        {
+          relationType: "depends_on",
+          targetResourceTypes: ["host", "database_instance"],
+          sameEnvironment: false,
+        },
+      ],
+    };
+    apiClientMock.mockResolvedValue(response);
+
+    await expect(getResourceRelationRules(1)).resolves.toEqual(response);
+    expect(apiClientMock).toHaveBeenCalledWith("/resources/1/relation-rules");
   });
 });
 

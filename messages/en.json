@@ -766,6 +766,7 @@
       "validation": "Validation failed. Please check the form fields.",
       "conflict": "A resource with this name already exists in this environment.",
       "relationConflict": "This relation already exists.",
+      "relationRejected": "The selected relationship is not allowed.",
       "notFound": "The target resource was not found.",
       "unauthorized": "Your session has expired. Please sign in again.",
       "unknown": "An unexpected error occurred.",

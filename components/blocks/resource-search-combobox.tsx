@@ -1,3 +1,7 @@
+// input: React, resource list service, and optional server-derived type/environment filters
+// output: Debounced resource search selector constrained by caller-supplied relationship rules
+// pos: Reusable target candidate picker; never owns relationship policy
+// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,11 +28,17 @@ import type { Resource } from "@/types/resource";
 interface ResourceSearchComboboxProps {
   onSelect: (resource: Resource) => void;
   excludeIds?: number[];
+  resourceTypes?: Resource["resourceType"][];
+  environmentId?: number;
+  disabled?: boolean;
 }
 
 export function ResourceSearchCombobox({
   onSelect,
   excludeIds = [],
+  resourceTypes,
+  environmentId,
+  disabled = false,
 }: ResourceSearchComboboxProps) {
   const t = useTranslations("relations");
   const ct = useTranslations("common");
@@ -43,7 +53,7 @@ export function ResourceSearchCombobox({
     if (timerRef.current) clearTimeout(timerRef.current);
     abortRef.current?.abort();
 
-    if (value.length < 2) {
+    if (disabled || value.length < 2) {
       setResults([]);
       return;
     }
@@ -53,7 +63,12 @@ export function ResourceSearchCombobox({
       abortRef.current = controller;
       setLoading(true);
       try {
-        const response = await listResources({ q: value, pageSize: 20 });
+        const response = await listResources({
+          q: value,
+          pageSize: 20,
+          resourceType: resourceTypes,
+          environmentId,
+        });
         if (controller.signal.aborted) return;
         setResults(response.items.filter((r) => !excludeIds.includes(r.id)));
       } catch {
@@ -62,7 +77,7 @@ export function ResourceSearchCombobox({
         if (!controller.signal.aborted) setLoading(false);
       }
     }, 300);
-  }, [excludeIds]);
+  }, [disabled, environmentId, excludeIds, resourceTypes]);
 
   useEffect(() => {
     return () => {
@@ -77,6 +92,7 @@ export function ResourceSearchCombobox({
         <Button
           variant="outline"
           className="h-8 w-full justify-between border-border bg-background text-sm font-normal"
+          disabled={disabled}
         >
           {selectedName || t("searchPlaceholder")}
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />

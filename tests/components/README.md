@@ -23,7 +23,7 @@ Vitest component tests for React UI components.
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized health/override evidence, and empty states |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
-| resource-relation-panel.test.tsx | Resource relation panel |
+| resource-relation-panel.test.tsx | Resource relation panel rule discovery, target constraints, controlled rejection, role gates, and mutations |
 | resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
 | database-table.test.tsx | Database table, including Database Proxy rows in Database Estate |
 | database-instance-facts-panel.test.tsx | Database instance facts |
