@@ -32,8 +32,9 @@ archive/restore, and the table-level create button) are presentation hints;
 the backend remains the authorization boundary for every write.
 
 The table's admin-only bulk label control sends explicit add, update, or remove
-operations for selected rows to the server preview, renders its returned diffs
-and conflicts, and confirms only the returned review fingerprint.
+operations for selected rows to the server preview, renders its returned diffs,
+maps controlled errors to localized feedback, and confirms only the returned
+review fingerprint.
 
 Resource edit submits explicit empty typed-profile values through the profile
 PATCH contract so operators can clear stale string fields. Numeric fields are

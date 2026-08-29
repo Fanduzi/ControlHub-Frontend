@@ -29,7 +29,7 @@ Vitest component tests for React UI components.
 | query-relationship-map.test.tsx | Relationship map |
 | create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
 | edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, manual health override set/clear, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
-| resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, completeness and health evidence fields, and reviewed admin bulk-label mutations |
+| resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, completeness and health evidence fields, reviewed admin bulk-label request shapes, and localized error feedback |
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized completeness and health/override evidence, empty states, effective-value provenance, and admin override conflicts |
 | named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view save, apply, rename, and delete controls |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |

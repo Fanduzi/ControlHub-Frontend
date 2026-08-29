@@ -25,8 +25,8 @@ Audit list requests include the optional server-owned `q` search term.
 external system/value identifiers for create, update, and response contracts,
 server-derived completeness on reads, plus the backend-owned relationship-rule
 discovery response, effective-value provenance, and supported override fields
-used by the console. It also defines the bulk label mutation request and server
-preview contracts.
+used by the console. It also defines the closed bulk-label mutation request and
+server preview contracts.
 
 `named-inventory-view.ts` defines the saved inventory view contract. Repeated
 environment and label values remain arrays, while owner identity remains a

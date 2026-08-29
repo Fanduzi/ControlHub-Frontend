@@ -1,5 +1,5 @@
 // input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries, and bulk resource service mocks
-// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, admin-only create affordance, and reviewed bulk-label affordances
+// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, admin-only create affordance, bulk-label request shapes, and localized feedback
 // pos: component tests for inventory health evidence, backend-backed filters, and role-gated mutation controls
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -177,7 +177,7 @@ describe("ResourceTable", () => {
     expect(screen.queryByRole("checkbox", { name: /select/i })).toBeNull();
   });
 
-  it("previews selected-resource label changes and confirms only the reviewed fingerprint", async () => {
+  it("sends the exact add label shape and confirms only the reviewed fingerprint", async () => {
     const user = userEvent.setup();
     previewBulkResourceMutation.mockResolvedValue({
       fingerprint: "reviewed-fingerprint",
@@ -215,6 +215,100 @@ describe("ResourceTable", () => {
       "reviewed-fingerprint",
     );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("sends the exact update label shape", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: false,
+      items: [],
+    });
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("combobox", { name: "Label operation" }));
+    await user.click(await screen.findByRole("option", { name: "Update" }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    await waitFor(() => {
+      expect(previewBulkResourceMutation).toHaveBeenCalledWith({
+        targets: [{ resourceId: 101, expectedVersion: "2026-04-14T10:00:00Z" }],
+        labels: { update: { team: "platform" } },
+      });
+    });
+  });
+
+  it("sends the exact remove label shape", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: false,
+      items: [],
+    });
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("combobox", { name: "Label operation" }));
+    await user.click(await screen.findByRole("option", { name: "Remove" }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    await waitFor(() => {
+      expect(previewBulkResourceMutation).toHaveBeenCalledWith({
+        targets: [{ resourceId: 101, expectedVersion: "2026-04-14T10:00:00Z" }],
+        labels: { remove: ["team"] },
+      });
+    });
+  });
+
+  it("uses localized preview feedback instead of a backend error message", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockRejectedValue(
+      new ApiError(500, "raw backend English error"),
+    );
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    expect(await screen.findByText("Could not preview the label change.")).toBeInTheDocument();
+    expect(screen.queryByText("raw backend English error")).toBeNull();
+  });
+
+  it("uses localized feedback for preview item error codes and fallbacks", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: false,
+      items: [{
+        resourceId: 101,
+        conflict: false,
+        errors: ["bulk_resource_mutation_conflict", "raw backend English error"],
+      }],
+    });
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    expect(await screen.findByText("The resource state changed. Preview the changes again before confirming.")).toBeInTheDocument();
+    expect(screen.getByText("Could not preview the label change.")).toBeInTheDocument();
+    expect(screen.queryByText("raw backend English error")).toBeNull();
   });
 
   it("keeps a 409 confirmation conflict controlled and requires a new preview", async () => {
@@ -358,11 +452,11 @@ describe("ResourceTable", () => {
   it("shows health freshness, observed time, and observer beside status", () => {
     const observedAt = formatDateTime("2026-04-14T09:55:00Z", "en");
 
-	renderTable();
+    renderTable();
 
-	expect(screen.getByText("Fresh")).toBeInTheDocument();
-	expect(screen.getByText(observedAt)).toBeInTheDocument();
-	expect(screen.getByText("prometheus")).toBeInTheDocument();
+    expect(screen.getByText("Fresh")).toBeInTheDocument();
+    expect(screen.getByText(observedAt)).toBeInTheDocument();
+    expect(screen.getByText("prometheus")).toBeInTheDocument();
   });
 
   it("renders server-derived completeness for every resource type in the list", () => {

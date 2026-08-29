@@ -9,6 +9,7 @@
  * Do not generate this list from OpenAPI.
  */
 export const CONTROLLED_ERROR_CODES = [
+  "bulk_resource_mutation_conflict",
   "disclosure_policy_conflict",
   "disclosure_policy_not_found",
   "environment_not_found",

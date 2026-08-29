@@ -1,5 +1,5 @@
 // input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, and bulk resource services
-// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create affordance, and reviewed bulk-label mutations
+// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create affordance, and reviewed bulk-label mutations with localized feedback
 // pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit control
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -83,6 +83,12 @@ type ResourceTableProps = {
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
 type LabelOperation = "add" | "update" | "remove";
+
+function isBulkMutationConflict(error: unknown) {
+  return error instanceof ApiError
+    ? error.status === 409 || error.code === "bulk_resource_mutation_conflict"
+    : error === "bulk_resource_mutation_conflict";
+}
 
 function updateMultiSelectParams(
   pathname: string,
@@ -345,7 +351,6 @@ export function ResourceTable({
     }),
   ], [t, locale, searchParams, pathname, isAdmin]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: resources,
     columns,
@@ -382,7 +387,9 @@ export function ResourceTable({
       setBulkRequest(request);
       setPreview(await previewBulkResourceMutation(request));
     } catch (error) {
-      setBulkError(error instanceof Error ? error.message : t("tables.resources.bulk.previewFailed"));
+      setBulkError(t(isBulkMutationConflict(error)
+        ? "tables.resources.bulk.conflict"
+        : "tables.resources.bulk.previewFailed"));
     } finally {
       setBulkPending(false);
     }
@@ -401,11 +408,9 @@ export function ResourceTable({
       router.refresh();
     } catch (error) {
       setPreview(null);
-      if (error instanceof ApiError && error.status === 409) {
-        setBulkError(t("tables.resources.bulk.conflict"));
-      } else {
-        setBulkError(error instanceof Error ? error.message : t("tables.resources.bulk.confirmFailed"));
-      }
+      setBulkError(t(isBulkMutationConflict(error)
+        ? "tables.resources.bulk.conflict"
+        : "tables.resources.bulk.confirmFailed"));
     } finally {
       setBulkPending(false);
     }
@@ -785,7 +790,9 @@ export function ResourceTable({
                   <div key={item.resourceId} className="space-y-1">
                     <p className="font-medium">{t("tables.resources.bulk.resource", { id: item.resourceId })}</p>
                     {item.conflict && <p className="text-destructive">{t("tables.resources.bulk.itemConflict")}</p>}
-                    {item.errors?.map((error) => <p key={error} className="text-destructive">{error}</p>)}
+                    {item.errors?.map((error) => <p key={error} className="text-destructive">{t(isBulkMutationConflict(error)
+                      ? "tables.resources.bulk.conflict"
+                      : "tables.resources.bulk.previewFailed")}</p>)}
                     {item.fieldDiffs?.map((diff) => <p key={diff.field}>{diff.field}: {String(diff.before ?? "—")} → {String(diff.after ?? "—")}</p>)}
                     {item.labelDiffs?.map((diff) => <p key={diff.key}>{diff.key}: {diff.before ?? "—"} → {diff.after ?? "—"}</p>)}
                   </div>
