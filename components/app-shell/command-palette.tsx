@@ -1,10 +1,10 @@
-// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry
-// output: command palette navigation; create-resource command is admin-only
+// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resources service
+// output: command palette navigation and server-backed resource search; create-resource command is admin-only
 // pos: console quick-navigation overlay with role-gated mutation affordances
 // note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useTranslations } from "next-intl";
@@ -25,6 +25,8 @@ import { Command } from "cmdk";
 
 import { useAdminRole } from "@/lib/auth-role";
 import { consoleNavigation } from "@/lib/navigation";
+import { listResources } from "@/services/resources";
+import type { Resource } from "@/types/resource";
 
 type CommandPaletteProps = {
   open: boolean;
@@ -44,6 +46,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const { setTheme, theme } = useTheme();
   const isAdmin = useAdminRole();
+  const [query, setQuery] = useState("");
+  const [resources, setResources] = useState<Resource[]>([]);
+  const searchGeneration = useRef(0);
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    setResources([]);
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -55,6 +65,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
+
+  useEffect(() => {
+    const search = query.trim();
+    const generation = ++searchGeneration.current;
+
+    if (!search) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await listResources({ q: search, pageSize: 20 });
+        if (generation === searchGeneration.current) setResources(response.items);
+      } catch {
+        if (generation === searchGeneration.current) setResources([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const runCommand = useCallback(
     (command: () => void) => {
@@ -79,6 +107,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <Command.Input
           className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
           placeholder={t("shell.searchPlaceholder")}
+          onValueChange={handleQueryChange}
         />
       </div>
       <Command.List className="max-h-72 overflow-y-auto overflow-x-hidden p-1">
@@ -107,6 +136,31 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             );
           })}
         </Command.Group>
+
+        {resources.length > 0 && (
+          <Command.Group
+            heading={t("navigation.resources.title")}
+            className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+          >
+            {resources.map((resource) => (
+              <Command.Item
+                key={resource.id}
+                value={resource.displayName}
+                forceMount
+                onSelect={() =>
+                  runCommand(() => router.push(`/resources/${resource.id}`))
+                }
+                className="relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-selected:bg-muted data-selected:text-foreground"
+              >
+                <ServerCog className="size-4" />
+                <span className="font-medium">{resource.displayName}</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {resource.resourceType}
+                </span>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
 
         <Command.Separator className="-mx-1 h-px bg-border" />
 

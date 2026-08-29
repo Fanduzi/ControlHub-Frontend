@@ -7,3 +7,6 @@ for non-admin users. Sign-out calls `DELETE /api/operator-session` and clears
 browser-readable presentation state; it is fail-closed — if the BFF logout fails
 (network or non-2xx), the console stays put with a controlled error instead of
 presenting a logged-out UI while the HttpOnly Operator Session cookie survives.
+
+The command palette searches the unified resource inventory through the resources
+service and opens selected resources at `/resources/{id}`.

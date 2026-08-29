@@ -15,6 +15,7 @@ Vitest component tests for React UI components.
 | query-object-explorer.test.tsx | Schema object explorer |
 | query-object-inspector.test.tsx | Object inspector |
 | query-object-quick-navigator.test.tsx | Quick object navigator |
+| command-palette.test.tsx | Command palette navigation, resource search, and admin gating |
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map |
 | create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
