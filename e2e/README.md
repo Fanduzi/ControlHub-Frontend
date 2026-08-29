@@ -32,7 +32,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | harness/dev-server-wrapper.sh | Dev server wrapper for E2E |
 | harness/interaction-stability.ts | Interaction stability helpers |
 | harness/saved-statement-teardown.ts | Query Workbench Saved Statement teardown: record create ids, `afterEach` DELETE (404 is success; any other failure fails the test) |
-| api.helpers.ts | Authenticated API helpers |
+| api.helpers.ts | Authenticated API helpers; defaultResourceInput supplies typed-profile minimum identity |
 | api-proxy.mjs | API proxy for same-origin E2E requests |
 
 ## Saved Statement teardown

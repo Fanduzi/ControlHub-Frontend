@@ -15,4 +15,5 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-backend.test.ts` | Server-side backend login and generic outcome mapping |
 | `operator-session-response.test.ts` | BFF `bffJson` synthesized bodies include a snake_case Controlled Error Code on `error` |
 | `auth-role.test.ts` | Presentation-only admin role recovery from BFF role storage/cookie; bearer-shaped values are ignored |
+| `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
 # note: auth-role recovery tests cover role-cookie path

@@ -1,4 +1,8 @@
 "use client";
+// input: react-hook-form, profile-field-registry, resources/settings services
+// output: CreateResourceSheet
+// pos: Console form for manual CI registration with typed-profile identity and backend field errors
+// note: if this file changes, update this header and components/resources/README.md
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -45,7 +49,7 @@ import {
   listResourceSubtypes,
   listResourceTypes,
 } from "@/services/settings";
-import { getProfileSchema, hasProfileFields } from "@/lib/profile-field-registry";
+import { getProfileSchema, hasProfileFields, mapControlledFieldPath } from "@/lib/profile-field-registry";
 import type { CreateResourceInput } from "@/types/resource";
 import type {
   DictionaryItem,
@@ -325,9 +329,8 @@ export function CreateResourceSheet({
       } catch (err) {
         if (err instanceof ApiError && err.details) {
           for (const [field, message] of Object.entries(err.details)) {
-            const hasProfileKey = field.startsWith("profile.");
             form.setError(
-              hasProfileKey ? (field as keyof FormValues) : (field as keyof FormValues),
+              mapControlledFieldPath(values.resourceType, field) as keyof FormValues,
               { message },
             );
           }

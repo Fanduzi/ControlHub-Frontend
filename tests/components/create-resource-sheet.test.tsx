@@ -1,5 +1,5 @@
 // input: CreateResourceSheet, settings/resource service fakes, localized messages
-// output: create-form assertions including Domain Name FQDN and Virtual IP address fields
+// output: create-form assertions including core CI identity, service worker subtype, Domain Name FQDN, and Virtual IP address fields
 // pos: component-level contract for typed profile create fields
 // note: if this file changes, update header and tests/components/README.md
 
@@ -257,9 +257,61 @@ describe("CreateResourceSheet", () => {
     // Verify profile field labels appear for database_instance
     expect(screen.getByText(/Engine \*/)).toBeInTheDocument();
     expect(screen.getAllByText("Version").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Host").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Port").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Host \*/)).toBeInTheDocument();
+    expect(screen.getByText(/Port \*/)).toBeInTheDocument();
     expect(screen.getAllByText("Role").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("marks host and service minimum identity fields required", async () => {
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    await user.click(screen.getAllByRole("combobox")[0]);
+    await user.click(await screen.findByText("Host"));
+    await waitFor(() => {
+      expect(screen.getByText(/Hostname \*/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/IP Address \*/)).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("combobox")[0]);
+    await user.click(await screen.findByText("Service"));
+    await waitFor(() => {
+      expect(screen.getByText(/System Name \*/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows worker among service subtypes from the backend dictionary", async () => {
+    const user = userEvent.setup();
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "api", label: "API Service", description: "" },
+      { key: "worker", label: "Worker", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    await user.click(screen.getAllByRole("combobox")[0]);
+    await user.click(await screen.findByText("Service"));
+    await waitFor(() => {
+      expect(mockedListResourceSubtypes).toHaveBeenCalledWith("service");
+    });
+
+    const subtypeTrigger = screen.getAllByRole("combobox")[1];
+    await user.click(subtypeTrigger);
+    expect(await screen.findByText("Worker")).toBeInTheDocument();
   });
 
   it("shows no-profile-fields message for types without profile", async () => {

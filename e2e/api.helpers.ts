@@ -1,6 +1,6 @@
 // input: @playwright/test fetch helpers, ./harness/fixtures, process env
 // output: authenticated API helpers for E2E (fixture identities; exported apiFetch; no seed fallback)
-// pos: server-side E2E data helpers through the api-proxy
+// pos: server-side E2E data helpers through the api-proxy, including core CI typed-profile identity
 // note: if this file changes, update header and e2e/README.md
 /**
  * Playwright API helpers for authenticated backend requests.
@@ -55,6 +55,7 @@ type CreateResourceInput = {
   source: string;
   externalId?: string;
   labels?: Record<string, string>;
+  profile?: Record<string, string | number | boolean>;
 };
 
 type CreateRelationInput = {
@@ -217,10 +218,28 @@ export function testResourceName(suite: string): string {
  * Default field values for creating a test resource.
  * Override any field by passing a partial.
  */
+function defaultIdentityProfile(
+  resourceType: string,
+  name: string,
+): Record<string, string | number | boolean> | undefined {
+  switch (resourceType) {
+    case "host":
+      return { hostname: `${name}.internal`, ipAddress: "10.0.0.1" };
+    case "database_instance":
+      return { engine: "mysql", host: `${name}.internal`, port: 3306 };
+    case "database_cluster":
+      return { engine: "mysql", primaryEndpoint: `${name}.internal:3306` };
+    case "service":
+      return { systemName: name };
+    default:
+      return undefined;
+  }
+}
+
 export function defaultResourceInput(
   overrides: Partial<CreateResourceInput> & { name: string },
 ): CreateResourceInput {
-  return {
+  const input: CreateResourceInput = {
     resourceType: "service",
     resourceSubtype: "api",
     displayName: overrides.name,
@@ -233,4 +252,8 @@ export function defaultResourceInput(
     labels: {},
     ...overrides,
   };
+  if (input.profile === undefined) {
+    input.profile = defaultIdentityProfile(input.resourceType, input.name);
+  }
+  return input;
 }

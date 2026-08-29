@@ -17,7 +17,9 @@ unknown slugs fail closed so those pages render an empty scoped result.
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
 
-`profile-field-registry.ts` presents typed profile fields for host,
-database_instance, database_cluster, service, domain_name (required FQDN),
-and virtual_ip (required single IP address). Domain Name does not collect a
-resolution target as profile text.
+`profile-field-registry.ts` catalogs typed-profile fields for host, database
+instance, database cluster, and service, plus domain_name (required FQDN) and
+virtual_ip (required single IP address). Required flags match backend minimum
+manual identity; `mapControlledFieldPath` places backend field errors on the
+matching profile inputs. Labels stay free classification. Domain Name does
+not collect a resolution target as profile text.

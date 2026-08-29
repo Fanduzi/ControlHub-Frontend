@@ -1,7 +1,8 @@
-// input: Vitest, React Testing Library, localized messages, and mocked resource/settings services
-// output: edit-save and typed-profile field assertions, including clear and removal behavior
-// pos: component-level contract for resource edit behavior
-// note: if this file changes, update this header and tests/components/README.md.
+// input: Vitest, React Testing Library, localized messages, mocked resource/settings services, ApiError
+// output: edit-save and typed-profile field assertions, including clear and removal behavior and backend field errors
+// pos: component-level contract for resource edit behavior including typed-profile identity errors
+// note: if this file changes, update this header and tests/components/README.md
+
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -603,5 +604,59 @@ describe("EditResourceSheet", () => {
         ),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows the same backend identity field error on the profile input", async () => {
+    const user = userEvent.setup();
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "vm", label: "Virtual Machine", description: "" },
+    ]);
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: 2,
+      resourceType: "host",
+      resourceSubtype: "vm",
+      profile: {
+        hostname: "prod-host-01",
+        ipAddress: "10.0.0.1",
+        osName: "Ubuntu 22.04",
+      },
+    });
+    mockedUpdateProfile.mockRejectedValue(
+      new ApiError(
+        400,
+        "validation failed",
+        { hostname: "is required for manual registration" },
+        "validation_failed",
+      ),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={hostResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(2);
+    });
+
+    const hostnameInput = await screen.findByPlaceholderText("db-prod-01");
+    await waitFor(() => {
+      expect(hostnameInput).toHaveValue("prod-host-01");
+    });
+    await user.clear(hostnameInput);
+    await user.type(hostnameInput, "renamed-host");
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateProfile).toHaveBeenCalled();
+    });
+    expect(
+      await screen.findByText("is required for manual registration"),
+    ).toBeInTheDocument();
   });
 });

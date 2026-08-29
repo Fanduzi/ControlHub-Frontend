@@ -230,6 +230,7 @@ describe("defaultResourceInput", () => {
     expect(input.lifecycleStatus).toBe("running");
     expect(input.healthStatus).toBe("healthy");
     expect(input.name).toBe("test-res");
+    expect(input.profile).toEqual({ systemName: "test-res" });
   });
 
   it("allows overrides", () => {
@@ -241,6 +242,10 @@ describe("defaultResourceInput", () => {
     expect(input.resourceType).toBe("host");
     expect(input.lifecycleStatus).toBe("stopped");
     expect(input.name).toBe("test-res");
+    expect(input.profile).toEqual({
+      hostname: "test-res.internal",
+      ipAddress: "10.0.0.1",
+    });
   });
 });
 

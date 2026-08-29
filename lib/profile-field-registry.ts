@@ -1,6 +1,6 @@
 // input: zod, resource type key
-// output: getProfileSchema, hasProfileFields, ProfileSchema
-// pos: Console typed-profile field contract reused by create and edit sheets
+// output: getProfileSchema, hasProfileFields, ProfileSchema, mapControlledFieldPath
+// pos: Console typed-profile field contract for core CI identity plus Domain Name/Virtual IP; backend remains the identity authority
 // note: if this file changes, update this header and lib/README.md
 
 import { z } from "zod";
@@ -28,8 +28,8 @@ const HOST_FIELDS: ProfileFieldDef[] = [
 const DB_INSTANCE_FIELDS: ProfileFieldDef[] = [
   { key: "engine", labelKey: "profileFields.engine", inputType: "text", required: true, placeholder: "mysql" },
   { key: "version", labelKey: "profileFields.version", inputType: "text", required: false, placeholder: "8.0" },
-  { key: "host", labelKey: "profileFields.host", inputType: "text", required: false, placeholder: "db-host-01" },
-  { key: "port", labelKey: "profileFields.port", inputType: "number", required: false, placeholder: "3306" },
+  { key: "host", labelKey: "profileFields.host", inputType: "text", required: true, placeholder: "db-host-01" },
+  { key: "port", labelKey: "profileFields.port", inputType: "number", required: true, placeholder: "3306" },
   { key: "role", labelKey: "profileFields.role", inputType: "select", required: false, options: [
     { value: "primary", labelKey: "profileFields.rolePrimary" },
     { value: "replica", labelKey: "profileFields.roleReplica" },
@@ -42,11 +42,11 @@ const DB_CLUSTER_FIELDS: ProfileFieldDef[] = [
     { value: "single-primary", labelKey: "profileFields.topologySinglePrimary" },
     { value: "multi-primary", labelKey: "profileFields.topologyMultiPrimary" },
   ]},
-  { key: "primaryEndpoint", labelKey: "profileFields.primaryEndpoint", inputType: "text", required: false, placeholder: "cluster-host:3306" },
+  { key: "primaryEndpoint", labelKey: "profileFields.primaryEndpoint", inputType: "text", required: true, placeholder: "cluster-host:3306" },
 ];
 
 const SERVICE_FIELDS: ProfileFieldDef[] = [
-  { key: "systemName", labelKey: "profileFields.systemName", inputType: "text", required: false, placeholder: "payment-service" },
+  { key: "systemName", labelKey: "profileFields.systemName", inputType: "text", required: true, placeholder: "payment-service" },
   { key: "repositoryUrl", labelKey: "profileFields.repositoryUrl", inputType: "text", required: false, placeholder: "https://github.com/..." },
   { key: "runtimeEnv", labelKey: "profileFields.runtimeEnv", inputType: "text", required: false, placeholder: "node, python, go..." },
 ];
@@ -90,4 +90,15 @@ export function getProfileSchema(resourceType: string): ProfileSchema | undefine
 
 export function hasProfileFields(resourceType: string): boolean {
   return resourceType in REGISTRY;
+}
+
+export function mapControlledFieldPath(resourceType: string, field: string): string {
+  if (field.startsWith("profile.")) {
+    return field;
+  }
+  const schema = getProfileSchema(resourceType);
+  if (schema?.fields.some((item) => item.key === field)) {
+    return `profile.${field}`;
+  }
+  return field;
 }

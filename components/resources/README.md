@@ -14,5 +14,8 @@ discarding unrelated unsaved form edits.
 Profile mutation failures use the same localized error mapping for save and
 clear flows.
 
-Create and edit sheets render Domain Name FQDN and Virtual IP address fields
-from `lib/profile-field-registry.ts`.
+Create and edit sheets collect typed profile identity for host, database
+instance, database cluster, and service, display the same backend field
+errors, and keep labels as free classification. Service worker subtype comes
+from the backend dictionary. Create and edit sheets also render Domain Name
+FQDN and Virtual IP address fields from `lib/profile-field-registry.ts`.
