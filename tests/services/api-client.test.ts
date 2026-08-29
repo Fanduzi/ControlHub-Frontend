@@ -1,7 +1,7 @@
 // input: vitest, api-client
 // output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling, Controlled Error Code ingest
 // pos: unit tests for shared API client
-// note: if this file changes, update header and tests/services/README.md
+// note: if this file changes, update this header and module README.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient, ApiError, resolveApiBaseUrl } from "@/services/api-client";
@@ -161,6 +161,21 @@ describe("apiClient", () => {
     const headers = new Headers(init.headers);
     expect(headers.get("authorization")).toBeNull();
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("/api/proxy");
+  });
+
+  it("leaves the browser to set multipart content type and boundary", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    const formData = new FormData();
+    formData.append("format", "json");
+    await apiClient("/admin/ingestions/preview", { method: "POST", body: formData });
+
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(init.headers).has("content-type")).toBe(false);
   });
 
   it("ignores stale legacy bearer storage: still routes through the BFF proxy without Authorization", async () => {

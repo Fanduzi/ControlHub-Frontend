@@ -873,6 +873,33 @@
       "submitting": "恢复中...",
       "confirm": "恢复",
       "capabilityNote": "资源恢复功能尚未上线，请等待后端更新。"
+    },
+    "ingestion": {
+      "open": "导入资源清单",
+      "title": "导入资源清单",
+      "description": "在原子确认前，先查看服务端分类的 CSV 或 JSON 批次。",
+      "file": "导入文件",
+      "format": "格式",
+      "fileRequired": "预览前请选择 CSV 或 JSON 文件。",
+      "preview": "预览",
+      "previewTitle": "服务端预览",
+      "confirm": "确认导入",
+      "close": "关闭",
+      "working": "处理中...",
+      "create": "新建",
+      "update": "更新",
+      "conflict": "冲突",
+      "row": "第 {row} 行",
+      "fields": "字段",
+      "profile": "配置档案",
+      "observed": "观测值",
+      "relationsAdded": "新增关系",
+      "relationsRemoved": "移除关系",
+      "conflictsBlock": "请解决服务端报告的所有冲突，并重新预览后再确认。",
+      "invalid": "上传内容无效或过大。请修正后重新预览。",
+      "stale": "预览已过期。请重新预览文件后再确认。",
+      "error": "导入请求未能完成。请重新预览。",
+      "success": "导入已确认"
     }
   },
   "archive": {

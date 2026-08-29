@@ -12,6 +12,7 @@ time, observer, and manual override consistently in list and detail surfaces.
 | `resource-table.tsx` | Inventory filters, column visibility, rows, saved-view integration, and compact completeness/health evidence |
 | `resource-completeness-panel.tsx` | Read-only server-derived completeness score and missing-requirement presentation |
 | `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
+| `ingestion-dialog.tsx` | Sends one CSV/JSON file for server preview, renders returned diffs/conflicts, and confirms the reviewed fingerprint |
 
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
 resource-filter URLs, applies personal or shared saved views without caching
@@ -21,14 +22,15 @@ their results, and manages selected views when authorized.
 
 - `ResourceTable` renders the current server-owned Inventory result page.
 - `NamedInventoryViewControls` saves URL filters and visible columns, then reapplies them on page 1.
+- `IngestionDialog` retains the chosen native `File` and format, then forwards server preview/confirm responses without client matching, parsing, or writes.
 
 ## Dependencies
 
 - Upstream: console resource page props and translated messages
 - Downstream: `services/named-inventory-views`, TanStack Table, Next navigation
 
-Admin-only mutation affordances (`CreateResourceSheet`, resource edit,
-archive/restore, and the table-level create button) are presentation hints;
+Admin-only mutation affordances (`CreateResourceSheet`, `IngestionDialog`, resource edit,
+archive/restore, and the table-level create/import/bulk buttons) are presentation hints;
 the backend remains the authorization boundary for every write.
 
 The table's admin-only bulk label control sends explicit add, update, or remove

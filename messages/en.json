@@ -873,6 +873,33 @@
       "submitting": "Restoring...",
       "confirm": "Restore",
       "capabilityNote": "Resource restore is not yet available. Awaiting backend update."
+    },
+    "ingestion": {
+      "open": "Import inventory",
+      "title": "Import inventory",
+      "description": "Preview the server-classified CSV or JSON batch before its atomic confirmation.",
+      "file": "Ingestion file",
+      "format": "Format",
+      "fileRequired": "Choose a CSV or JSON file before previewing.",
+      "preview": "Preview",
+      "previewTitle": "Server preview",
+      "confirm": "Confirm import",
+      "close": "Close",
+      "working": "Working...",
+      "create": "Create",
+      "update": "Update",
+      "conflict": "Conflict",
+      "row": "Row {row}",
+      "fields": "Fields",
+      "profile": "Profile",
+      "observed": "Observed values",
+      "relationsAdded": "Relations added",
+      "relationsRemoved": "Relations removed",
+      "conflictsBlock": "Resolve every server-reported conflict and preview again before confirming.",
+      "invalid": "The upload is invalid or too large. Correct it and preview again.",
+      "stale": "Preview is stale. Preview the file again before confirming.",
+      "error": "The ingestion request could not be completed. Try previewing again.",
+      "success": "Ingestion confirmed"
     }
   },
   "archive": {

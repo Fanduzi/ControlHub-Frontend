@@ -1,7 +1,7 @@
 // input: none
 // output: CONTROLLED_ERROR_CODES const list and ControlledErrorCode union
 // pos: closed console union of OpenAPI ErrorResponse.error; not generated
-// note: if this file changes, update header and lib/README.md
+// note: if this file changes, update this header and module README.md.
 
 /**
  * Closed Controlled Error Code set. Must match OpenAPI `ErrorResponse.error`.
@@ -19,6 +19,8 @@ export const CONTROLLED_ERROR_CODES = [
   "invalid_credentials",
   "invalid_payload",
   "invalid_request",
+  "ingestion_conflict",
+  "ingestion_preview_stale",
   "malformed_json",
   "not_found",
   "owner_not_found",

@@ -24,3 +24,4 @@ by the confirmed resource-edit clear action.
 | `e2e-api-helpers.test.ts` | E2E API helper contracts — fixture-based auth body, fail-loud without fixture env, default typed-profile identity |
 | `resources.test.ts` | Resource request paths, managed-identity create payloads, server-derived completeness write exclusion, and effective-value override payloads |
 | `named-inventory-views.test.ts` | Saved inventory view paths, opaque state bodies, sharing metadata, and API error propagation                                                                                                                   |
+| `ingestion.test.ts` | Exact ingestion preview/confirm multipart file, format, and fingerprint payloads |

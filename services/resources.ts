@@ -1,6 +1,6 @@
 // input: shared API client, pagination helper, and resource wire types
-// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, and reviewed bulk label mutations
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, and bulk review fingerprints unchanged
+// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, reviewed bulk label mutations, and server-owned ingestion multipart calls
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, bulk review fingerprints, and ingestion fingerprints unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -23,6 +23,68 @@ import type {
   ResourceOverrideField,
   UpdateResourceInput,
 } from "@/types/resource";
+
+export type IngestionFormat = "csv" | "json";
+
+export type IngestionValueDiff = {
+  before: unknown;
+  after: unknown;
+};
+
+export type IngestionRelation = {
+  type: string;
+  targetId: number;
+};
+
+export type IngestionPreview = {
+  confirmable: boolean;
+  fingerprint: string;
+  rows: Array<{
+    row: number;
+    action: "create" | "update" | "conflict";
+    matchedId?: number;
+    conflict?: string;
+    diff: {
+      fields: Record<string, IngestionValueDiff>;
+      profile: Record<string, IngestionValueDiff>;
+      observed: Record<string, IngestionValueDiff>;
+      relations: { added: IngestionRelation[]; removed: IngestionRelation[] };
+    };
+  }>;
+};
+
+function ingestionFormData(
+  file: File,
+  format: IngestionFormat,
+  fingerprint?: string,
+): FormData {
+  const formData = new FormData();
+  formData.append("format", format);
+  formData.append("file", file);
+  if (fingerprint) formData.append("fingerprint", fingerprint);
+  return formData;
+}
+
+export async function previewIngestion(
+  file: File,
+  format: IngestionFormat,
+): Promise<IngestionPreview> {
+  return apiClient<IngestionPreview>("/admin/ingestions/preview", {
+    method: "POST",
+    body: ingestionFormData(file, format),
+  });
+}
+
+export async function confirmIngestion(
+  file: File,
+  format: IngestionFormat,
+  fingerprint: string,
+): Promise<IngestionPreview> {
+  return apiClient<IngestionPreview>("/admin/ingestions/confirm", {
+    method: "POST",
+    body: ingestionFormData(file, format, fingerprint),
+  });
+}
 
 function buildResourceListPath(params: ResourceListParams = {}) {
   const searchParams = new URLSearchParams();

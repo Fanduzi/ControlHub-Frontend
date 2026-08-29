@@ -27,7 +27,9 @@ from shareable list URLs.
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
-This includes `bulk_resource_mutation_conflict` for reviewed bulk-label writes.
+This includes `bulk_resource_mutation_conflict` for reviewed bulk-label writes
+and ingestion conflict/stale-preview outcomes, so the console handles the
+backend contract without deriving errors from HTTP status.
 `profile-field-registry.ts` catalogs typed-profile fields for host, database
 instance, database cluster, and service, plus domain_name (required FQDN) and
 virtual_ip (required single IP address). Required flags match backend minimum

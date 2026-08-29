@@ -33,7 +33,9 @@ fetches source-specific relationship rules without embedding the matrix in the
 console; it also owns effective-value reads and versioned override set/clear
 requests. It also exposes bulk resource mutation preview and reviewed
 confirmation calls; the server owns diffing, conflicts, and review
-fingerprints.
+fingerprints. It sends controlled ingestion as native multipart `file`/`format`
+requests and resubmits that exact file with the server-issued fingerprint; it
+does not parse or reconcile inventory locally.
 
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
 personal and shared view CRUD; update matches the backend's body-less 204

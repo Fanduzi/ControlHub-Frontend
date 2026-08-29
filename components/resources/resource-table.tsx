@@ -1,6 +1,6 @@
-// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, and bulk resource services
-// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create affordance, and reviewed bulk-label mutations with localized feedback
-// pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit control
+// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, bulk resource services, and ingestion dialog
+// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
+// pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit/import controls
 // note: if this file changes, update header and components/resources/README.md
 "use client";
 
@@ -70,6 +70,7 @@ import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 import { CreateResourceSheet } from "./create-resource-sheet";
 import { HealthEvidence } from "./health-evidence";
 import { NamedInventoryViewControls } from "./named-inventory-view-controls";
+import { IngestionDialog } from "./ingestion-dialog";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
@@ -127,6 +128,7 @@ export function ResourceTable({
   const [preview, setPreview] = useState<BulkResourceMutationPreview | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
+  const [ingestionOpen, setIngestionOpen] = useState(false);
   const isAdmin = useAdminRole();
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
     resourceSubtype: false,
@@ -543,6 +545,13 @@ export function ResourceTable({
               <>
                 <Button
                   size="sm"
+                  variant="outline"
+                  onClick={() => setIngestionOpen(true)}
+                >
+                  {t("mutations.ingestion.open")}
+                </Button>
+                <Button
+                  size="sm"
                   onClick={() => setCreateOpen(true)}
                 >
                   {t("common.actions.createResource")}
@@ -738,7 +747,6 @@ export function ResourceTable({
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
-
       <Dialog open={bulkOpen} onOpenChange={(open) => {
         setBulkOpen(open);
         if (!open) resetBulkPreview();
@@ -813,6 +821,7 @@ export function ResourceTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <IngestionDialog open={ingestionOpen} onOpenChange={setIngestionOpen} />
     </>
   );
 }

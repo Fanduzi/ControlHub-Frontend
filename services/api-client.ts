@@ -1,7 +1,7 @@
 // input: fetch, next/headers (server), operator-session cookie
-// output: shared API client; browser and server use the same-origin BFF proxy; JSON error is ApiError.code
+// output: shared API client; browser and server use the same-origin BFF proxy; JSON errors and native multipart uploads
 // pos: sole browser/SSR fetch helper for console data
-// note: if this file changes, update header and services/README.md
+// note: if this file changes, update this header and module README.md.
 export class ApiError extends Error {
   status: number;
   details?: Record<string, string>;
@@ -69,10 +69,11 @@ export async function apiClient<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const isMultipart = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(`${resolveApiBaseUrl()}${typeof window === "undefined" ? `/api/proxy${path}` : path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
       ...(typeof window === "undefined" ? await getServerSessionHeaders() : {}),
       ...(init?.headers ?? {}),
     },
