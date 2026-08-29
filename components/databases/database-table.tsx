@@ -1,5 +1,5 @@
 // input: server-paginated database view models, URL filters, locale messages, and row-detail interaction
-// output: scoped database estate table with server-owned search/pagination and local operational controls
+// output: scoped database estate table with server-owned search/pagination, shared role labels, and local operational controls
 // pos: client database inventory presentation for the authenticated console
 // note: if this file changes, update this header and components/databases/README.md
 "use client";
@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DbTypeIcon } from "@/components/blocks/db-type-icon";
-import { formatDateTime, formatLabel, formatRelativeDateTime } from "@/lib/format";
+import { formatDateTime, formatLabel, formatRelativeDateTime, formatRole } from "@/lib/format";
 import { buildDatabaseOperationalSignal, countDatabaseSignals, databaseRowMatchesSignal, sortDatabaseRowsBySignal } from "@/lib/database-operational-signal";
 import type { DatabaseSignalFilter, DatabaseSignalSort } from "@/lib/database-operational-signal";
 import type { PageInfo } from "@/types/resource";
@@ -161,14 +161,6 @@ export function DatabaseTable({
 }: DatabaseTableProps) {
   const t = useTranslations();
 
-  const formatRole = useCallback((role: string) => {
-    const key = role === "primary" ? "profileFields.rolePrimary"
-      : role === "replica" ? "profileFields.roleReplica"
-      : role === "active" ? "profileFields.roleActive"
-      : role === "standby" ? "profileFields.roleStandby"
-      : null;
-    return key ? t(key) : formatLabel(role);
-  }, [t]);
   const localeValue = useLocale();
   const locale = isAppLocale(localeValue) ? localeValue : DEFAULT_LOCALE;
   const router = useRouter();
@@ -356,7 +348,7 @@ export function DatabaseTable({
                   </ResourceLink>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     {profile?.role && (
-                      <span>{formatRole(profile.role)}</span>
+                      <span>{formatRole(profile.role, t)}</span>
                     )}
                     {profile?.hostname && (
                       <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px]">
@@ -530,7 +522,7 @@ export function DatabaseTable({
         </span>
       ),
     }),
-  ], [locale, t, formatRole]);
+  ], [locale, t]);
 
   const table = useReactTable({
     data: tableData,
