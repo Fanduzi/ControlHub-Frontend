@@ -1,5 +1,5 @@
 import { ApiError, apiClient } from "@/services/api-client";
-import type { TopologyParams, TopologyResponse } from "@/types/resource";
+import type { EnvironmentTopologyParams, TopologyParams, TopologyResponse } from "@/types/resource";
 
 function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
   const searchParams = new URLSearchParams();
@@ -16,6 +16,20 @@ function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
 
   const query = searchParams.toString();
   return query ? `/resources/${resourceId}/topology?${query}` : `/resources/${resourceId}/topology`;
+}
+
+function buildEnvironmentTopologyPath(environmentId: number, params: EnvironmentTopologyParams = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.rootResourceId) {
+    searchParams.set("rootResourceId", String(params.rootResourceId));
+  }
+  if (params.depth) {
+    searchParams.set("depth", String(params.depth));
+  }
+
+  const query = searchParams.toString();
+  return query ? `/environments/${environmentId}/topology?${query}` : `/environments/${environmentId}/topology`;
 }
 
 export class TopologyNotAvailableError extends Error {
@@ -40,4 +54,11 @@ export async function getResourceTopology(
     // All other errors (including 404 = resource not found) propagate
     throw error;
   }
+}
+
+export async function getEnvironmentTopology(
+  environmentId: number,
+  params?: EnvironmentTopologyParams,
+): Promise<TopologyResponse> {
+  return apiClient<TopologyResponse>(buildEnvironmentTopologyPath(environmentId, params));
 }

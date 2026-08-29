@@ -38,17 +38,19 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 vi.mock("@/services/topology", () => ({
+  getEnvironmentTopology: vi.fn(),
   getResourceTopology: vi.fn(),
   TopologyNotAvailableError: class extends Error {
     constructor() { super("Topology endpoint not available"); this.name = "TopologyNotAvailableError"; }
   },
 }));
 
-import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
+import { getEnvironmentTopology, getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import type { TopologyResponse } from "@/types/resource";
 
 const mockGetTopology = vi.mocked(getResourceTopology);
+const mockGetEnvironmentTopology = vi.mocked(getEnvironmentTopology);
 
 function renderWithProviders(
   ui: React.ReactElement,
@@ -491,5 +493,23 @@ describe("TopologyPanel", () => {
     });
 
     expect(mockGetTopology).not.toHaveBeenCalled();
+  });
+
+  it("loads an environment graph at depth two and exposes candidate roots", async () => {
+    mockGetEnvironmentTopology.mockResolvedValueOnce({
+      ...mockTopologyResponse,
+      depth: 2,
+      candidates: [mockTopologyResponse.nodes[1]],
+      truncated: true,
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} />);
+
+    await waitFor(() => {
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 });
+    });
+
+    expect(screen.getByTestId("topology-root-select")).toHaveTextContent("Order MySQL Primary Prod");
+    expect(screen.getByTestId("topology-truncated")).toBeInTheDocument();
   });
 });

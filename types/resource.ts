@@ -321,6 +321,8 @@ export type TopologyResponse = {
   groups: TopologyGroup[];
   isDatabaseTopology: boolean;
   problems?: TopologyProblemSummary[];
+  candidates?: TopologyNode[];
+  truncated?: boolean;
 };
 
 export type TopologyProblem = {
@@ -341,6 +343,11 @@ export type TopologyParams = {
   depth?: 1 | 2;
   direction?: "both" | "upstream" | "downstream";
   relationType?: string;
+};
+
+export type EnvironmentTopologyParams = {
+  rootResourceId?: number;
+  depth?: number;
 };
 
 // Cluster member types — matches Backend 17A GET /resources/{id}/members

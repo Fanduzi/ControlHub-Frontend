@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData, type LayerBand } from "@/lib/topology-mapper";
-import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
+import { getEnvironmentTopology, getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
@@ -26,7 +26,8 @@ import { TopologyProblemsPanel } from "./topology/topology-problems-panel";
 import { TopologyControls } from "./topology/topology-controls";
 
 type TopologyPanelProps = {
-  resourceId: number;
+  resourceId?: number;
+  environmentId?: number;
   className?: string;
   compact?: boolean;
   urlSync?: boolean;
@@ -35,6 +36,7 @@ type TopologyPanelProps = {
 
 function TopologyPanelInner({
   resourceId,
+  environmentId,
   className,
   compact = false,
   urlSync = false,
@@ -44,20 +46,23 @@ function TopologyPanelInner({
   const router = useRouter();
   const pathname = usePathname();
   const urlParams = useSearchParams();
+  const isEnvironmentTopology = environmentId !== undefined;
 
   // --- State: URL-synced or local ---
-  const urlDepth = (Number(urlParams.get("topologyDepth")) || 1) as 1 | 2;
+  const defaultDepth = isEnvironmentTopology ? 2 : 1;
+  const urlDepth = Number(urlParams.get("topologyDepth")) || defaultDepth;
   const urlDirection =
     (urlParams.get("topologyDirection") ?? "both") as TopologyParams["direction"];
   const urlExpanded = urlParams.get("topologyExpanded") === "1";
 
-  const [localDepth, setLocalDepth] = useState<1 | 2>(1);
+  const [localDepth, setLocalDepth] = useState(defaultDepth);
   const [localDirection, setLocalDirection] = useState<TopologyParams["direction"]>("both");
   const [localExpanded, setLocalExpanded] = useState(false);
 
   const depth = urlSync ? urlDepth : localDepth;
   const direction = urlSync ? urlDirection : localDirection;
   const expanded = urlSync ? urlExpanded : localExpanded;
+  const [rootResourceId, setRootResourceId] = useState<number>();
 
   const [topology, setTopology] = useState<TopologyResponse | null>(initialTopology ?? null);
   const [loading, setLoading] = useState(!initialTopology);
@@ -66,8 +71,8 @@ function TopologyPanelInner({
 
   // Track params that current topology data was loaded with,
   // so we can skip re-fetching when params haven't changed.
-  const loadedParamsRef = useRef<{ depth: 1 | 2; direction: string } | null>(
-    initialTopology ? { depth: 1, direction: "both" } : null,
+  const loadedParamsRef = useRef<string | null>(
+    initialTopology ? `:${defaultDepth}:both` : null,
   );
   const [selectedNodePopup, setSelectedNodePopup] = useState<{
     data: TopologyNodeData;
@@ -94,7 +99,7 @@ function TopologyPanelInner({
   );
 
   const setDepthValue = useCallback(
-    (v: 1 | 2) => {
+    (v: number) => {
       if (urlSync) {
         updateUrlParams({ topologyDepth: String(v) });
       } else {
@@ -127,41 +132,45 @@ function TopologyPanelInner({
   );
 
   const fetchTopology = useCallback(
-    async (d: 1 | 2, dir: TopologyParams["direction"]) => {
+    async (d: number, dir: TopologyParams["direction"]) => {
       setLoading(true);
       setError(null);
       setUnavailable(false);
 
-      const queryParams: TopologyParams = {};
-      if (d) queryParams.depth = d;
-      if (dir && dir !== "both") queryParams.direction = dir;
-
       try {
-        const result = await getResourceTopology(resourceId, queryParams);
+        const result = environmentId !== undefined
+          ? await getEnvironmentTopology(environmentId, {
+              ...(rootResourceId ? { rootResourceId } : {}),
+              depth: d,
+            })
+          : await getResourceTopology(resourceId!, {
+              depth: d as 1 | 2,
+              ...(dir && dir !== "both" ? { direction: dir } : {}),
+            });
         setTopology(result);
-        loadedParamsRef.current = { depth: d, direction: dir ?? "both" };
+        loadedParamsRef.current = `${rootResourceId ?? ""}:${d}:${dir ?? "both"}`;
       } catch (err) {
         if (err instanceof TopologyNotAvailableError) {
           setUnavailable(true);
           setTopology(null);
         } else {
-          setError(t("topology.errorTitle"));
+          setError(t(isEnvironmentTopology ? "topology.environmentErrorTitle" : "topology.errorTitle"));
           setTopology(null);
         }
       } finally {
         setLoading(false);
       }
     },
-    [resourceId, t],
+    [environmentId, isEnvironmentTopology, resourceId, rootResourceId, t],
   );
 
   useEffect(() => {
-    const loaded = loadedParamsRef.current;
-    if (loaded && loaded.depth === depth && loaded.direction === direction) {
+    const loadKey = `${rootResourceId ?? ""}:${depth}:${direction ?? "both"}`;
+    if (loadedParamsRef.current === loadKey) {
       return;
     }
     fetchTopology(depth, direction);
-  }, [depth, direction, fetchTopology]);
+  }, [depth, direction, fetchTopology, rootResourceId]);
 
   const flowData = useMemo(() => {
     if (!topology) return null;
@@ -193,13 +202,17 @@ function TopologyPanelInner({
   // Node click opens anchored detail popup
   const handleNodeClick: NodeMouseHandler = useCallback(
     (event, node) => {
+      if (isEnvironmentTopology) {
+        setRootResourceId(Number((node.data as TopologyNodeData).id));
+        return;
+      }
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setSelectedNodePopup({
         data: node.data as TopologyNodeData,
         position: { x: rect.right + 12, y: rect.top },
       });
     },
-    [],
+    [isEnvironmentTopology],
   );
 
   const handleRetry = useCallback(() => {
@@ -316,18 +329,61 @@ function TopologyPanelInner({
     </div>
   );
 
+  const renderEnvironmentControls = (inExpanded = false) => (
+    <div className="flex flex-wrap items-center gap-3">
+      {topology?.candidates && topology.candidates.length > 0 && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          {t("topology.rootLabel")}
+          <select
+            data-testid="topology-root-select"
+            value={rootResourceId ?? ""}
+            onChange={(event) => setRootResourceId(event.target.value ? Number(event.target.value) : undefined)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+          >
+            <option value="">{t("topology.allRoots")}</option>
+            {topology.candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.displayName}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        {t("topology.depthLabel")}
+        <select
+          data-testid="topology-environment-depth-select"
+          value={depth}
+          onChange={(event) => setDepthValue(Number(event.target.value))}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+        >
+          {[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </label>
+      {!inExpanded && hasEdges && (
+        <Button variant="outline" size="sm" onClick={() => setExpandedValue(true)} data-testid="topology-expand-button">
+          {t("topology.expandButton")}
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className={cn("space-y-3", className)}>
       {!expanded && (
-        <TopologyControls
-          depth={depth}
-          direction={direction ?? "both"}
-          expanded={false}
-          hasEdges={!!hasEdges}
-          onDepthChange={setDepthValue}
-          onDirectionChange={setDirectionValue}
-          onExpandedChange={setExpandedValue}
-        />
+        isEnvironmentTopology ? renderEnvironmentControls() : <TopologyControls
+            depth={depth as 1 | 2}
+            direction={direction ?? "both"}
+            expanded={false}
+            hasEdges={!!hasEdges}
+            onDepthChange={setDepthValue}
+            onDirectionChange={setDirectionValue}
+            onExpandedChange={setExpandedValue}
+          />
+      )}
+
+      {!loading && !error && topology?.truncated && (
+        <p data-testid="topology-truncated" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-200">
+          {t("topology.truncated")}
+        </p>
       )}
 
       {loading && (
@@ -396,15 +452,15 @@ function TopologyPanelInner({
           <div className="flex items-center justify-between border-b border-border px-4 py-2">
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium">{t("topology.title")}</span>
-              <TopologyControls
-                depth={depth}
-                direction={direction ?? "both"}
-                expanded={true}
-                hasEdges={!!hasEdges}
-                onDepthChange={setDepthValue}
-                onDirectionChange={setDirectionValue}
-                onExpandedChange={setExpandedValue}
-              />
+              {isEnvironmentTopology ? renderEnvironmentControls(true) : <TopologyControls
+                  depth={depth as 1 | 2}
+                  direction={direction ?? "both"}
+                  expanded={true}
+                  hasEdges={!!hasEdges}
+                  onDepthChange={setDepthValue}
+                  onDirectionChange={setDirectionValue}
+                  onExpandedChange={setExpandedValue}
+                />}
             </div>
             <Button
               variant="outline"

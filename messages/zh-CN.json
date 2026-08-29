@@ -180,6 +180,10 @@
       "title": "数据库",
       "description": "以实例和集群为中心的运行视图"
     },
+    "topology": {
+      "title": "拓扑",
+      "description": "环境依赖关系图"
+    },
     "query": {
       "title": "查询工作台",
       "description": "受治理的查询工作台外壳 · 仅对已就绪目标运行"
@@ -674,6 +678,12 @@
     "emptyDescription": "后端审计流接入后，最近资源变更会显示在这里。"
   },
   "topology": {
+    "environmentTitle": "环境拓扑",
+    "environmentDescription": "查看当前环境的依赖关系图。",
+    "selectEnvironment": "请选择一个环境以加载其拓扑。",
+    "allRoots": "自动选择根节点",
+    "truncated": "图谱已达到上限。请选择根节点或降低深度以缩小范围。",
+    "environmentErrorTitle": "此环境的拓扑不可用",
     "title": "资源拓扑",
     "description": "可视化相关资源及其依赖关系。",
     "depthLabel": "深度",

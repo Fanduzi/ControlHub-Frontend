@@ -9,7 +9,7 @@ vi.mock("@/services/api-client", async () => {
 });
 
 import { ApiError, apiClient } from "@/services/api-client";
-import { getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
+import { getEnvironmentTopology, getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import type { TopologyResponse } from "@/types/resource";
 
 const mockApiClient = vi.mocked(apiClient);
@@ -136,5 +136,21 @@ describe("getResourceTopology", () => {
     const error = new TopologyNotAvailableError();
     expect(error.name).toBe("TopologyNotAvailableError");
     expect(error.message).toBe("Topology endpoint not available");
+  });
+});
+
+describe("getEnvironmentTopology", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("requests an environment graph with an optional root and depth", async () => {
+    mockApiClient.mockResolvedValueOnce(minimalResponse({ depth: 3 }));
+
+    await getEnvironmentTopology(7, { rootResourceId: 42, depth: 3 });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/environments/7/topology?rootResourceId=42&depth=3",
+    );
   });
 });

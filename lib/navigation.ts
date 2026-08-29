@@ -6,6 +6,7 @@ import {
   Activity,
   Database,
   LayoutDashboard,
+  Network,
   Settings,
   ServerCog,
   SquareTerminal,
@@ -18,7 +19,7 @@ import {
  * matrix, which remains the authorization authority.
  */
 export type ConsoleNavigationItem = {
-  id: "overview" | "resources" | "databases" | "query" | "audits" | "settings";
+  id: "overview" | "resources" | "databases" | "topology" | "query" | "audits" | "settings";
   href: string;
   icon: LucideIcon;
   supportsEnvironment: boolean;
@@ -42,6 +43,12 @@ export const consoleNavigation: readonly ConsoleNavigationItem[] = [
     id: "databases",
     href: "/databases",
     icon: Database,
+    supportsEnvironment: true,
+  },
+  {
+    id: "topology",
+    href: "/topology",
+    icon: Network,
     supportsEnvironment: true,
   },
   {

@@ -180,6 +180,10 @@
       "title": "Databases",
       "description": "Instance and cluster-centric operational view"
     },
+    "topology": {
+      "title": "Topology",
+      "description": "Environment dependency graph"
+    },
     "query": {
       "title": "Query Workbench",
       "description": "Governed query workspace shell · runs only against ready targets"
@@ -674,6 +678,12 @@
     "emptyDescription": "Recent resource changes will appear here once the backend audit feed is connected."
   },
   "topology": {
+    "environmentTitle": "Environment topology",
+    "environmentDescription": "Explore the current environment's dependency graph.",
+    "selectEnvironment": "Select an environment to load its topology.",
+    "allRoots": "Automatic root",
+    "truncated": "This graph is capped. Choose a root or reduce depth to narrow it.",
+    "environmentErrorTitle": "Topology is unavailable for this environment",
     "title": "Resource topology",
     "description": "Visualize related resources and their dependencies.",
     "depthLabel": "Depth",
