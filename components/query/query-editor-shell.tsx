@@ -1,5 +1,5 @@
 // input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
-// output: QueryEditorShell component (tabbed editor with worksheet, history, saved statements; template mode via load/SQL-edit)
+// output: QueryEditorShell component with safe current-page CSV export, tabbed editor, history, and saved statements
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Check, ChevronDown, Copy, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -90,6 +90,7 @@ import type { ObjectSummary } from "@/types/query-schema";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
+import { serializeQueryResultCsv } from "@/lib/query-result-csv";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
@@ -3021,6 +3022,22 @@ function ResultTable({
     );
   }
 
+  function handleExportCsv() {
+    const url = URL.createObjectURL(
+      new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "query-results.csv";
+    document.body.append(anchor);
+    try {
+      anchor.click();
+    } finally {
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function copyButtonLabel(): string {
     if (selectedCell) {
       const column = columns[selectedCell.colIndex];
@@ -3053,6 +3070,15 @@ function ResultTable({
         >
           <Copy className="size-3.5" aria-hidden />
           {t("result.copyCellValue")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleExportCsv}
+        >
+          <Download className="size-3.5" aria-hidden />
+          {t("result.exportCsv")}
         </Button>
         {eligibleFKs.length > 0 && (
           <DropdownMenu>

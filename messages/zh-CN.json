@@ -1407,6 +1407,7 @@
       "copyColumnName": "复制列名",
       "copySuccess": "已复制",
       "copyFailed": "复制失败",
+      "exportCsv": "导出 CSV",
       "copyCellAriaLabel": "复制单元格值：{value}",
       "copyColumnNameAriaLabel": "复制列名：{name}",
       "relatedRecords": "关联记录",
@@ -1531,6 +1532,7 @@
       "adminMode": "Admin 模式",
       "batchQuery": "批量查询",
       "blocked": "已拦截",
+      "exportByDisclosurePolicy": "受披露策略约束",
       "notAvailable": "不可用",
       "notInScope": "不在范围内",
       "future": "未来"

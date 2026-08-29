@@ -10,6 +10,7 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs |
 | `view-models.ts` | Maps backend transport records to console view models; database-cluster detail models retain `members: []` for empty panels |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
+| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
 same-origin Operator Session endpoint. It does not trust browser storage or
@@ -28,6 +29,10 @@ unknown slugs fail closed so those pages render an empty scoped result.
 `list-page-search-params.ts` normalizes page, filter, and audit search values
 from shareable list URLs. `parsePositiveDecimalInteger` is the shared strict
 parser for URL IDs.
+
+`query-result-csv.ts` emits the current visible result page only. Raw values
+need both `raw_copy_allowed` and `copyAllowed`; masked and malformed disclosure
+metadata become stable placeholders.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

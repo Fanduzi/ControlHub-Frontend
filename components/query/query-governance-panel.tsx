@@ -1,3 +1,7 @@
+// input: Query target governance state, translations, admin-role state, and UI primitives
+// output: localized governance policy and credential-status controls
+// pos: query workbench governance and access presentation
+// note: if this file changes, update this header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -131,7 +135,7 @@ function PolicyBadges() {
     { labelKey: "policy.ddlDml", valueKey: "policy.blocked", tone: "red" },
     { labelKey: "policy.maxRows", valueKey: "policy.future", tone: "amber" },
     { labelKey: "policy.timeout", valueKey: "policy.future", tone: "amber" },
-    { labelKey: "policy.exportPolicy", valueKey: "policy.notAvailable", tone: "secondary" },
+    { labelKey: "policy.exportPolicy", valueKey: "policy.exportByDisclosurePolicy", tone: "secondary" },
     { labelKey: "policy.adminMode", valueKey: "policy.notInScope", tone: "secondary" },
     { labelKey: "policy.batchQuery", valueKey: "policy.future", tone: "amber" },
   ];

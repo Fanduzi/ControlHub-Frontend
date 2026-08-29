@@ -1407,6 +1407,7 @@
       "copyColumnName": "Copy column name",
       "copySuccess": "Copied",
       "copyFailed": "Copy failed",
+      "exportCsv": "Export CSV",
       "copyCellAriaLabel": "Copy cell value: {value}",
       "copyColumnNameAriaLabel": "Copy column name: {name}",
       "relatedRecords": "Related records",
@@ -1531,6 +1532,7 @@
       "adminMode": "Admin mode",
       "batchQuery": "Batch query",
       "blocked": "blocked",
+      "exportByDisclosurePolicy": "governed by disclosure policy",
       "notAvailable": "not available",
       "notInScope": "not in scope",
       "future": "future"

@@ -1,5 +1,5 @@
-// input: Testing Library, QueryWorkbench, mocked query services, and locale messages
-// output: QueryWorkbench unavailable-target recovery, search guards, and interaction tests
+// input: Testing Library, QueryWorkbench, CSV serialization, mocked query services, and locale messages
+// output: QueryWorkbench unavailable-target recovery, safe CSV export, search guards, and interaction tests
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
@@ -102,6 +102,7 @@ vi.mock("next-themes", () => ({
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { QUERY_EDITOR_HEIGHT_STORAGE_KEY } from "@/lib/query-editor-preferences";
+import { serializeQueryResultCsv } from "@/lib/query-result-csv";
 import {
   buildColumnCompletionsForDot,
   buildTableCompletions,
@@ -3115,8 +3116,9 @@ describe("QueryWorkbench SQL completion vocabulary", () => {
  * Phase 38J Delivery A: bounded result-grid copy affordances. Users can copy
  * exactly one visible cell value or one visible column name. Copy is local
  * (no API request), keyboard accessible, and shows success/failure feedback.
- * SQL NULL copies as the explicit NULL marker. No copy-all, export, or bulk
- * operations exist.
+ * SQL NULL copies as the explicit NULL marker. CSV export is limited to the
+ * current visible page and enforces the same disclosure policy. No copy-all
+ * or bulk operations exist.
  */
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -3189,6 +3191,27 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       ...overrides,
     };
   }
+
+  it("serializes current rows as RFC-4180 CSV without leaking protected disclosure values", () => {
+    const csv = serializeQueryResultCsv(
+      [
+        col("id", "BIGINT", false),
+        col("note", "VARCHAR", true),
+        { name: "masked", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
+        { name: "inconsistent", databaseType: "VARCHAR", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: false },
+        { name: "unknown", databaseType: "VARCHAR", nullable: false, displayMode: "future_mode" as never, copyAllowed: true },
+        col("nullable", "VARCHAR", true),
+      ],
+      [[7, "a,b \"quote\"\r\nnext", "TOP SECRET", "also secret", "still secret", null]],
+    );
+
+    expect(csv).toBe(
+      "id,note,masked,inconsistent,unknown,nullable\r\n7,\"a,b \"\"quote\"\"\r\nnext\",[masked],[blocked],[blocked],\r\n",
+    );
+    expect(csv).not.toContain("TOP SECRET");
+    expect(csv).not.toContain("also secret");
+    expect(csv).not.toContain("still secret");
+  });
 
   /**
    * Render the workbench, execute a query, and wait for the result table to
@@ -3372,14 +3395,58 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     fetchSpy.mockRestore();
   });
 
-  it("does not render copy-all, export, CSV, or JSON download controls", async () => {
+  it("downloads the current result page as a CSV Blob and cleans up the temporary URL", async () => {
     await renderWithResult();
 
     expect(screen.queryByRole("button", { name: /copy all/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /export/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /csv/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /download/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /select all/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /json/i })).toBeNull();
+
+    const createObjectURL = vi.fn(() => "blob:query-results");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      await userEvent.setup().click(screen.getByRole("button", { name: "Export CSV" }));
+
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalledOnce();
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor).toMatchObject({ download: "query-results.csv", href: "blob:query-results" });
+      expect(document.body.contains(anchor)).toBe(false);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:query-results");
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not render Export CSV for an empty current result page", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse({ rows: [], rowCount: 0 }));
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getAllByText("0 rows")).toHaveLength(2);
+    });
+    expect(screen.queryByRole("button", { name: /export csv/i })).toBeNull();
+  });
+
+  it("keeps disclosure-policy export copy present in both locales", () => {
+    const enPolicy = (enMessages.queryWorkbench.policy as Record<string, string>);
+    const zhPolicy = (zhMessages.queryWorkbench.policy as Record<string, string>);
+
+    expect(Object.keys(zhPolicy).sort()).toEqual(Object.keys(enPolicy).sort());
+    expect(enPolicy.exportByDisclosurePolicy).toBe("governed by disclosure policy");
+    expect(zhPolicy.exportByDisclosurePolicy).toBe("受披露策略约束");
   });
 
   it("preserves existing result metadata (row count, duration, limit)", async () => {
