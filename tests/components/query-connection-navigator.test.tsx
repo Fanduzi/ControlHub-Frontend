@@ -193,8 +193,7 @@ describe("QueryConnectionNavigator", () => {
   });
 
   /**
-   * The count describes the currently displayed list rather than a stale
-   * unfiltered server total.
+ * The footer keeps the loaded list count distinct from the server total.
    */
   it("renders a localized truthful target count and explicit load-more action", async () => {
     const user = userEvent.setup();
@@ -240,5 +239,23 @@ describe("QueryConnectionNavigator", () => {
     );
 
     expect(screen.getByText("已加载 1 / 共 64 个目标")).toBeInTheDocument();
+  });
+
+  it("pluralizes the English footer from the total target count", () => {
+    const targets = buildTwoTargets().slice(0, 1);
+
+    renderNavigator({
+      targets,
+      pageInfo: {
+        page: 1,
+        pageSize: 50,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    expect(screen.getByText("Showing 1 of 1 target")).toBeInTheDocument();
   });
 });

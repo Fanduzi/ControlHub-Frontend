@@ -1606,7 +1606,7 @@
       "allReadiness": "All readiness",
       "open": "Open connections",
       "openMobile": "Open connections on mobile",
-      "showing": "Showing {loaded} of {total} targets",
+      "showing": "Showing {loaded} of {total, plural, one {# target} other {# targets}}",
       "loadMore": "Load more targets",
       "loadAllEngines": "Load all engines",
       "targetLoadError": "Unable to load targets.",

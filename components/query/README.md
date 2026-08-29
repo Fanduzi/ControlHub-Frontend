@@ -10,7 +10,7 @@ React client components for the query workbench feature.
 | query-editor-shell.tsx | Tabbed editor shell (worksheet, history, saved statements; template mode via load and SQL-edit exit) |
 | query-saved-statements.tsx | Saved statement terminal list generations with CRUD, shared-template affordance gate, and a terminal delete state machine (pending blocks dismissal/duplicate submit; retryable codes retry; forbidden is non-retryable; not_found / saved_statement_not_found refreshes and announces absence; last-row-on-later-page falls back to the previous page) |
 | query-workbench-navigator.tsx | Target navigator wrapper |
-| query-connection-navigator.tsx | Connection target selector dialog/sheet with localized current-result count |
+| query-connection-navigator.tsx | Connection target selector dialog/sheet with localized loaded/total paging |
 | query-connection-navigator-body.tsx | Navigator body with search and target groups |
 | query-connection-navigator-list.tsx | Target list rendering |
 | query-governance-panel.tsx | Governance and access detail panel |

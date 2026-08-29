@@ -1272,7 +1272,7 @@ describe("QueryWorkbench target picker search", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Unable to search targets.");
       expect(screen.getByRole("button", { name: "Successful Redis target" })).toBeInTheDocument();
-      expect(screen.getByText("Showing 1 of 1 targets")).toBeInTheDocument();
+      expect(screen.getByText("Showing 1 of 1 target")).toBeInTheDocument();
       expect(screen.queryByText("No targets match your filters.")).not.toBeInTheDocument();
       expect(screen.queryByText("backend details must not render")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Retry target search" })).toBeInTheDocument();
