@@ -92,7 +92,12 @@
     "eventTypes": {
       "resource_created": "Resource created",
       "relation_created": "Relation created",
-      "resource_updated": "Resource updated"
+      "resource_updated": "Resource updated",
+      "inventory_resource_updated": "Inventory resource updated",
+      "inventory_profile_updated": "Inventory profile updated",
+      "inventory_profile_deleted": "Inventory profile deleted",
+      "inventory_relationship_created": "Inventory relationship created",
+      "inventory_relationship_deleted": "Inventory relationship deleted"
     },
     "results": {
       "success": "success",
@@ -525,6 +530,12 @@
       "allEventTypes": "All event types",
       "allResults": "All results",
       "searchPlaceholder": "Search action, actor, or resource",
+      "changeCount": "{count, plural, one {# change} other {# changes}}",
+      "operations": {
+        "add": "Added",
+        "update": "Updated",
+        "remove": "Removed"
+      },
       "emptyTitle": "No audit events",
       "emptyDescription": "Audit records will appear here once resource changes are captured."
     }

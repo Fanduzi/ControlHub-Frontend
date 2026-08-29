@@ -1,4 +1,16 @@
+// input: shared pagination contract and backend audit-event JSON
+// output: typed audit list requests, responses, and server-owned field changes
+// pos: frontend transport contract for global and per-resource audit reads
+// note: if this file changes, update header and the owning module README.md
+
 import type { PageInfo } from "@/types/resource";
+
+export type AuditChange = {
+  field: string;
+  operation: "add" | "update" | "remove";
+  before?: unknown;
+  after?: unknown;
+};
 
 export type AuditEvent = {
   id: number;
@@ -6,6 +18,7 @@ export type AuditEvent = {
   targetResourceId: number | null;
   eventType: string;
   result: string;
+  changes?: AuditChange[];
   createdAt: string;
 };
 

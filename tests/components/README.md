@@ -34,7 +34,7 @@ Vitest component tests for React UI components.
 | cluster-members-table.test.tsx | Cluster members table |
 | overview-content.test.tsx | Overview content |
 | activity-timeline.test.tsx | Activity timeline |
-| audit-table.test.tsx | Audit table |
+| audit-table.test.tsx | Audit table, including complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar |
 | topbar.test.tsx | App topbar (incl. fail-closed sign-out: success clears+leaves, network/non-2xx failure stays with controlled error) |
 | theme-toggle.test.tsx | Theme toggle |

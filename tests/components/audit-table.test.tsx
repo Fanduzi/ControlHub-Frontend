@@ -1,3 +1,8 @@
+// input: AuditTable, localized messages, Testing Library user interactions
+// output: audit filtering, timestamps, and field-diff rendering assertions
+// pos: component-level regression contract for the operator audit table
+// note: if this file changes, update header and components/audits/README.md
+
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen } from "@testing-library/react";
@@ -6,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuditTable } from "@/components/audits/audit-table";
 import messages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 import type { AuditEventViewModel } from "@/types/view-models";
 
 const replace = vi.fn();
@@ -16,7 +22,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("page=4&pageSize=25"),
 }));
 
-function renderTable() {
+function renderTable(locale = "en", localizedMessages: typeof messages = messages) {
   const events: AuditEventViewModel[] = [
     {
       id: 1,
@@ -27,13 +33,21 @@ function renderTable() {
       environmentLabel: "Production",
       eventType: "resource.updated",
       result: "success",
+      changes: [
+        {
+          field: "identity.displayName",
+          operation: "update",
+          before: "Orders service",
+          after: "Orders API",
+        },
+      ],
       createdAt: "2026-04-14T10:00:00Z",
       summary: "Resource updated",
     },
   ];
 
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={localizedMessages}>
       <AuditTable
         events={events}
         pageInfo={{
@@ -64,6 +78,8 @@ describe("AuditTable", () => {
     expect(await screen.findByRole("menuitemcheckbox", { name: "Resource updated" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Resource created" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Relation created" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Inventory profile updated" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Inventory relationship deleted" })).toBeVisible();
   });
 
   it("updates eventType in the URL and resets to the first page", async () => {
@@ -100,5 +116,20 @@ describe("AuditTable", () => {
     renderTable();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("shows server-owned field changes with before and after values", () => {
+    renderTable();
+
+    expect(screen.getByText("identity.displayName")).toBeInTheDocument();
+    expect(screen.getByText("Updated")).toBeInTheDocument();
+    expect(screen.getByText("Orders service")).toBeInTheDocument();
+    expect(screen.getByText("Orders API", { selector: "code" })).toBeInTheDocument();
+  });
+
+  it("localizes the closed change operation vocabulary", () => {
+    renderTable("zh-CN", zhMessages);
+
+    expect(screen.getByText("更新")).toBeInTheDocument();
   });
 });

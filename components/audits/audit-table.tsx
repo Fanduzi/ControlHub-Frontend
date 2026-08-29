@@ -1,3 +1,8 @@
+// input: localized audit view models, URL filters, shared table primitives
+// output: searchable audit table with field-level before/after evidence
+// pos: operator-facing global inventory audit read surface
+// note: if this file changes, update header and components/audits/README.md
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -42,6 +47,11 @@ const KNOWN_AUDIT_EVENT_TYPES = [
   "resource.created",
   "relation.created",
   "resource.updated",
+  "inventory.resource.updated",
+  "inventory.profile.updated",
+  "inventory.profile.deleted",
+  "inventory.relationship.created",
+  "inventory.relationship.deleted",
 ] as const;
 
 const KNOWN_AUDIT_RESULTS = ["success", "warning", "error"] as const;
@@ -55,6 +65,14 @@ function updateMultiSelectParams(
 ) {
   const params = buildMultiSelectParams(searchParams, key, values);
   router.replace(`${pathname}?${params.toString()}`);
+}
+
+function formatAuditValue(value: unknown) {
+  if (value === undefined) return "—";
+  if (typeof value === "string") return value === "" ? '""' : value;
+  if (value === null) return "null";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 export function AuditTable({ events, pageInfo }: AuditTableProps) {
@@ -80,6 +98,10 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     return t.has(`activityTimeline.results.${result}`)
       ? t(`activityTimeline.results.${result}`)
       : formatLabel(result);
+  }
+
+  function getOperationLabel(operation: "add" | "update" | "remove") {
+    return t(`tables.audits.operations.${operation}`);
   }
 
   const eventTypes = Array.from(
@@ -139,6 +161,40 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
       cell: (info) => (
         <span className="text-sm text-muted-foreground">{info.getValue()}</span>
       ),
+    }),
+    columnHelper.display({
+      id: "changes",
+      header: t("common.fields.changeSummary"),
+      cell: (info) => {
+        const changes = info.row.original.changes ?? [];
+        if (changes.length === 0) {
+          return <span className="text-sm text-muted-foreground">—</span>;
+        }
+        return (
+          <details className="min-w-64 text-sm">
+            <summary className="cursor-pointer text-muted-foreground">
+              {t("tables.audits.changeCount", { count: changes.length })}
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {changes.map((change, index) => (
+                <li key={`${change.field}-${index}`} className="grid gap-0.5">
+                  <span className="font-medium text-foreground">
+                    <code>{change.field}</code>
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      {getOperationLabel(change.operation)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    <code>{formatAuditValue(change.before)}</code>
+                    <span aria-hidden="true"> → </span>
+                    <code>{formatAuditValue(change.after)}</code>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        );
+      },
     }),
     columnHelper.accessor("createdAt", {
       header: t("common.fields.timestamp"),

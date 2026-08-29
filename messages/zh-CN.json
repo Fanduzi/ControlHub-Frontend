@@ -92,7 +92,12 @@
     "eventTypes": {
       "resource_created": "资源创建",
       "relation_created": "关系创建",
-      "resource_updated": "资源更新"
+      "resource_updated": "资源更新",
+      "inventory_resource_updated": "盘点资源更新",
+      "inventory_profile_updated": "盘点画像更新",
+      "inventory_profile_deleted": "盘点画像删除",
+      "inventory_relationship_created": "盘点关系创建",
+      "inventory_relationship_deleted": "盘点关系删除"
     },
     "results": {
       "success": "成功",
@@ -525,6 +530,12 @@
       "allEventTypes": "全部事件类型",
       "allResults": "全部结果",
       "searchPlaceholder": "搜索操作、操作人或资源",
+      "changeCount": "{count} 项变更",
+      "operations": {
+        "add": "新增",
+        "update": "更新",
+        "remove": "删除"
+      },
       "emptyTitle": "暂无审计事件",
       "emptyDescription": "资源变更被捕获后，审计记录会显示在这里。"
     }
