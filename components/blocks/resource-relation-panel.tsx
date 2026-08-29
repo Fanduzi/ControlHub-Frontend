@@ -75,6 +75,7 @@ export function ResourceRelationPanel({
   const [target, setTarget] = useState<Resource | null>(null);
   const [relationType, setRelationType] = useState("");
   const [direction, setDirection] = useState<RelationDirection>("outgoing");
+  const [hasManualDirection, setHasManualDirection] = useState(false);
   const [relationTypes, setRelationTypes] = useState<RelationTypeDefinition[]>([]);
   const [relationRules, setRelationRules] = useState<RelationshipRule[]>([]);
   const [sourceEnvironmentId, setSourceEnvironmentId] = useState<number>();
@@ -262,6 +263,7 @@ export function ResourceRelationPanel({
                     checked={direction === "outgoing"}
                     onChange={() => {
                       setDirection("outgoing");
+                      setHasManualDirection(true);
                       setTarget(null);
                       setError(null);
                     }}
@@ -275,6 +277,7 @@ export function ResourceRelationPanel({
                     checked={direction === "incoming"}
                     onChange={() => {
                       setDirection("incoming");
+                      setHasManualDirection(true);
                       setTarget(null);
                       setError(null);
                     }}
@@ -292,12 +295,13 @@ export function ResourceRelationPanel({
             <Select value={relationType} onValueChange={(v) => {
               if (v !== null) {
                 setRelationType(v);
-                setDirection(
-                  resourceType === "database_cluster" &&
+                setDirection((current) => {
+                  if (hasManualDirection && (current !== "incoming" || (resourceType && environmentId))) return current;
+                  return resourceType === "database_cluster" &&
                     ["member_of", "fronts", "points_to"].includes(v)
                     ? "incoming"
-                    : "outgoing",
-                );
+                    : "outgoing";
+                });
                 setTarget(null);
                 setError(null);
               }
@@ -322,6 +326,10 @@ export function ResourceRelationPanel({
               key={`${direction}-${relationType}`}
               onSelect={(resource) => {
                 setTarget(resource);
+                if (direction === "incoming") {
+                  setSelectedSourceRules([]);
+                  setSelectedSourceEnvironmentId(undefined);
+                }
                 setError(null);
               }}
               excludeIds={resourceId ? [resourceId] : []}

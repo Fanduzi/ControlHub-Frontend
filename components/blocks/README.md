@@ -1,13 +1,17 @@
 # components/blocks
 
-Reusable blocks shared across console pages and sheets.
+## Files
 
-`resource-relation-panel.tsx` renders localized relations for every operator,
-keeps successfully deleted rows hidden across stale refresh props, and
-independently guards each in-flight row deletion. Its admin-only add form has
-an accessible explicit direction choice. It gets source-specific backend rules
-for the actual source, validates target type/environment before submit, and
-uses the selected source ID in the existing create path; backend create
-validation remains authoritative.
+- `resource-relation-panel.tsx` — renders and mutates resource relations.
+- `resource-search-combobox.tsx` — selects a resource candidate.
+- `deployed-resources-card.tsx` — displays deployed resources.
 
-`resource-search-combobox.tsx` and `deployed-resources-card.tsx` use root locale labels for resource types.
+## Interfaces
+
+- `ResourceRelationPanel` accepts relation data and optional resource/environment context.
+- `ResourceSearchCombobox` accepts candidate filters and an `onSelect` callback.
+
+## Dependencies
+
+- Relation services provide relation types, rules, creation, and deletion.
+- Shared UI, localization, and resource-summary utilities provide presentation.

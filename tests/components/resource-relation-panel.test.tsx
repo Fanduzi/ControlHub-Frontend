@@ -18,6 +18,12 @@ import type { ResourceRelationViewModel } from "@/types/view-models";
 const messages = enMessages;
 
 let isAdmin = true;
+let selectedResources: Array<{
+  id: number;
+  displayName: string;
+  resourceType: string;
+  environmentId: number;
+}> = [];
 vi.mock("@/lib/auth-role", () => ({
   useAdminRole: () => isAdmin,
 }));
@@ -67,16 +73,16 @@ vi.mock("@/components/blocks/resource-search-combobox", () => ({
       data-testid="resource-search-combobox"
       data-exclude-ids={excludeIds?.join(",") ?? ""}
 	  data-resource-types={resourceTypes?.join(",") ?? ""}
-	  data-environment-id={environmentId ?? ""}
+      data-environment-id={environmentId ?? ""}
 	  disabled={disabled}
-      onClick={() =>
-        onSelect({
+      onClick={() => {
+        onSelect(selectedResources.shift() ?? {
           id: 9,
           displayName: "orders-replica",
           resourceType: resourceTypes?.[0] ?? "database_instance",
           environmentId: environmentId ?? 1,
-        })
-      }
+        });
+      }}
     >
       pick resource
     </button>
@@ -125,6 +131,7 @@ describe("ResourceRelationPanel", () => {
     vi.resetAllMocks();
     refresh.mockClear();
     isAdmin = true;
+    selectedResources = [];
 
     mockedListRelationTypes.mockResolvedValue([
       { key: "member_of", label: "Member of", description: "" },
@@ -346,6 +353,68 @@ describe("ResourceRelationPanel", () => {
       toResourceId: 101,
       relationType,
     });
+  });
+
+  it("clears incoming source rules until rules for the replacement source load", async () => {
+    const user = userEvent.setup();
+    let resolveReplacementRules: (value: Awaited<ReturnType<typeof relationService.getResourceRelationRules>>) => void;
+    selectedResources = [
+      { id: 9, displayName: "first source", resourceType: "database_instance", environmentId: 1 },
+      { id: 10, displayName: "replacement source", resourceType: "database_instance", environmentId: 1 },
+    ];
+    mockedGetRelationRules
+      .mockResolvedValueOnce({ sourceResourceId: 101, sourceEnvironmentId: 1, rules: [] })
+      .mockResolvedValueOnce({
+        sourceResourceId: 9,
+        sourceEnvironmentId: 1,
+        rules: [{ relationType: "member_of", targetResourceTypes: ["database_cluster"], sameEnvironment: true }],
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveReplacementRules = resolve;
+      }));
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={[]} resourceId={101} resourceType="database_cluster" environmentId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Member of" }));
+    await user.click(screen.getByTestId("resource-search-combobox"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add relation" })).toBeEnabled());
+
+    await user.click(screen.getByTestId("resource-search-combobox"));
+
+    expect(screen.getByRole("radio", { name: "Selected resource points to this resource" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Add relation" })).toBeDisabled();
+
+    resolveReplacementRules!({
+      sourceResourceId: 10,
+      sourceEnvironmentId: 1,
+      rules: [{ relationType: "depends_on", targetResourceTypes: ["database_cluster"], sameEnvironment: true }],
+    });
+    expect(await screen.findByText("The selected relationship is not allowed.")).toBeInTheDocument();
+  });
+
+  it("keeps a valid manual direction when the relation type changes", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={[]} resourceId={101} resourceType="database_cluster" environmentId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByText("Add relation"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Member of" }));
+    await user.click(screen.getByRole("radio", { name: "This resource points to selected resource" }));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Fronts" }));
+
+    expect(screen.getByRole("radio", { name: "This resource points to selected resource" })).toBeChecked();
   });
 
   it("does not submit an incoming relation when the selected source cannot target this resource type", async () => {
