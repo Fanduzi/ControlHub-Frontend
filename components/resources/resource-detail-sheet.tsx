@@ -1,10 +1,10 @@
-// input: resource view models, health evidence, localization, auth role, and mutation controls
-// output: resource detail sheet with observation metadata and admin edit/archive affordances
-// pos: authenticated resource detail and health evidence surface
+// input: resource view models, health/effective-value evidence, localization, auth role, services, and mutation controls
+// output: resource detail sheet with observation/provenance metadata and admin edit/archive/override affordances
+// pos: authenticated resource detail, health evidence, and effective-value interaction surface
 // note: if this file changes, update this header and module README.md.
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAdminRole } from "@/lib/auth-role";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/blocks/status-badge";
 import { TopologyPanel } from "@/components/blocks/topology-panel";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, formatLabel } from "@/lib/format";
+import { ApiError } from "@/services/api-client";
 import {
   buildLocalizedFallbackSummary,
   localizeResourceType,
@@ -34,6 +36,16 @@ import type {
   ResourceDetailViewModel,
   ResourceListViewModel,
 } from "@/types/view-models";
+import {
+  clearResourceOverride,
+  getEffectiveValues,
+  setResourceOverride,
+} from "@/services/resources";
+import type {
+  EffectiveValue,
+  EffectiveValuesResponse,
+  ResourceOverrideField,
+} from "@/types/resource";
 
 import { EditResourceSheet } from "./edit-resource-sheet";
 import { ResourceArchiveButton } from "./resource-archive-button";
@@ -56,6 +68,46 @@ function hasDetailData(
   );
 }
 
+const overrideFields: ResourceOverrideField[] = [
+  "displayName",
+  "lifecycleStatus",
+  "healthStatus",
+];
+
+function isOverrideField(key: string): key is ResourceOverrideField {
+  return overrideFields.includes(key as ResourceOverrideField);
+}
+
+function overrideDrafts(values: EffectiveValuesResponse["values"]) {
+  return Object.fromEntries(
+    overrideFields.map((field) => [
+      field,
+      values[field]?.value == null ? "" : String(values[field].value),
+    ]),
+  ) as Partial<Record<ResourceOverrideField, string>>;
+}
+
+function errorText(
+  error: unknown,
+  translate: ReturnType<typeof useTranslations>,
+) {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "resource_conflict":
+        return translate("mutations.errors.resourceConflict");
+      case "unauthorized":
+        return translate("mutations.errors.unauthorized");
+      case "resource_not_found":
+        return translate("mutations.errors.notFound");
+      case "validation_failed":
+        return translate("mutations.errors.validation");
+      default:
+        return translate("mutations.errors.backend");
+    }
+  }
+  return translate("mutations.errors.unknown");
+}
+
 export function ResourceDetailSheet({
   open,
   onOpenChange,
@@ -65,7 +117,85 @@ export function ResourceDetailSheet({
   const t = useTranslations();
   const locale = useLocale();
   const [editOpen, setEditOpen] = useState(false);
+  const [effectiveValues, setEffectiveValues] = useState<
+    EffectiveValuesResponse["values"]
+  >({});
+  const [overrideDraft, setOverrideDraft] = useState<
+    Partial<Record<ResourceOverrideField, string>>
+  >({});
+  const [effectiveLoading, setEffectiveLoading] = useState(false);
+  const [overrideError, setOverrideError] = useState<string | null>(null);
+  const [overrideBusy, setOverrideBusy] = useState<ResourceOverrideField | null>(null);
   const isAdmin = useAdminRole();
+  const resourceId = resource?.id;
+
+  useEffect(() => {
+    if (!open || resourceId === undefined) return undefined;
+
+    let cancelled = false;
+    setEffectiveLoading(true);
+    setOverrideError(null);
+    setEffectiveValues({});
+
+    Promise.resolve(getEffectiveValues(resourceId))
+      .then((response) => {
+        if (!cancelled && response) {
+          setEffectiveValues(response.values);
+          setOverrideDraft(overrideDrafts(response.values));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setOverrideError(errorText(error, t));
+      })
+      .finally(() => {
+        if (!cancelled) setEffectiveLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, resourceId, t]);
+
+  async function refreshEffectiveValues() {
+    const response = await getEffectiveValues(resourceId as number);
+    setEffectiveValues(response.values);
+    setOverrideDraft(overrideDrafts(response.values));
+  }
+
+  async function saveOverride(field: ResourceOverrideField) {
+    setOverrideBusy(field);
+    setOverrideError(null);
+    try {
+      await setResourceOverride(
+        resourceId as number,
+        field,
+        overrideDraft[field] ?? "",
+        effectiveValues[field]?.provenance.version ?? 0,
+      );
+      await refreshEffectiveValues();
+    } catch (error) {
+      setOverrideError(errorText(error, t));
+    } finally {
+      setOverrideBusy(null);
+    }
+  }
+
+  async function clearOverride(field: ResourceOverrideField) {
+    setOverrideBusy(field);
+    setOverrideError(null);
+    try {
+      await clearResourceOverride(
+        resourceId as number,
+        field,
+        effectiveValues[field]?.provenance.version ?? 0,
+      );
+      await refreshEffectiveValues();
+    } catch (error) {
+      setOverrideError(errorText(error, t));
+    } finally {
+      setOverrideBusy(null);
+    }
+  }
 
   if (!resource) {
     return null;
@@ -76,6 +206,7 @@ export function ResourceDetailSheet({
   const profileEntries = detailResource
     ? Object.entries(detailResource.profile)
     : [];
+  const effectiveEntries = Object.entries(effectiveValues);
   const relations = detailResource?.relations ?? [];
   const auditEvents = detailResource?.auditEvents ?? [];
 
@@ -222,6 +353,96 @@ export function ResourceDetailSheet({
               </dl>
             </DetailPanel>
           )}
+
+          <DetailPanel
+            title={t("detailSheet.effectiveValues")}
+            description={t("detailSheet.effectiveValuesDescription")}
+          >
+            {effectiveLoading ? (
+              <Skeleton className="h-12 w-full" />
+            ) : effectiveEntries.length ? (
+              <dl className="grid gap-3 md:grid-cols-2">
+                {effectiveEntries.map(([key, entry]: [string, EffectiveValue]) => {
+                  const fieldLabel = isOverrideField(key)
+                    ? t(`detailSheet.effectiveFields.${key}`)
+                    : formatLabel(key);
+                  return (
+                  <div key={key} className="rounded-lg border border-border bg-background px-3 py-3">
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {fieldLabel}
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-foreground">
+                      {entry.value == null ? t("common.notSet") : String(entry.value)}
+                    </dd>
+                    <dd className="mt-1 text-xs text-muted-foreground">
+                      {entry.provenance.kind === "manual_override"
+                        ? t("detailSheet.manualOverride")
+                        : t("detailSheet.observed")}
+                      {entry.provenance.source ? ` · ${entry.provenance.source}` : ""}
+                    </dd>
+                    {isAdmin === true && isOverrideField(key) && (
+                      <div className="mt-3 space-y-2">
+                        <label
+                          htmlFor={`override-${key}`}
+                          className="text-xs font-medium text-foreground"
+                        >
+                          {t("detailSheet.overrideLabel", { field: fieldLabel })}
+                        </label>
+                        <Input
+                          id={`override-${key}`}
+                          value={overrideDraft[key] ?? ""}
+                          onChange={(event) =>
+                            setOverrideDraft((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          disabled={overrideBusy !== null}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => saveOverride(key)}
+                            disabled={overrideBusy !== null}
+                            aria-label={
+                              t("detailSheet.saveFieldOverride", {
+                                field: fieldLabel,
+                              })
+                            }
+                          >
+                            {t("detailSheet.saveOverride")}
+                          </Button>
+                          {entry.provenance.kind === "manual_override" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => clearOverride(key)}
+                              disabled={overrideBusy !== null}
+                              aria-label={t("detailSheet.clearFieldOverride", {
+                                field: fieldLabel,
+                              })}
+                            >
+                              {t("detailSheet.clearOverride")}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  );
+                })}
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("common.notSet")}</p>
+            )}
+            {overrideError && (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {overrideError}
+              </p>
+            )}
+          </DetailPanel>
 
           <DetailPanel
             title={t("detailSheet.profile")}

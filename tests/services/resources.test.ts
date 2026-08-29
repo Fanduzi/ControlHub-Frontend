@@ -1,17 +1,20 @@
 // input: Vitest, mocked resources API client, and resource service contracts
-// output: resource/profile/relation-rule transport, managed-identity payload, and request-shape coverage
+// output: resource/profile/relation-rule transport, managed-identity/effective-value override payloads, and request-shape coverage
 // pos: service contract tests for the resources API boundary
 // note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archiveResource,
+  clearResourceOverride,
+  getEffectiveValues,
   getOverviewMetrics,
   getResourceRelationRules,
   listAttentionResources,
   listClusterMembers,
   listDatabaseResources,
   listResources,
+  setResourceOverride,
   unarchiveResource,
 } from "@/services/resources";
 import {
@@ -1164,5 +1167,48 @@ describe("listClusterMembers", () => {
     const result = await listClusterMembers(99);
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("resource effective values", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("sends GET, set, and clear requests with the version contract", async () => {
+    apiClientMock
+      .mockResolvedValueOnce({
+        values: {
+          displayName: {
+            value: "Orders DB Primary",
+            provenance: { kind: "observed", source: "cmdb", version: 0 },
+          },
+        },
+      })
+      .mockResolvedValueOnce({ version: 6 })
+      .mockResolvedValueOnce(undefined);
+
+    await expect(getEffectiveValues(101)).resolves.toEqual({
+      values: {
+        displayName: {
+          value: "Orders DB Primary",
+          provenance: { kind: "observed", source: "cmdb", version: 0 },
+        },
+      },
+    });
+    await setResourceOverride(101, "displayName", "Operator name", 5);
+    await clearResourceOverride(101, "displayName", 6);
+
+    expect(apiClientMock.mock.calls).toEqual([
+      ["/resources/101/effective-values"],
+      ["/resources/101/overrides/displayName", {
+        method: "PUT",
+        body: JSON.stringify({ value: "Operator name", expectedVersion: 5 }),
+      }],
+      ["/resources/101/overrides/displayName", {
+        method: "DELETE",
+        body: JSON.stringify({ expectedVersion: 6 }),
+      }],
+    ]);
   });
 });

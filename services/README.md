@@ -21,4 +21,5 @@ is forwarded as `q`; other failures surface normally.
 
 `resources.ts` sends typed-profile edits through PATCH, exposes explicit
 profile deletion, and fetches source-specific relationship rules without
-embedding the matrix in the console.
+embedding the matrix in the console; it also owns effective-value reads and
+versioned override set/clear requests.

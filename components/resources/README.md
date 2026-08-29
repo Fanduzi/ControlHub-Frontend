@@ -47,3 +47,7 @@ views expose the same identity, and backend uniqueness conflicts remain explicit
 
 - Upstream: `app/(console)/resources/page.tsx`, `services/settings`
 - Downstream: shared table, filter, pagination, and resource-detail components
+
+Resource detail sheets show effective values with provenance and let admins set
+or clear only the backend-supported display name, lifecycle status, and health
+status overrides with expected-version conflict handling.

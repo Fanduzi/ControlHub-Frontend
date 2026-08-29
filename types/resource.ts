@@ -1,5 +1,5 @@
-// input: backend resource, profile, relation, topology, health, identity, and rule JSON contracts
-// output: governed resource identity, health, and server-owned relationship-rule transport types
+// input: backend resource, profile, relation, topology, health, effective-value, identity, override, and rule JSON contracts
+// output: governed resource identity, health/provenance, override, and server-owned relationship-rule transport types
 // pos: shared TypeScript transport boundary between resource services and UI
 // note: if this file changes, update this header and types/README.md.
 export type ResourceType =
@@ -110,6 +110,28 @@ export type ResourceProfileResponse = {
   resourceType: ResourceType;
   resourceSubtype: string;
   profile: Record<string, ResourceProfileValue>;
+};
+
+export type EffectiveValue = {
+  value: ResourceProfileValue;
+  provenance: {
+    kind: "observed" | "manual_override";
+    source?: string;
+    version?: number;
+  };
+};
+
+export type EffectiveValuesResponse = {
+  values: Record<string, EffectiveValue>;
+};
+
+export type ResourceOverrideField =
+  | "displayName"
+  | "lifecycleStatus"
+  | "healthStatus";
+
+export type OverrideVersionResponse = {
+  version: number;
 };
 
 export type RelatedResourceSummary = {

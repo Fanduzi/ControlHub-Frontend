@@ -21,7 +21,7 @@ Vitest component tests for React UI components.
 | create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
 | edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, manual health override set/clear, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
 | resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies plus health evidence fields |
-| resource-detail-sheet.test.tsx | Resource detail sheet identity, localized health/override evidence, and empty states |
+| resource-detail-sheet.test.tsx | Resource detail sheet identity, localized health/override evidence, empty states, effective-value provenance, and admin override conflicts |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel rule discovery, target constraints, controlled rejection, role gates, and mutations |

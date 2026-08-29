@@ -15,4 +15,5 @@ Audit list requests include the optional server-owned `q` search term.
 
 `resource.ts` defines immutable resource origin plus managed aliases and global
 external system/value identifiers for create, update, and response contracts,
-plus the backend-owned relationship-rule discovery response used by the console.
+plus the backend-owned relationship-rule discovery response, effective-value
+provenance, and supported override fields used by the console.

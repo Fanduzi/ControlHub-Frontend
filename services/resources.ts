@@ -1,6 +1,6 @@
 // input: shared API client, pagination helper, and resource wire types
-// output: resource/profile/relation reads and mutations plus relationship-rule discovery
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints unchanged
+// output: resource/profile/relation/effective-value reads and mutations, override controls, and relationship-rule discovery
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints and override versions unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -8,6 +8,8 @@ import type {
   ClusterMember,
   CreateResourceInput,
   CreateResourceRelationInput,
+  EffectiveValuesResponse,
+  OverrideVersionResponse,
   Resource,
   ResourceDetailResponse,
   ResourceListParams,
@@ -16,6 +18,7 @@ import type {
   ResourceRelation,
   ResourceRelationListResponse,
   RelationshipRulesResponse,
+  ResourceOverrideField,
   UpdateResourceInput,
 } from "@/types/resource";
 
@@ -99,6 +102,40 @@ export async function getResourceProfileById(
 
     throw error;
   }
+}
+
+export async function getEffectiveValues(
+  id: number,
+): Promise<EffectiveValuesResponse> {
+  return apiClient<EffectiveValuesResponse>(
+    `/resources/${id}/effective-values`,
+  );
+}
+
+export async function setResourceOverride(
+  id: number,
+  field: ResourceOverrideField,
+  value: string,
+  expectedVersion: number,
+): Promise<OverrideVersionResponse> {
+  return apiClient<OverrideVersionResponse>(
+    `/resources/${id}/overrides/${field}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ value, expectedVersion }),
+    },
+  );
+}
+
+export async function clearResourceOverride(
+  id: number,
+  field: ResourceOverrideField,
+  expectedVersion: number,
+): Promise<void> {
+  await apiClient<void>(`/resources/${id}/overrides/${field}`, {
+    method: "DELETE",
+    body: JSON.stringify({ expectedVersion }),
+  });
 }
 
 export async function listResourceRelations(

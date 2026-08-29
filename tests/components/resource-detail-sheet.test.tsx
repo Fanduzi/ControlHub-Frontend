@@ -1,20 +1,31 @@
 // input: vitest, testing-library, resource detail sheet, auth-role
-// output: detail sheet tests including health evidence and admin-only mutation affordances
-// pos: component tests for the resource detail sheet and Issue 81 health readout
+// output: detail sheet tests including health evidence, effective-value provenance, admin-only controls, and override conflicts
+// pos: component tests for the resource detail sheet and Issue 78/81 evidence and override behavior
 // note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
+import { ApiError } from "@/services/api-client";
+import {
+  getEffectiveValues,
+  setResourceOverride,
+} from "@/services/resources";
 import messages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
 
 let isAdmin: boolean | null = null;
 vi.mock("@/lib/auth-role", () => ({
   useAdminRole: () => isAdmin,
+}));
+
+vi.mock("@/services/resources", () => ({
+  getEffectiveValues: vi.fn(),
+  setResourceOverride: vi.fn(),
+  clearResourceOverride: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -104,9 +115,13 @@ const resource: ResourceDetailViewModel = {
   ],
 };
 
+const mockedGetEffectiveValues = vi.mocked(getEffectiveValues);
+const mockedSetResourceOverride = vi.mocked(setResourceOverride);
+
 describe("ResourceDetailSheet", () => {
   beforeEach(() => {
     isAdmin = null;
+    vi.resetAllMocks();
   });
 
   it("hides edit and archive mutation affordances for non-admin operators", () => {
@@ -141,6 +156,99 @@ describe("ResourceDetailSheet", () => {
 
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
+  });
+
+  it("shows value provenance and reports an admin override conflict", async () => {
+    isAdmin = true;
+    mockedGetEffectiveValues.mockResolvedValue({
+      values: {
+        displayName: {
+          value: "Orders DB Primary",
+          provenance: { kind: "observed", source: "cmdb", version: 0 },
+        },
+        lifecycleStatus: {
+          value: "running",
+          provenance: { kind: "manual_override", source: "operator", version: 4 },
+        },
+      },
+    });
+    mockedSetResourceOverride.mockRejectedValue(
+      new ApiError(409, "resource conflict", undefined, "resource_conflict"),
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText(messages.detailSheet.effectiveValues)).toBeInTheDocument();
+    expect(
+      await screen.findByText(`${messages.detailSheet.observed} · cmdb`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(`${messages.detailSheet.manualOverride} · operator`),
+    ).toBeInTheDocument();
+
+    const input = screen.getByLabelText(
+      messages.detailSheet.overrideLabel.replace(
+        "{field}",
+        messages.detailSheet.effectiveFields.displayName,
+      ),
+    );
+    await userEvent.clear(input);
+    await userEvent.type(input, "Changed name");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: messages.detailSheet.saveFieldOverride.replace(
+          "{field}",
+          messages.detailSheet.effectiveFields.displayName,
+        ),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockedSetResourceOverride).toHaveBeenCalledWith(
+        101,
+        "displayName",
+        "Changed name",
+        0,
+      );
+    });
+    expect(
+      await screen.findByText(messages.mutations.errors.resourceConflict),
+    ).toBeInTheDocument();
+  });
+
+  it("localizes effective-value labels in zh-CN", async () => {
+    isAdmin = false;
+    mockedGetEffectiveValues.mockResolvedValue({
+      values: {
+        displayName: {
+          value: "订单数据库主节点",
+          provenance: { kind: "observed", source: "cmdb", version: 0 },
+        },
+      },
+    });
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={resource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(`${zhMessages.detailSheet.observed} · cmdb`),
+    ).toBeInTheDocument();
+    expect(screen.getByText(zhMessages.detailSheet.effectiveValues)).toBeInTheDocument();
   });
 
   it("closes when the overlay is clicked", async () => {
