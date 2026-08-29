@@ -44,7 +44,7 @@ Vitest component tests for React UI components.
 | database-decision-deck.test.tsx | Database decision deck |
 | database-supporting-details.test.tsx | Database supporting details |
 | database-operator-workbench.test.tsx | Database operator workbench |
-| cluster-members-table.test.tsx | Cluster members table |
+| cluster-members-table.test.tsx | Cluster members table, including the localized empty state |
 | overview-content.test.tsx | Overview content, including exact actionable attention membership and accessible in-page expansion |
 | activity-timeline.test.tsx | Activity timeline |
 | audit-table.test.tsx | Audit table, including URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |

@@ -46,6 +46,12 @@ function renderEn(ui: React.ReactElement) {
 }
 
 describe("ClusterMembersTable", () => {
+  it("renders the localized empty state for an empty member list", () => {
+    renderZh(<ClusterMembersTable members={[]} />);
+
+    expect(screen.getByText("未找到成员实例。")).toBeInTheDocument();
+  });
+
   it("renders explicit missing role label when role is absent", () => {
     const member = makeMember({ profileSummary: {} });
     renderZh(<ClusterMembersTable members={[member]} />);
