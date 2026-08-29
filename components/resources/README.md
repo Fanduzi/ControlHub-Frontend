@@ -37,11 +37,11 @@ views expose the same identity, and backend uniqueness conflicts remain explicit
 
 | File | Responsibility |
 |------|---------------|
-| `resource-table.tsx` | Renders the inventory table and filters, including lifecycle options supplied by settings. |
+| `resource-table.tsx` | Renders the inventory table and filters, including lifecycle and health options supplied by settings. |
 
 ## Interfaces
 
-- `ResourceTable` receives `lifecycleStatuses` from the resources server page, preserves the existing URL filter contract, and displays effective health with freshness and observation evidence.
+- `ResourceTable` receives lifecycle and health dictionaries from the resources server page, preserves the existing URL filter contract, and displays effective health with freshness and observation evidence.
 
 ## Dependencies
 

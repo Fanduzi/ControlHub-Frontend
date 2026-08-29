@@ -1,7 +1,7 @@
-// input: vitest, testing-library, resource table, auth-role
-// output: resource table tests including health status, freshness, observation time, and observer
+// input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries
+// output: resource table tests including taxonomy filters, health evidence, and admin-only create affordance
 // pos: component tests for inventory health evidence and role-gated mutation control
-// note: if this file changes, update this header and module README.md.
+// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -26,6 +26,12 @@ const lifecycleStatuses: DictionaryItem[] = [
   { key: "stopped", label: "Stopped", description: "" },
   { key: "degraded", label: "Degraded", description: "" },
   { key: "decommissioning", label: "Decommissioning", description: "" },
+];
+const healthStatuses: DictionaryItem[] = [
+  { key: "healthy", label: "Healthy", description: "" },
+  { key: "warning", label: "Warning", description: "" },
+  { key: "critical", label: "Critical", description: "" },
+  { key: "unknown", label: "Unknown", description: "" },
 ];
 
 vi.mock("next/navigation", () => ({
@@ -123,6 +129,7 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
         }}
         resourceTypes={resourceTypes}
         lifecycleStatuses={lifecycleStatuses}
+        healthStatuses={healthStatuses}
         availableSubtypes={availableSubtypes}
       />
     </NextIntlClientProvider>,
@@ -233,6 +240,22 @@ describe("ResourceTable", () => {
     expect(replace).toHaveBeenLastCalledWith(
       "/resources?environmentId=1&page=1&healthStatus=warning",
     );
+  });
+
+  it("renders the canonical health settings taxonomy in the filter", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.click(screen.getByRole("button", { name: "Health status" }));
+
+    const options = await screen.findAllByRole("menuitemcheckbox");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Healthy",
+      "Warning",
+      "Critical",
+      "Unknown",
+    ]);
   });
 
   it("renders updated timestamps using the active locale", () => {
@@ -379,6 +402,7 @@ describe("ResourceTable", () => {
           }}
           resourceTypes={[]}
           lifecycleStatuses={lifecycleStatuses}
+          healthStatuses={healthStatuses}
         />
       </NextIntlClientProvider>,
     );

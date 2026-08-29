@@ -65,12 +65,11 @@ type ResourceTableProps = {
   pageInfo: PageInfo;
   resourceTypes: ResourceTypeDefinition[];
   lifecycleStatuses: DictionaryItem[];
+  healthStatuses: DictionaryItem[];
   availableSubtypes?: string[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
-
-const HEALTH_OPTIONS = ["healthy", "warning", "critical"] as const;
 
 function updateMultiSelectParams(
   pathname: string,
@@ -88,6 +87,7 @@ export function ResourceTable({
   pageInfo,
   resourceTypes,
   lifecycleStatuses,
+  healthStatuses,
   availableSubtypes,
 }: ResourceTableProps) {
   const t = useTranslations();
@@ -391,11 +391,13 @@ export function ResourceTable({
 
   const healthOptions = useMemo(
     () =>
-      HEALTH_OPTIONS.map((status) => ({
-        value: status,
-        label: t(`statusValues.${status}`),
+      healthStatuses.map((status) => ({
+        value: status.key,
+        label: t.has(`statusValues.${status.key}`)
+          ? t(`statusValues.${status.key}`)
+          : status.label,
       })),
-    [t],
+    [healthStatuses, t],
   );
 
   return (

@@ -9,7 +9,7 @@ fail-closed behavior for unknown environment scopes.
 
 | File | Responsibility |
 |------|---------------|
-| `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, pagination requests, and table data flow. |
+| `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, pagination requests, settings dictionaries, and table data flow. |
 
 ## Dependencies
 

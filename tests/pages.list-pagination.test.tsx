@@ -15,6 +15,7 @@ const listRecentAuditEventViewModelsMock = vi.fn();
 const getDatabasePostureCountsMock = vi.fn();
 const listResourceTypesMock = vi.fn();
 const listLifecycleStatusesMock = vi.fn();
+const listHealthStatusesMock = vi.fn();
 const listEnvironmentsMock = vi.fn();
 const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/lib/view-models", () => ({
 vi.mock("@/services/settings", () => ({
   listResourceTypes: listResourceTypesMock,
   listLifecycleStatuses: listLifecycleStatusesMock,
+  listHealthStatuses: listHealthStatusesMock,
   listEnvironments: listEnvironmentsMock,
 }));
 
@@ -155,6 +157,7 @@ describe("list pages pagination contracts", () => {
     getTranslationsMock.mockResolvedValue(t);
     listResourceTypesMock.mockResolvedValue([]);
     listLifecycleStatusesMock.mockResolvedValue([]);
+    listHealthStatusesMock.mockResolvedValue([]);
     listEnvironmentsMock.mockResolvedValue([
       {
         id: "env-prod",

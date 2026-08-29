@@ -9,7 +9,7 @@ options to the table.
 
 | File | Responsibility |
 |------|---------------|
-| `page.tsx` | Loads resources, resource types, lifecycle settings, and subtype options for `ResourceTable`. |
+| `page.tsx` | Loads resources, resource types, lifecycle/health settings, and subtype options for `ResourceTable`. |
 
 ## Interfaces
 

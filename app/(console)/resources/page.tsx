@@ -9,7 +9,11 @@ import { ResourceTable } from "@/components/resources/resource-table";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
-import { listLifecycleStatuses, listResourceTypes } from "@/services/settings";
+import {
+  listHealthStatuses,
+  listLifecycleStatuses,
+  listResourceTypes,
+} from "@/services/settings";
 import type { ResourceListParams } from "@/types/resource";
 
 const SUBTYPE_OPTIONS_PAGE_SIZE = 500;
@@ -81,16 +85,24 @@ export default async function ResourcesPage({
           }}
           resourceTypes={[]}
           lifecycleStatuses={[]}
+          healthStatuses={[]}
           availableSubtypes={[]}
         />
       </div>
     );
   }
 
-  const [{ items: resources, pageInfo }, resourceTypes, lifecycleStatuses, availableSubtypes] = await Promise.all([
+  const [
+    { items: resources, pageInfo },
+    resourceTypes,
+    lifecycleStatuses,
+    healthStatuses,
+    availableSubtypes,
+  ] = await Promise.all([
     listResourceViewModels(params),
     listResourceTypes().catch(() => []),
     listLifecycleStatuses(),
+    listHealthStatuses(),
     listAvailableSubtypes(params),
   ]);
 
@@ -107,6 +119,7 @@ export default async function ResourcesPage({
         pageInfo={pageInfo}
         resourceTypes={resourceTypes}
         lifecycleStatuses={lifecycleStatuses}
+        healthStatuses={healthStatuses}
         availableSubtypes={availableSubtypes}
       />
     </div>
