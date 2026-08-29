@@ -320,6 +320,7 @@
         "emptyDescription": "所有资源均处于健康运行状态。",
         "reasonColumn": "关注原因",
         "viewAll": "查看全部关注项",
+        "showLess": "收起关注项",
         "databaseMemberSignal": "成员信号：{count} 个成员{status}",
         "lifecycleAbnormal": "生命周期异常"
       },

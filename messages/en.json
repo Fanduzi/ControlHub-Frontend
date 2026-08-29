@@ -320,6 +320,7 @@
         "emptyDescription": "All resources are healthy and running.",
         "reasonColumn": "Reason",
         "viewAll": "View all attention items",
+        "showLess": "Show fewer attention items",
         "databaseMemberSignal": "Member signal: {count} {status}",
         "lifecycleAbnormal": "lifecycle abnormal"
       },

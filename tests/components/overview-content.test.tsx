@@ -1,5 +1,10 @@
+// input: localized messages and resource view-model fixtures
+// output: regression coverage for the Overview attention queue UI seam
+// pos: component test for exact actionable membership, expansion, and labels
+// note: if this file changes, update this header and tests/components/README.md.
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 
 import zhMessages from "@/messages/zh-CN.json";
@@ -61,6 +66,110 @@ function renderEn(ui: React.ReactElement) {
 }
 
 describe("OverviewContent attention reason", () => {
+  it("expands the exact actionable union beyond the collapsed ten-row view", async () => {
+    const user = userEvent.setup();
+    const resources = [
+      makeResource({ id: 1, displayName: "Healthy baseline" }),
+      makeResource({
+        id: 2,
+        displayName: "Lifecycle-only",
+        lifecycleStatus: "stopped",
+      }),
+      makeResource({
+        id: 3,
+        displayName: "Member signal-only",
+        databaseOperationalSummary: {
+          memberCount: 2,
+          criticalMemberCount: 1,
+          warningMemberCount: 0,
+          stoppedMemberCount: 0,
+          degradedMemberCount: 0,
+          unknownRoleCount: 0,
+          primaryMemberCount: 1,
+          replicaMemberCount: 1,
+        },
+      }),
+      makeResource({
+        id: 4,
+        displayName: "Health-only",
+        healthStatus: "critical",
+      }),
+      ...Array.from({ length: 8 }, (_, index) =>
+        makeResource({
+          id: 10 + index,
+          displayName: `Lifecycle filler ${index + 1}`,
+          lifecycleStatus: "stopped",
+        }),
+      ),
+    ];
+
+    renderEn(
+      <OverviewContent resources={resources} attentionResources={resources} />,
+    );
+
+    expect(screen.getByRole("link", { name: "Lifecycle-only" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Member signal-only" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Health-only" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Healthy baseline" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Lifecycle filler 8" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("row").filter((row) => row.closest("tbody"))).toHaveLength(10);
+
+    const viewAll = screen.getByRole("button", { name: "View all attention items" });
+    expect(viewAll).toHaveAttribute("aria-expanded", "false");
+    expect(viewAll).toHaveAttribute("aria-controls", "overview-attention-table");
+    expect(screen.queryByRole("link", { name: "View all attention items" })).not.toBeInTheDocument();
+
+    await user.click(viewAll);
+
+    expect(screen.getAllByRole("row").filter((row) => row.closest("tbody"))).toHaveLength(11);
+    for (const name of [
+      "Health-only",
+      "Member signal-only",
+      "Lifecycle-only",
+      "Lifecycle filler 1",
+      "Lifecycle filler 2",
+      "Lifecycle filler 3",
+      "Lifecycle filler 4",
+      "Lifecycle filler 5",
+      "Lifecycle filler 6",
+      "Lifecycle filler 7",
+      "Lifecycle filler 8",
+    ]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("link", { name: "Healthy baseline" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show fewer attention items" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("localizes the accessible expansion toggle in zh-CN", async () => {
+    const user = userEvent.setup();
+    const resources = Array.from({ length: 11 }, (_, index) =>
+      makeResource({
+        id: index + 1,
+        displayName: `已停止资源 ${index + 1}`,
+        lifecycleStatus: "stopped",
+      }),
+    );
+
+    renderZh(
+      <OverviewContent resources={resources} attentionResources={resources} />,
+    );
+
+    const viewAll = screen.getByRole("button", { name: "查看全部关注项" });
+    expect(viewAll).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(viewAll);
+
+    expect(screen.getByRole("button", { name: "收起关注项" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getAllByRole("row").filter((row) => row.closest("tbody"))).toHaveLength(11);
+  });
+
   it("does not use = in zh-CN critical health reason", () => {
     const resource = makeResource({ healthStatus: "critical", lifecycleStatus: "running" });
     renderZh(

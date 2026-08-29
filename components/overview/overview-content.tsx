@@ -1,7 +1,11 @@
+// input: environment-scoped resource view models and localized UI messages
+// output: posture metrics and an expandable attention queue
+// pos: client-rendered Overview content; queue membership uses isActionableAttention
+// note: if this file changes, update this header and components/overview/README.md.
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
@@ -134,22 +138,25 @@ export function OverviewContent({
   attentionResources,
 }: OverviewContentProps) {
   const t = useTranslations();
+  const [isAttentionExpanded, setIsAttentionExpanded] = useState(false);
 
   const metrics = useMemo(
     () => computeMetrics(resources),
     [resources],
   );
 
-  const sortedAttention = useMemo(
+  const actionableAttention = useMemo(
     () =>
       [...attentionResources]
         .filter(isActionableAttention)
-        .sort((a, b) => severityRank(a) - severityRank(b))
-        .slice(0, ATTENTION_PAGE_SIZE),
+        .sort((a, b) => severityRank(a) - severityRank(b)),
     [attentionResources],
   );
 
-  const hasMoreAttention = attentionResources.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
+  const visibleAttention = isAttentionExpanded
+    ? actionableAttention
+    : actionableAttention.slice(0, ATTENTION_PAGE_SIZE);
+  const hasMoreAttention = actionableAttention.length > ATTENTION_PAGE_SIZE;
 
   const barTotal = metrics.critical + metrics.warning + metrics.pending;
 
@@ -220,7 +227,7 @@ export function OverviewContent({
       </DetailPanel>
 
       {/* Attention queue */}
-      {sortedAttention.length === 0 ? (
+      {visibleAttention.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-3 text-center text-sm text-muted-foreground">
           {t("pages.overview.attention.emptyDescription")}
         </div>
@@ -230,7 +237,11 @@ export function OverviewContent({
           description={t("pages.overview.attention.description")}
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" aria-label={t("pages.overview.attention.title")}>
+            <table
+              id="overview-attention-table"
+              className="w-full text-sm"
+              aria-label={t("pages.overview.attention.title")}
+            >
               <thead>
                 <tr className="border-b border-border text-left">
                   <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -251,7 +262,7 @@ export function OverviewContent({
                 </tr>
               </thead>
               <tbody>
-                {sortedAttention.map((resource) => (
+                {visibleAttention.map((resource) => (
                   <tr
                     key={resource.id}
                     className={`border-b border-border/50 transition-colors hover:bg-muted/30 ${attentionRowColor(resource)}`}
@@ -294,12 +305,19 @@ export function OverviewContent({
             </table>
             {hasMoreAttention && (
               <div className="mt-3 flex justify-end">
-                <Link
-                  href="/resources?healthStatus=warning&healthStatus=critical"
+                <button
+                  type="button"
+                  aria-controls="overview-attention-table"
+                  aria-expanded={isAttentionExpanded}
+                  onClick={() => setIsAttentionExpanded((expanded) => !expanded)}
                   className="text-sm text-primary hover:underline"
                 >
-                  {t("pages.overview.attention.viewAll")}
-                </Link>
+                  {t(
+                    isAttentionExpanded
+                      ? "pages.overview.attention.showLess"
+                      : "pages.overview.attention.viewAll",
+                  )}
+                </button>
               </div>
             )}
           </div>
