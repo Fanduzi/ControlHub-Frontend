@@ -18,6 +18,12 @@ vi.mock("@/lib/clipboard", () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
 }));
 
+const authState = vi.hoisted(() => ({ isAdmin: true }));
+
+vi.mock("@/lib/auth-role", () => ({
+  useAdminRole: () => authState.isAdmin,
+}));
+
 import {
   createMachinePrincipal,
   listMachinePrincipals,
@@ -78,13 +84,11 @@ function renderSettings(locale = "en") {
 describe("MachinePrincipalSettings authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
+    authState.isAdmin = false;
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("denies non-admins without calling the administration API", async () => {
-    window.sessionStorage.setItem("controlhub.role", "viewer");
-
     renderSettings();
 
     await waitFor(() => {
@@ -98,8 +102,7 @@ describe("MachinePrincipalSettings authorization", () => {
 describe("MachinePrincipalSettings secret lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
-    window.sessionStorage.setItem("controlhub.role", "admin");
+    authState.isAdmin = true;
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
