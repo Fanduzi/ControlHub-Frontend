@@ -12,6 +12,7 @@ Frontend API service modules.
 | `api-client.ts` | Same-origin BFF JSON transport and controlled errors |
 | `resources.ts` | Inventory list/detail and mutation requests |
 | `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
+| `machine-principals.ts` | Admin machine-principal list, issue, rotate, and revoke calls |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the
 same-origin BFF `/api/proxy` without client Authorization; the proxy attaches
@@ -45,6 +46,9 @@ validates and exposes the returned replacement preview for recoverable ingestion
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
 personal and shared view CRUD; update matches the backend's body-less 204
 contract and never resends immutable scope.
+
+`machine-principals.ts` lists only backend-safe credential lifecycle metadata;
+plaintext remains confined to create and rotate responses.
 
 ## Interfaces
 

@@ -10,6 +10,7 @@ import {
   Settings,
   ServerCog,
   SquareTerminal,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,7 +20,7 @@ import {
  * matrix, which remains the authorization authority.
  */
 export type ConsoleNavigationItem = {
-  id: "overview" | "resources" | "databases" | "topology" | "query" | "audits" | "settings";
+  id: "overview" | "resources" | "databases" | "topology" | "query" | "audits" | "machinePrincipals" | "settings";
   href: string;
   icon: LucideIcon;
   supportsEnvironment: boolean;
@@ -61,6 +62,13 @@ export const consoleNavigation: readonly ConsoleNavigationItem[] = [
     id: "audits",
     href: "/audits",
     icon: Activity,
+    supportsEnvironment: false,
+    adminOnly: true,
+  },
+  {
+    id: "machinePrincipals",
+    href: "/settings/machine-principals",
+    icon: KeyRound,
     supportsEnvironment: false,
     adminOnly: true,
   },

@@ -15,6 +15,7 @@ deployment fails closed against an older backend payload.
 |------|----------------|
 | `resource.ts` | Inventory resource, pagination, and structured list-filter contracts |
 | `named-inventory-view.ts` | Named-view filters, sort, columns, CRUD inputs, and responses |
+| `machine-principal.ts` | One-time credential issue plus safe reload lifecycle metadata |
 
 `audit.ts` defines the append-only audit event contract. Inventory events may
 include server-owned field changes with a domain field name, operation, and
@@ -31,6 +32,9 @@ server preview contracts.
 `named-inventory-view.ts` defines the saved inventory view contract. Repeated
 environment and label values remain arrays, while owner identity remains a
 JSON number, matching OpenAPI exactly.
+
+`machine-principal.ts` keeps one-time issue data separate from listed
+credential lifecycle metadata, which exposes only IDs and timestamps.
 
 ## Interfaces
 

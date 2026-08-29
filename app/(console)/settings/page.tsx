@@ -15,6 +15,7 @@ import {
 import { OwnersSection } from "@/components/settings/owners-section";
 import { QueryCredentialEntry } from "@/components/settings/query-credential-entry";
 import { QueryDisclosureEntry } from "@/components/settings/query-disclosure-entry";
+import { MachinePrincipalEntry } from "@/components/settings/machine-principal-entry";
 
 function getDictionaryDescription(
   t: Awaited<ReturnType<typeof getTranslations>>,
@@ -108,6 +109,7 @@ export default async function SettingsPage() {
         <div className="grid gap-3 lg:grid-cols-2">
           <QueryCredentialEntry />
           <QueryDisclosureEntry />
+          <MachinePrincipalEntry />
         </div>
       </DetailPanel>
 

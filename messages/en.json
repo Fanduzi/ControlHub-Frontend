@@ -192,6 +192,10 @@
       "title": "Audits",
       "description": "Recent baseline changes and operator actions"
     },
+    "machinePrincipals": {
+      "title": "Machine principals",
+      "description": "Issue and manage integration credentials"
+    },
     "settings": {
       "title": "Settings",
       "description": "Reference dictionaries, users, and roles"

@@ -1,4 +1,4 @@
-// input: backend dbe6203 machine-principal JSON
+// input: backend 25c7cc9 machine-principal JSON
 // output: typed machine-principal administration data and requests
 // pos: Shared frontend contract for the admin machine-credential UI
 // note: if this file changes, update types/README.md.
@@ -15,7 +15,6 @@ export type MachineScope = (typeof MACHINE_PRINCIPAL_SCOPES)[number]["value"];
 export type MachineCredential = {
   id: number;
   machinePrincipalId: number;
-  lookupId: string;
   scopes: MachineScope[];
   expiresAt: string;
   lastUsedAt: string | null;
@@ -29,11 +28,20 @@ export type MachinePrincipal = {
   name: string;
   createdByUserId: number;
   createdAt: string;
-  credential?: MachineCredential;
+};
+
+/** Safe lifecycle metadata returned by the administrator list endpoint. */
+export type MachineCredentialLifecycle = Pick<
+  MachineCredential,
+  "id" | "createdAt" | "expiresAt" | "lastUsedAt" | "revokedAt"
+>;
+
+export type MachinePrincipalListItem = MachinePrincipal & {
+  credentials: MachineCredentialLifecycle[];
 };
 
 export type MachinePrincipalListResponse = {
-  items: MachinePrincipal[];
+  items: MachinePrincipalListItem[];
 };
 
 export type MachinePrincipalCreateRequest = {

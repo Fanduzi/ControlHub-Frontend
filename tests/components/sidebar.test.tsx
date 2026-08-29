@@ -91,6 +91,10 @@ describe("Sidebar", () => {
     );
 
     expect(screen.getByRole("link", { name: "Audits" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Machine principals" })).toHaveAttribute(
+      "href",
+      "/settings/machine-principals",
+    );
   });
 
   it("renders the console navigation groups in the agreed order", () => {

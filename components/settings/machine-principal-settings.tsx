@@ -8,6 +8,7 @@ import { useLocale } from "next-intl";
 import { FormEvent, useEffect, useState } from "react";
 
 import { useAdminRole } from "@/lib/auth-role";
+import { copyToClipboard } from "@/lib/clipboard";
 import { getMachinePrincipalCopy } from "@/lib/machine-principal-copy";
 import {
   createMachinePrincipal,
@@ -17,7 +18,10 @@ import {
 } from "@/services/machine-principals";
 import {
   MACHINE_PRINCIPAL_SCOPES,
+  type MachineCredential,
+  type MachineCredentialLifecycle,
   type MachinePrincipal,
+  type MachinePrincipalListItem,
   type MachineScope,
 } from "@/types/machine-principal";
 
@@ -26,7 +30,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function MachinePrincipalSettings() {
   const isAdmin = useAdminRole();
   const copy = getMachinePrincipalCopy(useLocale());
-  const [items, setItems] = useState<MachinePrincipal[]>([]);
+  const [items, setItems] = useState<MachinePrincipalListItem[]>([]);
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<MachineScope[]>(["inventory:read"]);
   const [lifetimeDays, setLifetimeDays] = useState("30");
@@ -35,6 +39,8 @@ export function MachinePrincipalSettings() {
   const [error, setError] = useState<string | null>(null);
   const [oneTimeSecret, setOneTimeSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const [pendingCredentialIds, setPendingCredentialIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (isAdmin !== true) return;
@@ -81,6 +87,24 @@ export function MachinePrincipalSettings() {
     );
   }
 
+  function lifecycleOf(credential: MachineCredential): MachineCredentialLifecycle {
+    const { id, createdAt, expiresAt, lastUsedAt, revokedAt } = credential;
+    return { id, createdAt, expiresAt, lastUsedAt, revokedAt };
+  }
+
+  function addIssuedCredential(principal: MachinePrincipal, credential: MachineCredential) {
+    const lifecycle = lifecycleOf(credential);
+    setItems((current) => {
+      const found = current.find((item) => item.id === principal.id);
+      if (!found) return [{ ...principal, credentials: [lifecycle] }, ...current];
+      return current.map((item) =>
+        item.id === principal.id
+          ? { ...item, credentials: [...item.credentials.filter(({ id }) => id !== lifecycle.id), lifecycle] }
+          : item,
+      );
+    });
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const days = Number(lifetimeDays);
@@ -91,6 +115,7 @@ export function MachinePrincipalSettings() {
     setError(null);
     setOneTimeSecret(null);
     setCopied(false);
+    setCopyError(false);
     setSubmitting(true);
     try {
       const issue = await createMachinePrincipal({
@@ -98,10 +123,7 @@ export function MachinePrincipalSettings() {
         scopes,
         expiresAt: expiryFor(days),
       });
-      setItems((current) => [
-        { ...issue.principal, credential: issue.credential },
-        ...current.filter((item) => item.id !== issue.principal.id),
-      ]);
+      addIssuedCredential(issue.principal, issue.credential);
       setName("");
       setOneTimeSecret(issue.secret);
     } catch {
@@ -111,43 +133,56 @@ export function MachinePrincipalSettings() {
     }
   }
 
-  async function handleRotate(item: MachinePrincipal) {
-    if (!item.credential || item.credential.revokedAt || !window.confirm(copy.rotateConfirm)) return;
+  async function handleRotate(item: MachinePrincipalListItem, credential: MachineCredentialLifecycle) {
+    if (credential.revokedAt || pendingCredentialIds.has(credential.id) || !window.confirm(copy.rotateConfirm)) return;
     setError(null);
     setOneTimeSecret(null);
     setCopied(false);
+    setCopyError(false);
+    setPendingCredentialIds((current) => new Set(current).add(credential.id));
     try {
-      const issue = await rotateMachineCredential(item.credential.id, {
-        scopes: item.credential.scopes,
+      const issue = await rotateMachineCredential(credential.id, {
+        scopes,
         expiresAt: expiryFor(30),
       });
-      setItems((current) =>
-        current.map((currentItem) =>
-          currentItem.id === item.id
-            ? { ...issue.principal, credential: issue.credential }
-            : currentItem,
-        ),
-      );
+      addIssuedCredential(issue.principal, issue.credential);
       setOneTimeSecret(issue.secret);
     } catch {
       setError(copy.requestFailed);
+    } finally {
+      setPendingCredentialIds((current) => {
+        const next = new Set(current);
+        next.delete(credential.id);
+        return next;
+      });
     }
   }
 
-  async function handleRevoke(item: MachinePrincipal) {
-    if (!item.credential || item.credential.revokedAt || !window.confirm(copy.revokeConfirm)) return;
+  async function handleRevoke(item: MachinePrincipalListItem, credential: MachineCredentialLifecycle) {
+    if (credential.revokedAt || pendingCredentialIds.has(credential.id) || !window.confirm(copy.revokeConfirm)) return;
     setError(null);
+    setPendingCredentialIds((current) => new Set(current).add(credential.id));
     try {
-      await revokeMachineCredential(item.credential.id);
+      await revokeMachineCredential(credential.id);
       setItems((current) =>
         current.map((currentItem) =>
-          currentItem.id === item.id && currentItem.credential
-            ? { ...currentItem, credential: { ...currentItem.credential, revokedAt: new Date().toISOString() } }
+          currentItem.id === item.id
+            ? { ...currentItem, credentials: currentItem.credentials.map((currentCredential) =>
+              currentCredential.id === credential.id
+                ? { ...currentCredential, revokedAt: new Date().toISOString() }
+                : currentCredential,
+            ) }
             : currentItem,
         ),
       );
     } catch {
       setError(copy.requestFailed);
+    } finally {
+      setPendingCredentialIds((current) => {
+        const next = new Set(current);
+        next.delete(credential.id);
+        return next;
+      });
     }
   }
 
@@ -173,7 +208,10 @@ export function MachinePrincipalSettings() {
               type="button"
               className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
               onClick={() => {
-                void navigator.clipboard?.writeText(oneTimeSecret).then(() => setCopied(true));
+                void copyToClipboard(oneTimeSecret).then((copied) => {
+                  setCopied(copied);
+                  setCopyError(!copied);
+                });
               }}
             >
               {copied ? copy.copied : copy.copySecret}
@@ -189,6 +227,7 @@ export function MachinePrincipalSettings() {
               {copy.dismissSecret}
             </button>
           </div>
+          {copyError && <p role="status" className="mt-2 text-sm text-destructive">{copy.copyFailed}</p>}
         </section>
       )}
 
@@ -249,6 +288,7 @@ export function MachinePrincipalSettings() {
 
       <section className="rounded-lg border border-border bg-background p-4">
         <h2 className="font-semibold text-foreground">{copy.listTitle}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{copy.overlapNotice}</p>
         {loading ? (
           <p className="mt-4 text-sm text-muted-foreground">{copy.loading}</p>
         ) : items.length === 0 ? (
@@ -260,49 +300,49 @@ export function MachinePrincipalSettings() {
               <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th scope="col" className="px-2 py-2">{copy.nameLabel}</th>
-                  <th scope="col" className="px-2 py-2">{copy.scopesLabel}</th>
+                  <th scope="col" className="px-2 py-2">{copy.credential}</th>
                   <th scope="col" className="px-2 py-2">{copy.expires}</th>
                   <th scope="col" className="px-2 py-2">{copy.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {items.map((item) => {
-                  const credential = item.credential;
-                  const active = Boolean(credential && !credential.revokedAt);
+                {items.flatMap((item) => item.credentials.map((credential) => {
+                  const actionable = !credential.revokedAt;
+                  const pending = pendingCredentialIds.has(credential.id);
                   return (
-                    <tr key={item.id}>
+                    <tr key={credential.id}>
                       <th scope="row" className="px-2 py-3 font-medium text-foreground">{item.name}</th>
                       <td className="px-2 py-3 text-muted-foreground">
-                        {credential?.scopes.join(", ") || copy.unavailable}
+                        {copy.credential} #{credential.id}
                       </td>
                       <td className="px-2 py-3 text-muted-foreground">
-                        {credential ? new Date(credential.expiresAt).toLocaleDateString() : "—"}
-                        <span className="sr-only">{credential?.revokedAt ? copy.revoked : active ? copy.active : ""}</span>
+                        {new Date(credential.expiresAt).toLocaleDateString()}
+                        <span className="sr-only">{credential.revokedAt ? copy.revoked : copy.active}</span>
                       </td>
                       <td className="px-2 py-3">
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            disabled={!active}
-                            onClick={() => void handleRotate(item)}
+                            disabled={!actionable || pending}
+                            onClick={() => void handleRotate(item, credential)}
                             className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {copy.rotate}
                           </button>
                           <button
                             type="button"
-                            disabled={!active}
-                            onClick={() => void handleRevoke(item)}
+                            disabled={!actionable || pending}
+                            onClick={() => void handleRevoke(item, credential)}
                             className="rounded-md border border-destructive/50 px-2 py-1 text-xs font-medium text-destructive disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {copy.revoke}
                           </button>
                         </div>
-                        {!credential && <span className="mt-1 block text-xs text-muted-foreground">{copy.noCredential}</span>}
+                        {credential.revokedAt && <span className="mt-1 block text-xs text-muted-foreground">{copy.revoked}</span>}
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

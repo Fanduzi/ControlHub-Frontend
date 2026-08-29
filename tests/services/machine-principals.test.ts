@@ -28,10 +28,24 @@ describe("machine-principal service", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("lists principals through the admin endpoint", async () => {
-    mockApiClient.mockResolvedValueOnce({ items: [] });
+    const safeList = { items: [{
+      id: 7,
+      name: "inventory-agent",
+      createdByUserId: 1,
+      createdAt: "2026-08-30T12:00:00.000Z",
+      credentials: [{
+        id: 8,
+        createdAt: "2026-08-30T12:00:00.000Z",
+        expiresAt: "2026-09-29T12:00:00.000Z",
+        lastUsedAt: null,
+        revokedAt: null,
+      }],
+    }] };
+    mockApiClient.mockResolvedValueOnce(safeList);
 
-    await expect(listMachinePrincipals()).resolves.toEqual({ items: [] });
+    await expect(listMachinePrincipals()).resolves.toEqual(safeList);
     expect(mockApiClient).toHaveBeenCalledWith("/admin/machine-principals");
+    expect(JSON.stringify(safeList)).not.toMatch(/secret|lookup|hash/i);
   });
 
   it("creates with only the backend-supported fields", async () => {

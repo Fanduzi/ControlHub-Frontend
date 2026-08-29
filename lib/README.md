@@ -15,9 +15,10 @@ same-origin Operator Session endpoint. It does not trust browser storage or
 readable cookies, and never reads or decodes Backend Bearer Credentials.
 Operator Session BFF primitives live in `lib/operator-session/`.
 
-`navigation.ts` marks the audits entry `adminOnly`; sidebar and command
-palette hide it for non-admin operators, mirroring the server-owned access
-matrix.
+`navigation.ts` marks audits and machine-principal administration entries
+`adminOnly`; sidebar and command palette hide them for non-admin operators,
+mirroring the server-owned access matrix. `machine-principal-copy.ts` supplies
+the localized one-time-secret and lifecycle copy for that admin UI.
 
 `environment-params.ts` resolves environment slugs for inventory list pages;
 unknown slugs fail closed so those pages render an empty scoped result.

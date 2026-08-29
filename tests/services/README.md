@@ -25,3 +25,4 @@ by the confirmed resource-edit clear action.
 | `resources.test.ts` | Resource request paths, selected-environment page-one complete traversal and member signals, managed-identity create payloads, server-derived completeness write exclusion, and effective-value override payloads |
 | `named-inventory-views.test.ts` | Saved inventory view paths, opaque state bodies, sharing metadata, and API error propagation                                                                                                                   |
 | `ingestion.test.ts` | Exact ingestion preview/confirm multipart file, format, fingerprint payloads, and typed fresh previews from recoverable 409s |
+| `machine-principals.test.ts` | Safe lifecycle-list endpoint and credential mutation request contracts |

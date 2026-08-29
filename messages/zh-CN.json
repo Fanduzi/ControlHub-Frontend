@@ -192,6 +192,10 @@
       "title": "审计",
       "description": "最近的基线变更与操作动作"
     },
+    "machinePrincipals": {
+      "title": "机器主体",
+      "description": "签发和管理集成凭证"
+    },
     "settings": {
       "title": "设置",
       "description": "基础字典、用户与角色"
