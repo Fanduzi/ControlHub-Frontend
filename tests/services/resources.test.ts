@@ -10,6 +10,7 @@ import {
   getEffectiveValues,
   getOverviewMetrics,
   getResourceRelationRules,
+  listAllResources,
   listAttentionResources,
   listClusterMembers,
   listDatabaseResources,
@@ -94,6 +95,60 @@ describe("listResources", () => {
     );
     expect(result.pageInfo).toEqual(response.pageInfo);
     expect(result.items).toHaveLength(1);
+  });
+
+  it("starts complete traversals at page 1 even when given a later page", async () => {
+    const firstItem = {
+      id: 1,
+      resourceType: "database_instance" as const,
+      resourceSubtype: "mysql",
+      name: "orders-db-primary",
+      displayName: "Orders DB Primary",
+      environmentId: 101,
+      ownerId: 201,
+      lifecycleStatus: "running" as const,
+      healthStatus: "healthy" as const,
+      source: "manual" as const,
+      externalId: "mysql:prod:orders-primary",
+      labels: {},
+      createdAt: "2026-04-14T00:00:00Z",
+      updatedAt: "2026-04-14T00:00:00Z",
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+    };
+    const secondItem = { ...firstItem, id: 2, name: "orders-db-replica" };
+
+    apiClientMock
+      .mockResolvedValueOnce({
+        items: [firstItem],
+        pageInfo: {
+          page: 1,
+          pageSize: 1,
+          totalItems: 2,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      } satisfies ResourceListResponse)
+      .mockResolvedValueOnce({
+        items: [secondItem],
+        pageInfo: {
+          page: 2,
+          pageSize: 1,
+          totalItems: 2,
+          totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      } satisfies ResourceListResponse);
+
+    await expect(listAllResources({ page: 2, pageSize: 1, environmentId: 101 })).resolves.toEqual([
+      firstItem,
+      secondItem,
+    ]);
+    expect(apiClientMock).toHaveBeenNthCalledWith(1, "/resources?pageSize=1&environmentId=101");
+    expect(apiClientMock).toHaveBeenNthCalledWith(2, "/resources?page=2&pageSize=1&environmentId=101");
   });
 
   it("sends resourceType filter for database resources", async () => {

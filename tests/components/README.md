@@ -60,4 +60,5 @@ Vitest component tests for React UI components.
 | environment-provider.test.tsx | Environment provider |
 
 `environment-provider.test.tsx` verifies the environment probe starts from
-BFF presentation role state rather than browser bearer storage.
+BFF presentation role state rather than browser bearer storage and refreshes
+Server Components after an environment selection.

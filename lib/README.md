@@ -46,8 +46,8 @@ use `ha_monitor`.
 `view-models.ts` Database Estate listing includes `database_instance`,
 `database_cluster`, and `database_proxy`.
 
-Overview view models use the paginating resource helper and retain an optional
-environment filter for inventory and attention data.
+Overview view models use the paginating resource helper and derive attention
+from the same scoped complete list, retaining an optional environment filter.
 
 Resource name, alias, and external-identifier conflicts each have a distinct code.
 

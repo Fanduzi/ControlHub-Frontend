@@ -1,7 +1,7 @@
 # services
 
-`resources.ts` complete-list helpers for overview and attention data accept
-inventory filters, preserving selected-environment scope across backend pages.
+`resources.ts` complete-list helpers start at page one even when callers supply
+a later page, and overview attention is filtered from the same scoped list.
 
 Frontend API service modules.
 

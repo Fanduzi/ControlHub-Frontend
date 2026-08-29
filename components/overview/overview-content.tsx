@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
-import { useEnvironment } from "@/components/providers/environment-provider";
 import { formatLabel } from "@/lib/format";
 import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import { localizeResourceType } from "@/lib/resource-summary";
@@ -135,41 +134,22 @@ export function OverviewContent({
   attentionResources,
 }: OverviewContentProps) {
   const t = useTranslations();
-  const { currentEnvironmentId } = useEnvironment();
-
-  const filteredResources = useMemo(
-    () =>
-      currentEnvironmentId
-        ? resources.filter((r) => r.environmentId === currentEnvironmentId)
-        : resources,
-    [resources, currentEnvironmentId],
-  );
-
-  const filteredAttention = useMemo(
-    () =>
-      currentEnvironmentId
-        ? attentionResources.filter(
-            (r) => r.environmentId === currentEnvironmentId,
-          )
-        : attentionResources,
-    [attentionResources, currentEnvironmentId],
-  );
 
   const metrics = useMemo(
-    () => computeMetrics(filteredResources),
-    [filteredResources],
+    () => computeMetrics(resources),
+    [resources],
   );
 
   const sortedAttention = useMemo(
     () =>
-      [...filteredAttention]
+      [...attentionResources]
         .filter(isActionableAttention)
         .sort((a, b) => severityRank(a) - severityRank(b))
         .slice(0, ATTENTION_PAGE_SIZE),
-    [filteredAttention],
+    [attentionResources],
   );
 
-  const hasMoreAttention = filteredAttention.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
+  const hasMoreAttention = attentionResources.filter(isActionableAttention).length > ATTENTION_PAGE_SIZE;
 
   const barTotal = metrics.critical + metrics.warning + metrics.pending;
 

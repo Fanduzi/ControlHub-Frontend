@@ -1,6 +1,6 @@
 // input: shared API client, pagination helper, and resource wire types
-// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, reviewed bulk label mutations, and server-owned ingestion multipart calls with recoverable fresh previews
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, bulk review fingerprints, and ingestion fingerprints/replacement previews unchanged
+// output: resource/profile/relation/effective-value reads and mutations, page-one complete traversals, attention filtering, overrides, relationship rules, bulk labels, and recoverable ingestion previews
+// pos: frontend API boundary; forwards server-owned constraints, completeness, version and review fingerprints, and ingestion previews unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
@@ -163,12 +163,14 @@ export async function listResources(
 }
 
 export async function listAllResources(params: ResourceListParams = {}): Promise<Resource[]> {
-  const firstPage = await listResources(params);
+  const filters = { ...params };
+  delete filters.page;
+  const firstPage = await listResources(filters);
   const allItems = [...firstPage.items];
 
   for (let page = 2; page <= firstPage.pageInfo.totalPages; page += 1) {
     const response = await listResources({
-      ...params,
+      ...filters,
       page,
       pageSize: firstPage.pageInfo.pageSize,
     });
@@ -299,8 +301,10 @@ export async function listDatabaseResources(): Promise<Resource[]> {
 export async function listAttentionResources(
   params: ResourceListParams = {},
 ): Promise<Resource[]> {
-  const items = await listAllResources(params);
+  return filterAttentionResources(await listAllResources(params));
+}
 
+export function filterAttentionResources(items: Resource[]): Resource[] {
   return items.filter(
     (resource) =>
       resource.healthStatus !== "healthy" ||

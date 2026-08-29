@@ -14,5 +14,5 @@ Resources and databases pages fail closed to an empty result when their
 environment slug is unknown; they do not issue an unscoped inventory request.
 
 The overview reads the selected environment preference from its cookie during
-server rendering, so complete resource and attention data are scoped before
-client metrics render.
+server rendering, then loads the scoped complete list once and derives its
+attention data before client metrics render.

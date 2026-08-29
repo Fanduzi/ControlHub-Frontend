@@ -7,6 +7,7 @@ import {
 import { listEnvironments, listOwners } from "@/services/settings";
 import {
   getOverviewMetrics,
+  filterAttentionResources,
   getResourceById,
   getResourceProfileById,
   listAttentionResources,
@@ -401,6 +402,22 @@ export async function listAllResourceViewModels(
   params: ResourceListParams = {},
 ): Promise<ResourceListViewModel[]> {
   return listResourceListViewModels(await listAllResources(params));
+}
+
+export async function listOverviewResourceViewModels(
+  params: ResourceListParams = {},
+): Promise<{
+  resources: ResourceListViewModel[];
+  attentionResources: ResourceListViewModel[];
+}> {
+  const resources = await listAllResources(params);
+  const attentionIds = new Set(filterAttentionResources(resources).map(({ id }) => id));
+  const viewModels = await listResourceListViewModels(resources);
+
+  return {
+    resources: viewModels,
+    attentionResources: viewModels.filter(({ id }) => attentionIds.has(id)),
+  };
 }
 
 export async function listDatabaseResourceViewModels(): Promise<

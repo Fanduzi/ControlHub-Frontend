@@ -2,7 +2,7 @@
 // output: tests for authenticated BFF session gate on environments probe
 // pos: component unit tests
 // note: if this file changes, update header and tests/components/README.md
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,6 +21,12 @@ function EnvironmentIds() {
   const { environments } = useEnvironment();
 
   return <div>{environments.map((environment) => environment.id).join(",")}</div>;
+}
+
+function EnvironmentSelector() {
+  const { setEnvironmentId } = useEnvironment();
+
+  return <button onClick={() => setEnvironmentId(2)}>Use staging</button>;
 }
 
 describe("EnvironmentProvider", () => {
@@ -93,5 +99,26 @@ describe("EnvironmentProvider", () => {
       expect(screen.getByText("2")).toBeInTheDocument();
     });
     expect(mockedListEnvironments).toHaveBeenCalled();
+  });
+
+  it("persists an environment selection without its own route refresh", async () => {
+    window.sessionStorage.setItem("controlhub.role", "admin");
+    mockedListEnvironments.mockResolvedValue([]);
+
+    render(
+      <EnvironmentProvider>
+        <EnvironmentSelector />
+      </EnvironmentProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedListEnvironments).toHaveBeenCalledOnce();
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Use staging" }));
+    });
+
+    expect(window.localStorage.getItem("controlhub.environmentId")).toBe("2");
   });
 });

@@ -100,6 +100,7 @@ describe("Topbar", () => {
     expect(replace).toHaveBeenCalledWith(
       "/resources?page=1&q=orders&environment=prod",
     );
+    expect(replace).toHaveBeenCalledOnce();
   });
 
   it("prefers readable environment slug from the URL over provider state for the selected value", () => {
