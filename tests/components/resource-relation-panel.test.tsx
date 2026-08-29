@@ -1,5 +1,5 @@
 // input: rendered relation panel, auth-role boundary, service mocks, and English/Chinese locale messages
-// output: public UI contract for localized directions, successful row removal, and controlled mutations
+// output: public UI contract for localized directions, resilient row removal, and controlled mutations
 // pos: relation-panel rendered seam for role gates, candidates, accessibility, and controlled errors
 // note: if this file changes, update this header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
@@ -341,25 +341,87 @@ describe("ResourceRelationPanel", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("removes the deleted row and announces success only after confirmation", async () => {
+  it("waits for deletion success, removes only that row, and ignores stale refreshed props", async () => {
     const user = userEvent.setup();
-    mockedDeleteRelation.mockResolvedValue(undefined);
+    let resolveDelete: () => void;
+    mockedDeleteRelation.mockReturnValue(new Promise<void>((resolve) => {
+      resolveDelete = resolve;
+    }));
 
-    render(
+    const { rerender } = render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <ResourceRelationPanel relations={relations} resourceId={1} />
+        <ResourceRelationPanel relations={relationsInBothDirections} resourceId={1} />
       </NextIntlClientProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: /Remove this relation/i }));
+    await user.click(screen.getAllByRole("button", { name: /Remove this relation/i })[0]);
     expect(screen.getByText("This only removes the relation. The target resource is not archived.")).toBeInTheDocument();
     expect(screen.queryByText("Relation removed.")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(mockedDeleteRelation).toHaveBeenCalledWith(1));
-    expect(screen.queryByRole("link", { name: "orders-cluster" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "orders-cluster" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "orders-proxy" })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    resolveDelete!();
+
+    await waitFor(() => expect(screen.queryByRole("link", { name: "orders-cluster" })).not.toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "orders-proxy" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Relation removed.");
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={[...relationsInBothDirections]} resourceId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "orders-cluster" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "orders-proxy" })).toBeInTheDocument();
+  });
+
+  it("keeps overlapping row deletions independent and blocks duplicate requests", async () => {
+    const user = userEvent.setup();
+    let resolveFirstDelete: () => void;
+    let resolveSecondDelete: () => void;
+    mockedDeleteRelation
+      .mockReturnValueOnce(new Promise<void>((resolve) => {
+        resolveFirstDelete = resolve;
+      }))
+      .mockReturnValueOnce(new Promise<void>((resolve) => {
+        resolveSecondDelete = resolve;
+      }));
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceRelationPanel relations={relationsInBothDirections} resourceId={1} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /Remove this relation/i })[0]);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await user.click(screen.getAllByRole("button", { name: /Remove this relation/i })[1]);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(mockedDeleteRelation).toHaveBeenNthCalledWith(1, 1);
+      expect(mockedDeleteRelation).toHaveBeenNthCalledWith(2, 2);
+    });
+    for (const button of screen.getAllByRole("button", { name: /Remove this relation/i })) {
+      expect(button).toBeDisabled();
+    }
+
+    await user.click(screen.getAllByRole("button", { name: /Remove this relation/i })[1]);
+    expect(mockedDeleteRelation).toHaveBeenCalledTimes(2);
+
+    resolveFirstDelete!();
+    await waitFor(() => expect(screen.queryByRole("link", { name: "orders-cluster" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Remove this relation/i })).toBeDisabled();
+
+    resolveSecondDelete!();
+    await waitFor(() => expect(screen.queryByRole("link", { name: "orders-proxy" })).not.toBeInTheDocument());
+    expect(mockedDeleteRelation).toHaveBeenCalledTimes(2);
   });
 
   it.each([

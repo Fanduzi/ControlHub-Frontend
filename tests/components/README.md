@@ -36,7 +36,7 @@ Vitest component tests for React UI components.
 | named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view save, apply, rename, and delete controls |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
-| resource-relation-panel.test.tsx | Resource relation panel localization, deletion feedback/row removal, rule discovery, target constraints, controlled rejection, role gates, and mutations |
+| resource-relation-panel.test.tsx | Resource relation panel localization, deferred/stale/concurrent deletion behavior, rule discovery, target constraints, controlled rejection, role gates, and mutations |
 | resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
 | database-table.test.tsx | Database table, including Database Proxy rows in Database Estate |
 | database-instance-facts-panel.test.tsx | Database instance facts |

@@ -1,10 +1,10 @@
 // input: React, root/namespace next-intl, next/navigation, auth-role, and server relation services
-// output: localized relation rows with immediate successful-delete removal, refresh, and controlled errors
+// output: localized relation rows with resilient successful-delete removal, refresh, and controlled errors
 // pos: shared relation read/mutation surface that consumes, but never owns, the server relationship matrix
 // note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -72,13 +72,13 @@ export function ResourceRelationPanel({
   const [relationRules, setRelationRules] = useState<RelationshipRule[]>([]);
   const [sourceEnvironmentId, setSourceEnvironmentId] = useState<number>();
   const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const deletingIdsRef = useRef(new Set<number>());
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [visibleRelations, setVisibleRelations] = useState(relations);
-
-  useEffect(() => setVisibleRelations(relations), [relations]);
+  const [deletedRelationIds, setDeletedRelationIds] = useState<Set<number>>(new Set());
+  const visibleRelations = relations.filter((relation) => !deletedRelationIds.has(relation.id));
 
   useEffect(() => {
     if (!resourceId || isAdmin !== true) return;
@@ -132,13 +132,17 @@ export function ResourceRelationPanel({
 
   const handleDeleteRelation = useCallback(
     async (relationId: number) => {
-      setDeletingId(relationId);
+      if (deletingIdsRef.current.has(relationId)) return;
+
+      const nextDeletingIds = new Set(deletingIdsRef.current).add(relationId);
+      deletingIdsRef.current = nextDeletingIds;
+      setDeletingIds(nextDeletingIds);
       setError(null);
       setSuccess(null);
 
       try {
         await deleteResourceRelation(relationId);
-        setVisibleRelations((current) => current.filter((relation) => relation.id !== relationId));
+        setDeletedRelationIds((current) => new Set(current).add(relationId));
         setSuccess(mt("relation.deleteSuccess"));
         router.refresh();
       } catch (err) {
@@ -152,7 +156,10 @@ export function ResourceRelationPanel({
           setError(mt("errors.unknown"));
         }
       } finally {
-        setDeletingId(null);
+        const remainingDeletingIds = new Set(deletingIdsRef.current);
+        remainingDeletingIds.delete(relationId);
+        deletingIdsRef.current = remainingDeletingIds;
+        setDeletingIds(remainingDeletingIds);
       }
     },
     [router, mt],
@@ -282,7 +289,7 @@ export function ResourceRelationPanel({
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => setPendingDeleteId(relation.id)}
-                    disabled={deletingId === relation.id}
+                    disabled={deletingIds.has(relation.id)}
                     aria-label={mt("relation.confirmDelete")}
                   >
                     <X className="size-3" />
