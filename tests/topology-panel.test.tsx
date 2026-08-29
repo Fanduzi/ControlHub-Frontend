@@ -128,6 +128,12 @@ const mockTopologyResponse: TopologyResponse = {
 };
 
 describe("TopologyPanel", () => {
+  it("gives the relation filter a localized accessible name", () => {
+    renderWithProviders(<TopologyPanel resourceId={1} />, "zh-CN");
+
+    expect(screen.getByTestId("topology-relation-type-select")).toHaveAccessibleName("关系类型");
+  });
+
   it("offers localized relation filters and preserves topology URL state", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     searchParams = new URLSearchParams(

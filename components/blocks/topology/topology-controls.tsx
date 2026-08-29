@@ -104,7 +104,11 @@ export function TopologyControls({
           value={relationType || "all"}
           onValueChange={(v) => onRelationTypeChange(v || "all")}
         >
-          <SelectTrigger size="sm" data-testid="topology-relation-type-select">
+          <SelectTrigger
+            size="sm"
+            aria-label={t("topology.relationTypeLabel")}
+            data-testid="topology-relation-type-select"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
