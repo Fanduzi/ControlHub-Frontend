@@ -1,3 +1,7 @@
+// input: Vitest and list-page URL search-param parsers
+// output: resource/audit pagination and structured-filter normalization regression tests
+// pos: public parser contract tests for list-page URL state
+// note: if this file changes, update this header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import {
@@ -37,6 +41,20 @@ describe("parseResourceListSearchParams", () => {
 
     expect(result.environmentSlug).toBe("prod");
     expect(result.environmentId).toBe(10000000);
+  });
+
+  it("preserves repeated environment, owner, and label filters", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({
+        environmentId: ["7", "8"],
+        ownerId: "42",
+        label: ["team:payments", "tier:1"],
+      }),
+    );
+
+    expect(result.environmentId).toEqual([7, 8]);
+    expect(result.ownerId).toBe(42);
+    expect(result.label).toEqual(["team:payments", "tier:1"]);
   });
 
   it("rejects malformed numeric environmentId values", async () => {

@@ -191,6 +191,23 @@ npm run build
 npm run lint
 ```
 
+## Architecture
+
+The Next.js App Router renders authenticated console pages. Components keep
+presentation state, services own the same-origin JSON boundary, transport
+types mirror OpenAPI, and shared libraries normalize URL and view-model state.
+
+### Modules
+
+| Module | Responsibility | Doc |
+|--------|----------------|-----|
+| app | Routes, layouts, and Console BFF handlers | [README](app/README.md) |
+| components/resources | Inventory UI and saved-view controls | [README](components/resources/README.md) |
+| lib | URL parsing, view models, session, and shared helpers | [README](lib/README.md) |
+| services | Backend API clients | [README](services/README.md) |
+| types | Backend transport and frontend view-model contracts | [README](types/README.md) |
+| tests | Unit/component/service contracts | [README](tests/README.md) |
+
 ## Contract assumptions
 
 - Wire types in `types/*.ts` align with the OpenAPI camelCase contract

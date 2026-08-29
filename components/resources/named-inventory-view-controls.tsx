@@ -22,10 +22,12 @@ import type {
 
 type NamedInventoryViewControlsProps = {
   columns: string[];
+  onApplyColumns: (columns: string[]) => void;
 };
 
 function readFilters(searchParams: URLSearchParams): NamedInventoryViewFilters {
-  const environmentId = searchParams.get("environmentId");
+  const environmentId = Number(searchParams.get("environmentId"));
+  const ownerId = Number(searchParams.get("ownerId"));
   const archiveFilter = searchParams.get("archiveFilter");
 
   return {
@@ -36,14 +38,20 @@ function readFilters(searchParams: URLSearchParams): NamedInventoryViewFilters {
     ...(searchParams.getAll("resourceSubtype").length
       ? { resourceSubtype: searchParams.getAll("resourceSubtype") }
       : {}),
-    ...(environmentId && Number.isFinite(Number(environmentId))
-      ? { environmentId: Number(environmentId) }
+    ...(Number.isSafeInteger(environmentId) && environmentId > 0
+      ? { environmentId: [environmentId] }
       : {}),
     ...(searchParams.getAll("lifecycleStatus").length
       ? { lifecycleStatus: searchParams.getAll("lifecycleStatus") }
       : {}),
     ...(searchParams.getAll("healthStatus").length
       ? { healthStatus: searchParams.getAll("healthStatus") }
+      : {}),
+    ...(Number.isSafeInteger(ownerId) && ownerId > 0
+      ? { ownerId }
+      : {}),
+    ...(searchParams.getAll("label").length
+      ? { label: searchParams.getAll("label") }
       : {}),
     ...(archiveFilter === "includeArchived" || searchParams.get("includeArchived") === "true"
       ? { includeArchived: true }
@@ -54,7 +62,7 @@ function readFilters(searchParams: URLSearchParams): NamedInventoryViewFilters {
   };
 }
 
-export function NamedInventoryViewControls({ columns }: NamedInventoryViewControlsProps) {
+export function NamedInventoryViewControls({ columns, onApplyColumns }: NamedInventoryViewControlsProps) {
   const t = useTranslations("tables.resources.savedViews");
   const router = useRouter();
   const pathname = usePathname();
@@ -130,7 +138,6 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
       setError("");
       await updateNamedInventoryView(selectedView.id, {
         name: renameName.trim(),
-        scope: selectedView.scope,
         state: selectedView.state,
       });
     } catch {
@@ -168,6 +175,7 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
       });
     });
     params.set("page", "1");
+    onApplyColumns(view.state.columns);
     router.replace(`${pathname}?${params.toString()}`);
   };
 

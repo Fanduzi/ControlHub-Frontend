@@ -20,6 +20,7 @@ import type {
   CreateNamedInventoryViewInput,
   NamedInventoryView,
   NamedInventoryViewListResponse,
+  UpdateNamedInventoryViewInput,
 } from "@/types/named-inventory-view";
 
 const apiClientMock = vi.mocked(apiClient);
@@ -27,7 +28,7 @@ const apiClientMock = vi.mocked(apiClient);
 const state = {
   filters: {
     q: "orders + primary",
-    environmentId: 1,
+    environmentId: [1],
     includeArchived: false,
   },
   sort: { field: "displayName", direction: "asc" as const },
@@ -74,12 +75,11 @@ describe("named inventory views", () => {
   });
 
   it("PUTs the opaque view state unchanged", async () => {
-    const input: CreateNamedInventoryViewInput = {
+    const input: UpdateNamedInventoryViewInput = {
       name: "Shared orders",
-      scope: "shared",
       state: {
         ...state,
-        filters: { ...state.filters, ownerId: "0007" },
+        filters: { ...state.filters, ownerId: 7 },
       },
     };
     apiClientMock.mockResolvedValueOnce({ ...view, ...input });

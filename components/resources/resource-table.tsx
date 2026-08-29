@@ -445,6 +445,15 @@ export function ResourceTable({
             </DropdownMenu>
             <NamedInventoryViewControls
               columns={table.getVisibleLeafColumns().map((column) => column.id)}
+              onApplyColumns={(visibleColumns) => {
+                const visible = new Set(visibleColumns);
+                setColumnVisibility(Object.fromEntries(
+                  table.getAllLeafColumns().map((column) => [
+                    column.id,
+                    !column.getCanHide() || visible.has(column.id),
+                  ]),
+                ));
+              }}
             />
             <Input
               value={searchDraft}

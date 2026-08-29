@@ -5,6 +5,18 @@ Vitest unit tests for `services/*`.
 `resources.test.ts` locks typed-profile deletion and source-specific
 relationship-rule discovery at the frontend API boundary.
 
+## Interfaces
+
+- Tests lock observable API paths, methods, JSON bodies, responses, and controlled errors.
+
+## Dependencies
+
+- Upstream: production services and mocked `apiClient`
+- Downstream: none
+
+`resources.test.ts` also locks the typed-profile DELETE service contract used
+by the confirmed resource-edit clear action.
+
 | File | Coverage |
 |------|----------|
 | `api-client.test.ts` | BFF proxy base URL, unsafe integers, no browser Authorization (incl. stale legacy bearer storage), BFF 401 session handling, JSON `error` preserved as `ApiError.code`, missing `error` not mapped from status |

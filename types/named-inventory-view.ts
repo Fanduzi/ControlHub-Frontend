@@ -1,18 +1,18 @@
 // input: named inventory view API JSON contract
 // output: named inventory view state with repeated filters, requests, and responses
 // pos: frontend transport contract for saved inventory views
-// note: if this file changes, update this header and README.md
+// note: if this file changes, update this header and types/README.md.
 export type NamedInventoryViewScope = "personal" | "shared";
 
 export type NamedInventoryViewFilters = {
   q?: string;
   resourceType?: string[];
   resourceSubtype?: string[];
-  environmentId?: number;
+  environmentId?: number[];
   lifecycleStatus?: string[];
   healthStatus?: string[];
-  ownerId?: string;
-  label?: string;
+  ownerId?: number;
+  label?: string[];
   includeArchived?: boolean;
   archivedOnly?: boolean;
 };
@@ -48,4 +48,4 @@ export type CreateNamedInventoryViewInput = {
   state: NamedInventoryViewState;
 };
 
-export type UpdateNamedInventoryViewInput = CreateNamedInventoryViewInput;
+export type UpdateNamedInventoryViewInput = Omit<CreateNamedInventoryViewInput, "scope">;

@@ -2,6 +2,14 @@
 
 Shared frontend libraries.
 
+## Files
+
+| File | Responsibility |
+|------|----------------|
+| `list-page-search-params.ts` | Normalizes paginated resource/audit URL state, including repeated environment/label and owner filters |
+| `environment-params.ts` | Resolves environment slugs to IDs |
+| `view-models.ts` | Maps backend transport records to console view models |
+
 `auth-role.ts` recovers the presentation-only admin gate from `controlhub.role`
 storage/cookies. It does not read or decode Backend Bearer Credentials.
 Operator Session BFF primitives live in `lib/operator-session/`.
@@ -36,3 +44,13 @@ use `ha_monitor`.
 `database_cluster`, and `database_proxy`.
 
 Resource name, alias, and external-identifier conflicts each have a distinct code.
+
+## Interfaces
+
+- `parseResourceListSearchParams` preserves the structured Inventory search contract while dropping pagination snapshots from saved views.
+- `parseAuditListSearchParams` normalizes audit pagination and repeated filters.
+
+## Dependencies
+
+- Upstream: Next.js route search params and transport types
+- Downstream: app routes and services

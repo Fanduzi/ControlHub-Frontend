@@ -33,14 +33,20 @@ function buildResourceListPath(params: ResourceListParams = {}) {
   }
   appendRepeated(searchParams, "resourceType", params.resourceType);
   appendRepeated(searchParams, "resourceSubtype", params.resourceSubtype);
-  if (params.environmentId !== undefined) {
-    searchParams.set("environmentId", String(params.environmentId));
+  for (const environmentId of Array.isArray(params.environmentId)
+    ? params.environmentId
+    : params.environmentId === undefined ? [] : [params.environmentId]) {
+    searchParams.append("environmentId", String(environmentId));
   }
   appendRepeated(searchParams, "lifecycleStatus", params.lifecycleStatus);
   appendRepeated(searchParams, "healthStatus", params.healthStatus);
   if (params.q) {
     searchParams.set("q", params.q);
   }
+  if (params.ownerId !== undefined) {
+    searchParams.set("ownerId", String(params.ownerId));
+  }
+  appendRepeated(searchParams, "label", params.label);
   if (params.includeArchived) {
     searchParams.set("includeArchived", "true");
   }

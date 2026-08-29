@@ -2,6 +2,15 @@
 
 Vitest unit tests for frontend library modules.
 
+## Interfaces
+
+- Tests exercise exported library functions with literal input/output contracts.
+
+## Dependencies
+
+- Upstream: production `lib/` modules and Vitest
+- Downstream: none
+
 `environment-params.test.ts` covers known-slug resolution and the fail-closed
 unknown-slug behavior used by inventory list pages.
 
@@ -17,4 +26,5 @@ Operator Session BFF tests (Phase 38X-1C):
 | `auth-role.test.ts` | Presentation-only admin role recovery from BFF role storage/cookie; bearer-shaped values are ignored |
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
 | `view-models.test.ts` | Resource and Database Estate view-model composition, including paginated database_proxy merge |
+| `list-page-search-params.test.ts` | Resource/audit URL parsing, including repeated environment/label and owner filters |
 # note: auth-role recovery tests cover role-cookie path

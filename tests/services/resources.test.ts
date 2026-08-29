@@ -135,6 +135,20 @@ describe("listResources", () => {
     expect(result[0].id).toBe(1);
   });
 
+  it("forwards repeated environment and label filters with ownerId", async () => {
+    apiClientMock.mockResolvedValue({});
+
+    await listResources({
+      environmentId: [7, 8],
+      ownerId: 42,
+      label: ["team:payments", "tier:1"],
+    });
+
+    expect(apiClientMock).toHaveBeenCalledWith(
+      "/resources?environmentId=7&environmentId=8&ownerId=42&label=team%3Apayments&label=tier%3A1",
+    );
+  });
+
   it("filters attention resources from paginated response items", async () => {
     apiClientMock.mockResolvedValue({
       items: [

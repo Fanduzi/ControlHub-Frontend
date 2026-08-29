@@ -5,9 +5,26 @@ Resource interaction components.
 `health-evidence.tsx` renders localized effective-health freshness, observed
 time, observer, and manual override consistently in list and detail surfaces.
 
+## Files
+
+| File | Responsibility |
+|------|----------------|
+| `resource-table.tsx` | Inventory filters, column visibility, rows, and saved-view integration |
+| `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
+
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
 resource-filter URLs, applies personal or shared saved views without caching
 their results, and manages selected views when authorized.
+
+## Interfaces
+
+- `ResourceTable` renders the current server-owned Inventory result page.
+- `NamedInventoryViewControls` saves URL filters and visible columns, then reapplies them on page 1.
+
+## Dependencies
+
+- Upstream: console resource page props and translated messages
+- Downstream: `services/named-inventory-views`, TanStack Table, Next navigation
 
 Admin-only mutation affordances (`CreateResourceSheet`, resource edit,
 archive/restore, and the table-level create button) are presentation hints;
@@ -36,21 +53,6 @@ active/standby role, optional version) and Control Plane Component
 Create/edit sheets manage immutable origin, normalized aliases, and external
 system/value identifiers through the shared accessible identity editor. Detail
 views expose the same identity, and backend uniqueness conflicts remain explicit.
-
-## Files
-
-| File | Responsibility |
-|------|---------------|
-| `resource-table.tsx` | Renders the inventory table, saved views, and filters, including lifecycle and health options supplied by settings. |
-
-## Interfaces
-
-- `ResourceTable` receives lifecycle and health dictionaries from the resources server page, preserves the existing URL filter contract, hosts saved view controls, and displays effective health with freshness and observation evidence.
-
-## Dependencies
-
-- Upstream: `app/(console)/resources/page.tsx`, `services/settings`
-- Downstream: shared table, filter, pagination, and resource-detail components
 
 Resource detail sheets show effective values with provenance and let admins set
 or clear only the backend-supported display name, lifecycle status, and health

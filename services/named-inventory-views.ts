@@ -26,8 +26,8 @@ export async function createNamedInventoryView(
 export async function updateNamedInventoryView(
   id: number,
   input: UpdateNamedInventoryViewInput,
-): Promise<NamedInventoryView> {
-  return apiClient<NamedInventoryView>(`/inventory/views/${id}`, {
+): Promise<void> {
+  await apiClient<void>(`/inventory/views/${id}`, {
     method: "PUT",
     body: JSON.stringify(input),
   });

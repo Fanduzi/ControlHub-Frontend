@@ -57,25 +57,30 @@ const sharedView: NamedInventoryView = {
       q: "legacy filter",
       resourceType: ["retired_type", "service"],
       resourceSubtype: ["legacy_subtype"],
-      environmentId: 42,
+      environmentId: [42, 43],
       lifecycleStatus: ["retired"],
       healthStatus: ["unknown", "critical"],
+      ownerId: 77,
+      label: ["team:legacy", "tier:1"],
       includeArchived: true,
     },
   },
 };
 
-function renderControls() {
+function renderControls(onApplyColumns = vi.fn()) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <NamedInventoryViewControls columns={["displayName", "status"]} />
+      <NamedInventoryViewControls
+        columns={["displayName", "status"]}
+        onApplyColumns={onApplyColumns}
+      />
     </NextIntlClientProvider>,
   );
 }
 
 describe("NamedInventoryViewControls", () => {
   beforeEach(() => {
-    mocks.currentSearch = "q=orders&resourceType=service&resourceType=database_instance&resourceSubtype=mysql&lifecycleStatus=running&healthStatus=warning&environmentId=7&archiveFilter=includeArchived&page=3";
+    mocks.currentSearch = "q=orders&resourceType=service&resourceType=database_instance&resourceSubtype=mysql&lifecycleStatus=running&healthStatus=warning&environmentId=7&ownerId=42&label=team%3Apayments&label=tier%3A1&archiveFilter=includeArchived&page=3";
     mocks.replace.mockReset();
     mocks.createNamedInventoryView.mockReset();
     mocks.updateNamedInventoryView.mockReset();
@@ -103,9 +108,11 @@ describe("NamedInventoryViewControls", () => {
             q: "orders",
             resourceType: ["service", "database_instance"],
             resourceSubtype: ["mysql"],
-            environmentId: 7,
+            environmentId: [7],
             lifecycleStatus: ["running"],
             healthStatus: ["warning"],
+            ownerId: 42,
+            label: ["team:payments", "tier:1"],
             includeArchived: true,
           },
           sort: { field: "name", direction: "asc" },
@@ -138,9 +145,11 @@ describe("NamedInventoryViewControls", () => {
             q: "orders",
             resourceType: ["service", "database_instance"],
             resourceSubtype: ["mysql"],
-            environmentId: 7,
+            environmentId: [7],
             lifecycleStatus: ["running"],
             healthStatus: ["warning"],
+            ownerId: 42,
+            label: ["team:payments", "tier:1"],
             includeArchived: true,
           },
           sort: { field: "name", direction: "asc" },
@@ -158,7 +167,8 @@ describe("NamedInventoryViewControls", () => {
 
   it("applies every saved filter value, including stale repeated values, and resets page", async () => {
     const user = userEvent.setup();
-    renderControls();
+    const onApplyColumns = vi.fn();
+    renderControls(onApplyColumns);
 
     await user.selectOptions(
       await screen.findByRole("combobox", { name: "Saved views" }),
@@ -167,8 +177,9 @@ describe("NamedInventoryViewControls", () => {
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
     expect(mocks.replace).toHaveBeenCalledWith(
-      "/resources?q=legacy+filter&resourceType=retired_type&resourceType=service&resourceSubtype=legacy_subtype&environmentId=42&lifecycleStatus=retired&healthStatus=unknown&healthStatus=critical&includeArchived=true&page=1",
+      "/resources?q=legacy+filter&resourceType=retired_type&resourceType=service&resourceSubtype=legacy_subtype&environmentId=42&environmentId=43&lifecycleStatus=retired&healthStatus=unknown&healthStatus=critical&ownerId=77&label=team%3Alegacy&label=tier%3A1&includeArchived=true&page=1",
     );
+    expect(onApplyColumns).toHaveBeenCalledWith(sharedView.state.columns);
   });
 
   it("renames a personal view without changing its saved state and refetches", async () => {
@@ -184,7 +195,6 @@ describe("NamedInventoryViewControls", () => {
     await waitFor(() => {
       expect(mocks.updateNamedInventoryView).toHaveBeenCalledWith(1, {
         name: "Renamed view",
-        scope: "personal",
         state: personalView.state,
       });
       expect(mocks.listNamedInventoryViews).toHaveBeenCalledTimes(2);

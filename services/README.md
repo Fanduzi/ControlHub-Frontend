@@ -2,6 +2,14 @@
 
 Frontend API service modules.
 
+## Files
+
+| File | Responsibility |
+|------|----------------|
+| `api-client.ts` | Same-origin BFF JSON transport and controlled errors |
+| `resources.ts` | Inventory list/detail and mutation requests |
+| `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
+
 `api-client.ts` routes every fetch (browser and server/RSC) through the
 same-origin BFF `/api/proxy` without client Authorization; the proxy attaches
 the server-held credential from the HttpOnly Operator Session cookie. JSON
@@ -25,4 +33,14 @@ embedding the matrix in the console; it also owns effective-value reads and
 versioned override set/clear requests.
 
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
-personal and shared view CRUD.
+personal and shared view CRUD; update matches the backend's body-less 204
+contract and never resends immutable scope.
+
+## Interfaces
+
+- Named-view list/create/update/delete functions expose the backend wire contract.
+
+## Dependencies
+
+- Upstream: typed request/response contracts in `types/`
+- Downstream: same-origin Console BFF through `api-client.ts`

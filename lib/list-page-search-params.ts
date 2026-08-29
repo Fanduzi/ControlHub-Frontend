@@ -1,8 +1,7 @@
-// input: URL search parameter records
-// output: normalized resource and audit list request parameters
-// pos: shared page URL parser for server-rendered list routes
-// note: if this file changes, update header and lib/README.md
-
+// input: Next.js list-page URL search params
+// output: normalized resource and audit API list parameters
+// pos: shared strict URL-state parser for paginated list pages
+// note: if this file changes, update this header and lib/README.md
 import type { AuditEventListParams } from "@/types/audit";
 import type { ResourceListParams } from "@/types/resource";
 
@@ -62,6 +61,14 @@ function normalizeOptionalPositiveInt(value: string | string[] | undefined) {
   return parseSafePositiveInt(raw);
 }
 
+function normalizeOptionalPositiveInts(value: string | string[] | undefined) {
+  const values = readAll(value)
+    .map((item) => parseSafePositiveInt(item.trim()))
+    .filter((item): item is number => item !== undefined);
+  if (values.length === 0) return undefined;
+  return values.length === 1 ? values[0] : values;
+}
+
 function toSingleOrArray(values: string[] | undefined): string | string[] | undefined {
   if (!values || values.length === 0) return undefined;
   return values.length === 1 ? values[0] : values;
@@ -95,10 +102,12 @@ export async function parseResourceListSearchParams(
     pageSize: normalizePositiveInt(resolved.pageSize, DEFAULT_PAGE_SIZE),
     resourceType,
     resourceSubtype,
-    environmentId: normalizeOptionalPositiveInt(resolved.environmentId),
+    environmentId: normalizeOptionalPositiveInts(resolved.environmentId),
     environmentSlug: normalizeText(resolved.environment),
     lifecycleStatus,
     healthStatus,
+    ownerId: normalizeOptionalPositiveInt(resolved.ownerId),
+    label: toSingleOrArray(normalizeTextArray(resolved.label)),
     q: normalizeText(resolved.q),
     includeArchived,
     archivedOnly,

@@ -2,6 +2,15 @@
 
 Vitest component tests for React UI components.
 
+## Interfaces
+
+- Tests exercise components through rendered accessible controls and public callbacks.
+
+## Dependencies
+
+- Upstream: production components, localized messages, and mocked system boundaries
+- Downstream: none
+
 ## Tests
 
 | Test | Component under test |
