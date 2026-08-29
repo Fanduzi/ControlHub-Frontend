@@ -1,3 +1,7 @@
+// input: topology panel public interface, service mock, and localized messages
+// output: topology panel behavior regression coverage
+// pos: topology graph panel contract tests
+// note: if this file changes, update this header and module README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -136,12 +140,23 @@ describe("TopologyPanel", () => {
     expect(screen.getByTestId("topology-loading")).toBeInTheDocument();
   });
 
-  it("renders empty state when topology has no edges", async () => {
+  it("renders isolated topology nodes instead of the empty state", async () => {
     mockGetTopology.mockResolvedValueOnce({
       rootResourceId: 1,
       depth: 1,
       direction: "both",
-      nodes: [mockTopologyResponse.nodes[0]],
+      nodes: [
+        mockTopologyResponse.nodes[0],
+        {
+          ...mockTopologyResponse.nodes[1],
+          id: 3,
+          resourceType: "database_proxy",
+          name: "orders-proxy",
+          displayName: "Orders Proxy",
+          topologyRole: "proxy_active",
+          topologyLayer: "entry",
+        },
+      ],
       edges: [],
       groups: [],
       isDatabaseTopology: true,
@@ -150,8 +165,10 @@ describe("TopologyPanel", () => {
     renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-empty")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-graph")).toBeInTheDocument();
+      expect(screen.getByText("Orders Proxy")).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("topology-empty")).not.toBeInTheDocument();
   });
 
   it("renders error state on backend failure", async () => {
@@ -429,7 +446,7 @@ describe("TopologyPanel", () => {
     renderWithProviders(<TopologyPanel resourceId={1} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("topology-empty")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-graph")).toBeInTheDocument();
     });
 
     expect(screen.queryByTestId("topology-expand-button")).not.toBeInTheDocument();

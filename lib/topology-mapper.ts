@@ -1,3 +1,7 @@
+// input: backend topology transport response and graph layout constants
+// output: React Flow nodes, edges, and database group layouts
+// pos: shared topology transport-to-graph mapper
+// note: if this file changes, update this header and module README.md.
 import type { Edge, Node } from "@xyflow/react";
 import type { EdgeSemanticType, TopologyEdge, TopologyLayer, TopologyNode, TopologyResponse, TopologyRole } from "@/types/resource";
 
@@ -9,6 +13,7 @@ type TopologyNodeData = TopologyNode & {
 
 type GroupBoxData = {
   label: string;
+  role?: TopologyRole;
 };
 
 const COLUMN_WIDTH = 360;
@@ -351,12 +356,10 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
         }
       }
 
-      // Create ONE group box using the root cluster's label
+      // Create ONE group box using an available cluster's label.
       const groupBoxId = "group-box";
-      const label =
-        rootClusterNodes.length > 0
-          ? rootClusterNodes[0].displayName || rootClusterNodes[0].name
-          : "Cluster";
+      const namedCluster = clusterNodes.find((node) => node.displayName || node.name);
+      const label = namedCluster?.displayName || namedCluster?.name || "";
 
       groupBoxNodes.push({
         id: groupBoxId,
@@ -366,7 +369,7 @@ function computeDatabaseLayout(sortedNodes: TopologyNode[]): DatabaseLayoutResul
         },
         width: maxX - minX + 320 + GROUP_PADDING * 2,
         height: maxY - minY + ROW_HEIGHT + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
-        data: { label },
+        data: { label, role: "cluster" },
       });
 
       // Map ALL cluster nodes (including root) to the group box for edge retargeting.

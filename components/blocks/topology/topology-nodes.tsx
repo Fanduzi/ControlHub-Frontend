@@ -1,3 +1,7 @@
+// input: topology flow data and localized messages
+// output: React Flow topology node and group renderers
+// pos: topology graph node presentation components
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -112,13 +116,15 @@ export function TopologyNodeComponent({ data }: { data: TopologyNodeData }) {
 }
 
 export function TopologyGroupComponent({ data }: { data: GroupBoxData }) {
+  const t = useTranslations();
+  const label = data.label || (data.role ? t(`topology.roles.${data.role}`) : "");
   const handleClass = "!w-2 !h-2 !bg-muted-foreground/30 !border-0";
-  const zoneColor = getZoneColor(data.label || "default");
+  const zoneColor = getZoneColor(label || "default");
 
   return (
     <div
       className={cn("relative h-full w-full rounded-lg border-2 border-dashed", zoneColor.border, zoneColor.bg)}
-      aria-label={data.label ? `Zone: ${data.label}` : "Zone group"}
+      aria-label={label}
     >
       <Handle type="source" position={Position.Left} id="source-left" className={handleClass} />
       <Handle type="target" position={Position.Left} id="target-left" className={handleClass} />
@@ -129,7 +135,7 @@ export function TopologyGroupComponent({ data }: { data: GroupBoxData }) {
       <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleClass} />
       <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleClass} />
       <div className={cn("absolute -top-3 left-3 rounded bg-background px-2 py-0.5 text-[10px] font-medium", zoneColor.label)}>
-        {data.label}
+        {label}
       </div>
     </div>
   );

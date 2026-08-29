@@ -1,3 +1,7 @@
+// input: topology mapper public interface and transport fixtures
+// output: mapper behavior regression coverage
+// pos: topology graph mapper contract tests
+// note: if this file changes, update this header and module README.md.
 import { describe, expect, it } from "vitest";
 import type { TopologyEdge, TopologyNode, TopologyResponse } from "@/types/resource";
 import { mapTopologyToFlow } from "@/lib/topology-mapper";
@@ -42,6 +46,23 @@ const DB_TOPOLOGY: Pick<TopologyResponse, "isDatabaseTopology"> = {
 };
 
 describe("mapTopologyToFlow", () => {
+  it("uses a non-root cluster name for an instance-root group box", () => {
+    const { nodes } = mapTopologyToFlow({
+      rootResourceId: 1,
+      depth: 1,
+      direction: "both",
+      nodes: [
+        makeNode({ id: 1, resourceType: "database_instance", name: "orders-primary", displayName: "Orders Primary", isRoot: true, distance: 0, topologyRole: "primary", topologyLayer: "replication" }),
+        makeNode({ id: 2, resourceType: "database_cluster", name: "orders-cluster", displayName: "Orders Cluster", distance: 1, topologyRole: "cluster", topologyLayer: "cluster" }),
+      ],
+      edges: [],
+      groups: [],
+      ...DB_TOPOLOGY,
+    });
+
+    expect((nodes.find((node) => node.id === "group-box")!.data as { label: string }).label).toBe("Orders Cluster");
+  });
+
   it("maps nodes with stable ids", () => {
     const response: TopologyResponse = {
       rootResourceId: 1,

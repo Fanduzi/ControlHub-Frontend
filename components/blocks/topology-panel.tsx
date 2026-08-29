@@ -1,3 +1,7 @@
+// input: topology services, URL state, localized messages, and graph data
+// output: resource and environment topology graph presentation
+// pos: reusable topology graph panel for console resource views
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -219,7 +223,9 @@ function TopologyPanelInner({
     fetchTopology(depth, direction);
   }, [depth, direction, fetchTopology]);
 
-  const hasEdges = topology && topology.edges.length > 0;
+  const hasEdges = !!topology && topology.edges.length > 0;
+  const hasNodes = !!topology && topology.nodes.length > 0;
+  const hasGraphContent = hasNodes || hasEdges;
   const isDatabase = topology?.isDatabaseTopology ?? false;
 
   const getTypeLabel = useCallback(
@@ -418,7 +424,7 @@ function TopologyPanelInner({
         </div>
       )}
 
-      {!loading && !error && !unavailable && topology && !hasEdges && (
+      {!loading && !error && !unavailable && topology && !hasGraphContent && (
         <div
           data-testid="topology-empty"
           className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card py-12"
@@ -441,10 +447,10 @@ function TopologyPanelInner({
         />
       )}
 
-      {!loading && !error && !unavailable && hasEdges && !expanded && renderGraph()}
+      {!loading && !error && !unavailable && hasGraphContent && !expanded && renderGraph()}
 
       {/* Expanded fullscreen overlay */}
-      {expanded && !loading && !error && !unavailable && hasEdges && (
+      {expanded && !loading && !error && !unavailable && hasGraphContent && (
         <div
           data-testid="topology-expanded-overlay"
           className="fixed inset-0 z-50 flex flex-col bg-background"
