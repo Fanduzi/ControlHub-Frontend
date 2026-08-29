@@ -17,6 +17,7 @@ import { getObjectDetails, getSchemaDatabases, getSchemaObjects, getTableDefinit
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { ObjectSummary } from "@/types/query-schema";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
@@ -1608,5 +1609,200 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
     expect(screen.getByRole("textbox", { name: /search objects in mydb/i })).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: /search objects in mydb/i }), "orders");
     expect(screen.getByRole("button", { name: /clear search in mydb/i })).toBeInTheDocument();
+  });
+});
+
+describe("database tree search and system visibility", () => {
+  beforeEach(() => {
+    mockGetObjectDetails.mockReset();
+    mockGetSchemaDatabases.mockReset();
+    mockGetSchemaObjects.mockReset();
+    mockGetTableDefinition.mockReset();
+  });
+
+  it("debounces database q, resets to page 1, and preserves q for Load more", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: "app",
+        items: [{ name: "app", isDefault: true }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 50, totalPages: 2, hasNextPage: true, hasPreviousPage: false },
+      })
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: null,
+        items: [{ name: "archive", isDefault: false }],
+        pageInfo: { page: 2, pageSize: 25, totalItems: 50, totalPages: 2, hasNextPage: false, hasPreviousPage: true },
+      })
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: null,
+        items: [{ name: "reporting", isDefault: false }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 2, totalPages: 2, hasNextPage: true, hasPreviousPage: false },
+      })
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: null,
+        items: [{ name: "reporting_archive", isDefault: false }],
+        pageInfo: { page: 2, pageSize: 25, totalItems: 2, totalPages: 2, hasNextPage: false, hasPreviousPage: true },
+      });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "app" });
+    const firstRequest = mockGetSchemaDatabases.mock.calls[0]?.[1];
+    expect(firstRequest).not.toHaveProperty("q");
+    expect(firstRequest).not.toHaveProperty("includeSystem");
+    expect(firstRequest).not.toHaveProperty("refresh");
+
+    await user.click(screen.getByRole("button", { name: "Load more databases" }));
+    await waitFor(() => {
+      expect(mockGetSchemaDatabases).toHaveBeenLastCalledWith(
+        1,
+        expect.objectContaining({ page: 2, pageSize: 25 }),
+      );
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByRole("textbox", { name: "Search databases" }), { target: { value: "reporting" } });
+      expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        vi.advanceTimersByTime(249);
+      });
+      expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(mockGetSchemaDatabases).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ q: "reporting", page: 1, pageSize: 25 }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more databases" }));
+    await waitFor(() => {
+      expect(mockGetSchemaDatabases).toHaveBeenLastCalledWith(
+        1,
+        expect.objectContaining({ q: "reporting", page: 2, pageSize: 25 }),
+      );
+    });
+  });
+
+  it("uses an accessible include-system toggle and never defaults it to true", async () => {
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: null, items: [],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    renderExplorer();
+    const toggle = await screen.findByRole("checkbox", { name: "Include system databases" });
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(mockGetSchemaDatabases).toHaveBeenLastCalledWith(
+        1,
+        expect.objectContaining({ includeSystem: true, page: 1, pageSize: 25 }),
+      );
+    });
+
+    await user.click(toggle);
+    await waitFor(() => {
+      const request = mockGetSchemaDatabases.mock.calls.at(-1)?.[1];
+      expect(request).toEqual(expect.objectContaining({ page: 1, pageSize: 25 }));
+      expect(request).not.toHaveProperty("includeSystem");
+    });
+  });
+
+  it("aborts and ignores a stale database search when a newer query wins", async () => {
+    const user = userEvent.setup();
+    let resolveStale!: (value: unknown) => void;
+    const stale = new Promise((resolve) => { resolveStale = resolve; });
+    mockGetSchemaDatabases
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: "app",
+        items: [{ name: "app", isDefault: true }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      })
+      .mockReturnValueOnce(stale as ReturnType<typeof getSchemaDatabases>)
+      .mockResolvedValueOnce({
+        targetResourceId: 1, defaultDatabase: null,
+        items: [{ name: "fresh_database", isDefault: false }],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      });
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "app" });
+    const input = screen.getByRole("textbox", { name: "Search databases" });
+    await user.type(input, "stale");
+    await waitFor(() => expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(2));
+    const staleRequest = mockGetSchemaDatabases.mock.calls[1]?.[1];
+
+    await user.clear(input);
+    await user.type(input, "fresh");
+    await waitFor(() => expect(screen.getByRole("button", { name: "fresh_database" })).toBeVisible());
+    expect((staleRequest?.signal as AbortSignal).aborted).toBe(true);
+
+    resolveStale({
+      targetResourceId: 1, defaultDatabase: null,
+      items: [{ name: "stale_database", isDefault: false }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "stale_database" })).not.toBeInTheDocument());
+  });
+
+  it("localizes database search controls without losing their accessible names", async () => {
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 1, defaultDatabase: null, items: [],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryObjectExplorer targetId={1} store={new QuerySchemaStore()} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(await screen.findByRole("textbox", { name: "搜索数据库" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "包含系统数据库" })).not.toBeChecked();
+  });
+
+  it("uses refresh=true exactly once for the loaded database, object list, and object detail", async () => {
+    const user = userEvent.setup();
+    const databaseResponse = {
+      targetResourceId: 1, defaultDatabase: "app",
+      items: [{ name: "app", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    };
+    const objectResponse = {
+      targetResourceId: 1, database: "app",
+      items: [{ database: "app", name: "users", kind: "table" as const }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    };
+    const detailResponse = {
+      targetResourceId: 1, database: "app", name: "users", kind: "table" as const,
+      columns: [], indexes: [], foreignKeys: [],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    };
+    mockGetSchemaDatabases.mockResolvedValue(databaseResponse);
+    mockGetSchemaObjects.mockResolvedValue(objectResponse);
+    mockGetObjectDetails.mockResolvedValue(detailResponse);
+
+    renderExplorer();
+    await screen.findByRole("button", { name: "app" });
+    await expandDatabase(user, "app");
+    await user.click(screen.getByRole("button", { name: "users" }));
+    await screen.findByText("0 Columns");
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => {
+      expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(2);
+      expect(mockGetSchemaObjects).toHaveBeenCalledTimes(2);
+      expect(mockGetObjectDetails).toHaveBeenCalledTimes(2);
+    });
+    expect(mockGetSchemaDatabases).toHaveBeenLastCalledWith(1, expect.objectContaining({ refresh: true }));
+    expect(mockGetSchemaObjects).toHaveBeenLastCalledWith(1, expect.objectContaining({ refresh: true }));
+    expect(mockGetObjectDetails).toHaveBeenLastCalledWith(1, expect.objectContaining({ refresh: true }));
   });
 });

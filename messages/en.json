@@ -1288,6 +1288,11 @@
       "searchObjectsPlaceholder": "Search tables and views…",
       "searchObjects": "Search objects in {database}",
       "clearObjectSearch": "Clear search in {database}",
+      "searchDatabasesLabel": "Search databases",
+      "searchDatabasesPlaceholder": "Search databases…",
+      "clearDatabaseSearch": "Clear database search",
+      "includeSystemDatabases": "Include system databases",
+      "refresh": "Refresh",
       "loadMoreDatabases": "Load more databases",
       "loadMoreObjects": "Load more objects in {database}",
       "loadingObjects": "Loading objects…",
@@ -1302,7 +1307,8 @@
       "relationshipTruncated": "Showing partial results. Some relationships were omitted due to size limits.",
       "relationshipEmpty": "No foreign key relationships found.",
       "relationshipError": "Failed to load relationships.",
-      "relationshipRetry": "Retry"
+      "relationshipRetry": "Retry",
+      "refreshRelationships": "Refresh relationships"
     },
     "navigator": {
       "title": "Quick navigator",

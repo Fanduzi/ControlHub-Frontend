@@ -144,6 +144,39 @@ describe("QueryRelationshipMap", () => {
     expect(await screen.findByText("test_db.users")).toBeVisible();
   });
 
+  it("uses refresh=true once for an explicit operator refresh", async () => {
+    mockGetRelationshipMap.mockResolvedValue(buildResponse());
+    const user = userEvent.setup();
+
+    const { rerender } = renderComponent();
+    await screen.findByText("test_db.users");
+    await user.click(screen.getByRole("button", { name: "Refresh relationships" }));
+
+    await waitFor(() => {
+      expect(mockGetRelationshipMap).toHaveBeenCalledTimes(2);
+    });
+    expect(mockGetRelationshipMap).toHaveBeenLastCalledWith(1, {
+      database: "test_db",
+      name: "users",
+      refresh: true,
+      signal: expect.any(AbortSignal),
+    });
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryRelationshipMap targetId={1} database="test_db" name="orders" onBack={vi.fn()} />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => {
+      expect(mockGetRelationshipMap).toHaveBeenCalledTimes(3);
+    });
+    expect(mockGetRelationshipMap).toHaveBeenLastCalledWith(1, {
+      database: "test_db",
+      name: "orders",
+      signal: expect.any(AbortSignal),
+    });
+  });
+
   it("shows truncation notice when truncated=true", async () => {
     mockGetRelationshipMap.mockResolvedValueOnce(buildResponse({ truncated: true }));
 

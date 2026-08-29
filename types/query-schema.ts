@@ -89,8 +89,11 @@ export type ObjectDetailResponse = {
 
 /** Query parameters for schema database list. */
 export type SchemaDatabaseListParams = {
+  readonly q?: string;
   readonly page?: number;
   readonly pageSize?: number;
+  readonly includeSystem?: boolean;
+  readonly refresh?: boolean;
   readonly signal?: AbortSignal;
 };
 
@@ -101,6 +104,7 @@ export type SchemaObjectListParams = {
   readonly q?: string;
   readonly page?: number;
   readonly pageSize?: number;
+  readonly refresh?: boolean;
   readonly signal?: AbortSignal;
 };
 
@@ -109,6 +113,7 @@ export type SchemaObjectDetailParams = {
   readonly database: string;
   readonly name: string;
   readonly kind?: ObjectKind;
+  readonly refresh?: boolean;
   readonly signal?: AbortSignal;
 };
 

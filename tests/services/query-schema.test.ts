@@ -57,6 +57,28 @@ describe("getSchemaDatabases", () => {
     );
   });
 
+  it("forwards database search, includeSystem, and refresh only when requested", async () => {
+    mockApiClient.mockResolvedValue({
+      targetResourceId: 1,
+      defaultDatabase: null,
+      items: [],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    await getSchemaDatabases(1, { q: "app", includeSystem: true, refresh: true });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/databases?q=app&includeSystem=true&refresh=true",
+      expect.objectContaining({ signal: undefined }),
+    );
+
+    await getSchemaDatabases(1, { q: "app" });
+    expect(mockApiClient).toHaveBeenLastCalledWith(
+      "/query-targets/1/schema/databases?q=app",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
   it("forwards AbortSignal to apiClient", async () => {
     const controller = new AbortController();
     mockApiClient.mockResolvedValueOnce({
@@ -126,6 +148,28 @@ describe("getSchemaObjects", () => {
     expect(callPath).toContain("database=my+db%2Fspecial");
     expect(callPath).toContain("q=user%40table");
   });
+
+  it("appends refresh=true only for an explicit object refresh", async () => {
+    mockApiClient.mockResolvedValue({
+      targetResourceId: 1,
+      database: "mydb",
+      items: [],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    await getSchemaObjects(1, { database: "mydb", refresh: true });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/objects?database=mydb&refresh=true",
+      expect.objectContaining({ signal: undefined }),
+    );
+
+    await getSchemaObjects(1, { database: "mydb" });
+    expect(mockApiClient).toHaveBeenLastCalledWith(
+      "/query-targets/1/schema/objects?database=mydb",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
 });
 
 describe("getObjectDetails", () => {
@@ -169,6 +213,32 @@ describe("getObjectDetails", () => {
 
     expect(mockApiClient).toHaveBeenCalledWith(
       "/query-targets/1/schema/object-details?database=mydb&name=users&kind=view",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
+  it("appends refresh=true only for an explicit detail refresh", async () => {
+    mockApiClient.mockResolvedValue({
+      targetResourceId: 1,
+      database: "mydb",
+      name: "users",
+      kind: "table",
+      columns: [],
+      indexes: [],
+      foreignKeys: [],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    });
+
+    await getObjectDetails(1, { database: "mydb", name: "users", kind: "table", refresh: true });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/1/schema/object-details?database=mydb&name=users&kind=table&refresh=true",
+      expect.objectContaining({ signal: undefined }),
+    );
+
+    await getObjectDetails(1, { database: "mydb", name: "users", kind: "table" });
+    expect(mockApiClient).toHaveBeenLastCalledWith(
+      "/query-targets/1/schema/object-details?database=mydb&name=users&kind=table",
       expect.objectContaining({ signal: undefined }),
     );
   });

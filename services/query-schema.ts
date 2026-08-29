@@ -127,6 +127,15 @@ function buildSchemaDatabasesPath(
   if (params.pageSize !== undefined) {
     searchParams.set("pageSize", String(params.pageSize));
   }
+  if (params.q) {
+    searchParams.set("q", params.q);
+  }
+  if (params.includeSystem) {
+    searchParams.set("includeSystem", "true");
+  }
+  if (params.refresh) {
+    searchParams.set("refresh", "true");
+  }
 
   const query = searchParams.toString();
   return query
@@ -153,6 +162,9 @@ function buildSchemaObjectsPath(
   if (params.pageSize !== undefined) {
     searchParams.set("pageSize", String(params.pageSize));
   }
+  if (params.refresh) {
+    searchParams.set("refresh", "true");
+  }
 
   return `/query-targets/${targetId}/schema/objects?${searchParams.toString()}`;
 }
@@ -167,6 +179,9 @@ function buildObjectDetailsPath(
 
   if (params.kind) {
     searchParams.set("kind", params.kind);
+  }
+  if (params.refresh) {
+    searchParams.set("refresh", "true");
   }
 
   return `/query-targets/${targetId}/schema/object-details?${searchParams.toString()}`;

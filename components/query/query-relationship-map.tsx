@@ -188,6 +188,8 @@ export function QueryRelationshipMap({
   const t = useTranslations("queryWorkbench");
   const [state, setState] = useState<RelationshipMapState>({ status: "idle" });
   const [retryNonce, setRetryNonce] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const refreshRequestNonce = useRef(0);
   const generation = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
   const effectRan = useRef(false);
@@ -201,6 +203,8 @@ export function QueryRelationshipMap({
 
     const gen = generation.current + 1;
     generation.current = gen;
+    const refresh = refreshRequestNonce.current === refreshNonce && refreshNonce > 0;
+    if (refresh) refreshRequestNonce.current = 0;
 
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -213,6 +217,7 @@ export function QueryRelationshipMap({
     void getRelationshipMap(targetId, {
       database,
       name,
+      ...(refresh ? { refresh: true } : {}),
       signal: controller.signal,
     }).then(
       (response) => {
@@ -238,7 +243,7 @@ export function QueryRelationshipMap({
     return () => {
       controller.abort();
     };
-  }, [targetId, database, name, retryNonce]);
+  }, [targetId, database, name, refreshNonce, retryNonce]);
 
   return (
     <div className="space-y-4 py-2">
@@ -250,6 +255,21 @@ export function QueryRelationshipMap({
         className="-ml-2"
       >
         ← {t("schema.relationshipBack")}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={state.status === "loading"}
+        onClick={() => {
+          setRefreshNonce((nonce) => {
+            const next = nonce + 1;
+            refreshRequestNonce.current = next;
+            return next;
+          });
+        }}
+      >
+        {t("schema.refreshRelationships")}
       </Button>
 
       {state.status === "loading" && (

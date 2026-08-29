@@ -81,12 +81,16 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   const [inspectorKey, setInspectorKey] = useState<string | null>(null);
   const [inspectorDetail, setInspectorDetail] = useState<ObjectDetailResponse | null>(null);
   const [inspectTriggerElement, setInspectTriggerElement] = useState<HTMLButtonElement | null>(null);
+  const [databaseDraftQuery, setDatabaseDraftQuery] = useState("");
+  const [databaseQuery, setDatabaseQuery] = useState("");
+  const [includeSystem, setIncludeSystem] = useState(false);
 
   const explorerGeneration = useRef(0);
   const databaseGeneration = useRef(0);
   const currentTargetIdRef = useRef(targetId);
   const objectGenerations = useRef(new Map<string, number>());
   const databaseController = useRef<AbortController | null>(null);
+  const databaseSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const objectControllers = useRef(new Map<string, AbortController>());
   const detailControllers = useRef(new Map<string, AbortController>());
   const activeObjectRequests = useRef(new Map<string, ActiveObjectRequest>());
@@ -107,6 +111,8 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   }, [inspectorKey]);
 
   const abortAllRequests = useCallback(() => {
+    if (databaseSearchTimer.current) clearTimeout(databaseSearchTimer.current);
+    databaseSearchTimer.current = null;
     databaseController.current?.abort();
     databaseController.current = null;
     for (const timer of objectSearchTimers.current.values()) clearTimeout(timer);
@@ -138,8 +144,27 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     return true;
   }, []);
 
+  const cancelDatabaseWork = useCallback(() => {
+    if (databaseSearchTimer.current) clearTimeout(databaseSearchTimer.current);
+    databaseSearchTimer.current = null;
+    databaseController.current?.abort();
+    databaseController.current = null;
+  }, []);
+
   const startDatabaseRequest = useCallback(
-    (page: number, replace: boolean) => {
+    ({
+      page,
+      replace,
+      query,
+      includeSystem: nextIncludeSystem,
+      refresh = false,
+    }: {
+      readonly page: number;
+      readonly replace: boolean;
+      readonly query: string;
+      readonly includeSystem: boolean;
+      readonly refresh?: boolean;
+    }) => {
       databaseController.current?.abort();
       const controller = new AbortController();
       databaseController.current = controller;
@@ -157,7 +182,14 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         }));
       });
 
-      void getSchemaDatabases(targetId, { page, pageSize: PAGE_SIZE, signal: controller.signal }).then(
+      void getSchemaDatabases(targetId, {
+        ...(query ? { q: query } : {}),
+        page,
+        pageSize: PAGE_SIZE,
+        ...(nextIncludeSystem ? { includeSystem: true } : {}),
+        ...(refresh ? { refresh: true } : {}),
+        signal: controller.signal,
+      }).then(
         (response) => {
           if (
             controller.signal.aborted ||
@@ -210,8 +242,11 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       setInspectorKey(null);
       setInspectorDetail(null);
       setInspectTriggerElement(null);
+      setDatabaseDraftQuery("");
+      setDatabaseQuery("");
+      setIncludeSystem(false);
     });
-    startDatabaseRequest(1, true);
+    startDatabaseRequest({ page: 1, replace: true, query: "", includeSystem: false });
     return abortAllRequests;
   }, [abortAllRequests, startDatabaseRequest]);
 
@@ -296,6 +331,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       page,
       replace,
       preserveItems,
+      refresh = false,
     }: {
       readonly database: string;
       readonly draftQuery: string;
@@ -303,6 +339,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       readonly page: number;
       readonly replace: boolean;
       readonly preserveItems: boolean;
+      readonly refresh?: boolean;
     }) => {
       objectControllers.current.get(database)?.abort();
       const controller = new AbortController();
@@ -347,6 +384,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         ...(submittedQuery ? { q: submittedQuery } : {}),
         page,
         pageSize: PAGE_SIZE,
+        ...(refresh ? { refresh: true } : {}),
         signal: controller.signal,
       }).then(
         (response) => {
@@ -422,7 +460,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   );
 
   const loadObjectDetail = useCallback(
-    (object: ObjectSummary) => {
+    (object: ObjectSummary, refresh = false) => {
       if (!object.database) return;
       const key = objectIdentityKey(object);
       if (inspectorKey === key) {
@@ -438,7 +476,13 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       setLoadingDetails((previous) => new Set(previous).add(key));
       setDetails((previous) => new Map(previous).set(key, { status: "loading" }));
       const requestExplorerGeneration = explorerGeneration.current;
-      void getObjectDetails(targetId, { database: object.database, name: object.name, kind: object.kind, signal: controller.signal }).then(
+      void getObjectDetails(targetId, {
+        database: object.database,
+        name: object.name,
+        kind: object.kind,
+        ...(refresh ? { refresh: true } : {}),
+        signal: controller.signal,
+      }).then(
         (detail) => {
           if (!controller.signal.aborted && detailControllers.current.get(key) === controller && requestExplorerGeneration === explorerGeneration.current) {
             store.setDetail(storeKey, detail);
@@ -528,6 +572,32 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     [cancelObjectWork, startObjectRequest],
   );
 
+  const searchDatabases = useCallback((draftQuery: string) => {
+    setDatabaseDraftQuery(draftQuery);
+    cancelDatabaseWork();
+    databaseSearchTimer.current = setTimeout(() => {
+      databaseSearchTimer.current = null;
+      const query = draftQuery.trim();
+      setDatabaseQuery(query);
+      startDatabaseRequest({ page: 1, replace: true, query, includeSystem });
+    }, 250);
+  }, [cancelDatabaseWork, includeSystem, startDatabaseRequest]);
+
+  const clearDatabaseSearch = useCallback(() => {
+    cancelDatabaseWork();
+    setDatabaseDraftQuery("");
+    setDatabaseQuery("");
+    startDatabaseRequest({ page: 1, replace: true, query: "", includeSystem });
+  }, [cancelDatabaseWork, includeSystem, startDatabaseRequest]);
+
+  const toggleIncludeSystem = useCallback((nextIncludeSystem: boolean) => {
+    cancelDatabaseWork();
+    const query = databaseDraftQuery.trim();
+    setIncludeSystem(nextIncludeSystem);
+    setDatabaseQuery(query);
+    startDatabaseRequest({ page: 1, replace: true, query, includeSystem: nextIncludeSystem });
+  }, [cancelDatabaseWork, databaseDraftQuery, startDatabaseRequest]);
+
   const loadMoreObjects = useCallback(
     (database: string) => {
       const listing = objectListings.get(database);
@@ -563,13 +633,25 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const loadMoreDatabases = useCallback(() => {
     if (databaseListing.loading || !databaseListing.pageInfo?.hasNextPage) return;
-    startDatabaseRequest(databaseListing.pageInfo.page + 1, false);
-  }, [databaseListing, startDatabaseRequest]);
+    startDatabaseRequest({ page: databaseListing.pageInfo.page + 1, replace: false, query: databaseQuery, includeSystem });
+  }, [databaseListing, databaseQuery, includeSystem, startDatabaseRequest]);
 
   const retryDatabases = useCallback(() => {
     const page = databaseListing.pageInfo?.hasNextPage ? databaseListing.pageInfo.page + 1 : 1;
-    startDatabaseRequest(page, page === 1 && databaseListing.pageInfo === null);
-  }, [databaseListing.pageInfo, startDatabaseRequest]);
+    startDatabaseRequest({ page, replace: page === 1 && databaseListing.pageInfo === null, query: databaseQuery, includeSystem });
+  }, [databaseListing.pageInfo, databaseQuery, includeSystem, startDatabaseRequest]);
+
+  const refreshSchema = useCallback(() => {
+    cancelDatabaseWork();
+    startDatabaseRequest({ page: 1, replace: true, query: databaseQuery, includeSystem, refresh: true });
+    for (const [database, listing] of objectListings) {
+      if (!expandedDatabases.has(database)) continue;
+      startObjectRequest({ database, draftQuery: listing.draftQuery, submittedQuery: listing.submittedQuery, page: 1, replace: true, preserveItems: false, refresh: true });
+      for (const object of listing.items) {
+        if (details.has(objectIdentityKey(object))) loadObjectDetail(object, true);
+      }
+    }
+  }, [cancelDatabaseWork, databaseQuery, details, expandedDatabases, includeSystem, loadObjectDetail, objectListings, startDatabaseRequest, startObjectRequest]);
 
   const renderDetail = useCallback(
     (object: ObjectSummary) => {
@@ -622,36 +704,54 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     [details, loadObjectDetail, onPreviewRequest, t, targetId],
   );
 
-  if (databaseListing.loading && databaseListing.items.length === 0) return <p className="p-4 text-sm text-muted-foreground">{t("schema.loading")}</p>;
-  if (databaseListing.error && databaseListing.items.length === 0) {
-    return <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button></div>;
-  }
-  if (databaseListing.items.length === 0) return <p className="p-4 text-sm text-muted-foreground">{t("schema.noDatabases")}</p>;
-
   return (
     <>
-      {databaseListing.error ? <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button></div> : null}
-      <QueryObjectTree
-        databases={databaseListing.items}
-        expandedDatabases={expandedDatabases}
-        expandedObjects={expandedObjects}
-        objectsByDatabase={new Map([...objectListings].map(([database, listing]) => [database, listing.items]))}
-        loadingDatabases={new Set([...objectListings].filter(([, listing]) => listing.status === "loading").map(([database]) => database))}
-        loadingObjects={loadingDetails}
-        onDatabaseToggle={toggleDatabase}
-        onObjectToggle={toggleObject}
-        renderDetail={renderDetail}
-        databasePageInfo={databaseListing.pageInfo}
-        databaseLoading={databaseListing.loading}
-        databaseError={databaseListing.error}
-        onLoadMoreDatabases={loadMoreDatabases}
-        objectListings={objectListings}
-        onSearch={searchObjects}
-        onClearSearch={clearSearch}
-        onLoadMoreObjects={loadMoreObjects}
-        onRetryObjects={retryObjects}
-        onDraftQueryChange={updateDraftQuery}
-      />
+      <div className="space-y-2 pb-3">
+        <label htmlFor="schema-database-search" className="text-xs font-medium">{t("schema.searchDatabasesLabel")}</label>
+        <div className="flex gap-2">
+          <input
+            id="schema-database-search"
+            name="database-search"
+            value={databaseDraftQuery}
+            placeholder={t("schema.searchDatabasesPlaceholder")}
+            className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onChange={(event) => searchDatabases(event.target.value)}
+          />
+          {databaseDraftQuery ? <Button type="button" variant="ghost" size="sm" onClick={clearDatabaseSearch}>{t("schema.clearDatabaseSearch")}</Button> : null}
+          <Button type="button" variant="outline" size="sm" disabled={databaseListing.loading} onClick={refreshSchema}>{t("schema.refresh")}</Button>
+        </div>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={includeSystem} onChange={(event) => toggleIncludeSystem(event.target.checked)} />
+          {t("schema.includeSystemDatabases")}
+        </label>
+      </div>
+      {databaseListing.loading && databaseListing.items.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{t("schema.loading")}</p> : null}
+      {databaseListing.error && databaseListing.items.length === 0 ? <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button></div> : null}
+      {!databaseListing.loading && !databaseListing.error && databaseListing.items.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{t("schema.noDatabases")}</p> : null}
+      {databaseListing.items.length > 0 ? <>
+        {databaseListing.error ? <div className="space-y-2 p-4"><p className="text-sm text-destructive">{t("schema.loadError")}</p><Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button></div> : null}
+        <QueryObjectTree
+          databases={databaseListing.items}
+          expandedDatabases={expandedDatabases}
+          expandedObjects={expandedObjects}
+          objectsByDatabase={new Map([...objectListings].map(([database, listing]) => [database, listing.items]))}
+          loadingDatabases={new Set([...objectListings].filter(([, listing]) => listing.status === "loading").map(([database]) => database))}
+          loadingObjects={loadingDetails}
+          onDatabaseToggle={toggleDatabase}
+          onObjectToggle={toggleObject}
+          renderDetail={renderDetail}
+          databasePageInfo={databaseListing.pageInfo}
+          databaseLoading={databaseListing.loading}
+          databaseError={databaseListing.error}
+          onLoadMoreDatabases={loadMoreDatabases}
+          objectListings={objectListings}
+          onSearch={searchObjects}
+          onClearSearch={clearSearch}
+          onLoadMoreObjects={loadMoreObjects}
+          onRetryObjects={retryObjects}
+          onDraftQueryChange={updateDraftQuery}
+        />
+      </> : null}
       {inspectorDetail ? (
         typeof window === "undefined" || typeof window.matchMedia === "function" ? (
           <QueryObjectInspector

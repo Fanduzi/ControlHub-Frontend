@@ -1288,6 +1288,11 @@
       "searchObjectsPlaceholder": "搜索表和视图…",
       "searchObjects": "搜索 {database} 中的对象",
       "clearObjectSearch": "清除 {database} 中的搜索",
+      "searchDatabasesLabel": "搜索数据库",
+      "searchDatabasesPlaceholder": "搜索数据库…",
+      "clearDatabaseSearch": "清除数据库搜索",
+      "includeSystemDatabases": "包含系统数据库",
+      "refresh": "刷新",
       "loadMoreDatabases": "加载更多数据库",
       "loadMoreObjects": "加载更多 {database} 中的对象",
       "loadingObjects": "加载对象中…",
@@ -1302,7 +1307,8 @@
       "relationshipTruncated": "显示部分结果。由于大小限制，某些关系已省略。",
       "relationshipEmpty": "未找到外键关系。",
       "relationshipError": "加载关系失败。",
-      "relationshipRetry": "重试"
+      "relationshipRetry": "重试",
+      "refreshRelationships": "刷新关系"
     },
     "navigator": {
       "title": "快速导航",
