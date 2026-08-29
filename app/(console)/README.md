@@ -18,3 +18,6 @@ attention data before client metrics render.
 
 Query Workbench and query disclosure policies use the same URL environment
 scope, including their target lookups and searches.
+
+`settings/README.md` documents the Settings overview and direct administrator
+routes.

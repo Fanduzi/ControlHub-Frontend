@@ -1,6 +1,6 @@
 // input: authenticated browser session and machine-principal API
-// output: localized admin-only machine-principal lifecycle UI
-// pos: Settings route boundary for one-time credential issuance
+// output: localized admin-only machine-principal lifecycle and explicit rotation-scope UI
+// pos: Settings route boundary for one-time credential issuance and rotation
 // note: if this file changes, update components/settings/README.md.
 "use client";
 
@@ -41,6 +41,11 @@ export function MachinePrincipalSettings() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [pendingCredentialIds, setPendingCredentialIds] = useState<Set<number>>(new Set());
+  const [rotation, setRotation] = useState<{
+    item: MachinePrincipalListItem;
+    credential: MachineCredentialLifecycle;
+  } | null>(null);
+  const [rotationScopes, setRotationScopes] = useState<MachineScope[]>([]);
 
   useEffect(() => {
     if (isAdmin !== true) return;
@@ -85,6 +90,18 @@ export function MachinePrincipalSettings() {
         ? current.filter((value) => value !== scope)
         : [...current, scope],
     );
+  }
+
+  function toggleRotationScope(scope: MachineScope) {
+    setRotationScopes((current) =>
+      current.includes(scope)
+        ? current.filter((value) => value !== scope)
+        : [...current, scope],
+    );
+  }
+
+  function isExpired(credential: MachineCredentialLifecycle) {
+    return Date.parse(credential.expiresAt) <= Date.now();
   }
 
   function lifecycleOf(credential: MachineCredential): MachineCredentialLifecycle {
@@ -133,8 +150,12 @@ export function MachinePrincipalSettings() {
     }
   }
 
-  async function handleRotate(item: MachinePrincipalListItem, credential: MachineCredentialLifecycle) {
-    if (credential.revokedAt || pendingCredentialIds.has(credential.id) || !window.confirm(copy.rotateConfirm)) return;
+  async function handleRotate(
+    item: MachinePrincipalListItem,
+    credential: MachineCredentialLifecycle,
+    replacementScopes: MachineScope[],
+  ) {
+    if (credential.revokedAt || isExpired(credential) || pendingCredentialIds.has(credential.id) || replacementScopes.length === 0) return;
     setError(null);
     setOneTimeSecret(null);
     setCopied(false);
@@ -142,7 +163,7 @@ export function MachinePrincipalSettings() {
     setPendingCredentialIds((current) => new Set(current).add(credential.id));
     try {
       const issue = await rotateMachineCredential(credential.id, {
-        scopes,
+        scopes: replacementScopes,
         expiresAt: expiryFor(30),
       });
       addIssuedCredential(issue.principal, issue.credential);
@@ -158,8 +179,19 @@ export function MachinePrincipalSettings() {
     }
   }
 
+  async function confirmRotation() {
+    if (!rotation || rotationScopes.length === 0) return;
+    const selectedRotation = rotation;
+    setRotation(null);
+    await handleRotate(
+      selectedRotation.item,
+      selectedRotation.credential,
+      rotationScopes,
+    );
+  }
+
   async function handleRevoke(item: MachinePrincipalListItem, credential: MachineCredentialLifecycle) {
-    if (credential.revokedAt || pendingCredentialIds.has(credential.id) || !window.confirm(copy.revokeConfirm)) return;
+    if (credential.revokedAt || isExpired(credential) || pendingCredentialIds.has(credential.id) || !window.confirm(copy.revokeConfirm)) return;
     setError(null);
     setPendingCredentialIds((current) => new Set(current).add(credential.id));
     try {
@@ -284,6 +316,44 @@ export function MachinePrincipalSettings() {
         </form>
       </section>
 
+      {rotation && (
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h2 className="font-semibold text-foreground">{copy.rotate} {copy.credential} #{rotation.credential.id}</h2>
+          <fieldset className="mt-4">
+            <legend className="text-sm font-medium text-foreground">{copy.replacementScopes}</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {MACHINE_PRINCIPAL_SCOPES.map((scope) => (
+                <label key={scope.value} className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={rotationScopes.includes(scope.value)}
+                    onChange={() => toggleRotationScope(scope.value)}
+                  />
+                  {scope.value}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={rotationScopes.length === 0}
+              onClick={() => void confirmRotation()}
+              className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {copy.confirmRotation}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRotation(null)}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground"
+            >
+              {copy.cancelRotation}
+            </button>
+          </div>
+        </section>
+      )}
+
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <section className="rounded-lg border border-border bg-background p-4">
@@ -307,8 +377,10 @@ export function MachinePrincipalSettings() {
               </thead>
               <tbody className="divide-y divide-border">
                 {items.flatMap((item) => item.credentials.map((credential) => {
-                  const actionable = !credential.revokedAt;
+                  const expired = isExpired(credential);
+                  const actionable = !credential.revokedAt && !expired;
                   const pending = pendingCredentialIds.has(credential.id);
+                  const status = credential.revokedAt ? copy.revoked : expired ? copy.expired : copy.active;
                   return (
                     <tr key={credential.id}>
                       <th scope="row" className="px-2 py-3 font-medium text-foreground">{item.name}</th>
@@ -317,14 +389,17 @@ export function MachinePrincipalSettings() {
                       </td>
                       <td className="px-2 py-3 text-muted-foreground">
                         {new Date(credential.expiresAt).toLocaleDateString()}
-                        <span className="sr-only">{credential.revokedAt ? copy.revoked : copy.active}</span>
+                        <span className="ml-2 text-xs">{status}</span>
                       </td>
                       <td className="px-2 py-3">
                         <div className="flex gap-2">
                           <button
                             type="button"
                             disabled={!actionable || pending}
-                            onClick={() => void handleRotate(item, credential)}
+                            onClick={() => {
+                              setRotation({ item, credential });
+                              setRotationScopes([]);
+                            }}
                             className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {copy.rotate}
@@ -338,7 +413,6 @@ export function MachinePrincipalSettings() {
                             {copy.revoke}
                           </button>
                         </div>
-                        {credential.revokedAt && <span className="mt-1 block text-xs text-muted-foreground">{copy.revoked}</span>}
                       </td>
                     </tr>
                   );

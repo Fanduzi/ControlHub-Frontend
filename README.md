@@ -205,6 +205,7 @@ types mirror OpenAPI, and shared libraries normalize URL and view-model state.
 |--------|----------------|-----|
 | app | Routes, layouts, and Console BFF handlers | [README](app/README.md) |
 | components/resources | Inventory UI and saved-view controls | [README](components/resources/README.md) |
+| components/settings | Settings controls and administrator management entry points | [README](components/settings/README.md) |
 | lib | URL parsing, view models, session, and shared helpers | [README](lib/README.md) |
 | services | Backend API clients | [README](services/README.md) |
 | types | Backend transport and frontend view-model contracts | [README](types/README.md) |

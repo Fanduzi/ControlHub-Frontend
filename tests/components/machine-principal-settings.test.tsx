@@ -1,5 +1,5 @@
 // input: machine-principal settings component and mocked service/auth state
-// output: admin gate, one-time secret, and lifecycle interaction tests
+// output: admin gate, one-time secret, explicit rotation scope, and lifecycle interaction tests
 // pos: Accessible browser seam for machine-principal administration
 // note: if this file changes, update tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
@@ -33,12 +33,14 @@ const mockCreate = vi.mocked(createMachinePrincipal);
 const mockRotate = vi.mocked(rotateMachineCredential);
 const mockRevoke = vi.mocked(revokeMachineCredential);
 const mockCopyToClipboard = vi.mocked(copyToClipboard);
+const activeExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+const expiredAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
 const issuedCredential = {
   id: 8,
   machinePrincipalId: 7,
   scopes: ["inventory:read"] as MachineScope[],
-  expiresAt: "2026-09-29T12:00:00.000Z",
+  expiresAt: activeExpiry,
   lastUsedAt: null,
   revokedAt: null,
   rotatedFromCredentialId: null,
@@ -53,13 +55,13 @@ const principal = {
   credentials: [{
     id: 8,
     createdAt: "2026-08-30T12:00:00.000Z",
-    expiresAt: "2026-09-29T12:00:00.000Z",
+    expiresAt: activeExpiry,
     lastUsedAt: null,
     revokedAt: null,
   }, {
     id: 9,
     createdAt: "2026-08-30T12:05:00.000Z",
-    expiresAt: "2026-09-29T12:05:00.000Z",
+    expiresAt: activeExpiry,
     lastUsedAt: null,
     revokedAt: "2026-08-30T13:00:00.000Z",
   }],
@@ -149,12 +151,20 @@ describe("MachinePrincipalSettings secret lifecycle", () => {
     expect(screen.getByRole("row", { name: /credential #9/i })).toHaveTextContent(/revoked/i);
 
     await user.click(within(activeCredential).getByRole("button", { name: /rotate/i }));
+    const replacementScopes = screen.getByRole("group", { name: /replacement scopes/i });
+    expect(screen.getByRole("button", { name: /confirm rotation/i })).toBeDisabled();
+    await user.click(within(replacementScopes).getByLabelText("inventory:read"));
+    await user.click(screen.getByRole("button", { name: /confirm rotation/i }));
 
     await waitFor(() => expect(screen.getByText("rotate-secret-once")).toBeInTheDocument());
-    expect(await screen.findByRole("row", { name: /credential #10/i })).toBeInTheDocument();
+    const replacementCredential = await screen.findByRole("row", { name: /credential #10/i });
+    expect(within(activeCredential).getByRole("button", { name: /rotate/i })).toBeEnabled();
+    expect(within(activeCredential).getByRole("button", { name: /revoke/i })).toBeEnabled();
+    expect(within(replacementCredential).getByRole("button", { name: /rotate/i })).toBeEnabled();
+    expect(within(replacementCredential).getByRole("button", { name: /revoke/i })).toBeEnabled();
     expect(screen.queryByText("create-secret-once")).toBeNull();
     expect(mockRotate).toHaveBeenCalledWith(8, expect.objectContaining({ scopes: ["inventory:read"] }));
-    expect(screen.getByText(/old credential stays active until you explicitly revoke it/i)).toBeInTheDocument();
+    expect(screen.getByText(/old credential works until you revoke it or it expires/i)).toBeInTheDocument();
   });
 
   it("prevents duplicate revoke requests for a credential while it is in flight", async () => {
@@ -233,6 +243,24 @@ describe("MachinePrincipalSettings secret lifecycle", () => {
     renderSettings("zh-CN");
 
     expect(await screen.findByText("机器主体")).toBeInTheDocument();
-    expect(screen.getByText(/旧凭证会保持有效/)).toBeInTheDocument();
+    expect(screen.getByText(/旧凭证会继续有效.*到期/)).toBeInTheDocument();
+  });
+
+  it("marks expired credentials as disabled with localized status", async () => {
+    mockList.mockResolvedValue({
+      items: [{
+        ...principal,
+        credentials: [{
+          ...principal.credentials[0],
+          expiresAt: expiredAt,
+        }],
+      }],
+    });
+    renderSettings("zh-CN");
+
+    const row = await screen.findByRole("row", { name: /凭证 #8/i });
+    expect(within(row).getByText("已过期")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /轮换/i })).toBeDisabled();
+    expect(within(row).getByRole("button", { name: /撤销/i })).toBeDisabled();
   });
 });

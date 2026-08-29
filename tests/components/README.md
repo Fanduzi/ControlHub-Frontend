@@ -49,7 +49,7 @@ Vitest component tests for React UI components.
 | activity-timeline.test.tsx | Activity timeline |
 | audit-table.test.tsx | Audit table, including URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar, including environment-scoped Query navigation |
-| machine-principal-settings.test.tsx | Machine-principal lifecycle list, mutation guards, expiry, copy feedback, and localization |
+| machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |
 | topbar.test.tsx | App topbar, including scoped Query/disclosure selection and fail-closed sign-out |
 | topbar-operator-identity.test.tsx | Topbar identity/role rendering and stale-identity clearing from the BFF session response |
