@@ -23,3 +23,6 @@ is forwarded as `q`; other failures surface normally.
 profile deletion, and fetches source-specific relationship rules without
 embedding the matrix in the console; it also owns effective-value reads and
 versioned override set/clear requests.
+
+`named-inventory-views.ts` sends saved inventory-view state unchanged for
+personal and shared view CRUD.
