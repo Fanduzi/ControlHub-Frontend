@@ -5,6 +5,19 @@
 
 import { DEFAULT_LOCALE, type AppLocale } from "@/i18n/locales";
 
+type RoleTranslationKey =
+  | "profileFields.rolePrimary"
+  | "profileFields.roleReplica"
+  | "profileFields.roleActive"
+  | "profileFields.roleStandby";
+
+const roleTranslationKeys: Record<string, RoleTranslationKey> = {
+  primary: "profileFields.rolePrimary",
+  replica: "profileFields.roleReplica",
+  active: "profileFields.roleActive",
+  standby: "profileFields.roleStandby",
+};
+
 function resolveLocale(locale?: AppLocale) {
   if (locale) {
     return locale;
@@ -56,4 +69,13 @@ export function formatLabel(value: string) {
     .replaceAll("_", " ")
     .replaceAll("-", " ")
     .replace(/\b\w/g, (segment) => segment.toUpperCase());
+}
+
+export function formatRole(
+  value: string,
+  translate: (key: RoleTranslationKey) => string,
+) {
+  return roleTranslationKeys[value]
+    ? translate(roleTranslationKeys[value])
+    : formatLabel(value);
 }

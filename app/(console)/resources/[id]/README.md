@@ -1,5 +1,7 @@
 # Resource Detail Page Module
 
+Database profile role values use the shared localized role vocabulary while other profile values remain unchanged.
+
 Server-rendered full resource inspection page.
 
 ## Files

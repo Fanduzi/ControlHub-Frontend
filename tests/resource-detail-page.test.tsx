@@ -105,6 +105,8 @@ vi.mock("@/i18n/locales", () => ({
 vi.mock("@/lib/format", () => ({
   formatDateTime: (value: string) => value,
   formatLabel: (value: string) => value,
+  formatRole: (value: string) =>
+    value === "primary" ? "Primary" : value === "replica" ? "Replica" : value,
 }));
 
 vi.mock("@/lib/resource-copy", () => ({
@@ -195,7 +197,7 @@ const resource: ResourceDetailViewModel = {
   archivedBy: null,
   archiveReason: null,
   isArchived: false,
-  profile: { engine: "MySQL 8.0" },
+  profile: { engine: "MySQL 8.0", role: "replica" },
   relations: [],
   auditEvents: [],
 };
@@ -277,6 +279,8 @@ describe("ResourceDetailPage", () => {
       Node.DOCUMENT_POSITION_PRECEDING,
     );
     expect(screen.getByText(`topology:${genericResource.id}`)).toBeInTheDocument();
+    expect(screen.getByText("Replica")).toBeInTheDocument();
+    expect(screen.getByText("MySQL 8.0")).toBeInTheDocument();
   });
 
   it("renders cluster member table with display names for database_cluster resources", async () => {

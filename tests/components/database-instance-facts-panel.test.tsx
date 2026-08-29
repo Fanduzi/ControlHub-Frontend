@@ -16,6 +16,8 @@ function t(key: string) {
     "instanceFacts.topologyMissing": "Instance is not present in topology",
     "instanceFacts.missing": "Not provided by backend",
     "instanceFacts.parentClusterMissing": "Parent cluster not provided by backend",
+    "profileFields.rolePrimary": "Primary",
+    "profileFields.roleReplica": "Replica",
     "status.ok": "Data consistent",
     "status.warning": "Needs data review",
     "status.unknown": "Not enough data",
@@ -57,7 +59,7 @@ describe("DatabaseInstanceFactsPanel", () => {
     expect(
       screen.getByText("Payment MySQL Cluster Production"),
     ).toBeInTheDocument();
-    expect(screen.getByText("replica")).toBeInTheDocument();
+    expect(screen.getByText("Replica")).toBeInTheDocument();
     expect(
       screen.getByText("prod-db-host-02.internal:3307"),
     ).toBeInTheDocument();
@@ -124,7 +126,7 @@ describe("DatabaseInstanceFactsPanel", () => {
     render(<DatabaseInstanceFactsPanel result={result} />);
 
     expect(screen.getByText("Cluster A")).toBeInTheDocument();
-    expect(screen.getByText("primary")).toBeInTheDocument();
+    expect(screen.getByText("Primary")).toBeInTheDocument();
     expect(screen.getByText("db-01:3306")).toBeInTheDocument();
     expect(screen.queryByText("Instance appears in topology")).not.toBeInTheDocument();
     expect(screen.getByText("Instance is not present in topology")).toBeInTheDocument();

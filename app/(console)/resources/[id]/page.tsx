@@ -1,5 +1,5 @@
 // input: resource route id, localized resource view model, health evidence, and detail components
-// output: full resource detail page with empty cluster members, completeness, health observations, and directed relation context
+// output: full resource detail page with localized profile roles, empty cluster members, completeness, health observations, and directed relation context
 // pos: server-rendered resource detail and operational health inspection surface
 // note: if this file changes, update this header and module README.md.
 
@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ResourcesBreadcrumbLink } from "@/components/resources/resources-breadcrumb-link";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
-import { formatDateTime, formatLabel } from "@/lib/format";
+import { formatDateTime, formatLabel, formatRole } from "@/lib/format";
 import {
   buildClusterConsistency,
   buildInstanceConsistency,
@@ -393,7 +393,11 @@ export default async function ResourceDetailPage({
                         <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           {formatLabel(key)}
                         </dt>
-                        <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                        <dd className="mt-1 text-sm font-medium text-foreground">
+                          {key === "role" && typeof value === "string"
+                            ? formatRole(value, t)
+                            : value}
+                        </dd>
                       </div>
                     ))}
                   </dl>
@@ -440,7 +444,11 @@ export default async function ResourceDetailPage({
                         <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           {formatLabel(key)}
                         </dt>
-                        <dd className="mt-1 text-sm font-medium text-foreground">{value}</dd>
+                        <dd className="mt-1 text-sm font-medium text-foreground">
+                          {key === "role" && typeof value === "string"
+                            ? formatRole(value, t)
+                            : value}
+                        </dd>
                       </div>
                     ))}
                   </dl>

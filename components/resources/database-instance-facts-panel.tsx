@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";
+import { formatRole } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   ConsistencyStatus,
@@ -55,6 +56,7 @@ export function DatabaseInstanceFactsPanel({
   result: InstanceConsistencyResult;
 }) {
   const t = useTranslations("databaseReadonlyIA");
+  const tr = useTranslations();
   const tc = useTranslations("databaseConsistency");
 
   return (
@@ -84,7 +86,7 @@ export function DatabaseInstanceFactsPanel({
           />
           <Fact
             label={t("instanceFacts.role")}
-            value={result.facts.role}
+            value={result.facts.role ? formatRole(result.facts.role, tr) : undefined}
             missing={t("instanceFacts.missing")}
           />
           <Fact

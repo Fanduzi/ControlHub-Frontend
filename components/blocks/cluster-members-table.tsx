@@ -7,6 +7,7 @@ import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { ResourceLink } from "@/components/blocks/resource-link";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { sortClusterMembersForOperations } from "@/lib/database-operator-workbench";
+import { formatRole } from "@/lib/format";
 import type { ClusterMember } from "@/types/resource";
 
 type ClusterMembersTableProps = {
@@ -94,7 +95,7 @@ export function ClusterMembersTable({ members }: ClusterMembersTableProps) {
               </td>
               <td className="px-4 py-2 text-xs capitalize text-muted-foreground">
                 {member.profileSummary?.role
-                  ? member.profileSummary.role
+                  ? formatRole(member.profileSummary.role, t)
                   : t("diagnostics.missing.role")}
               </td>
               <td className="px-4 py-2">

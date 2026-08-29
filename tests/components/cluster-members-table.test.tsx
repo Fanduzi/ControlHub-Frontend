@@ -59,6 +59,27 @@ describe("ClusterMembersTable", () => {
     expect(screen.getByText("后端未提供角色信息")).toBeInTheDocument();
   });
 
+  it("localizes database roles and keeps unknown roles readable", () => {
+    const primary = makeMember({
+      id: 1,
+      profileSummary: { role: "primary", hostname: "db-primary", port: 3306 },
+    });
+    const replica = makeMember({
+      id: 2,
+      profileSummary: { role: "replica", hostname: "db-replica", port: 3306 },
+    });
+    const unknown = makeMember({
+      id: 3,
+      profileSummary: { role: "future_role", hostname: "db-unknown", port: 3306 },
+    });
+
+    renderZh(<ClusterMembersTable members={[primary, replica, unknown]} />);
+
+    expect(screen.getByText("主库")).toBeInTheDocument();
+    expect(screen.getByText("从库")).toBeInTheDocument();
+    expect(screen.getByText("Future Role")).toBeInTheDocument();
+  });
+
   it("renders explicit missing connection label when hostname is absent", () => {
     const member = makeMember({ profileSummary: { role: "replica", port: 3306 } });
     renderZh(<ClusterMembersTable members={[member]} />);
