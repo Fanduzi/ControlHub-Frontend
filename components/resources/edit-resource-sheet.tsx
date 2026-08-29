@@ -209,6 +209,21 @@ export function EditResourceSheet({
     setPendingClose(false);
   }, []);
 
+  const getProfileErrorMessage = useCallback(
+    (error: unknown) => {
+      if (error instanceof ApiError) {
+        if (error.status === 401) return t("mutations.errors.unauthorized");
+        if (error.status === 404) return t("mutations.errors.notFound");
+        if (error.status === 400) return t("mutations.errors.validation");
+        return error.message || t("mutations.errors.backend");
+      }
+      return error instanceof Error
+        ? t("mutations.errors.backend")
+        : t("mutations.errors.unknown");
+    },
+    [t],
+  );
+
   const onSubmit = useCallback(
     async (data: EditFormValues) => {
       if (!resource) return;
@@ -341,15 +356,7 @@ export function EditResourceSheet({
                 setBaseError(errorMessage || t("mutations.errors.backend"));
               }
             } else {
-              if (err.status === 401) {
-                setProfileError(t("mutations.errors.unauthorized"));
-              } else if (err.status === 404) {
-                setProfileError(t("mutations.errors.notFound"));
-              } else if (err.status === 400) {
-                setProfileError(t("mutations.errors.validation"));
-              } else {
-                setProfileError(errorMessage || t("mutations.errors.backend"));
-              }
+              setProfileError(getProfileErrorMessage(err));
             }
           } else if (err instanceof Error) {
             if (label === "base") {
@@ -374,7 +381,7 @@ export function EditResourceSheet({
         onOpenChange(false);
       }
     },
-    [resource, dirtyFields, router, onOpenChange, t, setFormError],
+    [resource, dirtyFields, router, onOpenChange, t, setFormError, getProfileErrorMessage],
   );
 
   const handleClearProfile = useCallback(async () => {
@@ -390,23 +397,11 @@ export function EditResourceSheet({
       onOpenChange(false);
     } catch (error) {
       setClearProfilePending(false);
-      if (error instanceof ApiError) {
-        if (error.status === 401) {
-          setProfileError(t("mutations.errors.unauthorized"));
-        } else if (error.status === 404) {
-          setProfileError(t("mutations.errors.notFound"));
-        } else if (error.status === 400) {
-          setProfileError(t("mutations.errors.validation"));
-        } else {
-          setProfileError(error.message || t("mutations.errors.backend"));
-        }
-      } else {
-        setProfileError(t("mutations.errors.backend"));
-      }
+      setProfileError(getProfileErrorMessage(error));
     } finally {
       setClearingProfile(false);
     }
-  }, [resource, router, onOpenChange, t]);
+  }, [resource, router, onOpenChange, getProfileErrorMessage]);
 
   const profileSchema = resource ? getProfileSchema(resource.resourceType) : undefined;
 

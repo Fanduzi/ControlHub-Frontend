@@ -10,3 +10,6 @@ Resource edit submits explicit empty typed-profile values through the profile
 PATCH contract so operators can clear stale string fields. Numeric fields are
 cleared through the confirmed typed-profile removal action, which warns before
 discarding unrelated unsaved form edits.
+
+Profile mutation failures use the same localized error mapping for save and
+clear flows.
