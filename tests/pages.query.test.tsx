@@ -83,7 +83,7 @@ describe("/query page", () => {
     });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({}),
+      searchParams: Promise.resolve({ environmentId: "7" }),
     });
     render(element);
 
@@ -99,7 +99,7 @@ describe("/query page", () => {
     });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ engine: "mysql", q: "redis" }),
+      searchParams: Promise.resolve({ environmentId: "7", engine: "mysql", q: "redis" }),
     });
     render(element);
 
@@ -117,15 +117,16 @@ describe("/query page", () => {
     });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ engine: "mysql", q: "orders" }),
+      searchParams: Promise.resolve({ environmentId: "7", engine: "mysql", q: "orders" }),
     });
     render(element);
 
     expect(getQueryTargetsMock).toHaveBeenCalledWith({
       page: 1,
       pageSize: 50,
-      engine: "mysql",
-      q: "orders",
+        environmentId: 7,
+        engine: "mysql",
+        q: "orders",
     });
   });
 
@@ -218,7 +219,7 @@ describe("/query page", () => {
       });
       render(element);
 
-      expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 50 });
+      expect(getQueryTargetsMock).not.toHaveBeenCalled();
     },
   );
 
@@ -253,7 +254,7 @@ describe("/query page", () => {
       } as never);
       render(element);
 
-      expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 25 });
+      expect(getQueryTargetsMock).not.toHaveBeenCalled();
     },
   );
 
@@ -273,13 +274,14 @@ describe("/query page", () => {
     });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({}),
+      searchParams: Promise.resolve({ environmentId: "7" }),
     });
     render(element);
 
     expect(getQueryTargetsMock).toHaveBeenCalledWith({
       page: 1,
       pageSize: 50,
+      environmentId: 7,
     });
   });
 
@@ -301,17 +303,19 @@ describe("/query page", () => {
       });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ targetId: "42" }),
+      searchParams: Promise.resolve({ environmentId: "7", targetId: "42" }),
     });
     render(element);
 
     expect(getQueryTargetsMock).toHaveBeenCalledTimes(2);
     expect(getQueryTargetsMock).toHaveBeenNthCalledWith(1, {
       page: 1,
-      pageSize: 50,
+        pageSize: 50,
+        environmentId: 7,
     });
     expect(getQueryTargetsMock).toHaveBeenNthCalledWith(2, {
-      targetId: 42,
+        targetId: 42,
+        environmentId: 7,
     });
     expect(captured.targets).toHaveLength(3);
     expect(captured.targets?.map((t) => t.resourceId)).toEqual([1, 2, 42]);
@@ -335,7 +339,7 @@ describe("/query page", () => {
       });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ targetId: "42" }),
+      searchParams: Promise.resolve({ environmentId: "7", targetId: "42" }),
     });
     render(element);
 
@@ -356,12 +360,13 @@ describe("/query page", () => {
       });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ targetId: "42" }),
+      searchParams: Promise.resolve({ environmentId: "7", targetId: "42" }),
     });
     render(element);
 
     expect(getQueryTargetsMock).toHaveBeenNthCalledWith(2, {
       targetId: 42,
+      environmentId: 7,
     });
   });
 
@@ -377,7 +382,7 @@ describe("/query page", () => {
       });
 
     const element = await QueryWorkbenchPage({
-      searchParams: Promise.resolve({ targetId: "42" }),
+      searchParams: Promise.resolve({ environmentId: "7", targetId: "42" }),
     });
     render(element);
 

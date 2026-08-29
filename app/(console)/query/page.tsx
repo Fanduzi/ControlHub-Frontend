@@ -25,7 +25,7 @@ export default async function QueryWorkbenchPage({
   });
   const initialFilters = await parseQueryWorkbenchSearchParams(Promise.resolve(resolved));
 
-  if (!scope) {
+  if (!scope || typeof scope.environmentId !== "number") {
     return (
       <div className="min-h-0">
         <QueryWorkbench
@@ -46,12 +46,12 @@ export default async function QueryWorkbenchPage({
     );
   }
 
-  const environmentId = typeof scope.environmentId === "number" ? scope.environmentId : undefined;
+  const environmentId = scope.environmentId;
 
   const { items: navigatorItems, pageInfo } = await getQueryTargets({
     page: 1,
     pageSize: 50,
-    ...(environmentId !== undefined && { environmentId }),
+    environmentId,
     ...(initialFilters.q && { q: initialFilters.q }),
     ...(!isAllFilter(initialFilters.engine) && { engine: initialFilters.engine }),
   });
@@ -60,7 +60,7 @@ export default async function QueryWorkbenchPage({
   if (targetId !== undefined) {
     const response = await getQueryTargets({
       targetId,
-      ...(environmentId !== undefined && { environmentId }),
+      environmentId,
     });
     selectedTarget = response.items.find((target) => target.resourceId === targetId);
   }

@@ -1574,7 +1574,11 @@
       "allModes": "全部类型",
       "allReadiness": "全部就绪状态",
       "open": "打开连接",
-      "openMobile": "打开连接（移动端）"
+      "openMobile": "打开连接（移动端）",
+      "showing": "当前显示 {count} 个目标",
+      "loadMore": "加载更多目标",
+      "loadAllEngines": "加载全部引擎",
+      "targetLoadError": "无法加载目标。"
     },
     "retarget": {
       "title": "更改工作表目标",
@@ -1969,6 +1973,11 @@
     "deleteColumn": "删除策略",
     "deleteConfirm": "确定要删除此策略吗？该列将被屏蔽。",
     "targetLabel": "目标",
+    "targetSearchPlaceholder": "搜索目标",
+    "targetPage": "第 {page} / {totalPages} 页 · 共 {totalItems} 个目标",
+    "targetLoadError": "无法加载目标。",
+    "previousTargets": "上一页目标",
+    "nextTargets": "下一页目标",
     "databaseLabel": "数据库",
     "objectLabel": "对象（表）",
     "columnLabel": "列",

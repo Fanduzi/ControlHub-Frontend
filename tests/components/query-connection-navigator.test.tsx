@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryConnectionNavigator } from "@/components/query/query-connection-navigator";
 import { EMPTY_FILTERS, type WorkbenchFilters } from "@/lib/query-target-display";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
 
@@ -58,6 +59,7 @@ function renderNavigator(
     };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+    onLoadMore: () => void;
   }> = {},
 ) {
   return render(renderNavigatorElement(props));
@@ -79,11 +81,14 @@ function renderNavigatorElement(
     };
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+    onLoadMore: () => void;
   }> = {},
+  messages: Record<string, unknown> = enMessages,
+  locale = "en",
 ) {
   const targets = props.targets ?? buildTwoTargets();
   return (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <QueryConnectionNavigator
         targets={targets}
         activeTargetId={props.activeTargetId ?? targets[0]!.resourceId}
@@ -99,6 +104,7 @@ function renderNavigatorElement(
         }}
         onSelect={props.onSelect ?? vi.fn()}
         onFilterChange={props.onFilterChange ?? vi.fn()}
+        onLoadMore={props.onLoadMore}
       />
     </NextIntlClientProvider>
   );
@@ -187,13 +193,16 @@ describe("QueryConnectionNavigator", () => {
   });
 
   /**
-   * Phase 38H: The navigator must display bounded pagination metadata so the
-   * user knows how many targets exist and that the list is paginated, not an
-   * unbounded dump of all targets.
+   * The count describes the currently displayed list rather than a stale
+   * unfiltered server total.
    */
-  it("renders page info showing bounded target count", () => {
+  it("renders a localized truthful target count and explicit load-more action", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
     renderNavigator({
       targets: buildTwoTargets(),
+      filters: { ...EMPTY_FILTERS, engine: "clickhouse" },
+      onLoadMore,
       pageInfo: {
         page: 1,
         pageSize: 2,
@@ -205,7 +214,21 @@ describe("QueryConnectionNavigator", () => {
     });
 
     expect(
-      screen.getByText("Showing 2 loaded targets from 64 total"),
+      screen.getByText("Showing 1 target"),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Load more targets" }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it("localizes the current target count in Chinese", () => {
+    render(
+      renderNavigatorElement(
+        { filters: { ...EMPTY_FILTERS, engine: "clickhouse" } },
+        zhMessages,
+        "zh-CN",
+      ),
+    );
+
+    expect(screen.getByText("当前显示 1 个目标")).toBeInTheDocument();
   });
 });

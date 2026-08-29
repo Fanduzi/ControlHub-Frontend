@@ -18,13 +18,23 @@ export default async function QueryDisclosurePoliciesPage({
     environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
   });
   const environmentId = typeof scope?.environmentId === "number" ? scope.environmentId : undefined;
-  const targetResponse = scope
+  const targetResponse = environmentId !== undefined
     ? await getQueryTargets({
         page: 1,
         pageSize: 25,
-        ...(environmentId !== undefined && { environmentId }),
+        environmentId,
       })
-    : { items: [] };
+    : {
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 25,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
 
   return (
     <div className="space-y-6">
@@ -33,7 +43,11 @@ export default async function QueryDisclosurePoliciesPage({
         title={t("queryDisclosureSettings.title")}
         description={t("queryDisclosureSettings.description")}
       />
-      <QueryDisclosureSettings targets={targetResponse.items} />
+      <QueryDisclosureSettings
+        targets={targetResponse.items}
+        pageInfo={targetResponse.pageInfo}
+        environmentId={environmentId}
+      />
     </div>
   );
 }

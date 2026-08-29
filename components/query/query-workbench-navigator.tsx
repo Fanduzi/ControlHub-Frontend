@@ -30,6 +30,11 @@ type QueryWorkbenchNavigatorProps = {
   readonly pageInfo: PageInfo;
   readonly onSelect: (resourceId: number) => void;
   readonly onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+  readonly onLoadMore?: () => void;
+  readonly loadingMore?: boolean;
+  readonly onLoadAllEngines?: () => void;
+  readonly loadingEngines?: boolean;
+  readonly targetLoadError?: string | null;
 };
 
 export function QueryWorkbenchNavigator({
@@ -40,6 +45,11 @@ export function QueryWorkbenchNavigator({
   pageInfo,
   onSelect,
   onFilterChange,
+  onLoadMore,
+  loadingMore,
+  onLoadAllEngines,
+  loadingEngines,
+  targetLoadError,
 }: QueryWorkbenchNavigatorProps) {
   const t = useTranslations("queryWorkbench");
   const [desktopOpen, setDesktopOpen] = useState(false);
@@ -61,6 +71,11 @@ export function QueryWorkbenchNavigator({
       pageInfo={pageInfo}
       onSelect={selectTarget}
       onFilterChange={onFilterChange}
+      onLoadMore={onLoadMore}
+      loadingMore={loadingMore}
+      onLoadAllEngines={onLoadAllEngines}
+      loadingEngines={loadingEngines}
+      targetLoadError={targetLoadError}
     />
   );
   const mobileNavigator = (
@@ -72,6 +87,11 @@ export function QueryWorkbenchNavigator({
       pageInfo={pageInfo}
       onSelect={selectTarget}
       onFilterChange={onFilterChange}
+      onLoadMore={onLoadMore}
+      loadingMore={loadingMore}
+      onLoadAllEngines={onLoadAllEngines}
+      loadingEngines={loadingEngines}
+      targetLoadError={targetLoadError}
       searchInputRef={mobileSearchInputRef}
     />
   );

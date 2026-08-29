@@ -30,6 +30,7 @@ import {
   updateDisclosurePolicy,
   deleteDisclosurePolicy,
 } from "@/services/query-disclosure";
+import { getQueryTargets } from "@/services/query-targets";
 import { QueryDisclosureSettings } from "@/components/settings/query-disclosure-settings";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
@@ -40,6 +41,7 @@ const mockListDisclosurePolicies = vi.mocked(listDisclosurePolicies);
 const mockCreateDisclosurePolicy = vi.mocked(createDisclosurePolicy);
 const mockUpdateDisclosurePolicy = vi.mocked(updateDisclosurePolicy);
 const mockDeleteDisclosurePolicy = vi.mocked(deleteDisclosurePolicy);
+const mockGetQueryTargets = vi.mocked(getQueryTargets);
 
 function buildTargets(): QueryTarget[] {
   return [
@@ -91,10 +93,32 @@ function buildPolicy(
 function renderSettings(
   targets: QueryTarget[] = buildTargets(),
   messages: Record<string, unknown> = enMessages,
+  options: {
+    environmentId?: number;
+    pageInfo?: {
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  } = {},
 ) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <QueryDisclosureSettings targets={targets} />
+      <QueryDisclosureSettings
+        targets={targets}
+        environmentId={options.environmentId}
+        pageInfo={options.pageInfo ?? {
+          page: 1,
+          pageSize: 25,
+          totalItems: targets.length,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }}
+      />
     </NextIntlClientProvider>,
   );
 }
@@ -546,5 +570,75 @@ describe("QueryDisclosureSettings target switching", () => {
     await waitFor(() => {
       expect(mockListDisclosurePolicies).toHaveBeenCalledWith(43);
     });
+  });
+
+  it("loads the next scoped target page so a target after the initial 25 is selectable", async () => {
+    const user = userEvent.setup();
+    const laterTarget = buildQueryTarget({
+      resourceId: 99,
+      displayName: "Later PostgreSQL Instance",
+      resourceName: "later-postgres",
+    });
+    mockListDisclosurePolicies.mockResolvedValue({ items: [] });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [laterTarget],
+      pageInfo: {
+        page: 2,
+        pageSize: 25,
+        totalItems: 26,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    });
+
+    renderSettings([buildTargets()[0]!], enMessages, {
+      environmentId: 7,
+      pageInfo: {
+        page: 1,
+        pageSize: 25,
+        totalItems: 26,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Next targets" }));
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenCalledWith({
+        page: 2,
+        pageSize: 25,
+        environmentId: 7,
+      });
+    });
+    await user.click(await screen.findByLabelText("Target"));
+    await user.click(await screen.findByRole("option", { name: "Later PostgreSQL Instance" }));
+
+    await waitFor(() => {
+      expect(mockListDisclosurePolicies).toHaveBeenCalledWith(99);
+    });
+  });
+
+  it("reports a target page failure without exposing stale pagination as success", async () => {
+    const user = userEvent.setup();
+    mockListDisclosurePolicies.mockResolvedValue({ items: [] });
+    mockGetQueryTargets.mockRejectedValue(new Error("network"));
+
+    renderSettings([buildTargets()[0]!], enMessages, {
+      environmentId: 7,
+      pageInfo: {
+        page: 1,
+        pageSize: 25,
+        totalItems: 26,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Next targets" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load targets.");
   });
 });

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
+import type { PageInfo } from "@/types/resource";
 import type {
   DisclosurePolicy,
   DisclosurePolicyUpsertRequest,
@@ -23,7 +24,14 @@ import {
   updateDisclosurePolicy,
   deleteDisclosurePolicy,
 } from "@/services/query-disclosure";
+import { getQueryTargets } from "@/services/query-targets";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +55,8 @@ import { cn } from "@/lib/utils";
 
 type QueryDisclosureSettingsProps = {
   targets: QueryTarget[];
+  pageInfo: PageInfo;
+  environmentId?: number;
 };
 
 type PolicyFormData = {
@@ -89,6 +99,8 @@ const MODE_OPTIONS: ModeOption[] = [
  */
 export function QueryDisclosureSettings({
   targets,
+  pageInfo,
+  environmentId,
 }: QueryDisclosureSettingsProps) {
   const t = useTranslations("queryDisclosureSettings");
   const isAdmin = useAdminRole();
@@ -97,6 +109,34 @@ export function QueryDisclosureSettings({
   // --- Target selection ---
   const [selectedTargetId, setSelectedTargetId] = useState<number | null>(
     null,
+  );
+  const [targetList, setTargetList] = useState<QueryTarget[]>(targets);
+  const [targetPageInfo, setTargetPageInfo] = useState<PageInfo>(pageInfo);
+  const [targetSearch, setTargetSearch] = useState("");
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
+
+  const loadTargetPage = useCallback(
+    async (page: number, q = targetSearch) => {
+      if (environmentId === undefined) return;
+      setTargetsLoading(true);
+      setTargetLoadError(null);
+      try {
+        const response = await getQueryTargets({
+          page,
+          pageSize: targetPageInfo.pageSize,
+          ...(q.trim() && { q: q.trim() }),
+          ...(environmentId !== undefined && { environmentId }),
+        });
+        setTargetList(response.items);
+        setTargetPageInfo(response.pageInfo);
+      } catch {
+        setTargetLoadError(t("targetLoadError"));
+      } finally {
+        setTargetsLoading(false);
+      }
+    },
+    [environmentId, t, targetPageInfo.pageSize, targetSearch],
   );
 
   // --- Policy state ---
@@ -145,12 +185,18 @@ export function QueryDisclosureSettings({
     }
   }, [isAdmin, selectedTargetId, fetchPolicies]);
 
+  useEffect(() => {
+    setTargetList(targets);
+    setTargetPageInfo(pageInfo);
+    setTargetSearch("");
+  }, [pageInfo, targets]);
+
   // --- Auto-select first target ---
   useEffect(() => {
-    if (isAdmin && targets.length > 0 && selectedTargetId === null) {
-      setSelectedTargetId(targets[0].resourceId);
+    if (isAdmin && targetList.length > 0 && selectedTargetId === null) {
+      setSelectedTargetId(targetList[0].resourceId);
     }
-  }, [isAdmin, targets, selectedTargetId]);
+  }, [isAdmin, targetList, selectedTargetId]);
 
   // --- Auto-clear feedback ---
   useEffect(() => {
@@ -271,7 +317,7 @@ export function QueryDisclosureSettings({
   }
 
   // --- Admin: full management UI ---
-  const selectedTarget = targets.find(
+  const selectedTarget = targetList.find(
     (target) => target.resourceId === selectedTargetId,
   );
 
@@ -305,30 +351,82 @@ export function QueryDisclosureSettings({
         >
           {t("targetLabel")}
         </label>
-        <Select
-          value={selectedTargetId !== null ? String(selectedTargetId) : ""}
-          onValueChange={(v) => setSelectedTargetId(Number(v))}
-        >
-          <SelectTrigger
-            id="disclosure-target-select"
-            className="w-[280px]"
-            aria-label={t("targetLabel")}
-          >
-            <span>
-              {selectedTarget?.displayName ?? "Select a target"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            {targets.map((target) => (
-              <SelectItem
-                key={target.resourceId}
-                value={String(target.resourceId)}
+        <div className="w-[280px] space-y-2">
+          <Command shouldFilter={false} className="rounded-lg border border-input">
+            <CommandInput
+              id="disclosure-target-select"
+              aria-label={t("targetLabel")}
+              value={targetSearch}
+              onValueChange={(value) => {
+                setTargetSearch(value);
+                void loadTargetPage(1, value);
+              }}
+              placeholder={selectedTarget?.displayName ?? t("targetSearchPlaceholder")}
+              className="h-8 w-full bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <CommandList className="max-h-48 overflow-y-auto p-1">
+              {targetList.length === 0 ? (
+                <p className="py-2 text-center text-sm text-muted-foreground">
+                  {tCommon("noResults")}
+                </p>
+              ) : (
+                targetList.map((target) => (
+                  <CommandItem
+                    key={target.resourceId}
+                    value={target.displayName}
+                    forceMount
+                    onSelect={() => setSelectedTargetId(target.resourceId)}
+                    className="cursor-default rounded px-2 py-1.5 text-sm data-[selected=true]:bg-muted"
+                  >
+                    {target.displayName}
+                  </CommandItem>
+                ))
+              )}
+            </CommandList>
+          </Command>
+          {targetLoadError && (
+            <div role="alert" className="flex items-center justify-between gap-2 text-xs text-destructive">
+              <span>{targetLoadError}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadTargetPage(targetPageInfo.page)}
               >
-                {target.displayName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+                {tCommon("actions.tryAgain")}
+              </Button>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              {t("targetPage", {
+                page: targetPageInfo.page,
+                totalPages: targetPageInfo.totalPages,
+                totalItems: targetPageInfo.totalItems,
+              })}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={targetsLoading || !targetPageInfo.hasPreviousPage}
+                onClick={() => void loadTargetPage(targetPageInfo.page - 1)}
+              >
+                {t("previousTargets")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={targetsLoading || !targetPageInfo.hasNextPage}
+                onClick={() => void loadTargetPage(targetPageInfo.page + 1)}
+              >
+                {t("nextTargets")}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Policy table */}

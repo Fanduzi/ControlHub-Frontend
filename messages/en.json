@@ -1574,7 +1574,11 @@
       "allModes": "All kinds",
       "allReadiness": "All readiness",
       "open": "Open connections",
-      "openMobile": "Open connections on mobile"
+      "openMobile": "Open connections on mobile",
+      "showing": "{count, plural, one {Showing # target} other {Showing # targets}}",
+      "loadMore": "Load more targets",
+      "loadAllEngines": "Load all engines",
+      "targetLoadError": "Unable to load targets."
     },
     "retarget": {
       "title": "Change worksheet target",
@@ -1969,6 +1973,11 @@
     "deleteColumn": "Delete Policy",
     "deleteConfirm": "Are you sure you want to delete this policy? The column will be blocked.",
     "targetLabel": "Target",
+    "targetSearchPlaceholder": "Search targets",
+    "targetPage": "Page {page} of {totalPages} · {totalItems} targets",
+    "targetLoadError": "Unable to load targets.",
+    "previousTargets": "Previous targets",
+    "nextTargets": "Next targets",
     "databaseLabel": "Database",
     "objectLabel": "Object (Table)",
     "columnLabel": "Column",

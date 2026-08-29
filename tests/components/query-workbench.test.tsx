@@ -1187,7 +1187,7 @@ describe("QueryWorkbench target picker search", () => {
         },
       });
 
-      renderWorkbench(buildThreeTargets());
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS, 7);
       openConnections();
 
       fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
@@ -1198,7 +1198,7 @@ describe("QueryWorkbench target picker search", () => {
       });
 
       expect(mockGetQueryTargets).toHaveBeenCalledWith(
-        { page: 1, pageSize: 50, q: "outside" },
+        { page: 1, pageSize: 50, q: "outside", environmentId: 7 },
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
       expect(screen.getByRole("button", { name: "Outside page PostgreSQL" })).toBeInTheDocument();
@@ -1231,6 +1231,102 @@ describe("QueryWorkbench target picker search", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("requests an engine-only filter from the server and keeps its deep-link scope", async () => {
+    const user = userEvent.setup();
+    const redisTarget = buildQueryTarget({
+      resourceId: 88,
+      displayName: "Redis beyond the first page",
+      resourceName: "redis-beyond-page-one",
+      connectionContext: {
+        environment: "Production",
+        owner: "DBA",
+        engine: "redis",
+        host: "redis.internal",
+        port: 6379,
+      },
+    });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [redisTarget],
+      pageInfo: {
+        page: 1,
+        pageSize: 50,
+        totalItems: 51,
+        totalPages: 2,
+        hasPreviousPage: false,
+        hasNextPage: true,
+      },
+    });
+    stableSearchParams.set("environment", "production");
+
+    try {
+      renderWorkbench(buildTargets(), enMessages, EMPTY_FILTERS, 7);
+      openConnections();
+      replace.mockClear();
+
+      await user.click(screen.getByRole("combobox", { name: "Engine" }));
+      await user.click(await screen.findByRole("option", { name: "redis" }));
+
+      await waitFor(() => {
+        expect(mockGetQueryTargets).toHaveBeenCalledWith(
+          { page: 1, pageSize: 50, engine: "redis", environmentId: 7 },
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+      });
+      expect(screen.getByRole("button", { name: "Redis beyond the first page" })).toBeInTheDocument();
+      expect(replace).toHaveBeenLastCalledWith(
+        "/query?environment=production&engine=redis",
+      );
+    } finally {
+      stableSearchParams.delete("environment");
+    }
+  });
+
+  it("loads every scoped page before offering an engine absent from the first page", async () => {
+    const user = userEvent.setup();
+    const mysqlTarget = buildQueryTarget({
+      resourceId: 88,
+      displayName: "MySQL beyond the first page",
+      resourceName: "mysql-beyond-page-one",
+      connectionContext: { environment: "Production", owner: "DBA", engine: "mysql", host: "mysql.internal", port: 3306 },
+    });
+    mockGetQueryTargets
+      .mockResolvedValueOnce({ items: buildTargets(), pageInfo: { page: 1, pageSize: 50, totalItems: 51, totalPages: 2, hasPreviousPage: false, hasNextPage: true } })
+      .mockResolvedValueOnce({ items: [mysqlTarget], pageInfo: { page: 2, pageSize: 50, totalItems: 51, totalPages: 2, hasPreviousPage: true, hasNextPage: false } })
+      .mockResolvedValueOnce({ items: [mysqlTarget], pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1, hasPreviousPage: false, hasNextPage: false } });
+
+    renderWorkbench(buildTargets(), enMessages, EMPTY_FILTERS, 7);
+    openConnections();
+    await user.click(screen.getByRole("button", { name: "Load all engines" }));
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenNthCalledWith(2, {
+        page: 2,
+        pageSize: 50,
+        environmentId: 7,
+      });
+    });
+    await user.click(screen.getByRole("combobox", { name: "Engine" }));
+    await user.click(await screen.findByRole("option", { name: "mysql" }));
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenLastCalledWith(
+        { page: 1, pageSize: 50, engine: "mysql", environmentId: 7 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+  });
+
+  it("reports a scoped engine-discovery failure", async () => {
+    const user = userEvent.setup();
+    mockGetQueryTargets.mockRejectedValue(new Error("network"));
+
+    renderWorkbench(buildTargets(), enMessages, EMPTY_FILTERS, 7);
+    openConnections();
+    await user.click(screen.getByRole("button", { name: "Load all engines" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load targets.");
   });
 
   it("preserves the active target's canonical metadata when a server search returns its ID with conflicting details", async () => {
@@ -1267,7 +1363,7 @@ describe("QueryWorkbench target picker search", () => {
         pageInfo: pageInfoFor([conflictingSearchTarget]),
       });
 
-      renderWorkbench([canonicalTarget]);
+      renderWorkbench([canonicalTarget], enMessages, EMPTY_FILTERS, 7);
       openConnections();
 
       fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
@@ -1307,7 +1403,7 @@ describe("QueryWorkbench target picker search", () => {
         .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstSearch = resolve; }))
         .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondSearch = resolve; }));
 
-      renderWorkbench(buildThreeTargets());
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS, 7);
       openConnections();
       const searchInput = screen.getByPlaceholderText(/Search by name, engine, host/);
 

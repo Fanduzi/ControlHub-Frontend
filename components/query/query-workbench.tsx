@@ -41,9 +41,10 @@ type QueryWorkbenchProps = {
 
 const SEARCH_DEBOUNCE_MS = 275;
 
-type SearchResult = {
-  readonly query: string;
+type TargetSearchResult = {
+  readonly key: string;
   readonly items: QueryTarget[];
+  readonly pageInfo: PageInfo;
 };
 
 function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
@@ -67,7 +68,13 @@ export function QueryWorkbench({
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<WorkbenchFilters>(initialFilters);
   const [targetCache, setTargetCache] = useState<Map<number, QueryTarget>>(() => new Map());
-  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+  const [loadedTargets, setLoadedTargets] = useState<QueryTarget[]>(targets);
+  const [loadedPageInfo, setLoadedPageInfo] = useState<PageInfo>(pageInfo);
+  const [searchResult, setSearchResult] = useState<TargetSearchResult | null>(null);
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [allEngines, setAllEngines] = useState<string[] | null>(null);
+  const [enginesLoading, setEnginesLoading] = useState(false);
+  const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
     initialActiveTargetId === undefined
       ? getInitialActiveTargetId(targets)
@@ -177,23 +184,38 @@ export function QueryWorkbench({
   }, [activeDatabase, activeTargetId, pathname, router, searchParams]);
 
   useEffect(() => {
+    setLoadedTargets(targets);
+    setLoadedPageInfo(pageInfo);
+    setSearchResult(null);
+    setAllEngines(null);
+  }, [pageInfo, targets]);
+
+  useEffect(() => {
     const generation = searchGeneration.current + 1;
     searchGeneration.current = generation;
     const query = filters.q.trim();
+    const engine = isAllFilter(filters.engine) ? "" : filters.engine;
+    const key = `${query}\u0000${engine}`;
 
-    if (query.length === 0 || environmentId === null) {
+    if (
+      (query.length === 0 && engine === "") ||
+      environmentId === undefined ||
+      environmentId === null
+    ) {
+      setSearchResult(null);
       return;
     }
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => {
+    const load = () => {
+      setTargetsLoading(true);
       void getQueryTargets(
         {
           page: 1,
           pageSize: 50,
-          q: query,
+          ...(query && { q: query }),
           ...(environmentId !== undefined && { environmentId }),
-          ...(!isAllFilter(filters.engine) && { engine: filters.engine }),
+          ...(engine && { engine }),
         },
         { signal: controller.signal },
       ).then(
@@ -201,48 +223,160 @@ export function QueryWorkbench({
           if (controller.signal.aborted || generation !== searchGeneration.current) {
             return;
           }
-          setSearchResult({ query, items: response.items });
+          setSearchResult({ key, items: response.items, pageInfo: response.pageInfo });
+          setTargetsLoading(false);
         },
         () => {
           if (controller.signal.aborted || generation !== searchGeneration.current) {
             return;
           }
-          setSearchResult({ query, items: [] });
+          setSearchResult({
+            key,
+            items: [],
+            pageInfo: {
+              page: 1,
+              pageSize: 50,
+              totalItems: 0,
+              totalPages: 0,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          });
+          setTargetsLoading(false);
         },
       );
-    }, SEARCH_DEBOUNCE_MS);
+    };
+
+    const timeout = query
+      ? window.setTimeout(load, SEARCH_DEBOUNCE_MS)
+      : undefined;
+    if (timeout === undefined) load();
 
     return () => {
-      window.clearTimeout(timeout);
+      if (timeout !== undefined) window.clearTimeout(timeout);
       controller.abort();
     };
   }, [environmentId, filters.engine, filters.q]);
 
   const cachedTargets = useMemo(() => {
     const combined = new Map(targetCache);
-    for (const target of targets) {
+    for (const target of loadedTargets) {
       combined.set(target.resourceId, target);
     }
     return Array.from(combined.values());
-  }, [targetCache, targets]);
+  }, [loadedTargets, targetCache]);
   const targetsById = useMemo(
     () => new Map(cachedTargets.map((target) => [target.resourceId, target])),
     [cachedTargets],
   );
   const query = filters.q.trim();
+  const engine = isAllFilter(filters.engine) ? "" : filters.engine;
+  const targetSearchKey = `${query}\u0000${engine}`;
+  const usesServerFilter = query.length > 0 || engine !== "";
   const navigatorTargets = useMemo(() => {
-    if (query.length === 0 || searchResult === null) {
-      return targets;
+    if (!usesServerFilter) {
+      return loadedTargets;
     }
-    return searchResult.query === query ? searchResult.items : [];
-  }, [query, searchResult, targets]);
-  const engines = useMemo(() => collectEngines(navigatorTargets), [navigatorTargets]);
+    return searchResult?.key === targetSearchKey ? searchResult.items : loadedTargets;
+  }, [loadedTargets, searchResult, targetSearchKey, usesServerFilter]);
+  const navigatorPageInfo =
+    usesServerFilter && searchResult?.key === targetSearchKey
+      ? searchResult.pageInfo
+      : loadedPageInfo;
+  const engines = useMemo(() => {
+    const knownEngines = allEngines ?? collectEngines(loadedTargets);
+    return engine && !knownEngines.includes(engine)
+      ? [...knownEngines, engine].sort((left, right) => left.localeCompare(right))
+      : knownEngines;
+  }, [allEngines, engine, loadedTargets]);
 
   const activeTarget =
     activeTargetId === null ? null : targetsById.get(activeTargetId) ?? null;
 
   function updateFilter(patch: Partial<WorkbenchFilters>) {
     setFilters((previous) => ({ ...previous, ...patch }));
+    if (patch.engine === undefined) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (isAllFilter(patch.engine)) {
+      params.delete("engine");
+    } else {
+      params.set("engine", patch.engine);
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  async function loadMoreTargets() {
+    if (
+      !navigatorPageInfo.hasNextPage ||
+      targetsLoading ||
+      environmentId === undefined ||
+      environmentId === null
+    ) {
+      return;
+    }
+
+    setTargetsLoading(true);
+    setTargetLoadError(null);
+    try {
+      const response = await getQueryTargets({
+        page: navigatorPageInfo.page + 1,
+        pageSize: navigatorPageInfo.pageSize,
+        ...(query && { q: query }),
+        ...(environmentId !== undefined && { environmentId }),
+        ...(engine && { engine }),
+      });
+
+      if (usesServerFilter) {
+        setSearchResult((previous) =>
+          previous?.key === targetSearchKey
+            ? {
+                key: targetSearchKey,
+                items: [...previous.items, ...response.items],
+                pageInfo: response.pageInfo,
+              }
+            : previous,
+        );
+      } else {
+        setLoadedTargets((previous) => [...previous, ...response.items]);
+        setLoadedPageInfo(response.pageInfo);
+      }
+    } catch {
+      setTargetLoadError(t("connectionNavigator.targetLoadError"));
+    } finally {
+      setTargetsLoading(false);
+    }
+  }
+
+  async function loadAllEngines() {
+    if (environmentId === undefined || environmentId === null || enginesLoading) {
+      return;
+    }
+
+    setEnginesLoading(true);
+    setTargetLoadError(null);
+    try {
+      const allTargets: QueryTarget[] = [];
+      let nextPage = 1;
+      let hasNextPage = true;
+
+      while (hasNextPage) {
+        const response = await getQueryTargets({
+          page: nextPage,
+          pageSize: 50,
+          environmentId,
+        });
+        allTargets.push(...response.items);
+        hasNextPage = response.pageInfo.hasNextPage;
+        nextPage += 1;
+      }
+
+      setAllEngines(collectEngines(allTargets));
+    } catch {
+      setTargetLoadError(t("connectionNavigator.targetLoadError"));
+    } finally {
+      setEnginesLoading(false);
+    }
   }
 
   function setActiveTargetFromNavigator(resourceId: number) {
@@ -286,9 +420,14 @@ export function QueryWorkbench({
             activeTargetId={activeTargetId}
             filters={filters}
             engines={engines}
-            pageInfo={pageInfo}
+            pageInfo={navigatorPageInfo}
             onSelect={setActiveTargetFromNavigator}
             onFilterChange={updateFilter}
+            onLoadMore={loadMoreTargets}
+            loadingMore={targetsLoading}
+            onLoadAllEngines={loadAllEngines}
+            loadingEngines={enginesLoading}
+            targetLoadError={targetLoadError}
             objectsOpen={objectsOpen}
             onObjectsToggle={() => setObjectsOpen((prev) => !prev)}
             onMobileObjectsOpenChange={setMobileObjectsOpen}
@@ -419,6 +558,11 @@ type QueryContextBarProps = {
   pageInfo: PageInfo;
   onSelect: (resourceId: number) => void;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+  onLoadMore: () => void;
+  loadingMore: boolean;
+  onLoadAllEngines: () => void;
+  loadingEngines: boolean;
+  targetLoadError: string | null;
   objectsOpen: boolean;
   onObjectsToggle: () => void;
   onMobileObjectsOpenChange: (open: boolean) => void;
@@ -435,6 +579,11 @@ function QueryContextBar({
   pageInfo,
   onSelect,
   onFilterChange,
+  onLoadMore,
+  loadingMore,
+  onLoadAllEngines,
+  loadingEngines,
+  targetLoadError,
   objectsOpen,
   onObjectsToggle,
   onMobileObjectsOpenChange,
@@ -527,6 +676,11 @@ function QueryContextBar({
         pageInfo={pageInfo}
         onSelect={onSelect}
         onFilterChange={onFilterChange}
+        onLoadMore={onLoadMore}
+        loadingMore={loadingMore}
+        onLoadAllEngines={onLoadAllEngines}
+        loadingEngines={loadingEngines}
+        targetLoadError={targetLoadError}
       />
     </div>
   );

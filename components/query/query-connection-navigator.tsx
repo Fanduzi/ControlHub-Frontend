@@ -1,6 +1,7 @@
 "use client";
 
 import { type RefObject, useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
@@ -19,6 +20,11 @@ export type QueryConnectionNavigatorProps = {
   pageInfo: PageInfo;
   onSelect: (resourceId: number) => void;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  onLoadAllEngines?: () => void;
+  loadingEngines?: boolean;
+  targetLoadError?: string | null;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 };
 
@@ -30,8 +36,14 @@ export function QueryConnectionNavigator({
   pageInfo,
   onSelect,
   onFilterChange,
+  onLoadMore,
+  loadingMore,
+  onLoadAllEngines,
+  loadingEngines,
+  targetLoadError,
   searchInputRef,
 }: QueryConnectionNavigatorProps) {
+  const t = useTranslations("queryWorkbench");
   const activeTarget = useMemo(
     () => targets.find((target) => target.resourceId === activeTargetId) ?? null,
     [targets, activeTargetId],
@@ -46,8 +58,8 @@ export function QueryConnectionNavigator({
   );
 
   const pageInfoLabel = useMemo(
-    () => `Showing ${targets.length} loaded targets from ${pageInfo.totalItems} total`,
-    [targets.length, pageInfo.totalItems],
+    () => t("connectionNavigator.showing", { count: filteredTargets.length }),
+    [filteredTargets.length, t],
   );
 
   return (
@@ -57,8 +69,14 @@ export function QueryConnectionNavigator({
       groupedTargets={groupedTargets}
       engines={engines}
       pageInfo={pageInfoLabel}
+      canLoadMore={pageInfo.hasNextPage}
+      loadingMore={loadingMore}
       onFilterChange={onFilterChange}
       onSelect={onSelect}
+      onLoadMore={onLoadMore}
+      onLoadAllEngines={onLoadAllEngines}
+      loadingEngines={loadingEngines}
+      targetLoadError={targetLoadError}
       searchInputRef={searchInputRef}
     />
   );

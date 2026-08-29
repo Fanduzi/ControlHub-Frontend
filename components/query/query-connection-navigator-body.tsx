@@ -6,6 +6,7 @@ import type { RefObject } from "react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -33,8 +34,14 @@ type NavigatorBodyProps = {
   groupedTargets: TargetGroup[];
   engines: string[];
   pageInfo?: string;
+  canLoadMore?: boolean;
+  loadingMore?: boolean;
   onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
   onSelect: (resourceId: number) => void;
+  onLoadMore?: () => void;
+  onLoadAllEngines?: () => void;
+  loadingEngines?: boolean;
+  targetLoadError?: string | null;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 };
 
@@ -44,8 +51,14 @@ export function NavigatorBody({
   groupedTargets,
   engines,
   pageInfo,
+  canLoadMore = false,
+  loadingMore = false,
   onFilterChange,
   onSelect,
+  onLoadMore,
+  onLoadAllEngines,
+  loadingEngines = false,
+  targetLoadError,
   searchInputRef,
 }: NavigatorBodyProps) {
   const t = useTranslations("queryWorkbench");
@@ -99,6 +112,17 @@ export function NavigatorBody({
               label: t(readinessLabelKey(readiness)),
             }))}
           />
+          {onLoadAllEngines && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loadingEngines}
+              onClick={onLoadAllEngines}
+            >
+              {t("connectionNavigator.loadAllEngines")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -114,6 +138,24 @@ export function NavigatorBody({
         <p className="text-xs text-muted-foreground" aria-live="polite">
           {pageInfo}
         </p>
+      )}
+
+      {targetLoadError && (
+        <p role="alert" className="text-xs text-destructive">
+          {targetLoadError}
+        </p>
+      )}
+
+      {canLoadMore && onLoadMore && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {t("connectionNavigator.loadMore")}
+        </Button>
       )}
     </div>
   );
