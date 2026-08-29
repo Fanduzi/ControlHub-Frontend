@@ -16,3 +16,8 @@ unknown slugs fail closed so those pages render an empty scoped result.
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
+
+`profile-field-registry.ts` presents typed profile fields for host,
+database_instance, database_cluster, service, domain_name (required FQDN),
+and virtual_ip (required single IP address). Domain Name does not collect a
+resolution target as profile text.

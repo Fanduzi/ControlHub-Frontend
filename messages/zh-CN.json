@@ -677,7 +677,8 @@
       "primaryEndpoint": "主节点地址",
       "systemName": "系统名称",
       "repositoryUrl": "代码仓库",
-      "runtimeEnv": "运行环境"
+      "runtimeEnv": "运行环境",
+      "fqdn": "FQDN"
     },
     "create": {
       "title": "创建资源",
@@ -786,7 +787,8 @@
     "primaryEndpoint": "主节点地址",
     "systemName": "系统名称",
     "repositoryUrl": "代码仓库",
-    "runtimeEnv": "运行环境"
+    "runtimeEnv": "运行环境",
+    "fqdn": "FQDN"
   },
   "diagnostics": {
     "fields": {

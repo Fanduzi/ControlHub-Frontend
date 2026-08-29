@@ -1,3 +1,8 @@
+// input: zod, resource type key
+// output: getProfileSchema, hasProfileFields, ProfileSchema
+// pos: Console typed-profile field contract reused by create and edit sheets
+// note: if this file changes, update this header and lib/README.md
+
 import { z } from "zod";
 
 export type ProfileFieldDef = {
@@ -46,6 +51,14 @@ const SERVICE_FIELDS: ProfileFieldDef[] = [
   { key: "runtimeEnv", labelKey: "profileFields.runtimeEnv", inputType: "text", required: false, placeholder: "node, python, go..." },
 ];
 
+const DOMAIN_NAME_FIELDS: ProfileFieldDef[] = [
+  { key: "fqdn", labelKey: "profileFields.fqdn", inputType: "text", required: true, placeholder: "orders.example.com" },
+];
+
+const VIRTUAL_IP_FIELDS: ProfileFieldDef[] = [
+  { key: "ipAddress", labelKey: "profileFields.ipAddress", inputType: "text", required: true, placeholder: "10.0.0.10" },
+];
+
 function buildZodSchema(fields: ProfileFieldDef[]): z.ZodObject<Record<string, z.ZodTypeAny>> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of fields) {
@@ -67,6 +80,8 @@ const REGISTRY: Record<string, ProfileSchema> = {
   database_instance: { fields: DB_INSTANCE_FIELDS, zodSchema: buildZodSchema(DB_INSTANCE_FIELDS) },
   database_cluster: { fields: DB_CLUSTER_FIELDS, zodSchema: buildZodSchema(DB_CLUSTER_FIELDS) },
   service: { fields: SERVICE_FIELDS, zodSchema: buildZodSchema(SERVICE_FIELDS) },
+  domain_name: { fields: DOMAIN_NAME_FIELDS, zodSchema: buildZodSchema(DOMAIN_NAME_FIELDS) },
+  virtual_ip: { fields: VIRTUAL_IP_FIELDS, zodSchema: buildZodSchema(VIRTUAL_IP_FIELDS) },
 };
 
 export function getProfileSchema(resourceType: string): ProfileSchema | undefined {

@@ -677,7 +677,8 @@
       "primaryEndpoint": "Primary Endpoint",
       "systemName": "System Name",
       "repositoryUrl": "Repository URL",
-      "runtimeEnv": "Runtime Environment"
+      "runtimeEnv": "Runtime Environment",
+      "fqdn": "FQDN"
     },
     "create": {
       "title": "Create resource",
@@ -786,7 +787,8 @@
     "primaryEndpoint": "Primary Endpoint",
     "systemName": "System Name",
     "repositoryUrl": "Repository URL",
-    "runtimeEnv": "Runtime Environment"
+    "runtimeEnv": "Runtime Environment",
+    "fqdn": "FQDN"
   },
   "diagnostics": {
     "fields": {

@@ -1,3 +1,8 @@
+// input: CreateResourceSheet, settings/resource service fakes, localized messages
+// output: create-form assertions including Domain Name FQDN and Virtual IP address fields
+// pos: component-level contract for typed profile create fields
+// note: if this file changes, update header and tests/components/README.md
+
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -63,6 +68,8 @@ describe("CreateResourceSheet", () => {
       { key: "database_instance", label: "Database Instance", description: "" },
       { key: "host", label: "Host", description: "" },
       { key: "domain_name", label: "Domain Name", description: "" },
+      { key: "virtual_ip", label: "Virtual IP", description: "" },
+      { key: "database_proxy", label: "Database Proxy", description: "" },
     ]);
     mockedListEnvironments.mockResolvedValue([
       { id: 1, name: "Production", slug: "production", description: "", createdAt: "" },
@@ -266,22 +273,78 @@ describe("CreateResourceSheet", () => {
       expect(mockedListResourceTypes).toHaveBeenCalledOnce();
     });
 
-    // Select domain_name as resource type (no profile in registry)
     const triggers = screen.getAllByRole("combobox");
     await userEvent.setup().click(triggers[0]);
 
-    const domainOption = await screen.findByText("Domain Name");
-    await userEvent.setup().click(domainOption);
+    const proxyOption = await screen.findByText("Database Proxy");
+    await userEvent.setup().click(proxyOption);
 
-    // Wait for profile section to appear
     await waitFor(() => {
       expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
     });
 
-    // Should show "no profile fields" message
     expect(
       screen.getByText("This resource type has no profile fields."),
     ).toBeInTheDocument();
+  });
+
+  it("shows required FQDN field for Domain Name", async () => {
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "dns", label: "DNS", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    const triggers = screen.getAllByRole("combobox");
+    await userEvent.setup().click(triggers[0]);
+    await userEvent.setup().click(await screen.findByText("Domain Name"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/FQDN \*/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("This resource type has no profile fields."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/resolution/i)).not.toBeInTheDocument();
+  });
+
+  it("shows required IP Address field for Virtual IP", async () => {
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "floating", label: "Floating", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    const triggers = screen.getAllByRole("combobox");
+    await userEvent.setup().click(triggers[0]);
+    await userEvent.setup().click(await screen.findByText("Virtual IP"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/IP Address \*/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("This resource type has no profile fields."),
+    ).not.toBeInTheDocument();
   });
 
   it("submit sends profile data in request body", async () => {

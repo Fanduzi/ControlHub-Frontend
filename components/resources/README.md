@@ -13,3 +13,6 @@ discarding unrelated unsaved form edits.
 
 Profile mutation failures use the same localized error mapping for save and
 clear flows.
+
+Create and edit sheets render Domain Name FQDN and Virtual IP address fields
+from `lib/profile-field-registry.ts`.

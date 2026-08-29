@@ -1,7 +1,7 @@
 // input: Vitest, React Testing Library, localized messages, and mocked resource/settings services
-// output: caller-facing regression coverage for EditResourceSheet saves
-// pos: component seam tests for resource edit behavior
-// note: if this file changes, update this header and module README.md.
+// output: edit-save and typed-profile field assertions, including clear and removal behavior
+// pos: component-level contract for resource edit behavior
+// note: if this file changes, update this header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -103,6 +103,26 @@ const hostResource: ResourceDetailViewModel = {
   profile: {},
   relations: [],
   auditEvents: [],
+};
+
+const domainNameResource: ResourceDetailViewModel = {
+  ...hostResource,
+  id: 3,
+  resourceType: "domain_name",
+  resourceSubtype: "dns",
+  name: "orders-domain",
+  displayName: "Orders Domain",
+  summary: "Orders DNS name.",
+};
+
+const virtualIPResource: ResourceDetailViewModel = {
+  ...hostResource,
+  id: 4,
+  resourceType: "virtual_ip",
+  resourceSubtype: "floating",
+  name: "orders-vip",
+  displayName: "Orders VIP",
+  summary: "Orders floating IP.",
 };
 
 describe("EditResourceSheet", () => {
@@ -486,12 +506,67 @@ describe("EditResourceSheet", () => {
       expect(mockedListResourceSubtypes).toHaveBeenCalled();
     });
 
-    // Host type IS in the registry, so it should show profile fields (hostname, ipAddress, osName)
-    // For a type like domain_name (not in registry), it would show "no profile fields"
-    // Since host IS in registry, let's verify the profile section appears
     await waitFor(() => {
       expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
     });
+  });
+
+  it("shows FQDN profile field for Domain Name and no resolution target", async () => {
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: domainNameResource.id,
+      resourceType: "domain_name",
+      resourceSubtype: "dns",
+      profile: { fqdn: "orders.example.com" },
+    });
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "dns", label: "DNS", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={domainNameResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/FQDN \*/)).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("orders.example.com")).toBeInTheDocument();
+    expect(
+      screen.queryByText("This resource type has no profile fields."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/resolution/i)).not.toBeInTheDocument();
+  });
+
+  it("shows IP Address profile field for Virtual IP", async () => {
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: virtualIPResource.id,
+      resourceType: "virtual_ip",
+      resourceSubtype: "floating",
+      profile: { ipAddress: "10.0.0.10" },
+    });
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "floating", label: "Floating", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={virtualIPResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/IP Address \*/)).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("10.0.0.10")).toBeInTheDocument();
   });
 
   it("shows backend error when update fails with 401", async () => {
