@@ -1,5 +1,5 @@
 // input: Next navigation URL state, named inventory view service, translations, visible columns
-// output: personal saved-view save/apply controls for the resource inventory
+// output: personal/shared saved-view save, apply, and management controls for the resource inventory
 // pos: inventory controls mounted ahead of ResourceTable filters
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -10,11 +10,14 @@ import { useTranslations } from "next-intl";
 
 import {
   createNamedInventoryView,
+  deleteNamedInventoryView,
   listNamedInventoryViews,
+  updateNamedInventoryView,
 } from "@/services/named-inventory-views";
 import type {
   NamedInventoryView,
   NamedInventoryViewFilters,
+  NamedInventoryViewScope,
 } from "@/types/named-inventory-view";
 
 type NamedInventoryViewControlsProps = {
@@ -58,12 +61,17 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
   const searchParams = useSearchParams();
   const [views, setViews] = useState<NamedInventoryView[]>([]);
   const [name, setName] = useState("");
+  const [scope, setScope] = useState<NamedInventoryViewScope>("personal");
   const [selectedId, setSelectedId] = useState("");
+  const [renameName, setRenameName] = useState("");
+  const [canManageShared, setCanManageShared] = useState(false);
   const [error, setError] = useState("");
 
   const loadViews = async () => {
     try {
-      setViews((await listNamedInventoryViews()).items);
+      const response = await listNamedInventoryViews();
+      setViews(response.items);
+      setCanManageShared(response.canManageShared);
       setError("");
     } catch {
       setError(t("loadError"));
@@ -75,10 +83,10 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
 
     void listNamedInventoryViews()
       .then((response) => {
-        if (active) {
-          setViews(response.items);
-          setError("");
-        }
+        if (!active) return;
+        setViews(response.items);
+        setCanManageShared(response.canManageShared);
+        setError("");
       })
       .catch(() => {
         if (active) setError(t("loadError"));
@@ -96,7 +104,7 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
       setError("");
       await createNamedInventoryView({
         name: name.trim(),
-        scope: "personal",
+        scope: canManageShared ? scope : "personal",
         state: {
           filters: readFilters(new URLSearchParams(searchParams.toString())),
           sort: { field: "name", direction: "asc" },
@@ -109,6 +117,43 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
       return;
     }
 
+    await loadViews();
+  };
+
+  const selectedView = views.find((item) => item.id === Number(selectedId));
+  const canManageSelectedView = selectedView?.scope !== "shared" || canManageShared;
+
+  const rename = async () => {
+    if (!selectedView || !renameName.trim() || !canManageSelectedView) return;
+
+    try {
+      setError("");
+      await updateNamedInventoryView(selectedView.id, {
+        name: renameName.trim(),
+        scope: selectedView.scope,
+        state: selectedView.state,
+      });
+    } catch {
+      setError(t("renameError"));
+      return;
+    }
+
+    await loadViews();
+  };
+
+  const remove = async () => {
+    if (!selectedView || !canManageSelectedView) return;
+
+    try {
+      setError("");
+      await deleteNamedInventoryView(selectedView.id);
+    } catch {
+      setError(t("deleteError"));
+      return;
+    }
+
+    setSelectedId("");
+    setRenameName("");
     await loadViews();
   };
 
@@ -135,7 +180,11 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
         id="named-inventory-view"
         className="h-9 rounded-md border border-border bg-background px-3 text-sm"
         value={selectedId}
-        onChange={(event) => setSelectedId(event.target.value)}
+        onChange={(event) => {
+          const view = views.find((item) => item.id === Number(event.target.value));
+          setSelectedId(event.target.value);
+          setRenameName(view?.name ?? "");
+        }}
       >
         <option value="">{t("selectPlaceholder")}</option>
         {views.map((view) => (
@@ -162,6 +211,22 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
         onChange={(event) => setName(event.target.value)}
         placeholder={t("namePlaceholder")}
       />
+      {canManageShared && (
+        <>
+          <label className="sr-only" htmlFor="named-inventory-view-scope">
+            {t("scopeLabel")}
+          </label>
+          <select
+            id="named-inventory-view-scope"
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+            value={scope}
+            onChange={(event) => setScope(event.target.value as NamedInventoryViewScope)}
+          >
+            <option value="personal">{t("personal")}</option>
+            <option value="shared">{t("sharedScope")}</option>
+          </select>
+        </>
+      )}
       <button
         type="button"
         className="h-9 rounded-md border border-border px-3 text-sm"
@@ -169,6 +234,43 @@ export function NamedInventoryViewControls({ columns }: NamedInventoryViewContro
       >
         {t("save")}
       </button>
+      {selectedView && (
+        <>
+          <label className="sr-only" htmlFor="named-inventory-view-rename">
+            {t("renameLabel")}
+          </label>
+          <input
+            id="named-inventory-view-rename"
+            className="h-9 w-[180px] rounded-md border border-border bg-background px-3 text-sm"
+            value={renameName}
+            onChange={(event) => setRenameName(event.target.value)}
+            disabled={!canManageSelectedView}
+          />
+          <button
+            type="button"
+            className="h-9 rounded-md border border-border px-3 text-sm"
+            onClick={() => void rename()}
+            disabled={!canManageSelectedView || !renameName.trim()}
+            aria-describedby={!canManageSelectedView ? "named-inventory-view-admin-required" : undefined}
+          >
+            {t("rename")}
+          </button>
+          <button
+            type="button"
+            className="h-9 rounded-md border border-border px-3 text-sm"
+            onClick={() => void remove()}
+            disabled={!canManageSelectedView}
+            aria-describedby={!canManageSelectedView ? "named-inventory-view-admin-required" : undefined}
+          >
+            {t("delete")}
+          </button>
+          {!canManageSelectedView && (
+            <p id="named-inventory-view-admin-required" className="text-sm text-muted-foreground">
+              {t("adminRequired")}
+            </p>
+          )}
+        </>
+      )}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
   );

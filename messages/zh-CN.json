@@ -519,9 +519,18 @@
         "apply": "应用",
         "nameLabel": "视图名称",
         "namePlaceholder": "视图名称",
+        "scopeLabel": "视图范围",
+        "personal": "个人",
+        "sharedScope": "共享",
         "save": "保存视图",
+        "renameLabel": "重命名视图",
+        "rename": "重命名",
+        "delete": "删除",
+        "adminRequired": "只有管理员可以管理共享视图。",
         "loadError": "无法加载已保存视图。",
-        "saveError": "无法保存此视图。"
+        "saveError": "无法保存此视图。",
+        "renameError": "无法重命名此视图。",
+        "deleteError": "无法删除此视图。"
       }
     },
     "databases": {

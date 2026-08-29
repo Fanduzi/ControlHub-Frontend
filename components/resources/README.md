@@ -5,8 +5,9 @@ Resource interaction components.
 `health-evidence.tsx` renders localized effective-health freshness, observed
 time, observer, and manual override consistently in list and detail surfaces.
 
-`named-inventory-view-controls.tsx` saves personal resource-filter URLs and
-applies personal or shared saved views without caching their results.
+`named-inventory-view-controls.tsx` saves personal or administrator-shared
+resource-filter URLs, applies personal or shared saved views without caching
+their results, and manages selected views when authorized.
 
 Admin-only mutation affordances (`CreateResourceSheet`, resource edit,
 archive/restore, and the table-level create button) are presentation hints;

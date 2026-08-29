@@ -519,9 +519,18 @@
         "apply": "Apply",
         "nameLabel": "View name",
         "namePlaceholder": "View name",
+        "scopeLabel": "View scope",
+        "personal": "Personal",
+        "sharedScope": "Shared",
         "save": "Save view",
+        "renameLabel": "Rename view",
+        "rename": "Rename",
+        "delete": "Delete",
+        "adminRequired": "Only administrators can manage shared views.",
         "loadError": "Could not load saved views.",
-        "saveError": "Could not save this view."
+        "saveError": "Could not save this view.",
+        "renameError": "Could not rename this view.",
+        "deleteError": "Could not delete this view."
       }
     },
     "databases": {
