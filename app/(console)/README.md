@@ -12,3 +12,7 @@ missing or archived resources; it links back to `/resources` while the root
 
 Resources and databases pages fail closed to an empty result when their
 environment slug is unknown; they do not issue an unscoped inventory request.
+
+The overview reads the selected environment preference from its cookie during
+server rendering, so complete resource and attention data are scoped before
+client metrics render.

@@ -656,6 +656,84 @@ describe("listResources", () => {
       pending: 1,
     });
   });
+
+  it("keeps the selected environment while finding later-page member signals", async () => {
+    apiClientMock
+      .mockResolvedValueOnce({
+        items: [{
+          id: 1,
+          resourceType: "database_instance",
+          resourceSubtype: "mysql",
+          name: "orders-db-primary",
+          displayName: "Orders DB Primary",
+          environmentId: 101,
+          ownerId: 201,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "mysql:prod:orders-primary",
+          labels: {},
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        }],
+        pageInfo: {
+          page: 1,
+          pageSize: 1,
+          totalItems: 2,
+          totalPages: 2,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      } satisfies ResourceListResponse)
+      .mockResolvedValueOnce({
+        items: [{
+          id: 2,
+          resourceType: "database_cluster",
+          resourceSubtype: "mysql_cluster",
+          name: "orders-db-cluster",
+          displayName: "Orders DB Cluster",
+          environmentId: 101,
+          ownerId: 201,
+          lifecycleStatus: "running",
+          healthStatus: "healthy",
+          source: "manual",
+          externalId: "mysql:prod:orders-cluster",
+          labels: {},
+          databaseOperationalSummary: {
+            memberCount: 1,
+            criticalMemberCount: 1,
+            warningMemberCount: 0,
+            stoppedMemberCount: 0,
+            degradedMemberCount: 0,
+            unknownRoleCount: 0,
+            primaryMemberCount: 1,
+            replicaMemberCount: 0,
+          },
+          createdAt: "2026-04-14T00:00:00Z",
+          updatedAt: "2026-04-14T00:00:00Z",
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        }],
+        pageInfo: {
+          page: 2,
+          pageSize: 1,
+          totalItems: 2,
+          totalPages: 2,
+          hasNextPage: false,
+          hasPreviousPage: true,
+        },
+      } satisfies ResourceListResponse);
+
+    await expect(listAttentionResources({ environmentId: 101 })).resolves.toEqual([
+      expect.objectContaining({ id: 2 }),
+    ]);
+    expect(apiClientMock).toHaveBeenNthCalledWith(1, "/resources?environmentId=101");
+    expect(apiClientMock).toHaveBeenNthCalledWith(2, "/resources?page=2&pageSize=1&environmentId=101");
+  });
 });
 
 describe("createResource", () => {

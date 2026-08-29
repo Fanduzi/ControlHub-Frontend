@@ -30,18 +30,21 @@ export function applyAccentToDocument(accent: AccentName) {
 export const ENVIRONMENT_STORAGE_KEY = "controlhub.environmentId";
 
 /** Null = "all environments" (no filter). */
-export function readStoredEnvironmentId(): number | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const value = window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY);
+export function parseEnvironmentId(value: string | null | undefined): number | null {
   if (!value) {
     return null;
   }
 
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function readStoredEnvironmentId(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return parseEnvironmentId(window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY));
 }
 
 export function persistEnvironmentId(id: number | null): void {
@@ -51,7 +54,9 @@ export function persistEnvironmentId(id: number | null): void {
 
   if (id !== null) {
     window.localStorage.setItem(ENVIRONMENT_STORAGE_KEY, String(id));
+    document.cookie = `${ENVIRONMENT_STORAGE_KEY}=${id}; Path=/; Max-Age=31536000; SameSite=Lax`;
   } else {
     window.localStorage.removeItem(ENVIRONMENT_STORAGE_KEY);
+    document.cookie = `${ENVIRONMENT_STORAGE_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
   }
 }

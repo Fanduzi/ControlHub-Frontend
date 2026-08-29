@@ -397,6 +397,12 @@ export async function listResourceViewModels(
   return toResourceListViewModelResponse(response);
 }
 
+export async function listAllResourceViewModels(
+  params: ResourceListParams = {},
+): Promise<ResourceListViewModel[]> {
+  return listResourceListViewModels(await listAllResources(params));
+}
+
 export async function listDatabaseResourceViewModels(): Promise<
   ResourceListViewModel[]
 >;
@@ -419,10 +425,12 @@ export async function listDatabaseResourceViewModels(
   ]);
 }
 
-export async function listAttentionResourceViewModels(): Promise<
+export async function listAttentionResourceViewModels(
+  params: ResourceListParams = {},
+): Promise<
   ResourceListViewModel[]
 > {
-  const resources = await listAttentionResources();
+  const resources = await listAttentionResources(params);
 
   return listResourceListViewModels(resources);
 }

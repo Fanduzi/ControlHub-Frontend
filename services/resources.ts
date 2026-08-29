@@ -296,8 +296,10 @@ export async function listDatabaseResources(): Promise<Resource[]> {
   });
 }
 
-export async function listAttentionResources(): Promise<Resource[]> {
-  const items = await listAllResources();
+export async function listAttentionResources(
+  params: ResourceListParams = {},
+): Promise<Resource[]> {
+  const items = await listAllResources(params);
 
   return items.filter(
     (resource) =>
@@ -319,8 +321,8 @@ function hasMemberSignalIssues(resource: Resource): boolean {
   );
 }
 
-export async function getOverviewMetrics() {
-  const items = await listAllResources();
+export async function getOverviewMetrics(params: ResourceListParams = {}) {
+  const items = await listAllResources(params);
   const total = items.length;
   const critical = items.filter(
     (resource) => resource.healthStatus === "critical",

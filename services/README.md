@@ -1,5 +1,8 @@
 # services
 
+`resources.ts` complete-list helpers for overview and attention data accept
+inventory filters, preserving selected-environment scope across backend pages.
+
 Frontend API service modules.
 
 ## Files
