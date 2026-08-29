@@ -201,6 +201,7 @@ function renderWorkbench(
   targets: QueryTarget[] = buildTargets(),
   messages: Record<string, unknown> = enMessages,
   initialFilters: WorkbenchFilters = EMPTY_FILTERS,
+  environmentId?: number,
 ) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
@@ -208,6 +209,7 @@ function renderWorkbench(
         targets={targets}
         pageInfo={pageInfoFor(targets)}
         initialFilters={initialFilters}
+        environmentId={environmentId}
       />
     </NextIntlClientProvider>,
   );
@@ -1195,6 +1197,32 @@ describe("QueryWorkbench target picker search", () => {
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
       expect(screen.getByRole("button", { name: "Outside page PostgreSQL" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the resolved environment scope when searching targets", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetQueryTargets.mockResolvedValue({
+        items: [],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false },
+      });
+
+      renderWorkbench(buildThreeTargets(), enMessages, { ...EMPTY_FILTERS, engine: "mysql" }, 7);
+      openConnections();
+      fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
+        target: { value: "outside" },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(mockGetQueryTargets).toHaveBeenCalledWith(
+        { page: 1, pageSize: 50, q: "outside", engine: "mysql", environmentId: 7 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
     } finally {
       vi.useRealTimers();
     }

@@ -36,6 +36,7 @@ type QueryWorkbenchProps = {
   pageInfo: PageInfo;
   initialFilters?: WorkbenchFilters;
   initialActiveTargetId?: number | null;
+  environmentId?: number | null;
 };
 
 const SEARCH_DEBOUNCE_MS = 275;
@@ -58,6 +59,7 @@ export function QueryWorkbench({
   pageInfo,
   initialFilters = EMPTY_FILTERS,
   initialActiveTargetId,
+  environmentId,
 }: QueryWorkbenchProps) {
   const t = useTranslations("queryWorkbench");
   const pathname = usePathname();
@@ -179,7 +181,7 @@ export function QueryWorkbench({
     searchGeneration.current = generation;
     const query = filters.q.trim();
 
-    if (query.length === 0) {
+    if (query.length === 0 || environmentId === null) {
       return;
     }
 
@@ -190,6 +192,7 @@ export function QueryWorkbench({
           page: 1,
           pageSize: 50,
           q: query,
+          ...(environmentId !== undefined && { environmentId }),
           ...(!isAllFilter(filters.engine) && { engine: filters.engine }),
         },
         { signal: controller.signal },
@@ -213,7 +216,7 @@ export function QueryWorkbench({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [filters.engine, filters.q]);
+  }, [environmentId, filters.engine, filters.q]);
 
   const cachedTargets = useMemo(() => {
     const combined = new Map(targetCache);

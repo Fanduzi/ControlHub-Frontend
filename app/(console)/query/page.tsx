@@ -1,15 +1,10 @@
 import { QueryWorkbench } from "@/components/query/query-workbench";
+import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
+import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";
 import { isAllFilter } from "@/lib/query-target-display";
 import { parseQueryWorkbenchSearchParams } from "@/lib/query-workbench-search-params";
 import { getQueryTargets } from "@/services/query-targets";
 import type { QueryTarget } from "@/types/query-target";
-
-function parseTargetId(value: string | string[] | undefined): number | undefined {
-  const first = Array.isArray(value) ? value[0] : value;
-  if (!first) return undefined;
-  const parsed = Number(first);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
 
 function mergeTargets(navigatorItems: QueryTarget[], selected: QueryTarget | undefined): QueryTarget[] {
   if (!selected) return navigatorItems;
@@ -23,9 +18,35 @@ export default async function QueryWorkbenchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolved = await searchParams;
-  const targetId = parseTargetId(resolved.targetId);
-  const environmentId = parseTargetId(resolved.environmentId);
+  const targetId = parsePositiveDecimalInteger(resolved.targetId);
+  const scope = await resolveEnvironmentSlugToId({
+    environmentId: parsePositiveDecimalInteger(resolved.environmentId),
+    environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
+  });
   const initialFilters = await parseQueryWorkbenchSearchParams(Promise.resolve(resolved));
+
+  if (!scope) {
+    return (
+      <div className="min-h-0">
+        <QueryWorkbench
+          targets={[]}
+          pageInfo={{
+            page: 1,
+            pageSize: 50,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          }}
+          initialFilters={initialFilters}
+          initialActiveTargetId={null}
+          environmentId={null}
+        />
+      </div>
+    );
+  }
+
+  const environmentId = typeof scope.environmentId === "number" ? scope.environmentId : undefined;
 
   const { items: navigatorItems, pageInfo } = await getQueryTargets({
     page: 1,
@@ -37,7 +58,10 @@ export default async function QueryWorkbenchPage({
 
   let selectedTarget: QueryTarget | undefined;
   if (targetId !== undefined) {
-    const response = await getQueryTargets({ targetId });
+    const response = await getQueryTargets({
+      targetId,
+      ...(environmentId !== undefined && { environmentId }),
+    });
     selectedTarget = response.items.find((target) => target.resourceId === targetId);
   }
 
@@ -50,6 +74,7 @@ export default async function QueryWorkbenchPage({
         pageInfo={pageInfo}
         initialFilters={initialFilters}
         initialActiveTargetId={targetId === undefined ? undefined : selectedTarget?.resourceId ?? null}
+        environmentId={environmentId}
       />
     </div>
   );

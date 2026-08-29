@@ -80,6 +80,8 @@ describe("Topbar", () => {
     ];
     searchParams.delete("environmentId");
     searchParams.delete("environment");
+    searchParams.delete("engine");
+    searchParams.delete("pageSize");
     searchParams.set("page", "3");
     searchParams.set("q", "orders");
   });
@@ -101,6 +103,42 @@ describe("Topbar", () => {
       "/resources?page=1&q=orders&environment=prod",
     );
     expect(replace).toHaveBeenCalledOnce();
+  });
+
+  it("scopes Query with the normal selector while preserving its filters", async () => {
+    const user = userEvent.setup();
+    searchParams.set("engine", "mysql");
+    searchParams.set("pageSize", "50");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/query" />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Production" }));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/query?page=1&q=orders&engine=mysql&pageSize=50&environment=prod",
+    );
+  });
+
+  it("scopes query disclosure policies with the normal selector", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/settings/query-disclosure-policies" />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Production" }));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/settings/query-disclosure-policies?page=1&q=orders&environment=prod",
+    );
   });
 
   it("prefers readable environment slug from the URL over provider state for the selected value", () => {

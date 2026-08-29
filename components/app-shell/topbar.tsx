@@ -42,20 +42,12 @@ import { useEnvironment } from "@/components/providers/environment-provider";
 import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
 import { consoleNavigation, getConsoleSectionId } from "@/lib/navigation";
 import { useAdminRole } from "@/lib/auth-role";
+import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";
 
 type TopbarProps = {
   pathname: string;
   onMobileMenuOpen?: () => void;
 };
-
-function parsePositiveInt(value: string | null) {
-  if (!value || !/^[1-9]\d*$/.test(value)) {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
 
 export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const t = useTranslations();
@@ -81,11 +73,11 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
     ? t(`navigation.${sectionId}.title`)
     : t("common.brand");
   const section = consoleNavigation.find((item) => item.id === sectionId);
-  const supportsEnvironment = section?.supportsEnvironment ?? false;
+  const supportsEnvironment = section?.supportsEnvironment || pathname === "/settings/query-disclosure-policies";
   const { environments, currentEnvironmentId, setEnvironmentId } =
     useEnvironment();
   const urlEnvironmentSlug = searchParams.get("environment");
-  const urlEnvironmentId = parsePositiveInt(searchParams.get("environmentId"));
+  const urlEnvironmentId = parsePositiveDecimalInteger(searchParams.get("environmentId") ?? undefined);
   const selectedEnvironmentFromUrl = environments.find(
     (environment) => environment.slug === urlEnvironmentSlug,
   )?.id;
@@ -117,7 +109,7 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   function handleEnvironmentChange(value: string | null) {
     const nextEnvironmentId = value === "all" || !value
       ? null
-      : parsePositiveInt(value);
+      : parsePositiveDecimalInteger(value) ?? null;
     const params = new URLSearchParams(searchParams.toString());
     const nextEnvironment = environments.find(
       (environment) => environment.id === nextEnvironmentId,

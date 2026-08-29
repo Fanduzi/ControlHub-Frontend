@@ -16,7 +16,7 @@ Vitest component tests for React UI components.
 | Test | Component under test |
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates |
-| query-workbench.test.tsx | QueryWorkbench — full workbench integration with synchronized asynchronous select interactions |
+| query-workbench.test.tsx | QueryWorkbench — full workbench integration, including scoped debounced target search |
 | query-editor-shell.test.tsx | QueryEditorShell — tabbed editor shell, template mode, lifecycle disposal, execution routing |
 | query-connection-navigator.test.tsx | Connection navigator |
 | query-credential-settings.test.tsx | Query credential settings |
@@ -48,8 +48,8 @@ Vitest component tests for React UI components.
 | overview-content.test.tsx | Overview content |
 | activity-timeline.test.tsx | Activity timeline |
 | audit-table.test.tsx | Audit table, including URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
-| sidebar.test.tsx | App sidebar |
-| topbar.test.tsx | App topbar (incl. fail-closed sign-out: success clears+leaves, network/non-2xx failure stays with controlled error) |
+| sidebar.test.tsx | App sidebar, including environment-scoped Query navigation |
+| topbar.test.tsx | App topbar, including scoped Query/disclosure selection and fail-closed sign-out |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |
 | language-switcher.test.tsx | Language switcher |

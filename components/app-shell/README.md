@@ -10,3 +10,6 @@ presenting a logged-out UI while the HttpOnly Operator Session cookie survives.
 
 The command palette searches the unified resource inventory through the resources
 service and opens selected resources at `/resources/{id}`.
+
+The environment selector writes readable `environment` slugs for Query Workbench
+and query disclosure policies while preserving their URL-owned filters.

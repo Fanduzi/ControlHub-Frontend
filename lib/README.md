@@ -6,7 +6,7 @@ Shared frontend libraries.
 
 | File | Responsibility |
 |------|----------------|
-| `list-page-search-params.ts` | Normalizes paginated resource/audit URL state, including repeated environment/label and owner filters |
+| `list-page-search-params.ts` | Normalizes paginated resource/audit URL state and safely parses positive decimal IDs |
 | `environment-params.ts` | Resolves environment slugs to IDs |
 | `view-models.ts` | Maps backend transport records to console view models |
 
@@ -22,7 +22,8 @@ matrix.
 unknown slugs fail closed so those pages render an empty scoped result.
 
 `list-page-search-params.ts` normalizes page, filter, and audit search values
-from shareable list URLs.
+from shareable list URLs. `parsePositiveDecimalInteger` is the shared strict
+parser for URL IDs.
 
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.

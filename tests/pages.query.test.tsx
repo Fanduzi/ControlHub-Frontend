@@ -8,10 +8,12 @@ import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 const {
   getTranslationsMock,
   getQueryTargetsMock,
+  listEnvironmentsMock,
   captured,
 } = vi.hoisted(() => ({
   getTranslationsMock: vi.fn(),
   getQueryTargetsMock: vi.fn(),
+  listEnvironmentsMock: vi.fn(),
   captured: {} as {
     targets?: QueryTarget[];
     pageInfo?: { page: number; pageSize: number; totalItems: number; totalPages: number };
@@ -26,6 +28,10 @@ vi.mock("next-intl/server", () => ({
 
 vi.mock("@/services/query-targets", () => ({
   getQueryTargets: getQueryTargetsMock,
+}));
+
+vi.mock("@/services/settings", () => ({
+  listEnvironments: listEnvironmentsMock,
 }));
 
 vi.mock("@/components/blocks/page-header", () => ({
@@ -63,6 +69,7 @@ describe("/query page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTranslationsMock.mockResolvedValue(Object.assign((key: string) => key, { rich: (key: string) => key }));
+    listEnvironmentsMock.mockResolvedValue([{ id: 7, slug: "prod" }]);
     captured.targets = undefined;
     captured.pageInfo = undefined;
     captured.initialFilters = undefined;
@@ -140,6 +147,81 @@ describe("/query page", () => {
     });
   });
 
+  it("resolves the selector's environment slug for both query pages", async () => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 9 })],
+      pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+    });
+
+    const query = await QueryWorkbenchPage({
+      searchParams: Promise.resolve({ environment: "prod" }),
+    });
+    render(query);
+
+    expect(getQueryTargetsMock).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 50,
+      environmentId: 7,
+    });
+
+    const disclosure = await QueryDisclosurePoliciesPage({
+      searchParams: Promise.resolve({ environment: "prod" }),
+    } as never);
+    render(disclosure);
+
+    expect(getQueryTargetsMock).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 25,
+      environmentId: 7,
+    });
+  });
+
+  it("scopes the filtered navigator and selected target lookup to the URL environment", async () => {
+    getQueryTargetsMock
+      .mockResolvedValueOnce({
+        items: [buildQueryTarget({ resourceId: 9 })],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      })
+      .mockResolvedValueOnce({
+        items: [buildQueryTarget({ resourceId: 42 })],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      });
+
+    const element = await QueryWorkbenchPage({
+      searchParams: Promise.resolve({ environmentId: "7", targetId: "42", q: "orders", engine: "mysql" }),
+    });
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenNthCalledWith(1, {
+      page: 1,
+      pageSize: 50,
+      environmentId: 7,
+      q: "orders",
+      engine: "mysql",
+    });
+    expect(getQueryTargetsMock).toHaveBeenNthCalledWith(2, {
+      targetId: 42,
+      environmentId: 7,
+    });
+  });
+
+  it.each([undefined, "0", "-1", "1.5", "1e2", "9007199254740992"]) (
+    "ignores an absent or invalid environment id of %s",
+    async (environmentId) => {
+      getQueryTargetsMock.mockResolvedValue({
+        items: [buildQueryTarget({ resourceId: 9 })],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      });
+
+      const element = await QueryWorkbenchPage({
+        searchParams: Promise.resolve({ environmentId }),
+      });
+      render(element);
+
+      expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 50 });
+    },
+  );
+
   it("forwards the selected environment to the disclosure target request", async () => {
     getQueryTargetsMock.mockResolvedValue({
       items: [buildQueryTarget({ resourceId: 9 })],
@@ -157,6 +239,23 @@ describe("/query page", () => {
       environmentId: 7,
     });
   });
+
+  it.each([undefined, "0", "-1", "1.5", "1e2", "9007199254740992"]) (
+    "does not scope disclosure targets for an absent or invalid environment id of %s",
+    async (environmentId) => {
+      getQueryTargetsMock.mockResolvedValue({
+        items: [buildQueryTarget({ resourceId: 9 })],
+        pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+      });
+
+      const element = await QueryDisclosurePoliciesPage({
+        searchParams: Promise.resolve({ environmentId }),
+      } as never);
+      render(element);
+
+      expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 25 });
+    },
+  );
 
   it("does not call any query execution service", () => {
     // Only the read-only target fetch is imported by the page.

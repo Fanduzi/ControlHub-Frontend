@@ -22,6 +22,11 @@ function readFirst(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+export function parsePositiveDecimalInteger(value: string | string[] | undefined) {
+  const raw = readFirst(value)?.trim() ?? "";
+  return POSITIVE_INTEGER_PATTERN.test(raw) ? parseSafePositiveInt(raw) : undefined;
+}
+
 function readAll(value: string | string[] | undefined): string[] {
   if (Array.isArray(value)) {
     return value.filter((v) => v.trim() !== "");
@@ -53,12 +58,7 @@ function normalizePositiveInt(
 }
 
 function normalizeOptionalPositiveInt(value: string | string[] | undefined) {
-  const raw = readFirst(value)?.trim() ?? "";
-  if (!POSITIVE_INTEGER_PATTERN.test(raw)) {
-    return undefined;
-  }
-
-  return parseSafePositiveInt(raw);
+  return parsePositiveDecimalInteger(value);
 }
 
 function normalizeOptionalPositiveInts(value: string | string[] | undefined) {

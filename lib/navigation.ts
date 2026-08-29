@@ -55,7 +55,7 @@ export const consoleNavigation: readonly ConsoleNavigationItem[] = [
     id: "query",
     href: "/query",
     icon: SquareTerminal,
-    supportsEnvironment: false,
+    supportsEnvironment: true,
   },
   {
     id: "audits",

@@ -156,6 +156,10 @@ describe("Sidebar", () => {
       "href",
       "/databases?environment=prod",
     );
+    expect(screen.getByRole("link", { name: "Query Workbench" })).toHaveAttribute(
+      "href",
+      "/query?environment=prod",
+    );
     expect(screen.getByRole("link", { name: "Audits" })).toHaveAttribute(
       "href",
       "/audits",
