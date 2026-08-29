@@ -205,6 +205,21 @@ describe("ResourceDetailSheet", () => {
     consoleError.mockRestore();
   });
 
+  it("localizes health freshness and exposes the manual override", () => {
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <ResourceDetailSheet
+          open
+          onOpenChange={() => undefined}
+          resource={{ ...resource, manualHealthOverride: "critical" }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("新鲜")).toBeInTheDocument();
+    expect(screen.getByText("手动覆盖：严重")).toBeInTheDocument();
+  });
+
   it("shows empty states when profile, relations, or audit events are absent", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>

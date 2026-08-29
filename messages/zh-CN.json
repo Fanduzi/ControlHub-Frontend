@@ -78,6 +78,23 @@
       "imported": "导入",
       "discovered": "发现"
     },
+    "healthEvidence": {
+      "freshness": {
+        "fresh": "新鲜",
+        "stale": "过期",
+        "never": "从未观测"
+      },
+      "status": {
+        "healthy": "健康",
+        "warning": "告警",
+        "critical": "严重",
+        "unknown": "未知"
+      },
+      "none": "无",
+      "clearOverride": "清除手动覆盖",
+      "manualOverride": "手动覆盖：{status}",
+      "ariaLabel": "健康证据：{freshness}；观测时间 {observedAt}；观测者 {observer}；手动覆盖 {override}"
+    },
     "identityEditor": {
       "addAlias": "添加别名",
       "removeAlias": "删除别名 {number}",

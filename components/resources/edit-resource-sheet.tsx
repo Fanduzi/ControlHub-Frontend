@@ -1,5 +1,5 @@
 // input: resource detail, React Hook Form state, navigation, resource/profile services, translations, and shared identity fields
-// output: admin resource edit sheet with immutable origin, governed identity, and typed-profile fields
+// output: admin resource edit sheet with immutable origin, governed identity, manual health override set/clear, and typed-profile fields
 // pos: client-side resource update and validation boundary
 // note: if this file changes, update this header and components/resources/README.md
 "use client";
@@ -86,6 +86,8 @@ function makeEditFormSchema(requiredMessage: string) {
 }
 
 type EditFormValues = z.infer<ReturnType<typeof makeEditFormSchema>>;
+
+const clearHealthOverrideValue = "__clear_health_override__";
 
 export function EditResourceSheet({
   open,
@@ -261,6 +263,13 @@ export function EditResourceSheet({
 
         if (key === "environmentId" || key === "ownerId") {
           changedBaseFields[key] = Number(data[key]);
+          continue;
+        }
+
+        if (key === "healthStatus") {
+          changedBaseFields.healthStatus = data.healthStatus === clearHealthOverrideValue
+            ? null
+            : data.healthStatus;
           continue;
         }
 
@@ -755,6 +764,9 @@ export function EditResourceSheet({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={clearHealthOverrideValue}>
+                        {ct("healthEvidence.clearOverride")}
+                      </SelectItem>
                       {healthStatuses.map((s) => (
                         <SelectItem key={s.key} value={s.key}>
                           {s.label}

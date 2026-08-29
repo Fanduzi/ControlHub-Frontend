@@ -372,6 +372,48 @@ describe("EditResourceSheet", () => {
     expect(screen.getByDisplayValue("order")).toBeInTheDocument();
   });
 
+  it("clears the manual health override with null", async () => {
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={{ ...resource, manualHealthOverride: "warning" }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("combobox", { name: "Health status" }));
+    await user.click(screen.getByRole("option", { name: "Clear manual override" }));
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateResource).toHaveBeenCalledWith(1, { healthStatus: null });
+    });
+  });
+
+  it("sets a manual health override", async () => {
+    const user = userEvent.setup();
+    mockedListHealthStatuses.mockResolvedValue([
+      { key: "healthy", label: "Healthy", description: "" },
+      { key: "warning", label: "Warning", description: "" },
+    ]);
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet open onOpenChange={() => undefined} resource={resource} />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("combobox", { name: "Health status" }));
+    await user.click(screen.getByRole("option", { name: "Warning" }));
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockedUpdateResource).toHaveBeenCalledWith(1, { healthStatus: "warning" });
+    });
+  });
+
   it("save calls both PATCH endpoints when base and profile fields change", async () => {
     const user = userEvent.setup();
     mockedUpdateResource.mockResolvedValue({} as never);

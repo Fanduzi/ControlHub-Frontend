@@ -2,8 +2,8 @@
 
 Resource interaction components.
 
-`health-evidence.tsx` renders the effective-health freshness, observed time,
-and observer consistently in resource list, sheet, and full-detail surfaces.
+`health-evidence.tsx` renders localized effective-health freshness, observed
+time, observer, and manual override consistently in list and detail surfaces.
 
 Admin-only mutation affordances (`CreateResourceSheet`, resource edit,
 archive/restore, and the table-level create button) are presentation hints;
@@ -13,6 +13,7 @@ Resource edit submits explicit empty typed-profile values through the profile
 PATCH contract so operators can clear stale string fields. Numeric fields are
 cleared through the confirmed typed-profile removal action, which warns before
 discarding unrelated unsaved form edits.
+Manual health overrides use the same resource PATCH flow for set and clear.
 
 Profile mutation failures use the same localized error mapping for save and
 clear flows.

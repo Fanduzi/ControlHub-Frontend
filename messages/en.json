@@ -78,6 +78,23 @@
       "imported": "Imported",
       "discovered": "Discovered"
     },
+    "healthEvidence": {
+      "freshness": {
+        "fresh": "Fresh",
+        "stale": "Stale",
+        "never": "Never"
+      },
+      "status": {
+        "healthy": "Healthy",
+        "warning": "Warning",
+        "critical": "Critical",
+        "unknown": "Unknown"
+      },
+      "none": "None",
+      "clearOverride": "Clear manual override",
+      "manualOverride": "Manual override: {status}",
+      "ariaLabel": "Health evidence: {freshness}; observed {observedAt}; observer {observer}; manual override {override}"
+    },
     "identityEditor": {
       "addAlias": "Add alias",
       "removeAlias": "Remove alias {number}",
