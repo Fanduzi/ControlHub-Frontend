@@ -119,7 +119,6 @@ export function QueryWorkbench({
       : DEFAULT_OBJECTS_WIDTH;
 
     // Hydration: read persisted preferences after mount (cannot read localStorage during SSR)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setObjectsOpen(storedOpen);
     setObjectsPaneWidth(clampedWidth);
     setIsHydrated(true);
