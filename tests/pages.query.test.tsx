@@ -52,7 +52,12 @@ vi.mock("@/components/query/query-workbench", () => ({
   },
 }));
 
+vi.mock("@/components/settings/query-disclosure-settings", () => ({
+  QueryDisclosureSettings: () => <div data-testid="query-disclosure-settings" />,
+}));
+
 import QueryWorkbenchPage from "@/app/(console)/query/page";
+import QueryDisclosurePoliciesPage from "@/app/(console)/settings/query-disclosure-policies/page";
 
 describe("/query page", () => {
   beforeEach(() => {
@@ -114,6 +119,42 @@ describe("/query page", () => {
       pageSize: 50,
       engine: "mysql",
       q: "orders",
+    });
+  });
+
+  it("forwards the selected environment to the workbench target request", async () => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 9 })],
+      pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+    });
+
+    const element = await QueryWorkbenchPage({
+      searchParams: Promise.resolve({ environmentId: "7" }),
+    });
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 50,
+      environmentId: 7,
+    });
+  });
+
+  it("forwards the selected environment to the disclosure target request", async () => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 9 })],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    });
+
+    const element = await QueryDisclosurePoliciesPage({
+      searchParams: Promise.resolve({ environmentId: "7" }),
+    } as never);
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 25,
+      environmentId: 7,
     });
   });
 

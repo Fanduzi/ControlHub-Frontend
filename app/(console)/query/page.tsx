@@ -24,11 +24,13 @@ export default async function QueryWorkbenchPage({
 }) {
   const resolved = await searchParams;
   const targetId = parseTargetId(resolved.targetId);
+  const environmentId = parseTargetId(resolved.environmentId);
   const initialFilters = await parseQueryWorkbenchSearchParams(Promise.resolve(resolved));
 
   const { items: navigatorItems, pageInfo } = await getQueryTargets({
     page: 1,
     pageSize: 50,
+    ...(environmentId !== undefined && { environmentId }),
     ...(initialFilters.q && { q: initialFilters.q }),
     ...(!isAllFilter(initialFilters.engine) && { engine: initialFilters.engine }),
   });
