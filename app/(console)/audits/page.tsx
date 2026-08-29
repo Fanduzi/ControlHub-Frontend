@@ -20,14 +20,23 @@ export default async function AuditsPage({
   const params = await resolveEnvironmentSlugToId(parsedParams);
 
   if (!params) {
-    return <AuditTable events={[]} pageInfo={{
-      page: parsedParams.page ?? 1,
-      pageSize: parsedParams.pageSize ?? 10,
-      totalItems: 0,
-      totalPages: 0,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    }} />;
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={t("pages.audits.eyebrow")}
+          title={t("pages.audits.title")}
+          description={t("pages.audits.description")}
+        />
+        <AuditTable events={[]} pageInfo={{
+          page: parsedParams.page ?? 1,
+          pageSize: parsedParams.pageSize ?? 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }} />
+      </div>
+    );
   }
 
   const { items: events, pageInfo } = await listAuditEventViewModels(params);

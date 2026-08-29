@@ -42,7 +42,7 @@ vi.mock("@/services/settings", () => ({
 }));
 
 vi.mock("@/components/blocks/page-header", () => ({
-  PageHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  PageHeader: () => <div>page-header</div>,
 }));
 
 vi.mock("@/components/resources/resource-table", () => ({
@@ -386,8 +386,9 @@ describe("list pages pagination contracts", () => {
     const element = await AuditsPage({
       searchParams: Promise.resolve({ environment: "missing" }),
     });
-    render(element);
+    const { container } = render(element);
 
+    expect(container).toHaveTextContent("page-header");
     expect(auditTableMock).toHaveBeenCalledWith(expect.objectContaining({
       events: [],
       pageInfo: expect.objectContaining({ totalItems: 0, totalPages: 0 }),
