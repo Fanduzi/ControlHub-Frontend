@@ -17,15 +17,15 @@ Vitest component tests for React UI components.
 | query-object-quick-navigator.test.tsx | Quick object navigator |
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map |
-| create-resource-sheet.test.tsx | Create resource sheet, including core CI identity fields, service worker subtype, and Domain Name FQDN and Virtual IP address fields |
-| edit-resource-sheet.test.tsx | Edit resource sheet, including backend typed-profile field errors, Domain Name FQDN and Virtual IP address fields, PATCH clears, numeric rejection, and confirmed typed-profile removal |
+| create-resource-sheet.test.tsx | Create resource sheet, including core CI identity fields, service worker subtype, Domain Name FQDN, Virtual IP address, Database Proxy, and Control Plane profile fields |
+| edit-resource-sheet.test.tsx | Edit resource sheet, including backend typed-profile field errors, Domain Name FQDN, Virtual IP address, Database Proxy profile load, PATCH clears, numeric rejection, and confirmed typed-profile removal |
 | resource-table.test.tsx | Resource table |
 | resource-detail-sheet.test.tsx | Resource detail sheet |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel |
 | resource-archive-button.test.tsx | Resource archive button (admin-only affordance; non-admin sees nothing) |
-| database-table.test.tsx | Database table |
+| database-table.test.tsx | Database table, including Database Proxy rows in Database Estate |
 | database-instance-facts-panel.test.tsx | Database instance facts |
 | database-consistency-panel.test.tsx | Database consistency |
 | database-decision-deck.test.tsx | Database decision deck |

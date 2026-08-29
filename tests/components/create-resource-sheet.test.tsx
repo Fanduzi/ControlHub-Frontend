@@ -70,6 +70,7 @@ describe("CreateResourceSheet", () => {
       { key: "domain_name", label: "Domain Name", description: "" },
       { key: "virtual_ip", label: "Virtual IP", description: "" },
       { key: "database_proxy", label: "Database Proxy", description: "" },
+      { key: "control_plane_component", label: "Control Plane Component", description: "" },
     ]);
     mockedListEnvironments.mockResolvedValue([
       { id: 1, name: "Production", slug: "production", description: "", createdAt: "" },
@@ -314,7 +315,71 @@ describe("CreateResourceSheet", () => {
     expect(await screen.findByText("Worker")).toBeInTheDocument();
   });
 
+  it("shows proxy profile fields with active/standby role for database_proxy", async () => {
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "proxysql", label: "ProxySQL", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    const triggers = screen.getAllByRole("combobox");
+    await userEvent.setup().click(triggers[0]);
+    await userEvent.setup().click(await screen.findByText("Database Proxy"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Technology subtype/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/^Host \*$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Port \*$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Role \*$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Version$/i)).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByLabelText(/^Role \*$/i));
+    expect(await screen.findByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Standby")).toBeInTheDocument();
+    expect(screen.queryByText("Primary")).not.toBeInTheDocument();
+  });
+
+  it("shows control plane profile fields and does not offer ambiguous ha subtype", async () => {
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "ha_monitor", label: "HA Monitor", description: "" },
+      { key: "orchestrator", label: "Orchestrator", description: "" },
+    ]);
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <CreateResourceSheet open onOpenChange={() => undefined} />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedListResourceTypes).toHaveBeenCalledOnce();
+    });
+
+    const triggers = screen.getAllByRole("combobox");
+    await userEvent.setup().click(triggers[0]);
+    await userEvent.setup().click(await screen.findByText("Control Plane Component"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Component subtype/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/^Endpoint \*$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Role \*$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Version$/i)).toBeInTheDocument();
+    expect(screen.queryByText("This resource type has no profile fields.")).not.toBeInTheDocument();
+  });
+
   it("shows no-profile-fields message for types without profile", async () => {
+    mockedListResourceTypes.mockResolvedValue([
+      { key: "unprofiled", label: "Unprofiled", description: "" },
+    ]);
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <CreateResourceSheet open onOpenChange={() => undefined} />
@@ -328,8 +393,8 @@ describe("CreateResourceSheet", () => {
     const triggers = screen.getAllByRole("combobox");
     await userEvent.setup().click(triggers[0]);
 
-    const proxyOption = await screen.findByText("Database Proxy");
-    await userEvent.setup().click(proxyOption);
+    const unprofiledOption = await screen.findByText("Unprofiled");
+    await userEvent.setup().click(unprofiledOption);
 
     await waitFor(() => {
       expect(screen.getByText("Runtime Profile")).toBeInTheDocument();

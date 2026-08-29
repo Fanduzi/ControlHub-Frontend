@@ -415,6 +415,7 @@ export async function listDatabaseResourceViewModels(
   return listPaginatedResourcesByTypes(params, [
     "database_instance",
     "database_cluster",
+    "database_proxy",
   ]);
 }
 

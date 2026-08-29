@@ -117,6 +117,35 @@ describe("DatabaseTable", () => {
     expect(screen.getByText(":3306")).toBeInTheDocument();
   });
 
+  it("renders database proxy rows in the estate table", () => {
+    const resources: ResourceListViewModel[] = [
+      makeCluster(1, "Orders Cluster", 1),
+      makeInstance(10, "Orders Primary", 1),
+      {
+        ...makeInstance(75, "Orders ProxySQL", undefined, {
+          hostname: "proxy-prod-01",
+          port: 6033,
+          role: "active",
+        }),
+        resourceType: "database_proxy",
+        resourceSubtype: "proxysql",
+        clusterId: undefined,
+        displayName: "Orders ProxySQL",
+        name: "orders-proxysql-01",
+      },
+    ];
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Orders ProxySQL")).toBeInTheDocument();
+    expect(screen.getByText("proxy-prod-01")).toBeInTheDocument();
+    expect(screen.getByText(":6033")).toBeInTheDocument();
+  });
+
   it("renders cluster node count from backend profile summary", () => {
     const resources: ResourceListViewModel[] = [
       makeCluster(1, "Orders Cluster", 3),

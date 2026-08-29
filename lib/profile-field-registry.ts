@@ -59,6 +59,35 @@ const VIRTUAL_IP_FIELDS: ProfileFieldDef[] = [
   { key: "ipAddress", labelKey: "profileFields.ipAddress", inputType: "text", required: true, placeholder: "10.0.0.10" },
 ];
 
+const ACTIVE_STANDBY_ROLE = [
+  { value: "active", labelKey: "profileFields.roleActive" },
+  { value: "standby", labelKey: "profileFields.roleStandby" },
+] as const;
+
+const DB_PROXY_FIELDS: ProfileFieldDef[] = [
+  { key: "technologySubtype", labelKey: "profileFields.technologySubtype", inputType: "select", required: true, options: [
+    { value: "proxysql", labelKey: "profileFields.technologyProxysql" },
+    { value: "chproxy", labelKey: "profileFields.technologyChproxy" },
+    { value: "haproxy", labelKey: "profileFields.technologyHaproxy" },
+    { value: "maxscale", labelKey: "profileFields.technologyMaxscale" },
+  ]},
+  { key: "host", labelKey: "profileFields.host", inputType: "text", required: true, placeholder: "proxy-host-01" },
+  { key: "port", labelKey: "profileFields.port", inputType: "number", required: true, placeholder: "6033" },
+  { key: "role", labelKey: "profileFields.role", inputType: "select", required: true, options: [...ACTIVE_STANDBY_ROLE] },
+  { key: "version", labelKey: "profileFields.version", inputType: "text", required: false, placeholder: "2.5.5" },
+];
+
+const CONTROL_PLANE_FIELDS: ProfileFieldDef[] = [
+  { key: "componentSubtype", labelKey: "profileFields.componentSubtype", inputType: "select", required: true, options: [
+    { value: "orchestrator", labelKey: "profileFields.componentOrchestrator" },
+    { value: "ha_monitor", labelKey: "profileFields.componentHaMonitor" },
+    { value: "backup_manager", labelKey: "profileFields.componentBackupManager" },
+  ]},
+  { key: "endpoint", labelKey: "profileFields.endpoint", inputType: "text", required: true, placeholder: "http://ha-monitor:10008" },
+  { key: "version", labelKey: "profileFields.version", inputType: "text", required: false, placeholder: "3.2.1" },
+  { key: "role", labelKey: "profileFields.role", inputType: "select", required: true, options: [...ACTIVE_STANDBY_ROLE] },
+];
+
 function buildZodSchema(fields: ProfileFieldDef[]): z.ZodObject<Record<string, z.ZodTypeAny>> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of fields) {
@@ -82,6 +111,8 @@ const REGISTRY: Record<string, ProfileSchema> = {
   service: { fields: SERVICE_FIELDS, zodSchema: buildZodSchema(SERVICE_FIELDS) },
   domain_name: { fields: DOMAIN_NAME_FIELDS, zodSchema: buildZodSchema(DOMAIN_NAME_FIELDS) },
   virtual_ip: { fields: VIRTUAL_IP_FIELDS, zodSchema: buildZodSchema(VIRTUAL_IP_FIELDS) },
+  database_proxy: { fields: DB_PROXY_FIELDS, zodSchema: buildZodSchema(DB_PROXY_FIELDS) },
+  control_plane_component: { fields: CONTROL_PLANE_FIELDS, zodSchema: buildZodSchema(CONTROL_PLANE_FIELDS) },
 };
 
 export function getProfileSchema(resourceType: string): ProfileSchema | undefined {

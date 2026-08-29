@@ -142,7 +142,7 @@ export async function listClusterMembers(
 
 export async function listDatabaseResources(): Promise<Resource[]> {
   return listAllResources({
-    resourceType: ["database_instance", "database_cluster"],
+    resourceType: ["database_instance", "database_cluster", "database_proxy"],
   });
 }
 

@@ -19,3 +19,8 @@ instance, database cluster, and service, display the same backend field
 errors, and keep labels as free classification. Service worker subtype comes
 from the backend dictionary. Create and edit sheets also render Domain Name
 FQDN and Virtual IP address fields from `lib/profile-field-registry.ts`.
+
+Create and edit sheets render Database Proxy (technologySubtype, host, port,
+active/standby role, optional version) and Control Plane Component
+(componentSubtype, endpoint, optional version, active/standby role) from
+`lib/profile-field-registry.ts`. Ambiguous `ha` is not offered.

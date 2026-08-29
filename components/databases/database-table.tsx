@@ -104,6 +104,10 @@ function buildTree(resources: ResourceListViewModel[]): TreeRow[] {
   }
 
   for (const r of resources) {
+    if (r.resourceType === "database_proxy") {
+      orphans.push({ ...r, clusterId: undefined });
+      continue;
+    }
     if (r.resourceType !== "database_instance") {
       continue;
     }
@@ -179,6 +183,8 @@ export function DatabaseTable({
   const formatRole = useCallback((role: string) => {
     const key = role === "primary" ? "profileFields.rolePrimary"
       : role === "replica" ? "profileFields.roleReplica"
+      : role === "active" ? "profileFields.roleActive"
+      : role === "standby" ? "profileFields.roleStandby"
       : null;
     return key ? t(key) : formatLabel(role);
   }, [t]);

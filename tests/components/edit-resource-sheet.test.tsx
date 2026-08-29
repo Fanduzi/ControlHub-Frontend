@@ -79,6 +79,33 @@ const resource: ResourceDetailViewModel = {
   auditEvents: [],
 };
 
+const proxyResource: ResourceDetailViewModel = {
+  id: 75,
+  resourceType: "database_proxy",
+  resourceSubtype: "proxysql",
+  name: "orders-proxysql-01",
+  displayName: "Orders ProxySQL",
+  environmentId: 1,
+  environmentName: "Production",
+  ownerId: 1,
+  ownerName: "DBA Team",
+  lifecycleStatus: "running",
+  healthStatus: "healthy",
+  source: "manual",
+  externalId: "",
+  createdAt: "2026-04-11T12:00:00Z",
+  updatedAt: "2026-04-11T13:00:00Z",
+  labels: {},
+  summary: "Orders ProxySQL.",
+  archivedAt: null,
+  archivedBy: null,
+  archiveReason: null,
+  isArchived: false,
+  profile: {},
+  relations: [],
+  auditEvents: [],
+};
+
 const hostResource: ResourceDetailViewModel = {
   id: 2,
   resourceType: "host",
@@ -162,6 +189,45 @@ describe("EditResourceSheet", () => {
     mockedUpdateResource.mockResolvedValue({} as never);
     mockedUpdateProfile.mockResolvedValue(undefined);
     mockedDeleteProfile.mockResolvedValue(undefined);
+  });
+
+  it("loads database proxy profile fields including active/standby role", async () => {
+    mockedListResourceSubtypes.mockResolvedValue([
+      { key: "proxysql", label: "ProxySQL", description: "" },
+    ]);
+    mockedGetResourceProfileById.mockResolvedValue({
+      resourceId: 75,
+      resourceType: "database_proxy",
+      resourceSubtype: "proxysql",
+      profile: {
+        technologySubtype: "proxysql",
+        host: "proxy-prod-01",
+        port: 6033,
+        role: "standby",
+        version: "2.5.5",
+      },
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <EditResourceSheet
+          open
+          onOpenChange={() => undefined}
+          resource={proxyResource}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedGetResourceProfileById).toHaveBeenCalledWith(75);
+    });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("proxy-prod-01")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("6033")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("2.5.5")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Technology subtype/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Role/i)).toBeInTheDocument();
   });
 
   it("loads profile data on open and pre-fills profile fields", async () => {

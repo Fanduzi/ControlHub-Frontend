@@ -23,3 +23,12 @@ virtual_ip (required single IP address). Required flags match backend minimum
 manual identity; `mapControlledFieldPath` places backend field errors on the
 matching profile inputs. Labels stay free classification. Domain Name does
 not collect a resolution target as profile text.
+
+`profile-field-registry.ts` is the console typed-profile contract. Database Proxy
+fields are technologySubtype, host, port, role (active or standby), and optional
+version. Control Plane Component fields are componentSubtype, endpoint, optional
+version, and role (active or standby). Ambiguous `ha` is not a component subtype;
+use `ha_monitor`.
+
+`view-models.ts` Database Estate listing includes `database_instance`,
+`database_cluster`, and `database_proxy`.

@@ -314,6 +314,17 @@ describe("getResourceViewModel", () => {
           hasNextPage: false,
           hasPreviousPage: false,
         },
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 4,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
     const result = await listDatabaseResourceViewModels({ page: 2, pageSize: 2 });
@@ -327,6 +338,11 @@ describe("getResourceViewModel", () => {
       page: 1,
       pageSize: 4,
       resourceType: "database_cluster",
+    });
+    expect(mockedListResources).toHaveBeenNthCalledWith(3, {
+      page: 1,
+      pageSize: 4,
+      resourceType: "database_proxy",
     });
     expect(result.pageInfo).toEqual({
       page: 2,
@@ -362,6 +378,17 @@ describe("getResourceViewModel", () => {
           totalItems: 11,
           totalPages: 2,
           hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 10,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
           hasPreviousPage: false,
         },
       })
@@ -420,6 +447,17 @@ describe("getResourceViewModel", () => {
           hasNextPage: false,
           hasPreviousPage: false,
         },
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        pageInfo: {
+          page: 1,
+          pageSize: 20,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
       });
 
     const result = await listDatabaseResourceViewModels({
@@ -439,6 +477,12 @@ describe("getResourceViewModel", () => {
       page: 1,
       pageSize: 10,
       resourceType: "database_cluster",
+      resourceSubtype: "mysql",
+    });
+    expect(mockedListResources).toHaveBeenNthCalledWith(3, {
+      page: 1,
+      pageSize: 10,
+      resourceType: "database_proxy",
       resourceSubtype: "mysql",
     });
 
