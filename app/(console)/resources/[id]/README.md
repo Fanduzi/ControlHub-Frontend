@@ -1,7 +1,24 @@
-# app/(console)/resources/[id]
+# Resource Detail Page Module
 
-Authenticated resource detail route. `page.tsx` renders a known resource and
-calls `notFound()` for malformed, unsafe, missing, or unavailable IDs.
+Server-rendered full resource inspection page.
 
-`not-found.tsx` provides the localized missing-or-archived resource message
-and links back to `/resources`.
+## Files
+
+| File | Responsibility |
+|------|---------------|
+| page.tsx | Loads a known resource or calls `notFound()` for malformed, unsafe, missing, or unavailable IDs; renders identity, effective health evidence, topology, relations, and audit context |
+| not-found.tsx | Shows the localized missing-or-archived message and links back to `/resources` |
+
+## Interfaces
+
+- Route: `/resources/[id]`.
+- Consumes `getResourceViewModel(id)` and displays status, freshness, observed time, and observer through `HealthEvidence`.
+
+## Dependencies
+
+- Upstream: resource route parameter and backend-backed view model services.
+- Downstream: shared detail, health, database, topology, relation, and audit components.
+
+## Update Rule
+
+If page members, interfaces, or dependencies change, update this file.

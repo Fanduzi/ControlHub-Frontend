@@ -1,7 +1,7 @@
 // input: vitest, testing-library, resource table, auth-role
-// output: resource table tests — list/search/column behavior plus admin-only create affordance
-// pos: component tests for the inventory table and its role-gated mutation control
-// note: if this file changes, update header and tests/components/README.md
+// output: resource table tests including health status, freshness, observation time, and observer
+// pos: component tests for inventory health evidence and role-gated mutation control
+// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -44,6 +44,10 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       environmentName: "Production",
       lifecycleStatus: "running",
       healthStatus: "warning",
+      healthFreshness: "fresh",
+      healthObservedAt: "2026-04-14T09:55:00Z",
+      healthObserver: "prometheus",
+      manualHealthOverride: null,
       source: "manual",
       externalId: "svc:orders-api",
       labels: {},
@@ -67,6 +71,10 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       environmentName: "Production",
       lifecycleStatus: "running",
       healthStatus: "healthy",
+      healthFreshness: "stale",
+      healthObservedAt: "2026-04-13T09:55:00Z",
+      healthObserver: "synthetic-check",
+      manualHealthOverride: null,
       source: "manual",
       externalId: "db:orders-mysql-primary",
       labels: {},
@@ -207,6 +215,16 @@ describe("ResourceTable", () => {
     renderTable();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("shows health freshness, observed time, and observer beside status", () => {
+	const observedAt = formatDateTime("2026-04-14T09:55:00Z", "en");
+
+	renderTable();
+
+	expect(screen.getByText("Fresh")).toBeInTheDocument();
+	expect(screen.getByText(observedAt)).toBeInTheDocument();
+	expect(screen.getByText("prometheus")).toBeInTheDocument();
   });
 
   it("renders the default archive filter as a self-describing active-only label", () => {

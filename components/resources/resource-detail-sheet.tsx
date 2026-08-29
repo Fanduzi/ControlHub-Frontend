@@ -1,7 +1,7 @@
-// input: react, next-intl, resource view models, auth-role, resource mutation controls
-// output: resource detail sheet with admin-only edit/archive affordances
-// pos: authenticated resource detail interaction boundary
-// note: if this file changes, update header and components/resources/README.md
+// input: resource view models, health evidence, localization, auth role, and mutation controls
+// output: resource detail sheet with observation metadata and admin edit/archive affordances
+// pos: authenticated resource detail and health evidence surface
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useState } from "react";
@@ -37,6 +37,7 @@ import type {
 
 import { EditResourceSheet } from "./edit-resource-sheet";
 import { ResourceArchiveButton } from "./resource-archive-button";
+import { HealthEvidence } from "./health-evidence";
 
 type ResourceDetailSheetProps = {
   open: boolean;
@@ -124,6 +125,7 @@ export function ResourceDetailSheet({
               )}
               <StatusBadge status={resource.healthStatus} tone="health" />
               <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
+              <HealthEvidence resource={resource} locale={locale} />
             </div>
           </div>
         </SheetHeader>

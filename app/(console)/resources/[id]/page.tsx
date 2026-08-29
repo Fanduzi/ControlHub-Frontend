@@ -1,3 +1,8 @@
+// input: resource route id, localized resource view model, health evidence, and detail components
+// output: full resource detail page with status freshness, observed time, and observer
+// pos: server-rendered resource detail and operational health inspection surface
+// note: if this file changes, update this header and module README.md.
+
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
@@ -17,6 +22,7 @@ import { DatabaseDecisionDeck } from "@/components/resources/database-decision-d
 import { DatabaseConsistencyPanel } from "@/components/resources/database-consistency-panel";
 import { DatabaseInstanceFactsPanel } from "@/components/resources/database-instance-facts-panel";
 import { DatabaseSupportingDetails } from "@/components/resources/database-supporting-details";
+import { HealthEvidence } from "@/components/resources/health-evidence";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -130,6 +136,7 @@ export default async function ResourceDetailPage({
             )}
             <StatusBadge status={resource.healthStatus} tone="health" />
             <StatusBadge status={resource.lifecycleStatus} tone="lifecycle" />
+            <HealthEvidence resource={resource} locale={locale} />
           </>
         }
       />

@@ -107,8 +107,8 @@ The Console Origin port must match the port where the frontend is running.
 Then run `npm run dev` and smoke-test these pages:
    - `/login` — sign in with backend credentials
    - `/overview` — attention queue, posture metrics, environment lanes, recent audits
-   - `/resources` — resource table with search/filter and detail sheet
-   - `/resources/[id]` — full detail page for a known resource ID
+   - `/resources` — resource table with effective status, freshness, observed time, observer, search/filter, and detail sheet
+   - `/resources/[id]` — full detail and health-evidence page for a known resource ID
    - `/cmdb` — retained bookmark notice linking to `/resources`
    - `/databases` — database instance and cluster view
    - `/audits` — audit event table and recent timeline
@@ -123,6 +123,7 @@ The backend must be running and serving the following endpoints:
 - `POST /auth/login` — authentication
 - `GET /resources` — resource list
 - `GET /resources/{id}` — resource detail
+- `POST /resources/{id}/health-observations` — backend collector ingestion contract (admin; observation writes are not inventory-audited)
 - `GET /resources/{id}/profile` — typed resource profile projection
 - `GET /resources/{id}/relations` — resource relations
 - `GET /resources/{id}/audit-events` — resource audit events
@@ -195,6 +196,7 @@ npm run lint
 - Wire types in `types/*.ts` align with the OpenAPI camelCase contract
 - View-model fields such as `environmentName`, `ownerName`, `actorLabel`, `targetResourceName`, and `summary` are frontend-only presentation fields derived in `lib/view-models.ts`
 - Resource `profile` content is fetched from `GET /resources/{id}/profile` and normalized into frontend-friendly string values in `lib/view-models.ts`
+- Resource list/detail payloads expose effective `healthStatus`, `healthFreshness`, `healthObservedAt`, `healthObserver`, and nullable `manualHealthOverride`; the UI fails closed to `Never · — · —` during a rolling deployment if an older backend omits the new fields
 - The backend does not provide `actorName`, `targetResourceName`, `ownerName`, or `environmentName` in its endpoints
 - Supporting dictionaries (resourceType, lifecycleStatus, healthStatus values) are local static data in `services/settings.ts`
 - Result paging is a server-governed request contract. The UI stores only the local page-size preference and never stores result snapshots or result rows as a paging mechanism.

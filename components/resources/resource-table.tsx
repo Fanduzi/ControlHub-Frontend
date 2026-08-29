@@ -1,7 +1,7 @@
-// input: react, next-intl, next/navigation, tanstack table, auth-role
-// output: resources inventory table; admin-only create affordance
-// pos: inventory list view with role-gated mutation control
-// note: if this file changes, update header and components/resources/README.md
+// input: react, navigation, table primitives, auth role, and resource health evidence
+// output: inventory table with status freshness, observation metadata, and admin create affordance
+// pos: inventory list view and compact health evidence surface
+// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -58,6 +58,7 @@ import { saveResourceListUrl } from "@/lib/resource-list-persistence";
 
 import { ResourceDetailSheetLoader } from "./resource-detail-sheet-loader";
 import { CreateResourceSheet } from "./create-resource-sheet";
+import { HealthEvidence } from "./health-evidence";
 
 type ResourceTableProps = {
   resources: ResourceListViewModel[];
@@ -185,14 +186,17 @@ export function ResourceTable({
       id: "status",
       header: t("common.fields.status"),
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          {row.original.isArchived && (
-            <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-              {t("common.actions.archived")}
-            </span>
-          )}
-          <StatusBadge status={row.original.healthStatus} tone="health" />
-          <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+        <div className="space-y-1">
+          <div className="flex flex-wrap gap-2">
+            {row.original.isArchived && (
+              <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                {t("common.actions.archived")}
+              </span>
+            )}
+            <StatusBadge status={row.original.healthStatus} tone="health" />
+            <StatusBadge status={row.original.lifecycleStatus} tone="lifecycle" />
+          </div>
+          <HealthEvidence resource={row.original} locale={locale} />
         </div>
       ),
     }),

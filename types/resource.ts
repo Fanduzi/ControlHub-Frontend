@@ -1,7 +1,7 @@
-// input: backend resource JSON contract
-// output: resource identity, profile, relation, list, create, and update types
-// pos: frontend transport contract for resource APIs
-// note: if this file changes, update header and README.md
+// input: backend resource, topology, relation, and health JSON contracts
+// output: governed resource identity, profile, relation, topology, health, list, create, and update types
+// pos: shared TypeScript boundary between ControlHub API data and UI view models
+// note: if this file changes, update this header and module README.md.
 export type ResourceType =
   | "host"
   | "database_instance"
@@ -43,6 +43,8 @@ export type DatabaseOperationalSummary = {
   worstMemberStatus?: string;
 };
 
+export type HealthFreshness = "fresh" | "stale" | "never";
+
 export type Resource = {
   id: number;
   resourceType: ResourceType;
@@ -53,6 +55,10 @@ export type Resource = {
   ownerId: number;
   lifecycleStatus: string;
   healthStatus: string;
+  healthFreshness?: HealthFreshness;
+  healthObservedAt?: string | null;
+  healthObserver?: string;
+  manualHealthOverride?: string | null;
   origin?: ResourceOrigin;
   aliases?: string[];
   externalIdentifiers?: ResourceExternalIdentifier[];
@@ -152,7 +158,7 @@ export type UpdateResourceInput = {
   environmentId?: number;
   ownerId?: number;
   lifecycleStatus?: string;
-  healthStatus?: string;
+  healthStatus?: string | null;
   aliases?: string[];
   externalIdentifiers?: ResourceExternalIdentifier[];
   externalId?: string;

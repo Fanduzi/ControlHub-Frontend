@@ -1,8 +1,9 @@
 // input: vitest, testing-library, resource detail sheet, auth-role
-// output: detail sheet tests — overlay behavior, localized summary, admin-only edit/archive affordances
-// pos: component tests for the resource detail sheet
-// note: if this file changes, update header and tests/components/README.md
+// output: detail sheet tests including health evidence and admin-only mutation affordances
+// pos: component tests for the resource detail sheet and Issue 81 health readout
+// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
+import { formatDateTime } from "@/lib/format";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -53,6 +54,10 @@ const resource: ResourceDetailViewModel = {
   ownerName: "DBA Team",
   lifecycleStatus: "running",
   healthStatus: "degraded",
+  healthFreshness: "fresh",
+  healthObservedAt: "2026-04-11T12:55:00Z",
+  healthObserver: "prometheus",
+  manualHealthOverride: null,
   source: "manual",
   externalId: "aws:rds:orders-primary",
   createdAt: "2026-04-11T12:00:00Z",
@@ -189,6 +194,9 @@ describe("ResourceDetailSheet", () => {
     expect(screen.getByText("orders-primary.internal:3306")).toBeInTheDocument();
     expect(screen.getByText("orders-cluster")).toBeInTheDocument();
     expect(screen.getByText("Admin User")).toBeInTheDocument();
+    expect(screen.getByText("Fresh")).toBeInTheDocument();
+    expect(screen.getByText(formatDateTime(resource.healthObservedAt!, "en"))).toBeInTheDocument();
+    expect(screen.getByText("prometheus")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /open full detail/i }),
     ).toHaveAttribute("href", "/resources/101");
