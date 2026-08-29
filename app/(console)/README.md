@@ -9,3 +9,6 @@ The retained `/cmdb` route renders a migration notice with a link to `/resources
 The resource detail segment has a localized `not-found.tsx` boundary for
 missing or archived resources; it links back to `/resources` while the root
 `app/not-found.tsx` boundary handles unmatched routes outside the segment.
+
+Resources and databases pages fail closed to an empty result when their
+environment slug is unknown; they do not issue an unscoped inventory request.

@@ -10,6 +10,9 @@ Operator Session BFF primitives live in `lib/operator-session/`.
 palette hide it for non-admin operators, mirroring the server-owned access
 matrix.
 
+`environment-params.ts` resolves environment slugs for inventory list pages;
+unknown slugs fail closed so those pages render an empty scoped result.
+
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.

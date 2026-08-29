@@ -1,3 +1,7 @@
+// input: Next search params, environment/posture services, database table
+// output: scoped database inventory page; unknown environments render an empty result
+// pos: authenticated console databases route
+// note: if this file changes, update header and app/(console)/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
@@ -17,6 +21,25 @@ export default async function DatabasesPage({
   const t = await getTranslations();
   const parsedParams = await parseResourceListSearchParams(searchParams);
   const params = await resolveEnvironmentSlugToId(parsedParams);
+
+  if (!params) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={t("pages.databases.eyebrow")}
+          title={t("pages.databases.title")}
+          description={t("pages.databases.description")}
+        />
+
+        <DatabaseTable
+          resources={[]}
+          totalClusters={0}
+          totalInstances={0}
+        />
+      </div>
+    );
+  }
+
   const [
     { items: databaseResources },
     { clusters, instances },

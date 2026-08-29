@@ -2,6 +2,9 @@
 
 Vitest unit tests for frontend library modules.
 
+`environment-params.test.ts` covers known-slug resolution and the fail-closed
+unknown-slug behavior used by inventory list pages.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |

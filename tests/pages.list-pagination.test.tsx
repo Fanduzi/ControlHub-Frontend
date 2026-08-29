@@ -1,3 +1,7 @@
+// input: page search params, mocked environment and inventory service seams
+// output: regression coverage for scoped list-page behavior
+// pos: app page integration tests
+// note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -224,33 +228,36 @@ describe("list pages pagination contracts", () => {
     });
   });
 
-  it("does not widen resources when environment slug is unknown", async () => {
-    listEnvironmentsMock.mockResolvedValueOnce([
-      {
-        id: "env-prod",
-        name: "Production",
-        slug: "prod",
-        description: "",
-        createdAt: "",
-      },
-    ]);
+  it("renders empty inventory for an unknown environment without querying unscoped data", async () => {
     const { default: ResourcesPage } = await import("@/app/(console)/resources/page");
 
-    await ResourcesPage({
+    const resourcesElement = await ResourcesPage({
       searchParams: Promise.resolve({
         environment: "missing",
       }),
     });
+    render(resourcesElement);
 
-    expect(listResourceViewModelsMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        page: 1,
-        pageSize: 10,
-        environmentId: 0,
-        environmentSlug: "missing",
-      }),
-    );
+    expect(resourceTableMock).toHaveBeenCalledWith(expect.objectContaining({
+      resources: [],
+      availableSubtypes: [],
+      pageInfo: expect.objectContaining({ totalItems: 0, totalPages: 0 }),
+    }));
+    expect(listResourceViewModelsMock).not.toHaveBeenCalled();
+
+    const { default: DatabasesPage } = await import("@/app/(console)/databases/page");
+    const databasesElement = await DatabasesPage({
+      searchParams: Promise.resolve({ environment: "missing" }),
+    });
+    render(databasesElement);
+
+    expect(databaseTableMock).toHaveBeenCalledWith({
+      resources: [],
+      totalClusters: 0,
+      totalInstances: 0,
+    });
+    expect(listDatabaseResourceViewModelsMock).not.toHaveBeenCalled();
+    expect(getDatabasePostureCountsMock).not.toHaveBeenCalled();
   });
 
   it("passes normalized page params to databases", async () => {

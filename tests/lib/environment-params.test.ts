@@ -1,3 +1,7 @@
+// input: vitest, environment params resolver, mocked settings service
+// output: resolver tests including fail-closed unknown environment scopes
+// pos: shared environment URL-scope unit tests
+// note: if this file changes, update header and tests/lib/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
@@ -27,29 +31,29 @@ describe("resolveEnvironmentSlugToId", () => {
     const params: ResourceListParams = { environmentSlug: "prod" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(1);
-    expect(result.environmentSlug).toBe("prod");
+    expect(result?.environmentId).toBe(1);
+    expect(result?.environmentSlug).toBe("prod");
   });
 
   it("resolves staging slug correctly", async () => {
     const params: ResourceListParams = { environmentSlug: "staging" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(2);
+    expect(result?.environmentId).toBe(2);
   });
 
-  it("returns unknown ID for an unrecognized slug", async () => {
+  it("returns no scope for an unrecognized slug", async () => {
     const params: ResourceListParams = { environmentSlug: "nonexistent" };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(0);
+    expect(result).toBeNull();
   });
 
   it("skips resolution when environmentSlug is absent", async () => {
     const params: ResourceListParams = { environmentId: 1 };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(1);
+    expect(result?.environmentId).toBe(1);
     expect(listEnvironmentsMock).not.toHaveBeenCalled();
   });
 
@@ -60,7 +64,7 @@ describe("resolveEnvironmentSlugToId", () => {
     };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(1);
+    expect(result?.environmentId).toBe(1);
     expect(listEnvironmentsMock).not.toHaveBeenCalled();
   });
 
@@ -74,10 +78,10 @@ describe("resolveEnvironmentSlugToId", () => {
     };
     const result = await resolveEnvironmentSlugToId(params);
 
-    expect(result.environmentId).toBe(3);
-    expect(result.page).toBe(2);
-    expect(result.pageSize).toBe(50);
-    expect(result.q).toBe("orders");
-    expect(result.resourceType).toBe("service");
+    expect(result?.environmentId).toBe(3);
+    expect(result?.page).toBe(2);
+    expect(result?.pageSize).toBe(50);
+    expect(result?.q).toBe("orders");
+    expect(result?.resourceType).toBe("service");
   });
 });

@@ -1,3 +1,7 @@
+// input: Next search params, environment/resource services, resource table
+// output: scoped resource inventory page; unknown environments render an empty result
+// pos: authenticated console resources route
+// note: if this file changes, update header and app/(console)/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
@@ -56,6 +60,33 @@ export default async function ResourcesPage({
   const t = await getTranslations();
   const parsedParams = await parseResourceListSearchParams(searchParams);
   const params = await resolveEnvironmentSlugToId(parsedParams);
+
+  if (!params) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={t("pages.resources.eyebrow")}
+          title={t("pages.resources.title")}
+          description={t("pages.resources.description")}
+        />
+
+        <ResourceTable
+          resources={[]}
+          pageInfo={{
+            page: parsedParams.page ?? 1,
+            pageSize: parsedParams.pageSize ?? 10,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          }}
+          resourceTypes={[]}
+          availableSubtypes={[]}
+        />
+      </div>
+    );
+  }
+
   const [{ items: resources, pageInfo }, resourceTypes, availableSubtypes] = await Promise.all([
     listResourceViewModels(params),
     listResourceTypes().catch(() => []),
