@@ -1,6 +1,6 @@
-// input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries
-// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, and admin-only create affordance
-// pos: component tests for inventory health evidence and role-gated mutation control
+// input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries, and bulk resource service mocks
+// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, admin-only create affordance, and reviewed bulk-label affordances
+// pos: component tests for inventory health evidence, backend-backed filters, and role-gated mutation controls
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ResourceTable } from "@/components/resources/resource-table";
+import { ApiError } from "@/services/api-client";
 import messages from "@/messages/en.json";
 import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -19,6 +20,11 @@ vi.mock("@/lib/auth-role", () => ({
 }));
 
 const replace = vi.fn();
+const refresh = vi.fn();
+const { previewBulkResourceMutation, confirmBulkResourceMutation } = vi.hoisted(() => ({
+  previewBulkResourceMutation: vi.fn(),
+  confirmBulkResourceMutation: vi.fn(),
+}));
 
 const lifecycleStatuses: DictionaryItem[] = [
   { key: "provisioning", label: "Provisioning", description: "" },
@@ -35,9 +41,14 @@ const healthStatuses: DictionaryItem[] = [
 ];
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace }),
+  useRouter: () => ({ replace, refresh }),
   usePathname: () => "/resources",
   useSearchParams: () => new URLSearchParams("environmentId=1&page=3"),
+}));
+
+vi.mock("@/services/resources", () => ({
+  previewBulkResourceMutation,
+  confirmBulkResourceMutation,
 }));
 
 vi.mock("@/components/resources/resource-detail-sheet-loader", () => ({
@@ -149,6 +160,9 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
 describe("ResourceTable", () => {
   beforeEach(() => {
     replace.mockClear();
+    refresh.mockClear();
+    previewBulkResourceMutation.mockReset();
+    confirmBulkResourceMutation.mockReset();
     isAdmin = true;
   });
 
@@ -160,6 +174,71 @@ describe("ResourceTable", () => {
     expect(
       screen.queryByRole("button", { name: "New resource" }),
     ).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /select/i })).toBeNull();
+  });
+
+  it("previews selected-resource label changes and confirms only the reviewed fingerprint", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: true,
+      items: [{
+        resourceId: 101,
+        conflict: false,
+        fieldDiffs: [],
+        labelDiffs: [{ key: "team", before: null, after: "platform" }],
+        errors: [],
+      }],
+    });
+    confirmBulkResourceMutation.mockResolvedValue({});
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    await waitFor(() => {
+      expect(previewBulkResourceMutation).toHaveBeenCalledWith({
+        targets: [{ resourceId: 101, expectedVersion: "2026-04-14T10:00:00Z" }],
+        labels: { add: { team: "platform" } },
+      });
+    });
+    expect(screen.getByText("team: — → platform")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm changes" }));
+
+    expect(confirmBulkResourceMutation).toHaveBeenCalledWith(
+      expect.objectContaining({ labels: { add: { team: "platform" } } }),
+      "reviewed-fingerprint",
+    );
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("keeps a 409 confirmation conflict controlled and requires a new preview", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: true,
+      items: [],
+    });
+    confirmBulkResourceMutation.mockRejectedValue(
+      new ApiError(409, "state changed", undefined, "bulk_resource_mutation_conflict"),
+    );
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm changes" }));
+
+    expect(await screen.findByText("The resource state changed. Preview the changes again before confirming.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm changes" })).toBeNull();
   });
 
   it("updates q in the URL and resets to the first page when searching", async () => {
@@ -277,7 +356,7 @@ describe("ResourceTable", () => {
   });
 
   it("shows health freshness, observed time, and observer beside status", () => {
-	const observedAt = formatDateTime("2026-04-14T09:55:00Z", "en");
+    const observedAt = formatDateTime("2026-04-14T09:55:00Z", "en");
 
 	renderTable();
 

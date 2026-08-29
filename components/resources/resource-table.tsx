@@ -1,6 +1,6 @@
-// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, and resource health evidence
-// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, and admin create affordance
-// pos: inventory list view, mutation entry point, saved-view host, compact completeness, and health evidence surface
+// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, and bulk resource services
+// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create affordance, and reviewed bulk-label mutations
+// pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit control
 // note: if this file changes, update header and components/resources/README.md
 "use client";
 
@@ -29,6 +29,14 @@ import {
 import { PaginationControls } from "@/components/blocks/pagination-controls";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,7 +56,9 @@ import {
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatLabel, formatRelativeDateTime } from "@/lib/format";
 import { localizeResourceType } from "@/lib/resource-summary";
-import type { PageInfo } from "@/types/resource";
+import { ApiError } from "@/services/api-client";
+import { confirmBulkResourceMutation, previewBulkResourceMutation } from "@/services/resources";
+import type { BulkResourceMutationPreview, BulkResourceMutationRequest, PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
 
@@ -71,6 +81,8 @@ type ResourceTableProps = {
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
+
+type LabelOperation = "add" | "update" | "remove";
 
 function updateMultiSelectParams(
   pathname: string,
@@ -100,6 +112,15 @@ export function ResourceTable({
   const [selectedResource, setSelectedResource] =
     useState<ResourceListViewModel | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [labelOperation, setLabelOperation] = useState<LabelOperation>("add");
+  const [labelKey, setLabelKey] = useState("");
+  const [labelValue, setLabelValue] = useState("");
+  const [bulkRequest, setBulkRequest] = useState<BulkResourceMutationRequest | null>(null);
+  const [preview, setPreview] = useState<BulkResourceMutationPreview | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
   const isAdmin = useAdminRole();
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
     resourceSubtype: false,
@@ -138,6 +159,33 @@ export function ResourceTable({
   }, [search]);
 
   const columns = useMemo(() => [
+    ...(isAdmin === true ? [columnHelper.display({
+      id: "select",
+      size: 36,
+      minSize: 36,
+      enableHiding: false,
+      header: ({ table: tableInstance }) => (
+        <input
+          type="checkbox"
+          aria-label={t("tables.resources.bulk.selectAll")}
+          checked={tableInstance.getIsAllPageRowsSelected()}
+          ref={(input) => {
+            if (input) input.indeterminate = tableInstance.getIsSomePageRowsSelected();
+          }}
+          onChange={tableInstance.getToggleAllPageRowsSelectedHandler()}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          aria-label={t("tables.resources.bulk.selectResource", { name: row.original.displayName })}
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+    })] : []),
     {
       id: "icon",
       size: 36,
@@ -295,16 +343,73 @@ export function ResourceTable({
         return v ? <span className="text-sm text-muted-foreground">{formatLabel(v)}</span> : <span className="text-muted-foreground">&mdash;</span>;
       },
     }),
-  ], [t, locale, searchParams, pathname]);
+  ], [t, locale, searchParams, pathname, isAdmin]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: resources,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    state: { columnVisibility },
+    getRowId: (resource) => String(resource.id),
+    enableRowSelection: isAdmin === true,
+    state: { columnVisibility, rowSelection },
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
   });
+  const selectedResources = table.getSelectedRowModel().rows.map((row) => row.original);
+
+  const resetBulkPreview = useCallback(() => {
+    setPreview(null);
+    setBulkRequest(null);
+    setBulkError(null);
+  }, []);
+
+  const handleBulkPreview = useCallback(async () => {
+    const key = labelKey.trim();
+    const request: BulkResourceMutationRequest = {
+      targets: selectedResources.map((resource) => ({
+        resourceId: resource.id,
+        expectedVersion: resource.updatedAt,
+      })),
+      labels: labelOperation === "remove"
+        ? { remove: [key] }
+        : { [labelOperation]: { [key]: labelValue } },
+    };
+
+    setBulkPending(true);
+    setBulkError(null);
+    try {
+      setBulkRequest(request);
+      setPreview(await previewBulkResourceMutation(request));
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : t("tables.resources.bulk.previewFailed"));
+    } finally {
+      setBulkPending(false);
+    }
+  }, [labelKey, labelOperation, labelValue, selectedResources, t]);
+
+  const handleBulkConfirm = useCallback(async () => {
+    if (!bulkRequest || !preview?.fingerprint) return;
+
+    setBulkPending(true);
+    setBulkError(null);
+    try {
+      await confirmBulkResourceMutation(bulkRequest, preview.fingerprint);
+      setBulkOpen(false);
+      setRowSelection({});
+      resetBulkPreview();
+      router.refresh();
+    } catch (error) {
+      setPreview(null);
+      if (error instanceof ApiError && error.status === 409) {
+        setBulkError(t("tables.resources.bulk.conflict"));
+      } else {
+        setBulkError(error instanceof Error ? error.message : t("tables.resources.bulk.confirmFailed"));
+      }
+    } finally {
+      setBulkPending(false);
+    }
+  }, [bulkRequest, preview, resetBulkPreview, router, t]);
 
   const handleSheetOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -430,12 +535,25 @@ export function ResourceTable({
         controls={
           <>
             {isAdmin === true && (
-              <Button
-                size="sm"
-                onClick={() => setCreateOpen(true)}
-              >
-                {t("common.actions.createResource")}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  {t("common.actions.createResource")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedResources.length === 0}
+                  onClick={() => {
+                    resetBulkPreview();
+                    setBulkOpen(true);
+                  }}
+                >
+                  {t("tables.resources.bulk.editLabels", { count: selectedResources.length })}
+                </Button>
+              </>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -615,6 +733,79 @@ export function ResourceTable({
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
+
+      <Dialog open={bulkOpen} onOpenChange={(open) => {
+        setBulkOpen(open);
+        if (!open) resetBulkPreview();
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("tables.resources.bulk.title")}</DialogTitle>
+            <DialogDescription>
+              {t("tables.resources.bulk.description", { count: selectedResources.length })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <label className="grid gap-1 text-sm">
+              {t("tables.resources.bulk.operation")}
+              <Select value={labelOperation} onValueChange={(value) => {
+                setLabelOperation(value as LabelOperation);
+                resetBulkPreview();
+              }} disabled={Boolean(preview)}>
+                <SelectTrigger aria-label={t("tables.resources.bulk.operation")}>
+                  <span>{t(`tables.resources.bulk.operations.${labelOperation}`)}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">{t("tables.resources.bulk.operations.add")}</SelectItem>
+                  <SelectItem value="update">{t("tables.resources.bulk.operations.update")}</SelectItem>
+                  <SelectItem value="remove">{t("tables.resources.bulk.operations.remove")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              {t("tables.resources.bulk.key")}
+              <Input value={labelKey} disabled={Boolean(preview)} onChange={(event) => {
+                setLabelKey(event.target.value);
+                resetBulkPreview();
+              }} />
+            </label>
+            {labelOperation !== "remove" && (
+              <label className="grid gap-1 text-sm">
+                {t("tables.resources.bulk.value")}
+                <Input value={labelValue} disabled={Boolean(preview)} onChange={(event) => {
+                  setLabelValue(event.target.value);
+                  resetBulkPreview();
+                }} />
+              </label>
+            )}
+            {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
+            {preview && (
+              <div className="max-h-56 space-y-2 overflow-auto rounded-md border p-3 text-sm">
+                {preview.items.map((item) => (
+                  <div key={item.resourceId} className="space-y-1">
+                    <p className="font-medium">{t("tables.resources.bulk.resource", { id: item.resourceId })}</p>
+                    {item.conflict && <p className="text-destructive">{t("tables.resources.bulk.itemConflict")}</p>}
+                    {item.errors?.map((error) => <p key={error} className="text-destructive">{error}</p>)}
+                    {item.fieldDiffs?.map((diff) => <p key={diff.field}>{diff.field}: {String(diff.before ?? "—")} → {String(diff.after ?? "—")}</p>)}
+                    {item.labelDiffs?.map((diff) => <p key={diff.key}>{diff.key}: {diff.before ?? "—"} → {diff.after ?? "—"}</p>)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            {!preview ? (
+              <Button onClick={handleBulkPreview} disabled={bulkPending || !labelKey.trim() || (labelOperation !== "remove" && !labelValue)}>
+                {bulkPending ? t("tables.resources.bulk.previewing") : t("tables.resources.bulk.preview")}
+              </Button>
+            ) : (
+              <Button onClick={handleBulkConfirm} disabled={bulkPending || !preview.confirmable || !preview.fingerprint}>
+                {bulkPending ? t("tables.resources.bulk.confirming") : t("tables.resources.bulk.confirm")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

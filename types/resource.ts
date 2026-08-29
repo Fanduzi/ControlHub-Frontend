@@ -1,5 +1,5 @@
-// input: backend resource, profile, relation, topology, health, effective-value, identity, override, and rule JSON contracts
-// output: governed resource identity, server-derived completeness, health/provenance, override, and server-owned relationship-rule transport types
+// input: backend resource, profile, relation, topology, health, effective-value, identity, override, rule, and bulk-mutation JSON contracts
+// output: governed resource identity, server-derived completeness, health/provenance, override, server-owned relationship-rule, and bulk mutation transport types
 // pos: shared TypeScript transport boundary between resource services and UI
 // note: if this file changes, update this header and types/README.md.
 export type ResourceType =
@@ -208,6 +208,28 @@ export type UpdateResourceInput = {
   externalId?: string;
   labels?: Record<string, string>;
   completeness?: never;
+};
+
+export type BulkResourceMutationRequest = {
+  targets: Array<{ resourceId: number; expectedVersion: string }>;
+  fieldPatch?: Record<string, unknown>;
+  labels?: {
+    add?: Record<string, string>;
+    update?: Record<string, string>;
+    remove?: string[];
+  };
+};
+
+export type BulkResourceMutationPreview = {
+  items: Array<{
+    resourceId: number;
+    conflict: boolean;
+    fieldDiffs?: Array<{ field: string; before: unknown; after: unknown }>;
+    labelDiffs?: Array<{ key: string; before?: string | null; after?: string | null }>;
+    errors?: string[];
+  }>;
+  fingerprint: string;
+  confirmable: boolean;
 };
 
 export type CreateResourceRelationInput = {

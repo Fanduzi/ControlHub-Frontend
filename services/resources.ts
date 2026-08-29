@@ -1,11 +1,13 @@
 // input: shared API client, pagination helper, and resource wire types
-// output: resource/profile/relation/effective-value reads and mutations, override controls, and relationship-rule discovery
-// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, and override versions unchanged
+// output: resource/profile/relation/effective-value reads and mutations, override controls, relationship-rule discovery, and reviewed bulk label mutations
+// pos: frontend API boundary for resources; forwards server-owned relationship constraints, completeness read-only writes, override versions, and bulk review fingerprints unchanged
 // note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
 import type {
   ClusterMember,
+  BulkResourceMutationPreview,
+  BulkResourceMutationRequest,
   CreateResourceInput,
   CreateResourceRelationInput,
   EffectiveValuesResponse,
@@ -267,6 +269,25 @@ export async function updateResource(
   return apiClient<Resource>(`/resources/${id}`, {
     method: "PATCH",
     body: resourceWriteBody(input),
+  });
+}
+
+export async function previewBulkResourceMutation(
+  request: BulkResourceMutationRequest,
+): Promise<BulkResourceMutationPreview> {
+  return apiClient<BulkResourceMutationPreview>("/resources/bulk-mutations/preview", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function confirmBulkResourceMutation(
+  request: BulkResourceMutationRequest,
+  reviewedFingerprint: string,
+): Promise<BulkResourceMutationPreview> {
+  return apiClient<BulkResourceMutationPreview>("/resources/bulk-mutations/confirm", {
+    method: "POST",
+    body: JSON.stringify({ request, reviewedFingerprint }),
   });
 }
 

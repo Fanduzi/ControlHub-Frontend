@@ -31,7 +31,9 @@ is forwarded as `q`; other failures surface normally.
 completeness from resource writes, exposes explicit profile deletion, and
 fetches source-specific relationship rules without embedding the matrix in the
 console; it also owns effective-value reads and versioned override set/clear
-requests.
+requests. It also exposes bulk resource mutation preview and reviewed
+confirmation calls; the server owns diffing, conflicts, and review
+fingerprints.
 
 `named-inventory-views.ts` sends saved inventory-view state unchanged for
 personal and shared view CRUD; update matches the backend's body-less 204
