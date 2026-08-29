@@ -41,6 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LabelsEditor } from "@/components/blocks/labels-editor";
 import { getProfileSchema, hasProfileFields } from "@/lib/profile-field-registry";
 import {
+  deleteProfile,
   getResourceProfileById,
   updateProfile,
   updateResource,
@@ -116,6 +117,8 @@ export function EditResourceSheet({
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [clearProfilePending, setClearProfilePending] = useState(false);
+  const [clearingProfile, setClearingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [baseError, setBaseError] = useState<string | null>(null);
 
@@ -249,17 +252,27 @@ export function EditResourceSheet({
       const editNumberFields = new Set(
         editSchema?.fields.filter((f) => f.inputType === "number").map((f) => f.key) ?? [],
       );
+      let hasInvalidNumericClear = false;
       if (dirtyFields.profile && data.profile) {
         for (const key of Object.keys(dirtyFields.profile)) {
           if (dirtyFields.profile[key]) {
             const rawVal = data.profile[key];
-            if (rawVal !== undefined) {
-              changedProfileFields[key] = rawVal === "" || !editNumberFields.has(key)
-                ? rawVal
-                : Number(rawVal);
+            if (rawVal === undefined) {
+              continue;
             }
+            if (rawVal === "" && editNumberFields.has(key)) {
+              hasInvalidNumericClear = true;
+              continue;
+            }
+            changedProfileFields[key] = editNumberFields.has(key) ? Number(rawVal) : rawVal;
           }
         }
+      }
+
+      if (hasInvalidNumericClear) {
+        setProfileError(t("mutations.numericProfileClearHint"));
+        setSubmitting(false);
+        return;
       }
 
       const labelsDirty = !!dirtyFields.labels;
@@ -364,9 +377,39 @@ export function EditResourceSheet({
     [resource, dirtyFields, router, onOpenChange, t, setFormError],
   );
 
+  const handleClearProfile = useCallback(async () => {
+    if (!resource) return;
+
+    setClearingProfile(true);
+    setProfileError(null);
+
+    try {
+      await deleteProfile(resource.id);
+      setClearProfilePending(false);
+      router.refresh();
+      onOpenChange(false);
+    } catch (error) {
+      setClearProfilePending(false);
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setProfileError(t("mutations.errors.unauthorized"));
+        } else if (error.status === 404) {
+          setProfileError(t("mutations.errors.notFound"));
+        } else if (error.status === 400) {
+          setProfileError(t("mutations.errors.validation"));
+        } else {
+          setProfileError(error.message || t("mutations.errors.backend"));
+        }
+      } else {
+        setProfileError(t("mutations.errors.backend"));
+      }
+    } finally {
+      setClearingProfile(false);
+    }
+  }, [resource, router, onOpenChange, t]);
+
   const profileSchema = resource ? getProfileSchema(resource.resourceType) : undefined;
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- React Hook Form watch() returns non-memoizable values
   const watchResourceSubtype = watch("resourceSubtype");
   const watchEnvironmentId = watch("environmentId");
   const watchOwnerId = watch("ownerId");
@@ -550,6 +593,23 @@ export function EditResourceSheet({
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {profileSchema && profileSchema.fields.length > 0 && (
+                <div className="mt-4 flex justify-end border-t border-border pt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting || clearingProfile}
+                    onClick={() => {
+                      setProfileError(null);
+                      setClearProfilePending(true);
+                    }}
+                  >
+                    {t("mutations.profileClear.button")}
+                  </Button>
                 </div>
               )}
 
@@ -761,6 +821,35 @@ export function EditResourceSheet({
             <AlertDialogCancel>{t("common.actions.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDiscardConfirm}>
               {t("common.unsavedChanges.discard")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={clearProfilePending}
+        onOpenChange={(open) => {
+          if (!open && !clearingProfile) setClearProfilePending(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("mutations.profileClear.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("mutations.profileClear.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearingProfile}>
+              {t("common.actions.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={clearingProfile}
+              onClick={() => { void handleClearProfile(); }}
+            >
+              {clearingProfile
+                ? t("mutations.profileClear.clearing")
+                : t("mutations.profileClear.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

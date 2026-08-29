@@ -635,6 +635,14 @@
   "mutations": {
     "profileSection": "Runtime Profile",
     "profileSectionHint": "Type-specific operational fields.",
+    "numericProfileClearHint": "Use Clear typed profile to remove numeric profile fields.",
+    "profileClear": {
+      "button": "Clear typed profile",
+      "title": "Clear typed profile?",
+      "description": "This removes all type-specific operational fields from this resource. The resource itself will not be deleted.",
+      "confirm": "Clear profile",
+      "clearing": "Clearing..."
+    },
     "noProfileFields": "This resource type has no profile fields.",
     "nameEditable": "Identifier used for system references. Changing it may affect integrations.",
     "continueCreate": "Create Another",

@@ -635,6 +635,14 @@
   "mutations": {
     "profileSection": "运行时属性",
     "profileSectionHint": "资源类型相关的运维属性。",
+    "numericProfileClearHint": "如需移除数字类型运行时属性，请使用“清除运行时属性”。",
+    "profileClear": {
+      "button": "清除运行时属性",
+      "title": "清除运行时属性？",
+      "description": "这将移除此资源的全部类型专属运行时属性，但不会删除资源本身。",
+      "confirm": "清除属性",
+      "clearing": "清除中..."
+    },
     "noProfileFields": "该资源类型无运行时属性。",
     "nameEditable": "系统引用标识符，修改可能影响集成。",
     "continueCreate": "继续创建",

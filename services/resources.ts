@@ -1,3 +1,7 @@
+// input: API client and resource wire types
+// output: resource and typed-profile read/mutation service functions
+// pos: frontend API boundary for the resources feature
+// note: if this file changes, update this header and module README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
 import type {
@@ -212,6 +216,12 @@ export async function updateProfile(
   await apiClient<void>(`/resources/${id}/profile`, {
     method: "PATCH",
     body: JSON.stringify(fields),
+  });
+}
+
+export async function deleteProfile(id: number): Promise<void> {
+  await apiClient<void>(`/resources/${id}/profile`, {
+    method: "DELETE",
   });
 }
 

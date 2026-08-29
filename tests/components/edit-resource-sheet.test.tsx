@@ -23,6 +23,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/services/resources", () => ({
   updateResource: vi.fn(),
   updateProfile: vi.fn(),
+  deleteProfile: vi.fn(),
   getResourceProfileById: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock("@/services/settings", () => ({
 
 const mockedUpdateResource = vi.mocked(resourceService.updateResource);
 const mockedUpdateProfile = vi.mocked(resourceService.updateProfile);
+const mockedDeleteProfile = vi.mocked(resourceService.deleteProfile);
 const mockedGetResourceProfileById = vi.mocked(
   resourceService.getResourceProfileById,
 );
@@ -138,6 +140,7 @@ describe("EditResourceSheet", () => {
     });
     mockedUpdateResource.mockResolvedValue({} as never);
     mockedUpdateProfile.mockResolvedValue(undefined);
+    mockedDeleteProfile.mockResolvedValue(undefined);
   });
 
   it("loads profile data on open and pre-fills profile fields", async () => {
@@ -356,14 +359,15 @@ describe("EditResourceSheet", () => {
     });
   });
 
-  it("keeps an empty numeric profile value empty", async () => {
+  it("clears the typed profile only after confirmation", async () => {
     const user = userEvent.setup();
+    const onOpenChange = vi.fn();
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <EditResourceSheet
           open
-          onOpenChange={() => undefined}
+          onOpenChange={onOpenChange}
           resource={resource}
         />
       </NextIntlClientProvider>,
@@ -373,12 +377,18 @@ describe("EditResourceSheet", () => {
       expect(mockedGetResourceProfileById).toHaveBeenCalledWith(1);
     });
 
-    await user.clear(screen.getByDisplayValue("3306"));
-    await user.click(screen.getByRole("button", { name: /Save/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Clear typed profile/i }),
+    );
+    expect(mockedDeleteProfile).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /Clear profile/i }));
 
     await waitFor(() => {
-      expect(mockedUpdateProfile).toHaveBeenCalledWith(1, { port: "" });
+      expect(mockedDeleteProfile).toHaveBeenCalledWith(1);
     });
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("never sends id, resourceType, or createdAt in the PATCH payload", async () => {
