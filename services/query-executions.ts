@@ -1,5 +1,5 @@
 // input: @/services/api-client, @/types/query-execution
-// output: governed query execution, history, and owner statement API operations
+// output: governed query execution, history with fail-closed restore eligibility, and owner statement API operations
 // pos: narrow client transport boundary for query target operations
 // note: if this file changes, update this header and services/README.md.
 import { apiClient, ApiError } from "@/services/api-client";
@@ -9,11 +9,30 @@ import type {
   QueryExecuteRequest,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
+  QueryExecutionRecord,
   QueryExecutionStatementResponse,
   QueryExecutionStatus,
   RelatedRecordNavigationRequest,
   RelatedRecordNavigationResponse,
 } from "@/types/query-execution";
+
+type QueryExecutionCursorPagePayload = Omit<QueryExecutionCursorPage, "items"> & {
+  items: Array<
+    Omit<QueryExecutionRecord, "canRestore"> & { canRestore?: unknown }
+  >;
+};
+
+function parseQueryExecutionCursorPage(
+  payload: QueryExecutionCursorPagePayload,
+): QueryExecutionCursorPage {
+  return {
+    ...payload,
+    items: payload.items.map((item) => ({
+      ...item,
+      canRestore: item.canRestore === true,
+    })),
+  };
+}
 
 /**
  * Controlled error from a query execution attempt. Wraps the shared
@@ -155,9 +174,10 @@ export async function listQueryExecutions(
   if (params.cursor) searchParams.set("cursor", params.cursor);
   searchParams.set("pageSize", String(params.pageSize ?? 20));
 
-  return apiClient<QueryExecutionCursorPage>(
+  const payload = await apiClient<QueryExecutionCursorPagePayload>(
     `/query-targets/${targetResourceId}/executions?${searchParams.toString()}`,
   );
+  return parseQueryExecutionCursorPage(payload);
 }
 
 /** Fetch full SQL only through the backend's owner-only execution-statement gate. */

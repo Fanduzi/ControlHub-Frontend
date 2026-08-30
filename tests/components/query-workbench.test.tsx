@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, CSV serialization, mocked query services, and locale messages
-// output: unavailable-target recovery, formula-safe/disclosure-safe server-authorized CSV export, and search interaction tests
+// output: unavailable-target recovery, server-authorized history fixtures, formula-safe/disclosure-safe CSV export, and search interaction tests
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
@@ -1079,6 +1079,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
           engine: "mysql",
           statementDigest: "digest-analytics",
           statementPreview: "select * from analytics_log",
+          canRestore: false,
           status: "success",
           rowCount: 42,
           durationMs: 9,
@@ -2986,6 +2987,7 @@ describe("QueryWorkbench history target-race guard", () => {
         engine: "mysql",
         statementDigest: "digest-a",
         statementPreview: "select * from target_a_table",
+        canRestore: false,
         status: "success",
         rowCount: 10,
         durationMs: 5,
@@ -4220,6 +4222,7 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
       engine: "mysql",
       statementDigest: "digest-1",
       statementPreview: "select * from users",
+      canRestore: false,
       status: "success",
       rowCount: 42,
       durationMs: 15,

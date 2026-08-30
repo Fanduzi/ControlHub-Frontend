@@ -1,5 +1,5 @@
 // input: backend query execution OpenAPI schemas, resource/schema/disclosure types
-// output: query execution transport contracts
+// output: query execution transport contracts including server-owned restore eligibility
 // pos: type-only boundary for governed query execution and history
 // note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
@@ -103,6 +103,8 @@ export type QueryExecutionRecord = {
   engine: string;
   statementDigest: string;
   statementPreview: string;
+  /** Server-owned statement availability for the authenticated user. */
+  readonly canRestore: boolean;
   status: QueryExecutionStatus;
   rowCount: number;
   durationMs: number;

@@ -16,7 +16,7 @@ deployment fails closed against an older backend payload.
 | `resource.ts` | Inventory resource, pagination, and structured list-filter contracts |
 | `named-inventory-view.ts` | Named-view filters, sort, columns, CRUD inputs, and responses |
 | `machine-principal.ts` | One-time credential issue plus safe reload lifecycle metadata |
-| `query-execution.ts` | Governed execution/history metadata and owner-only statement response contracts |
+| `query-execution.ts` | Governed execution/history metadata with server-owned restore eligibility and owner-only statement response contracts |
 | `query-workspace.ts` | Persisted worksheet draft aggregate and optimistic-concurrency request contract |
 
 `audit.ts` defines the append-only audit event contract. Inventory events may

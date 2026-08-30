@@ -1,5 +1,5 @@
 // input: query execution history records, callbacks, next-intl, Base UI controls
-// output: accessible execution-history list and owner-only statement restore action
+// output: accessible execution-history list and server-authorized statement restore action
 // pos: presentation boundary for query history metadata and details
 // note: if this file changes, update this header and components/query/README.md.
 "use client";
@@ -139,7 +139,7 @@ function HistoryDetailSheet({
   const initialFocus = useCallback((): HTMLElement | false | void => {
     return closeButtonRef.current ?? false;
   }, []);
-  const canRestore = execution.status === "success" && execution.actor?.kind === "user";
+  const canRestore = execution.canRestore;
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>

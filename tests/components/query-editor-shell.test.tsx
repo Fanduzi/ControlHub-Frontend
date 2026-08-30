@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, mocked query/workspace services, localized messages
-// output: QueryEditorShell behavioral tests for unavailable-target locking, serialized OCC persistence, bounded worksheet creation, history restore, execution routing, and redaction
+// output: QueryEditorShell behavioral tests for unavailable-target locking, serialized OCC persistence, bounded worksheet creation, server-authorized history restore, execution routing, and redaction
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -218,6 +218,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         engine: "mysql",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
+        canRestore: true,
         status: "success",
         rowCount: 1,
         durationMs: 12,
@@ -339,6 +340,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         engine: "mysql",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
+        canRestore: true,
         status: "success",
         rowCount: 1,
         durationMs: 12,
@@ -371,6 +373,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         engine: "mysql",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
+        canRestore: true,
         status: "success",
         rowCount: 1,
         durationMs: 12,
@@ -400,16 +403,17 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     expect(screen.queryByRole("tab", { name: /worksheet 2/i })).toBeNull();
   });
 
-  it("never offers statement recovery for machine, failed, or legacy history rows", async () => {
+  it("offers recovery only for rows the server marks restorable", async () => {
     mockListQueryExecutions.mockResolvedValueOnce({
       items: [
         {
           id: 1001,
           targetResourceId: 30,
-          actor: { kind: "machine", displayName: "CI bot" },
+          actor: { kind: "user", displayName: "Other user" },
           engine: "mysql",
-          statementDigest: "machine digest",
-          statementPreview: "select machine",
+          statementDigest: "other-user digest",
+          statementPreview: "select other user",
+          canRestore: false,
           status: "success",
           rowCount: 1,
           durationMs: 12,
@@ -420,10 +424,26 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         {
           id: 1002,
           targetResourceId: 30,
+          actor: { kind: "machine", displayName: "CI bot" },
+          engine: "mysql",
+          statementDigest: "machine digest",
+          statementPreview: "select machine",
+          canRestore: false,
+          status: "success",
+          rowCount: 1,
+          durationMs: 12,
+          errorCode: "",
+          errorMessage: "",
+          createdAt: "2026-08-30T00:00:00Z",
+        },
+        {
+          id: 1003,
+          targetResourceId: 30,
           actor: { kind: "user", displayName: "Chen Hao" },
           engine: "mysql",
           statementDigest: "failed digest",
           statementPreview: "select failed",
+          canRestore: false,
           status: "failed",
           rowCount: 0,
           durationMs: 12,
@@ -432,12 +452,13 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           createdAt: "2026-08-30T00:00:00Z",
         },
         {
-          id: 1003,
+          id: 1004,
           targetResourceId: 30,
           actor: { displayName: "Legacy user" },
           engine: "mysql",
           statementDigest: "legacy digest",
           statementPreview: "select legacy",
+          canRestore: false,
           status: "success",
           rowCount: 1,
           durationMs: 12,
@@ -452,7 +473,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     renderReady();
 
     await user.click(screen.getByRole("tab", { name: /query history/i }));
-    for (const statement of ["select machine", "select failed", "select legacy"]) {
+    for (const statement of ["select other user", "select machine", "select failed", "select legacy"]) {
       await user.click(await screen.findByRole("button", { name: statement }));
       expect(screen.queryByRole("button", { name: /open in new worksheet/i })).toBeNull();
       await user.click(within(screen.getByRole("dialog", { name: /execution details/i })).getAllByRole("button", { name: /^close$/i })[0]!);

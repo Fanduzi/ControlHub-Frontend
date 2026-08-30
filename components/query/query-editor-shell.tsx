@@ -1,5 +1,5 @@
 // input: query components, workspace/execution services, query transport types, shared libraries, UI dependencies
-// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation, owner-statement restore, and execution/history/schema/result UI
+// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation, server-authorized statement restore, and execution/history/schema/result UI
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -938,7 +938,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   async function restoreHistoryStatement(record: QueryExecutionRecord) {
-    if (record.status !== "success" || record.actor?.kind !== "user" || isRestoringHistoryStatement) return;
+    if (!record.canRestore || isRestoringHistoryStatement) return;
     const sourceWorksheet = activeWorksheet;
     if (worksheets.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);

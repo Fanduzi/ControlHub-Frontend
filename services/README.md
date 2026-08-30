@@ -13,7 +13,7 @@ Frontend API service modules.
 | `resources.ts` | Inventory list/detail and mutation requests |
 | `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
 | `machine-principals.ts` | Admin machine-principal list, issue, rotate, and revoke calls |
-| `query-executions.ts` | Governed execution/history calls and owner-only full-statement retrieval |
+| `query-executions.ts` | Governed execution/history calls, fail-closed server restore eligibility parsing, and owner-only full-statement retrieval |
 | `query-workspace.ts` | Owner workspace aggregate GET/PUT with optimistic-concurrency version |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the

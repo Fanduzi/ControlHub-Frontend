@@ -1,5 +1,5 @@
 // input: Vitest, mocked API client, query execution service
-// output: service contract tests for governed execution, history, and statement recovery
+// output: service contract tests for governed execution, fail-closed history restore eligibility, and statement recovery
 // pos: service-level regression tests for query target transport operations
 // note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +61,7 @@ function buildExecutionListResponse() {
         engine: "mysql",
         statementDigest: "select 1 as value",
         statementPreview: "select 1 as value",
+        canRestore: true,
         status: "success" as const,
         rowCount: 1,
         durationMs: 18,
@@ -69,6 +70,7 @@ function buildExecutionListResponse() {
         createdAt: "2026-06-22T08:30:00Z",
       },
     ],
+    nextCursor: null,
     pageInfo: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
   };
 }
@@ -314,6 +316,30 @@ describe("listQueryExecutions", () => {
     mockApiClient.mockResolvedValueOnce(response);
 
     await expect(listQueryExecutions(22)).resolves.toEqual(response);
+  });
+
+  it("trusts only the server restore flag and fails legacy rows closed", async () => {
+    const ownSuccess = buildExecutionListResponse().items[0]!;
+    mockApiClient.mockResolvedValueOnce({
+      items: [
+        ownSuccess,
+        { ...ownSuccess, id: 1002, actor: { kind: "user", displayName: "Other user" }, canRestore: false },
+        { ...ownSuccess, id: 1003, actor: { kind: "machine", displayName: "CI bot" }, canRestore: false },
+        { ...ownSuccess, id: 1004, status: "failed", canRestore: false },
+        { ...ownSuccess, id: 1005, statementPreview: "select legacy", canRestore: undefined },
+      ],
+      nextCursor: null,
+    });
+
+    const response = await listQueryExecutions(22);
+
+    expect(response.items.map((item) => item.canRestore)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 });
 
