@@ -1,5 +1,5 @@
 // input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
-// output: Vitest tests for console topbar environment URL switching and server-confirmed fail-closed sign-out
+// output: Vitest tests for explicit environment/all URL switching and server-confirmed fail-closed sign-out
 // pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -192,6 +192,38 @@ describe("Topbar", () => {
 
     expect(screen.getByRole("combobox")).toHaveTextContent("Unknown");
     expect(setEnvironmentId).not.toHaveBeenCalled();
+  });
+
+  it("treats the explicit all-environments URL as All and clears stale provider scope", async () => {
+    currentEnvironmentId = 10000001;
+    searchParams.set("environment", "all");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/overview" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveTextContent("All");
+    await waitFor(() => expect(setEnvironmentId).toHaveBeenCalledWith(null));
+  });
+
+  it("keeps All explicit in the URL so server pages cannot reuse stale scope", async () => {
+    const user = userEvent.setup();
+    currentEnvironmentId = 10000001;
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/overview" />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "All" }));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/overview?page=1&q=orders&environment=all",
+    );
   });
 
   it("ignores malformed numeric environmentId values from the URL", () => {

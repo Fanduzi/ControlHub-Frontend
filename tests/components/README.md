@@ -45,13 +45,13 @@ Vitest component tests for React UI components.
 | database-supporting-details.test.tsx | Database supporting details |
 | database-operator-workbench.test.tsx | Database operator workbench |
 | cluster-members-table.test.tsx | Cluster members table, including the localized empty state |
-| overview-content.test.tsx | Overview content, including exact actionable attention membership and accessible in-page expansion |
+| overview-content.test.tsx | Overview content, including exact actionable attention membership, accessible expansion, and localized fallback reasons |
 | activity-timeline.test.tsx | Activity timeline |
 | audit-table.test.tsx | Audit table, including acknowledgment-guarded debounced search, popstate generation invalidation, complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar, including canonical environment-scoped Topology navigation |
 | machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |
-| topbar.test.tsx | App topbar, including scoped Query/audit/disclosure/Topology selection and fail-closed sign-out |
+| topbar.test.tsx | App topbar, including explicit environment/All URL selection, scoped Query/audit/disclosure/Topology state, and fail-closed sign-out |
 | topbar-operator-identity.test.tsx | Topbar identity/role rendering and stale-identity clearing from the BFF session response |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |

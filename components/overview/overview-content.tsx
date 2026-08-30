@@ -1,5 +1,5 @@
 // input: environment-scoped resource view models and localized UI messages
-// output: posture metrics and an expandable attention queue
+// output: posture metrics and an expandable attention queue with readable localized reason fallbacks
 // pos: client-rendered Overview content; queue membership uses isActionableAttention
 // note: if this file changes, update this header and components/overview/README.md.
 "use client";
@@ -12,6 +12,7 @@ import { DetailPanel } from "@/components/blocks/detail-panel";
 import { StatusBadge } from "@/components/blocks/status-badge";
 import { formatLabel } from "@/lib/format";
 import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
+import { buildStatusReasonKey } from "@/lib/diagnostic-copy";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -113,16 +114,23 @@ function buildAttentionReason(
 
   const reasons: string[] = [];
 
+  function localizeStatusReason(field: "healthStatus" | "lifecycleStatus", value: string) {
+    const { fallbackKey, fieldKey, valueKey } = buildStatusReasonKey(field, value);
+    if (t.has(fallbackKey)) return t(fallbackKey);
+    return t("diagnostics.reasonFallback", {
+      field: t(fieldKey),
+      value: t.has(valueKey) ? t(valueKey) : formatLabel(value),
+    });
+  }
+
   if (resource.healthStatus === "critical" || resource.healthStatus === "warning") {
-    const fallbackKey = `diagnostics.reasons.healthStatus.${resource.healthStatus}`;
-    reasons.push(t.has(fallbackKey) ? t(fallbackKey) : fallbackKey);
+    reasons.push(localizeStatusReason("healthStatus", resource.healthStatus));
   }
   if (
     resource.lifecycleStatus !== "running" &&
     resource.lifecycleStatus !== "unknown"
   ) {
-    const fallbackKey = `diagnostics.reasons.lifecycleStatus.${resource.lifecycleStatus}`;
-    reasons.push(t.has(fallbackKey) ? t(fallbackKey) : fallbackKey);
+    reasons.push(localizeStatusReason("lifecycleStatus", resource.lifecycleStatus));
   }
   return reasons.join("，") || t("statusValues.unknown");
 }

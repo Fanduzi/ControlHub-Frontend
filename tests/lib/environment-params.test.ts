@@ -1,5 +1,5 @@
 // input: vitest, environment params resolver, mocked settings service
-// output: resolver tests including audit scopes and fail-closed unknown environment slugs
+// output: resolver tests including explicit all, audit scopes, and fail-closed unknown environment slugs
 // pos: shared environment URL-scope unit tests
 // note: if this file changes, update header and tests/lib/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +48,17 @@ describe("resolveEnvironmentSlugToId", () => {
     const result = await resolveEnvironmentSlugToId(params);
 
     expect(result).toBeNull();
+  });
+
+  it("treats the all sentinel as an explicit unscoped request", async () => {
+    const params: ResourceListParams = {
+      environmentSlug: "all",
+      environmentId: 2,
+      page: 3,
+    };
+
+    await expect(resolveEnvironmentSlugToId(params)).resolves.toEqual({ page: 3 });
+    expect(listEnvironmentsMock).not.toHaveBeenCalled();
   });
 
   it("skips resolution when environmentSlug is absent", async () => {

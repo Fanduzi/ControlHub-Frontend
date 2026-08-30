@@ -1,5 +1,5 @@
 // input: server-rendered page props and mocked environment/settings/view-model loaders
-// output: URL-owned pagination/search, scoped-list, bulk-mutation dictionaries, taxonomy, and audit environment server-data-flow assertions
+// output: URL/cookie-owned pagination, scoped-list, bulk-mutation dictionaries, taxonomy, and audit environment data-flow assertions
 // pos: regression coverage for server list-page composition
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
@@ -22,6 +22,9 @@ const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
 const databaseTableMock = vi.fn();
 const auditTableMock = vi.fn();
+const cookiesMock = vi.fn();
+
+vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 
 vi.mock("next-intl/server", () => ({
   getTranslations: getTranslationsMock,
@@ -183,6 +186,7 @@ describe("list pages pagination contracts", () => {
     resourceTableMock.mockClear();
     databaseTableMock.mockClear();
     auditTableMock.mockClear();
+    cookiesMock.mockResolvedValue({ get: vi.fn().mockReturnValue(undefined) });
   });
 
   it("normalizes resources page search params and ignores legacy type", async () => {
@@ -354,6 +358,21 @@ describe("list pages pagination contracts", () => {
       targetResourceId: 2,
       eventType: "resource.updated",
       result: "success",
+    });
+  });
+
+  it("uses the persisted environment when audits has no URL environment", async () => {
+    const cookieStore = { get: vi.fn().mockReturnValue({ value: "42" }) };
+    cookiesMock.mockResolvedValueOnce(cookieStore);
+    const { default: AuditsPage } = await import("@/app/(console)/audits/page");
+
+    await AuditsPage({ searchParams: Promise.resolve({}) });
+
+    expect(cookieStore.get).toHaveBeenCalledWith("controlhub.environmentId");
+    expect(listAuditEventViewModelsMock).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 10,
+      environmentId: 42,
     });
   });
 

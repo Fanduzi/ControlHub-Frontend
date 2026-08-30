@@ -998,6 +998,7 @@
     "fqdn": "FQDN"
   },
   "diagnostics": {
+    "reasonFallback": "{field}: {value}",
     "fields": {
       "healthStatus": "Health status",
       "lifecycleStatus": "Lifecycle status"

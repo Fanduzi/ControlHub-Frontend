@@ -1,5 +1,5 @@
 // input: resource, relation, profile, audit, lookup, settings, and database service responses
-// output: localized resource/detail/database/overview/audit view models with unambiguous parent clusters and empty members
+// output: localized resource/detail/database/overview/audit view models with server actor labels, empty audit placeholders, unambiguous parent clusters, and empty members
 // pos: server-side adapter between transport records and console presentation consumers
 // note: if this file changes, update this header and lib/README.md.
 import { formatLabel } from "@/lib/format";
@@ -57,14 +57,6 @@ function buildFallbackSummary(resource: Resource): string {
     parts.push(resource.lifecycleStatus);
   }
   return parts.length > 0 ? parts.join(" · ") : resource.displayName;
-}
-
-function fallbackLabel(id: number | null) {
-  if (id === null) {
-    return "Unknown";
-  }
-
-  return String(id);
 }
 
 function buildAuditSummary(event: AuditEvent) {
@@ -137,11 +129,11 @@ function toAuditEventViewModel(
 
   return {
     ...event,
-    actorLabel: fallbackLabel(event.actorUserId),
-    targetResourceName: target?.displayName ?? fallbackLabel(event.targetResourceId),
+    actorLabel: event.actor?.displayName || "—",
+    targetResourceName: target?.displayName ?? (event.targetResourceId === null ? "—" : String(event.targetResourceId)),
     environmentLabel: target
       ? (environmentMap.get(target.environmentId) ?? String(target.environmentId))
-      : "Unknown",
+      : "—",
     summary: buildAuditSummary(event),
   };
 }

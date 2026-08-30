@@ -1,5 +1,5 @@
 // input: Vitest, Next request cookies, and Overview route page
-// output: regression coverage for server-scoped Overview loading
+// output: regression coverage for cookie-scoped Overview loading and explicit all override
 // pos: app route seam test for the authenticated Overview page
 // note: if this file changes, update this header and tests/app/README.md.
 import { render } from "@testing-library/react";
@@ -45,5 +45,24 @@ describe("/overview page", () => {
 
     expect(cookieStore.get).toHaveBeenCalledWith("controlhub.environmentId");
     expect(listOverviewResourceViewModelsMock).toHaveBeenCalledWith({ environmentId: 42 });
+  });
+
+  it("lets an explicit all-environments URL override a stale environment cookie", async () => {
+    const cookieStore = { get: vi.fn().mockReturnValue({ value: "42" }) };
+    cookiesMock.mockResolvedValue(cookieStore);
+    getTranslationsMock.mockResolvedValue((key: string) => key);
+    listOverviewResourceViewModelsMock.mockResolvedValue({
+      resources: [],
+      attentionResources: [],
+    });
+    const pageWithSearchParams = OverviewPage as unknown as (props: {
+      searchParams: Promise<Record<string, string | string[] | undefined>>;
+    }) => ReturnType<typeof OverviewPage>;
+
+    render(await pageWithSearchParams({
+      searchParams: Promise.resolve({ environment: "all" }),
+    }));
+
+    expect(listOverviewResourceViewModelsMock).toHaveBeenCalledWith({});
   });
 });

@@ -1,13 +1,15 @@
-// input: Next search params, environment catalog, audit view models
-// output: admin audit page with fail-closed environment-scoped server results
+// input: Next search params/cookies, environment catalog, audit view models
+// output: admin audit page with URL-or-persisted, fail-closed environment-scoped server results
 // pos: authenticated console audit route
 // note: if this file changes, update this header and app/(console)/README.md
+import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
 import { AuditTable } from "@/components/audits/audit-table";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseAuditListSearchParams } from "@/lib/list-page-search-params";
+import { ENVIRONMENT_STORAGE_KEY, parseEnvironmentId } from "@/lib/preferences";
 import { listAuditEventViewModels } from "@/lib/view-models";
 
 export default async function AuditsPage({
@@ -17,7 +19,14 @@ export default async function AuditsPage({
 }) {
   const t = await getTranslations();
   const parsedParams = await parseAuditListSearchParams(searchParams);
-  const params = await resolveEnvironmentSlugToId(parsedParams);
+  const persistedEnvironmentId = parsedParams.environmentSlug
+    ? null
+    : parseEnvironmentId((await cookies()).get(ENVIRONMENT_STORAGE_KEY)?.value);
+  const params = await resolveEnvironmentSlugToId(
+    persistedEnvironmentId === null
+      ? parsedParams
+      : { ...parsedParams, environmentId: persistedEnvironmentId },
+  );
 
   if (!params) {
     return (

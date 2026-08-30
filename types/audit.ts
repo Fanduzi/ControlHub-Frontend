@@ -1,5 +1,5 @@
 // input: shared pagination contract and backend audit-event JSON
-// output: typed audit list requests (including q/environment scope), responses, and server-owned field changes
+// output: typed audit list requests (including q/environment scope), responses, privacy-safe actors, and server-owned field changes
 // pos: frontend transport contract for global and per-resource audit reads
 // note: if this file changes, update header and the owning module README.md
 
@@ -15,6 +15,10 @@ export type AuditChange = {
 export type AuditEvent = {
   id: number;
   actorUserId: number | null;
+  actor?: {
+    kind: "user" | "machine";
+    displayName: string;
+  } | null;
   targetResourceId: number | null;
   eventType: string;
   result: string;

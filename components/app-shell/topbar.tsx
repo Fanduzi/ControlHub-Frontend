@@ -1,5 +1,5 @@
 // input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar identity/role controls, canonical environment navigation, fail-closed admin UI/sign-out
+// output: console topbar identity/role controls, canonical explicit environment/all navigation, fail-closed admin UI/sign-out
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
 
@@ -122,26 +122,38 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
   const selectedEnvironmentFromUrl = environments.find(
     (environment) => environment.slug === urlEnvironmentSlug,
   )?.id;
+  const hasExplicitAllEnvironment = supportsEnvironment && urlEnvironmentSlug === "all";
   const hasUnknownEnvironmentSlug = Boolean(
     supportsEnvironment &&
       urlEnvironmentSlug &&
+      !hasExplicitAllEnvironment &&
       !selectedEnvironmentFromUrl &&
       !urlEnvironmentId,
   );
+  const hasExplicitEnvironmentSelection = Boolean(
+    hasExplicitAllEnvironment ||
+      selectedEnvironmentFromUrl !== undefined ||
+      urlEnvironmentId !== undefined,
+  );
   const selectedEnvironmentId = supportsEnvironment
-    ? (selectedEnvironmentFromUrl ?? urlEnvironmentId ?? (hasUnknownEnvironmentSlug ? null : currentEnvironmentId))
+    ? (hasExplicitAllEnvironment
+        ? null
+        : selectedEnvironmentFromUrl ?? urlEnvironmentId ?? (hasUnknownEnvironmentSlug ? null : currentEnvironmentId))
     : currentEnvironmentId;
 
   useEffect(() => {
     if (
       supportsEnvironment &&
-      selectedEnvironmentId &&
+      hasExplicitEnvironmentSelection &&
+      !hasUnknownEnvironmentSlug &&
       selectedEnvironmentId !== currentEnvironmentId
     ) {
       setEnvironmentId(selectedEnvironmentId);
     }
   }, [
     currentEnvironmentId,
+    hasExplicitEnvironmentSelection,
+    hasUnknownEnvironmentSlug,
     selectedEnvironmentId,
     setEnvironmentId,
     supportsEnvironment,
@@ -171,6 +183,8 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
 
     if (nextEnvironment?.slug) {
       params.set("environment", nextEnvironment.slug);
+    } else if (nextEnvironmentId === null) {
+      params.set("environment", "all");
     } else {
       params.delete("environment");
     }

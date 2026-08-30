@@ -12,7 +12,7 @@ Vitest unit tests for frontend library modules.
 - Downstream: none
 
 `environment-params.test.ts` covers known-slug resolution for inventory and
-audit list pages plus fail-closed unknown-slug behavior.
+audit list pages, the explicit All sentinel, and fail-closed unknown slugs.
 
 `format.test.ts` covers safe caller-locale relative timestamp labels and the
 24-hour/future date-time fallback.
@@ -31,6 +31,6 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-response.test.ts` | BFF `bffJson` synthesized bodies include a snake_case Controlled Error Code on `error` |
 | `auth-role.test.ts` | Presentation-only admin gate from the trusted BFF session; browser role tampering fails closed |
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
-| `view-models.test.ts` | Resource and Database Estate view-model composition, unambiguous relation-derived parents, scoped server search, and retained empty cluster members |
+| `view-models.test.ts` | Resource, Database Estate, and audit view-model composition, including actor labels, targetless placeholders, unambiguous parents, scoped search, and empty cluster members |
 | `database-read-model-consistency.test.ts` | Database member, parent, profile, and topology consistency outcomes |
 | `list-page-search-params.test.ts` | Resource/audit URL parsing, including bounded key/key:value labels plus safe pagination/search normalization and repeated environment/owner filters |

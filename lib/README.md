@@ -7,8 +7,8 @@ Shared frontend libraries.
 | File | Responsibility |
 |------|----------------|
 | `list-page-search-params.ts` | Normalizes paginated resource/audit URL state and safely parses positive decimal IDs |
-| `environment-params.ts` | Resolves environment slugs to IDs |
-| `view-models.ts` | Maps backend transport records to console view models; database-cluster detail models retain `members: []` for empty panels |
+| `environment-params.ts` | Resolves environment slugs to IDs and the explicit `all` sentinel to unscoped params |
+| `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
 | `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata |
 
@@ -24,7 +24,8 @@ the localized one-time-secret, expiry, and explicit-rotation copy for that
 admin UI.
 
 `environment-params.ts` resolves environment slugs for console list pages;
-unknown slugs fail closed so those pages render an empty scoped result.
+unknown slugs fail closed so those pages render an empty scoped result, while
+the reserved `all` slug explicitly removes environment scope.
 
 `list-page-search-params.ts` normalizes page, filter, and audit search values
 from shareable list URLs. Resource labels retain valid unknown `key` or

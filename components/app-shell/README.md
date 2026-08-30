@@ -21,5 +21,8 @@ changing the active results.
 
 The environment selector writes readable `environment` slugs for Query Workbench
 and query disclosure policies while preserving their URL-owned filters.
+Selecting All writes the explicit `environment=all` sentinel, so server routes
+cannot accidentally reuse an older persisted environment; the topbar also
+renders that sentinel as All instead of Unknown.
 For `/topology`, it preserves topology controls but clears the selected root
 and pagination when the environment changes, keeping the route's scope valid.

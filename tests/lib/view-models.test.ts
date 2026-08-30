@@ -1,5 +1,5 @@
 // input: Vitest, mocked resource/settings services, and view-model contracts
-// output: resource and database view-model composition, parent-cluster resolution, and scoped paginated-list regression coverage
+// output: resource/database/audit view-model composition, actor/placeholders, parent resolution, and scoped-list coverage
 // pos: library contract coverage for frontend view-model adapters
 // note: if this file changes, update this header and tests/lib/README.md
 import {
@@ -622,5 +622,40 @@ describe("getResourceViewModel", () => {
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].targetResourceName).toBe("Orders DB Primary");
+  });
+
+  it("labels resource-less login audits with the actor identity and empty placeholders", async () => {
+    mockedListAuditEvents.mockResolvedValue({
+      items: [
+        {
+          id: 2,
+          actorUserId: 1,
+          actor: {
+            kind: "user",
+            displayName: "ControlHub Admin",
+          },
+          targetResourceId: null,
+          eventType: "auth.login",
+          result: "success",
+          createdAt: "2026-04-14T00:00:00Z",
+        },
+      ],
+      pageInfo: {
+        page: 1,
+        pageSize: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    const result = await listAuditEventViewModels({ page: 1, pageSize: 10 });
+
+    expect(result.items[0]).toMatchObject({
+      actorLabel: "ControlHub Admin",
+      targetResourceName: "—",
+      environmentLabel: "—",
+    });
   });
 });

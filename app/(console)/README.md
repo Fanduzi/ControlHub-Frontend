@@ -14,12 +14,16 @@ Resources and databases pages fail closed to an empty result when their
 environment slug is unknown; they do not issue an unscoped inventory request.
 Audits use the same canonical `environment` slug and fail closed to an empty
 table, resolving known slugs to the backend's numeric `environmentId` filter.
+When the audit URL omits environment scope, the server uses the environment
+preference cookie shown by the topbar. The explicit `environment=all` sentinel
+overrides persisted scope and requests the unfiltered result.
 Database URL search and pagination are server-owned, so deep links and
 navigation request the current scoped result rather than filtering a capped
 client-side slice.
 The overview reads the selected environment preference from its cookie during
-server rendering, then loads the scoped complete list once and derives its
-attention data before client metrics render.
+server rendering, while an explicit URL scope takes precedence. In particular,
+`environment=all` clears stale scope before it loads the complete list and
+derives attention data for client metrics.
 
 Query Workbench and query disclosure policies use the same URL environment
 scope, including their target lookups and searches.

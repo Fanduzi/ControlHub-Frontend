@@ -1,5 +1,5 @@
 // input: localized messages and resource view-model fixtures
-// output: regression coverage for the Overview attention queue UI seam
+// output: regression coverage for the Overview attention queue, expansion, and readable localized reasons
 // pos: component test for exact actionable membership, expansion, and labels
 // note: if this file changes, update this header and tests/components/README.md.
 import { describe, expect, it, vi } from "vitest";
@@ -307,5 +307,16 @@ describe("OverviewContent attention reason", () => {
     expect(screen.getByText("Pending").nextElementSibling?.textContent).toBe(
       String(attentionRows.length),
     );
+  });
+
+  it("uses readable localized fallback copy for provisioning lifecycle attention", () => {
+    const resource = makeResource({ lifecycleStatus: "provisioning" });
+
+    renderZh(
+      <OverviewContent resources={[resource]} attentionResources={[resource]} />,
+    );
+
+    expect(screen.getByText("生命周期状态：创建中")).toBeInTheDocument();
+    expect(screen.queryByText(/diagnostics\.reasons\.lifecycleStatus/)).not.toBeInTheDocument();
   });
 });
