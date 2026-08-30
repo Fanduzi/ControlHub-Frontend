@@ -1,5 +1,5 @@
-// input: localized audit view models, stable event-type presets, URL-owned filters/search, shared debounce and table primitives
-// output: navigation-reconciled debounced audit search and field-level before/after evidence
+// input: localized audit view models, browser navigation, URL-owned filters/search, shared debounce and table primitives
+// output: acknowledgment-guarded audit search navigation and field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
 
@@ -90,14 +90,27 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const selectedResults = readMultiSelectValues(searchParams, "result");
   const urlSearch = searchParams.get("q") ?? "";
   const [search, setSearch] = useState(urlSearch);
-  const hasPendingSearch = useRef(false);
+  const expectedSearch = useRef<string | null>(null);
+  const searchGeneration = useRef(0);
 
   useEffect(() => {
-    if (!hasPendingSearch.current) setSearch(urlSearch);
+    if (expectedSearch.current !== null && urlSearch !== expectedSearch.current) return;
+    expectedSearch.current = null;
+    setSearch(urlSearch);
   }, [urlSearch]);
 
-  const syncSearchToUrl = useDebounceCallback((value: string) => {
-    hasPendingSearch.current = false;
+  useEffect(() => {
+    const acceptBrowserNavigation = () => {
+      searchGeneration.current += 1;
+      expectedSearch.current = null;
+      setSearch(new URLSearchParams(window.location.search).get("q") ?? "");
+    };
+    window.addEventListener("popstate", acceptBrowserNavigation);
+    return () => window.removeEventListener("popstate", acceptBrowserNavigation);
+  }, []);
+
+  const syncSearchToUrl = useDebounceCallback((value: string, generation: number) => {
+    if (generation !== searchGeneration.current) return;
     const params = new URLSearchParams(searchParams.toString());
     if (value.trim()) {
       params.set("q", value);
@@ -246,9 +259,11 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
             value={search}
             onChange={(event) => {
               const value = event.target.value;
-              hasPendingSearch.current = true;
+              const generation = searchGeneration.current + 1;
+              searchGeneration.current = generation;
+              expectedSearch.current = value.trim() ? value : "";
               setSearch(value);
-              syncSearchToUrl(value);
+              syncSearchToUrl(value, generation);
             }}
             placeholder={t("tables.audits.searchPlaceholder")}
             className="h-9 w-[240px] border-border bg-background py-2"

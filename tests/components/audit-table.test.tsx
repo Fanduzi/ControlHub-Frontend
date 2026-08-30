@@ -1,5 +1,5 @@
 // input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: navigation-reconciled debounced audit search/filtering, stable presets, localized timestamps, and field-diff assertions
+// output: acknowledgment/popstate-guarded audit search, stable filters, localized timestamps, and field-diff assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
@@ -78,6 +78,7 @@ describe("AuditTable", () => {
   beforeEach(() => {
     replace.mockClear();
     currentSearchParams = new URLSearchParams("page=4&pageSize=25");
+    window.history.replaceState({}, "", "/audits?page=4&pageSize=25");
   });
 
   it("shows known audit filter options even when the current page omits them", async () => {
@@ -152,8 +153,33 @@ describe("AuditTable", () => {
       "/audits?page=1&pageSize=25&eventType=resource.updated&result=success&q=Orders",
     );
 
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=Older");
+    rerenderTable();
+    expect(searchInput).toHaveValue("Orders");
+
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=Orders");
+    rerenderTable();
     currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=External");
     rerenderTable();
+    expect(searchInput).toHaveValue("External");
+  });
+
+  it("accepts popstate during a pending edit without allowing the old timer to navigate", () => {
+    vi.useFakeTimers();
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=Admin");
+    window.history.replaceState({}, "", "/audits?page=1&pageSize=25&q=Admin");
+    const { rerenderTable } = renderTable();
+    const searchInput = screen.getByRole("textbox");
+
+    fireEvent.change(searchInput, { target: { value: "Orders" } });
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=External");
+    window.history.pushState({}, "", "/audits?page=1&pageSize=25&q=External");
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+    rerenderTable();
+
+    expect(searchInput).toHaveValue("External");
+    act(() => vi.advanceTimersByTime(300));
+    expect(replace).not.toHaveBeenCalled();
     expect(searchInput).toHaveValue("External");
   });
 

@@ -6,8 +6,10 @@ Operator-facing audit evidence components.
 server-owned `q` search URL, and `changes` list. Search navigation uses the
 shared 300ms debounce, sends only the settled draft to the server, and remains
 intact across pagination and filters. Browser navigation reconciles the input
-from `q`, while a pending local draft ignores older URL responses. Each change
-shows its domain field, add/update/remove operation, and before/after values. Events without
+from `q`, while a local draft waits for its exact URL acknowledgment and ignores
+older responses. Popstate invalidates pending search generations so browser
+Back/Forward cannot be undone by an old timer. Each change shows its domain
+field, add/update/remove operation, and before/after values. Events without
 field changes keep the legacy summary row and render an em dash in the change
 column.
 
