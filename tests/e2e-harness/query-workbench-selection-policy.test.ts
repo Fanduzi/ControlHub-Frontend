@@ -1,3 +1,7 @@
+// input: node:fs/path, vitest, e2e/query-workbench.spec.ts source
+// output: static regression checks for safe query-workbench target-selection policy
+// pos: fast E2E governance seam preventing forced or duplicate connection selection
+// note: if this file changes, update this header and tests/README.md.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -38,6 +42,15 @@ describe("query-workbench connection selection policy", () => {
     expect(selectBody).toMatch(/scrollIntoViewIfNeeded\s*\(/);
     expect(selectBody).toMatch(/\.click\s*\(\s*\)/);
     expect(selectBody).toMatch(/toBeHidden\(\s*\{\s*timeout:\s*5_000\s*\}\s*\)/);
+  });
+
+  it("P3-2: selecting the current target is a no-op before click to avoid duplicate workspace writers", () => {
+    const currentTargetCheck = selectBody.indexOf('getAttribute("aria-current")');
+    const targetClick = selectBody.indexOf("await target.click()");
+
+    expect(currentTargetCheck).toBeGreaterThan(-1);
+    expect(currentTargetCheck).toBeLessThan(targetClick);
+    expect(selectBody).toMatch(/if\s*\(isCurrent\)[\s\S]*return;/);
   });
 
   it("P3-1: waitForCommittedRunState keeps 5s deadline and 5 stable samples", () => {

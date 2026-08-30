@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: admin-workspace-isolated Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: admin-workspace-isolated Playwright E2E specs for the query workbench (idempotent target selection, shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -1173,6 +1173,12 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
   await expect(target).toBeVisible({ timeout: 5_000 });
   await target.scrollIntoViewIfNeeded();
   await expect(target).toBeEnabled({ timeout: 5_000 });
+  const isCurrent = (await target.getAttribute("aria-current")) === "true";
+  if (isCurrent) {
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden({ timeout: 5_000 });
+    return;
+  }
   await target.click();
   await expect(dialog).toBeHidden({ timeout: 5_000 });
 }
