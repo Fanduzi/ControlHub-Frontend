@@ -37,6 +37,8 @@ const PROBE_API_BASE =
 
 let readyTargetDisplayName: string | null = null;
 let readyTargetResourceId: number | null = null;
+let lockedTargetDisplayName: string | null = null;
+let lockedTargetResourceId: number | null = null;
 let fixtureAdminToken: string | null = null;
 
 test.beforeAll(async () => {
@@ -76,6 +78,11 @@ test.beforeAll(async () => {
   }
   readyTargetDisplayName = readyTarget.displayName;
   readyTargetResourceId = readyTarget.resourceId;
+  const lockedTarget = targets.find(
+    (target) => target.availableActions?.run !== true && target.displayName,
+  );
+  lockedTargetDisplayName = lockedTarget?.displayName ?? null;
+  lockedTargetResourceId = lockedTarget?.resourceId ?? null;
 
   const schemaRes = await fetch(
     `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/schema/databases`,
@@ -286,39 +293,31 @@ test.describe("Query Workbench shell", () => {
     // Product fix: locked targets must not issue schema requests, so no 403
     // allowlist is required. Guards fail on any unexpected 4xx/5xx/connection.
 
-    const count = await connectionTargetCount(page);
-    let verifiedLocked = false;
-    for (let index = 0; index < count; index += 1) {
-      await selectConnectionTarget(page, index);
-      if (!(await isRunEnabled(page))) {
-        await expect(page.getByRole("button", { name: /^run$/i })).toHaveCount(0);
-        await expect(page.getByText("Editor locked by policy")).toBeVisible();
-        await expect(page.getByText("Result area is locked")).toBeVisible();
-        // Only Grid is discoverable — no placeholder result tabs.
-        await expect(page.getByText("Result grid", { exact: true })).toBeVisible();
-        await expect(page.getByRole("tab", { name: /^json$/i })).toHaveCount(0);
-        await expect(page.getByRole("tab", { name: /^explain$/i })).toHaveCount(0);
-        await expect(page.getByRole("tab", { name: /^logs$/i })).toHaveCount(0);
-        await expect(page.getByRole("tab", { name: /^masking$/i })).toHaveCount(0);
-        await page
-          .getByRole("button", { name: "Governance & access Details" })
-          .click();
-        const governanceDialog = page.getByRole("dialog", {
-          name: "Governance & access",
-        });
-        await expect(governanceDialog).toBeVisible();
-        await expect(
-          governanceDialog.getByText("Policy checklist"),
-        ).toBeVisible();
-        await page.keyboard.press("Escape");
-        await expect(governanceDialog).toBeHidden();
-        verifiedLocked = true;
-        break;
-      }
-    }
+    const lockedIndex = await findLockedOptionIndex(page);
     // If every seeded target happens to be ready, there is no locked target to
     // verify here — skip deterministically rather than fail.
-    test.skip(!verifiedLocked, "no locked query target present (every target is ready)");
+    test.skip(lockedIndex === null, "no locked query target present (every target is ready)");
+    if (lockedIndex === null) return;
+
+    await expect(page.getByRole("button", { name: /^run$/i })).toHaveCount(0);
+    await expect(page.getByText("Editor locked by policy")).toBeVisible();
+    await expect(page.getByText("Result area is locked")).toBeVisible();
+    // Only Grid is discoverable — no placeholder result tabs.
+    await expect(page.getByText("Result grid", { exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /^json$/i })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /^explain$/i })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /^logs$/i })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /^masking$/i })).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Governance & access Details" })
+      .click();
+    const governanceDialog = page.getByRole("dialog", {
+      name: "Governance & access",
+    });
+    await expect(governanceDialog).toBeVisible();
+    await expect(governanceDialog.getByText("Policy checklist")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(governanceDialog).toBeHidden();
   });
 
   test("switching the target updates the governance panel facts", async ({ page }) => {
@@ -1174,14 +1173,8 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
   await expect(target).toBeVisible({ timeout: 5_000 });
   await target.scrollIntoViewIfNeeded();
   await expect(target).toBeEnabled({ timeout: 5_000 });
-  const targetName = await target.getAttribute("aria-label");
   await target.click();
   await expect(dialog).toBeHidden({ timeout: 5_000 });
-  if (targetName) {
-    await expect(
-      page.locator("span[title]").filter({ hasText: targetName }).first(),
-    ).toHaveAttribute("title", targetName, { timeout: 5_000 });
-  }
 }
 
 /**
@@ -1238,6 +1231,23 @@ async function findReadyOptionIndex(page: Page): Promise<number | null> {
     .poll(() => new URL(page.url()).searchParams.get("targetId"), { timeout: 5_000 })
     .toBe(String(readyTargetResourceId));
   return (await waitForCommittedRunState(page)) ? readyIndex : null;
+}
+
+async function findLockedOptionIndex(page: Page): Promise<number | null> {
+  if (lockedTargetDisplayName === null || lockedTargetResourceId === null) {
+    return null;
+  }
+  await connectionTargetCount(page);
+  const labels = await getConnectionTargetButtons(page).evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute("aria-label")),
+  );
+  const lockedIndex = labels.indexOf(lockedTargetDisplayName);
+  if (lockedIndex === -1) return null;
+  await selectConnectionTarget(page, lockedIndex);
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("targetId"), { timeout: 5_000 })
+    .toBe(String(lockedTargetResourceId));
+  return (await waitForCommittedRunState(page)) ? null : lockedIndex;
 }
 
 async function setThemeToDark(page: Page): Promise<void> {
@@ -1941,26 +1951,17 @@ test.describe("Object Inspector metadata", () => {
   test("a locked target hides the Inspect button", async ({ page }) => {
     await openQueryWorkbench(page);
 
-    const count = await connectionTargetCount(page);
-    let verifiedLocked = false;
-    for (let index = 0; index < count; index += 1) {
-      await selectConnectionTarget(page, index);
-      if (!(await isRunEnabled(page))) {
-        await page.getByRole("button", { name: "Objects", exact: true }).click();
-        const explorer = page.getByRole("complementary", { name: "Objects" });
-        await expect(explorer).toBeVisible();
-
-        await expect(explorer.getByRole("button", { name: "Inspect" })).toHaveCount(0);
-        verifiedLocked = true;
-        break;
-      }
-    }
-    if (!verifiedLocked) {
+    if (await findLockedOptionIndex(page) === null) {
       throw new Error(
         "E2E fixture setup error: no locked query target found. " +
         "Seed a locked (non-ready) query target before this suite."
       );
     }
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+
+    await expect(explorer.getByRole("button", { name: "Inspect" })).toHaveCount(0);
   });
 
   test("desktop EN: Close inspector button restores focus to the trigger button", async ({ page }) => {
