@@ -1,9 +1,13 @@
 // input: API client, typed resource/environment topology parameters
-// output: validated resource and environment topology requests
+// output: validated resource and environment topology requests with abort forwarding
 // pos: topology backend transport boundary
 // note: if this file changes, update this header and services/README.md.
 import { ApiError, apiClient } from "@/services/api-client";
 import type { EnvironmentTopologyParams, TopologyParams, TopologyResponse } from "@/types/resource";
+
+type TopologyRequestOptions = {
+  signal?: AbortSignal;
+};
 
 function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
   const searchParams = new URLSearchParams();
@@ -47,9 +51,13 @@ export class TopologyNotAvailableError extends Error {
 export async function getResourceTopology(
   resourceId: number,
   params?: TopologyParams,
+  options?: TopologyRequestOptions,
 ): Promise<TopologyResponse | null> {
   try {
-    return await apiClient<TopologyResponse>(buildTopologyPath(resourceId, params));
+    const path = buildTopologyPath(resourceId, params);
+    return await (options?.signal
+      ? apiClient<TopologyResponse>(path, { signal: options.signal })
+      : apiClient<TopologyResponse>(path));
   } catch (error) {
     // 501 = endpoint not implemented → signal unavailable state
     if (error instanceof ApiError && error.status === 501) {
@@ -64,6 +72,10 @@ export async function getResourceTopology(
 export async function getEnvironmentTopology(
   environmentId: number,
   params?: EnvironmentTopologyParams,
+  options?: TopologyRequestOptions,
 ): Promise<TopologyResponse> {
-  return apiClient<TopologyResponse>(buildEnvironmentTopologyPath(environmentId, params));
+  const path = buildEnvironmentTopologyPath(environmentId, params);
+  return options?.signal
+    ? apiClient<TopologyResponse>(path, { signal: options.signal })
+    : apiClient<TopologyResponse>(path);
 }

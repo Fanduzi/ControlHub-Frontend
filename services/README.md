@@ -51,7 +51,8 @@ contract and never resends immutable scope.
 plaintext remains confined to create and rotate responses.
 
 `topology.ts` serializes an environment root only when it is a positive safe
-integer, so malformed client values cannot reach the backend query.
+integer, so malformed client values cannot reach the backend query; it accepts
+an abort signal so superseded topology reads cannot win a later UI state.
 
 ## Interfaces
 

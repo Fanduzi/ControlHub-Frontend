@@ -21,5 +21,5 @@ changing the active results.
 
 The environment selector writes readable `environment` slugs for Query Workbench
 and query disclosure policies while preserving their URL-owned filters.
-For `/topology`, it preserves topology controls and the selected root but omits
-pagination, keeping the route's environment URL canonical.
+For `/topology`, it preserves topology controls but clears the selected root
+and pagination when the environment changes, keeping the route's scope valid.

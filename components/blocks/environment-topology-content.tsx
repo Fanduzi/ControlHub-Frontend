@@ -1,5 +1,5 @@
-// input: resolved URL environment/root scope, environment provider fallback, topology panel, translations
-// output: fail-closed URL-authoritative topology workspace with a controlled empty state
+// input: explicit URL environment scope, environment provider fallback, topology panel, translations
+// output: fail-closed explicit URL scope with provider fallback and URL-owned topology controls
 // pos: dedicated topology route client content
 // note: if this file changes, update this header and components/blocks/README.md.
 "use client";
@@ -13,12 +13,10 @@ import { TopologyPanel } from "./topology-panel";
 
 type EnvironmentTopologyContentProps = {
   environmentId?: number | null;
-  rootResourceId?: number;
 };
 
 export function EnvironmentTopologyContent({
   environmentId,
-  rootResourceId,
 }: EnvironmentTopologyContentProps) {
   const t = useTranslations();
   const { currentEnvironmentId, loading } = useEnvironment();
@@ -40,8 +38,7 @@ export function EnvironmentTopologyContent({
   return (
     <TopologyPanel
       environmentId={selectedEnvironmentId}
-      initialRootResourceId={rootResourceId}
-      urlSync={hasUrlEnvironment}
+      urlSync
     />
   );
 }

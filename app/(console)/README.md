@@ -27,10 +27,11 @@ An explicit invalid or unavailable Query Workbench `targetId` fails closed to
 the unavailable-target state while retaining the navigator; omitting it keeps
 the default target selection.
 
-Topology is URL-authoritative: its server page resolves the canonical
-`environment` slug before passing the numeric backend scope and validated
-`rootId` to the workspace. Unknown environments stay empty rather than using a
-persisted scope; omitting or rejecting a root loads the scoped candidate graph.
+Topology resolves an explicit `environment` slug to the numeric backend scope;
+unknown or invalid explicit values stay empty rather than using a persisted
+scope. When the parameter is absent, the workspace retains the current
+EnvironmentProvider environment. Root and topology controls remain client URL
+state, so omitting or rejecting a root loads the scoped candidate graph.
 
 `settings/README.md` documents the Settings overview and direct administrator
 routes.

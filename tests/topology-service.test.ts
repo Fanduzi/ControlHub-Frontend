@@ -1,5 +1,5 @@
 // input: mocked API client and topology service requests
-// output: topology request-path and invalid-root serialization contracts
+// output: topology request-path, invalid-root serialization, and abort-forwarding contracts
 // pos: topology transport regression tests
 // note: if this file changes, update this header and tests/services/README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -165,6 +165,18 @@ describe("getEnvironmentTopology", () => {
 
     expect(mockApiClient).toHaveBeenCalledWith(
       "/environments/7/topology?depth=2",
+    );
+  });
+
+  it("forwards an abort signal for superseded topology requests", async () => {
+    const controller = new AbortController();
+    mockApiClient.mockResolvedValueOnce(minimalResponse({ depth: 2 }));
+
+    await getEnvironmentTopology(7, { depth: 2 }, { signal: controller.signal });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/environments/7/topology?depth=2",
+      { signal: controller.signal },
     );
   });
 });

@@ -26,4 +26,4 @@ by the confirmed resource-edit clear action.
 | `named-inventory-views.test.ts` | Saved inventory view paths, opaque state bodies, sharing metadata, and API error propagation                                                                                                                   |
 | `ingestion.test.ts` | Exact ingestion preview/confirm multipart file, format, fingerprint payloads, and typed fresh previews from recoverable 409s |
 | `machine-principals.test.ts` | Safe lifecycle-list endpoint and credential mutation request contracts |
-| `topology-service.test.ts` | Resource/environment topology paths, including validated environment root serialization |
+| `topology-service.test.ts` | Resource/environment topology paths, validated root serialization, and abort forwarding |

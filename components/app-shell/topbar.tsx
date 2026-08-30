@@ -177,6 +177,7 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
 
     if (pathname === "/topology") {
       params.delete("page");
+      params.delete("rootId");
     } else {
       params.set("page", "1");
     }

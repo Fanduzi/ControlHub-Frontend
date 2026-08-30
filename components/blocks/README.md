@@ -21,6 +21,6 @@
 
 `topology-panel.tsx` renders a topology whenever the response contains nodes or edges, preserving isolated entry/proxy nodes; topology group labels use localized roles only when no cluster name is available.
 
-`environment-topology-content.tsx` accepts the server-resolved environment and
-root scope for `/topology`; it does not fall back to the persisted environment
-when that URL scope is invalid.
+`environment-topology-content.tsx` accepts an explicit server-resolved
+environment for `/topology`; it falls back to the persisted environment only
+when the URL omits that parameter, never when it is invalid.

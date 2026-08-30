@@ -6,6 +6,8 @@ Topology graph presentation primitives.
 filters. Resource relation filters are URL-synchronized by `TopologyPanel`;
 environment topology synchronizes its root and depth controls too, preserving
 the canonical environment slug and other topology controls on root changes.
+It accepts the existing environment-control depth range of 1–4 and drops stale
+requests when URL state changes.
 
 ## Members
 

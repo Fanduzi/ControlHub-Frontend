@@ -1,5 +1,5 @@
 // input: topology services, URL state, localized messages, and graph data
-// output: resource and environment topology graph presentation
+// output: URL-synchronized resource/environment topology graph presentation with stale-request protection
 // pos: reusable topology graph panel for console resource views
 // note: if this file changes, update this header and module README.md.
 "use client";
@@ -39,7 +39,6 @@ type TopologyPanelProps = {
   className?: string;
   compact?: boolean;
   urlSync?: boolean;
-  initialRootResourceId?: number;
   initialTopology?: TopologyResponse | null;
 };
 
@@ -49,7 +48,6 @@ function TopologyPanelInner({
   className,
   compact = false,
   urlSync = false,
-  initialRootResourceId,
   initialTopology,
 }: TopologyPanelProps) {
   const t = useTranslations();
@@ -60,7 +58,10 @@ function TopologyPanelInner({
 
   // --- State: URL-synced or local ---
   const defaultDepth = isEnvironmentTopology ? 2 : 1;
-  const urlDepth = Number(urlParams.get("topologyDepth")) || defaultDepth;
+  const urlDepthCandidate = parsePositiveDecimalInteger(urlParams.get("topologyDepth") ?? undefined);
+  const urlDepth = urlDepthCandidate && urlDepthCandidate <= (isEnvironmentTopology ? 4 : 2)
+    ? urlDepthCandidate
+    : defaultDepth;
   const urlDirection =
     (urlParams.get("topologyDirection") ?? "both") as TopologyParams["direction"];
   const urlRelationType = urlParams.get("topologyRelationType");
@@ -79,8 +80,7 @@ function TopologyPanelInner({
   const direction = urlSync ? urlDirection : localDirection;
   const relationType = urlSync ? parsedUrlRelationType : localRelationType;
   const expanded = urlSync ? urlExpanded : localExpanded;
-  const [localRootResourceId, setLocalRootResourceId] = useState(initialRootResourceId);
-  const rootResourceId = urlSync ? urlRootResourceId : localRootResourceId;
+  const rootResourceId = urlRootResourceId;
 
   const [topology, setTopology] = useState<TopologyResponse | null>(initialTopology ?? null);
   const [loading, setLoading] = useState(!initialTopology);
@@ -92,6 +92,8 @@ function TopologyPanelInner({
   const loadedParamsRef = useRef<string | null>(
     initialTopology ? `:${defaultDepth}:both:` : null,
   );
+  const topologyRequestGeneration = useRef(0);
+  const topologyRequestController = useRef<AbortController | null>(null);
   const [selectedNodePopup, setSelectedNodePopup] = useState<{
     data: TopologyNodeData;
     position: { x: number; y: number };
@@ -163,17 +165,18 @@ function TopologyPanelInner({
 
   const setRootResourceId = useCallback(
     (value: number | undefined) => {
-      if (urlSync) {
-        updateUrlParams({ rootId: value ? String(value) : null });
-      } else {
-        setLocalRootResourceId(value);
-      }
+      updateUrlParams({ rootId: value ? String(value) : null });
     },
-    [updateUrlParams, urlSync],
+    [updateUrlParams],
   );
 
   const fetchTopology = useCallback(
     async (d: number, dir: TopologyParams["direction"], rel?: string) => {
+      const generation = topologyRequestGeneration.current + 1;
+      topologyRequestGeneration.current = generation;
+      topologyRequestController.current?.abort();
+      const controller = new AbortController();
+      topologyRequestController.current = controller;
       setLoading(true);
       setError(null);
       setUnavailable(false);
@@ -183,15 +186,17 @@ function TopologyPanelInner({
           ? await getEnvironmentTopology(environmentId, {
               ...(rootResourceId ? { rootResourceId } : {}),
               depth: d,
-            })
+            }, { signal: controller.signal })
           : await getResourceTopology(resourceId!, {
               depth: d as 1 | 2,
               ...(dir && dir !== "both" ? { direction: dir } : {}),
               ...(rel ? { relationType: rel } : {}),
-            });
+            }, { signal: controller.signal });
+        if (controller.signal.aborted || generation !== topologyRequestGeneration.current) return;
         setTopology(result);
         loadedParamsRef.current = `${rootResourceId ?? ""}:${d}:${dir ?? "both"}:${rel ?? ""}`;
       } catch (err) {
+        if (controller.signal.aborted || generation !== topologyRequestGeneration.current) return;
         if (err instanceof TopologyNotAvailableError) {
           setUnavailable(true);
           setTopology(null);
@@ -200,7 +205,9 @@ function TopologyPanelInner({
           setTopology(null);
         }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted && generation === topologyRequestGeneration.current) {
+          setLoading(false);
+        }
       }
     },
     [environmentId, isEnvironmentTopology, resourceId, rootResourceId, t],
@@ -213,6 +220,8 @@ function TopologyPanelInner({
     }
     fetchTopology(depth, direction, relationType);
   }, [depth, direction, fetchTopology, relationType, rootResourceId]);
+
+  useEffect(() => () => topologyRequestController.current?.abort(), []);
 
   const flowData = useMemo(() => {
     if (!topology) return null;
@@ -246,7 +255,6 @@ function TopologyPanelInner({
     (event, node) => {
       if (isEnvironmentTopology) {
         setRootResourceId(Number((node.data as TopologyNodeData).id));
-        return;
       }
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setSelectedNodePopup({

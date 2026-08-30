@@ -1,5 +1,5 @@
 // input: topology panel public interface, service mock, and localized messages
-// output: topology panel behavior regression coverage
+// output: topology panel URL, detail-navigation, and stale-request regression coverage
 // pos: topology graph panel contract tests
 // note: if this file changes, update this header and module README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -22,15 +22,20 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@xyflow/react", () => ({
-  ReactFlow: ({ nodeTypes, nodes }: {
+  ReactFlow: ({ nodeTypes, nodes, onNodeClick }: {
     nodeTypes: Record<string, React.ComponentType<Record<string, unknown>>>;
     nodes: { type?: string; data: Record<string, unknown> }[];
+    onNodeClick?: (event: React.MouseEvent<HTMLDivElement>, node: { type?: string; data: Record<string, unknown> }) => void;
   }) => {
     return (
       <div data-testid="react-flow-mock">
         {nodes?.map((node, i) => {
           const NodeComponent = nodeTypes?.[node.type ?? "topologyNode"];
-          return NodeComponent ? <NodeComponent key={i} data={node.data} /> : null;
+          return NodeComponent ? (
+            <div key={i} onClick={(event) => onNodeClick?.(event, node)}>
+              <NodeComponent data={node.data} />
+            </div>
+          ) : null;
         })}
       </div>
     );
@@ -166,7 +171,7 @@ describe("TopologyPanel", () => {
 
     renderWithProviders(<TopologyPanel resourceId={1} urlSync />);
 
-    await waitFor(() => expect(mockGetTopology).toHaveBeenCalledWith(1, { depth: 1 }));
+    await waitFor(() => expect(mockGetTopology).toHaveBeenCalledWith(1, { depth: 1 }, expect.anything()));
   });
 
   beforeEach(() => {
@@ -251,7 +256,7 @@ describe("TopologyPanel", () => {
 
     await waitFor(() => {
       expect(mockGetTopology).toHaveBeenCalledTimes(1);
-      expect(mockGetTopology).toHaveBeenCalledWith(1, expect.anything());
+      expect(mockGetTopology).toHaveBeenCalledWith(1, expect.anything(), expect.anything());
     });
   });
 
@@ -539,7 +544,7 @@ describe("TopologyPanel", () => {
       expect(mockGetTopology).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockGetTopology).toHaveBeenCalledWith(1, expect.objectContaining({ depth: 2 }));
+    expect(mockGetTopology).toHaveBeenCalledWith(1, expect.objectContaining({ depth: 2 }), expect.anything());
   });
 
   it("does not fetch when urlSync with default params matching initialTopology", async () => {
@@ -566,7 +571,7 @@ describe("TopologyPanel", () => {
     renderWithProviders(<TopologyPanel environmentId={7} />);
 
     await waitFor(() => {
-      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 });
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 }, expect.anything());
     });
 
     expect(screen.getByTestId("topology-root-select")).toHaveTextContent("Order MySQL Primary Prod");
@@ -589,7 +594,7 @@ describe("TopologyPanel", () => {
       expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, {
         rootResourceId: 42,
         depth: 3,
-      });
+      }, expect.anything());
     });
 
     await user.selectOptions(screen.getByTestId("topology-root-select"), "2");
@@ -615,8 +620,83 @@ describe("TopologyPanel", () => {
     renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
 
     await waitFor(() => {
-      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 });
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 }, expect.anything());
       expect(screen.getByTestId("topology-root-select")).toBeInTheDocument();
     });
+  });
+
+  it("keeps environment re-rooting while exposing the existing resource detail action", async () => {
+    const user = userEvent.setup();
+    pathname = "/topology";
+    searchParams = new URLSearchParams("environment=prod");
+    mockGetEnvironmentTopology.mockResolvedValue({
+      ...mockTopologyResponse,
+      depth: 2,
+      candidates: [mockTopologyResponse.nodes[1]],
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+
+    await user.click(await screen.findByTestId("topology-node-2"));
+
+    expect(push).toHaveBeenCalledWith("/topology?environment=prod&rootId=2");
+    await user.click(screen.getByRole("button", { name: "View Full Details" }));
+    expect(push).toHaveBeenLastCalledWith("/resources/2");
+  });
+
+  it.each(["Infinity", "5"])("uses the default depth instead of requesting invalid URL depth %s", async (rawDepth) => {
+    pathname = "/topology";
+    searchParams = new URLSearchParams(`environment=prod&topologyDepth=${rawDepth}`);
+    mockGetEnvironmentTopology.mockResolvedValue({
+      ...mockTopologyResponse,
+      depth: 2,
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+
+    await waitFor(() => {
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 }, expect.anything());
+    });
+  });
+
+  it("drops a stale topology response after the URL root changes", async () => {
+    pathname = "/topology";
+    searchParams = new URLSearchParams("environment=prod&rootId=1");
+    let resolveFirst!: (value: TopologyResponse) => void;
+    let resolveSecond!: (value: TopologyResponse) => void;
+    mockGetEnvironmentTopology
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+
+    const { rerender } = renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+    await waitFor(() => expect(mockGetEnvironmentTopology).toHaveBeenCalledTimes(1));
+
+    searchParams = new URLSearchParams("environment=prod&rootId=2");
+    rerender(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <TopologyPanel environmentId={7} urlSync />
+      </NextIntlClientProvider>,
+    );
+    await waitFor(() => expect(mockGetEnvironmentTopology).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveSecond({
+        ...mockTopologyResponse,
+        rootResourceId: 2,
+        nodes: [{ ...mockTopologyResponse.nodes[1], isRoot: true, displayName: "Fresh root" }],
+        edges: [],
+      });
+    });
+    expect(await screen.findByText("Fresh root")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst({
+        ...mockTopologyResponse,
+        nodes: [{ ...mockTopologyResponse.nodes[0], displayName: "Stale root" }],
+        edges: [],
+      });
+    });
+    expect(screen.queryByText("Stale root")).not.toBeInTheDocument();
+    expect(screen.getByText("Fresh root")).toBeInTheDocument();
   });
 });

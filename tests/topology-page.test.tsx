@@ -1,5 +1,5 @@
 // input: topology page URL props, environment resolver, and topology workspace mock
-// output: server-route contracts for canonical environment/root topology URLs and fail-closed scopes
+// output: server-route contracts for explicit environment scopes, provider fallback, and fail-closed scopes
 // pos: topology page composition regression tests
 // note: if this file changes, update this header and tests/README.md.
 import { render } from "@testing-library/react";
@@ -34,7 +34,7 @@ describe("TopologyPage", () => {
     getTranslationsMock.mockResolvedValue((key: string) => key);
   });
 
-  it("resolves a canonical deep link to the backend environment and root IDs", async () => {
+  it("resolves an explicit environment slug to its backend ID", async () => {
     resolveEnvironmentSlugToIdMock.mockResolvedValue({
       environmentSlug: "prod",
       environmentId: 7,
@@ -48,7 +48,19 @@ describe("TopologyPage", () => {
     expect(resolveEnvironmentSlugToIdMock).toHaveBeenCalledWith({ environmentSlug: "prod" });
     expect(topologyWorkspaceMock).toHaveBeenCalledWith({
       environmentId: 7,
-      rootResourceId: 42,
+    });
+  });
+
+  it("keeps the provider environment fallback when the environment parameter is absent", async () => {
+    const { default: TopologyPage } = await import("@/app/(console)/topology/page");
+
+    render(await TopologyPage({
+      searchParams: Promise.resolve({ rootId: "42" }),
+    }));
+
+    expect(resolveEnvironmentSlugToIdMock).not.toHaveBeenCalled();
+    expect(topologyWorkspaceMock).toHaveBeenCalledWith({
+      environmentId: undefined,
     });
   });
 
@@ -62,7 +74,6 @@ describe("TopologyPage", () => {
 
     expect(topologyWorkspaceMock).toHaveBeenCalledWith({
       environmentId: null,
-      rootResourceId: undefined,
     });
   });
 });

@@ -147,7 +147,7 @@ describe("Topbar", () => {
     );
   });
 
-  it("keeps topology controls while switching to a canonical environment slug", async () => {
+  it("clears the selected topology root while preserving topology controls on environment switch", async () => {
     const user = userEvent.setup();
     searchParams.set("rootId", "42");
     searchParams.set("topologyDepth", "3");
@@ -163,7 +163,7 @@ describe("Topbar", () => {
     await user.click(await screen.findByRole("option", { name: "Production" }));
 
     expect(replace).toHaveBeenCalledWith(
-      "/topology?q=orders&rootId=42&topologyDepth=3&topologyExpanded=1&environment=prod",
+      "/topology?q=orders&topologyDepth=3&topologyExpanded=1&environment=prod",
     );
   });
 

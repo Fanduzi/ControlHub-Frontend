@@ -6,7 +6,8 @@ List-page coverage verifies normalized pagination, server search, audit environm
 scope, settings taxonomy flow, and fail-closed behavior for unknown environment scopes.
 
 Topology tests cover graph rendering for isolated nodes, database cluster-group
-labels, canonical deep links, root selection/clearing, and fail-closed scopes.
+labels, explicit URL scopes, provider fallback, root selection/clearing, stale
+responses, and fail-closed scopes.
 
 ## Members
 
