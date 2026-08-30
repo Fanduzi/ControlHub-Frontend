@@ -1,4 +1,4 @@
-// input: none
+// input: backend OpenAPI controlled-error contract
 // output: CONTROLLED_ERROR_CODES const list and ControlledErrorCode union
 // pos: closed console union of OpenAPI ErrorResponse.error; not generated
 // note: if this file changes, update this header and module README.md.
@@ -10,6 +10,7 @@
  */
 export const CONTROLLED_ERROR_CODES = [
   "bulk_resource_mutation_conflict",
+  "collector_state_limit",
   "disclosure_policy_conflict",
   "disclosure_policy_not_found",
   "environment_not_found",

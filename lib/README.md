@@ -44,8 +44,8 @@ labels; relative labels use date-time formatting after 24 hours.
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
 This includes `bulk_resource_mutation_conflict` for reviewed bulk-label writes
-and ingestion conflict/stale-preview outcomes, so the console handles the
-backend contract without deriving errors from HTTP status.
+and ingestion conflict/stale-preview/collector-state-limit outcomes, so the
+console handles the backend contract without deriving errors from HTTP status.
 It also includes `query_workspace_conflict` and `query_execution_not_found`
 for server-authoritative workspace persistence and owner-only statement recovery.
 `profile-field-registry.ts` catalogs typed-profile fields for host, database
