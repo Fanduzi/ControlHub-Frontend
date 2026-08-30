@@ -16,9 +16,9 @@ success and the exact tracker state is independently verified.
 |------|-------|
 | Repository | `Fanduzi/ControlHub-Frontend` |
 | Integration base | `175add77e5a0323362ccaf04db65d84ef5c295c1` |
-| Product SHA | `0691978e455aa8ecd9691dd8e6c863d863303c37` |
-| Product CI | [33289935348, attempt 2](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33289935348/attempts/2) |
-| Required product CI jobs | `release-local` (`99200572218`) and `release-e2e` (`99200572298`) |
+| Product SHA | `818cd3186fb9cadba42f5297cec67cfade4d3003` |
+| Product CI | [33292295456](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33292295456) |
+| Required product CI jobs | `release-local` (`99205934184`) and `release-e2e` (`99205934128`) |
 | Integration worktree | `/Users/fan/JsProjects/ControlHub-wt-integration` — clean before this evidence record |
 
 The linked GitHub Actions records are the authoritative runtime evidence. Both
@@ -29,7 +29,7 @@ success before any issue in the scope is closed.
 
 The local product gates passed at the exact product SHA:
 
-- 123 test files and 1,857 tests
+- 123 test files and 1,860 tests
 - TypeScript compilation
 - ESLint with 0 errors and 6 pre-existing warnings
 - Controlled-error-code check covering 50 codes
@@ -42,6 +42,6 @@ The local product gates passed at the exact product SHA:
 ## Publication and preservation
 
 The product was pushed directly as a normal fast-forward update to
-`Fanduzi/ControlHub-Frontend` `main` over SSH; no force push was used. The
+`Fanduzi/ControlHub-Frontend` `main` over authenticated HTTPS; no force push was used. The
 dirty root worktree and its user WIP were preserved; no reset, clean, stash,
 rebase, or unrelated-file cleanup was performed.
