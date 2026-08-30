@@ -1,11 +1,11 @@
 // input: localized audit view models, stable event-type presets, URL-owned filters/search, shared debounce and table primitives
-// output: debounced server-searchable audit table with field-level before/after evidence
+// output: navigation-reconciled debounced audit search and field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -90,8 +90,14 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const selectedResults = readMultiSelectValues(searchParams, "result");
   const urlSearch = searchParams.get("q") ?? "";
   const [search, setSearch] = useState(urlSearch);
+  const hasPendingSearch = useRef(false);
+
+  useEffect(() => {
+    if (!hasPendingSearch.current) setSearch(urlSearch);
+  }, [urlSearch]);
 
   const syncSearchToUrl = useDebounceCallback((value: string) => {
+    hasPendingSearch.current = false;
     const params = new URLSearchParams(searchParams.toString());
     if (value.trim()) {
       params.set("q", value);
@@ -240,6 +246,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
             value={search}
             onChange={(event) => {
               const value = event.target.value;
+              hasPendingSearch.current = true;
               setSearch(value);
               syncSearchToUrl(value);
             }}

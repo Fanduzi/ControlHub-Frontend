@@ -1,5 +1,5 @@
 // input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: debounced URL-owned audit search/filtering, stable presets, localized timestamps, and field-diff rendering assertions
+// output: navigation-reconciled debounced audit search/filtering, stable presets, localized timestamps, and field-diff assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
@@ -49,7 +49,7 @@ function renderTable(locale = "en", localizedMessages: typeof messages = message
     },
   ];
 
-  return render(
+  const table = () => (
     <NextIntlClientProvider locale={locale} messages={localizedMessages}>
       <AuditTable
         events={events}
@@ -62,8 +62,14 @@ function renderTable(locale = "en", localizedMessages: typeof messages = message
           hasPreviousPage: true,
         }}
       />
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider>
   );
+  const rendered = render(table());
+
+  return {
+    ...rendered,
+    rerenderTable: () => rendered.rerender(table()),
+  };
 }
 
 describe("AuditTable", () => {
@@ -118,13 +124,13 @@ describe("AuditTable", () => {
     );
   });
 
-  it("debounces URL-owned search so rapid typing navigates only the final value", () => {
+  it("keeps a pending local draft through stale URL state and navigates only the final value", () => {
     vi.useFakeTimers();
     currentSearchParams = new URLSearchParams(
       "page=4&pageSize=25&eventType=resource.updated&result=success&q=Admin",
     );
 
-    renderTable();
+    const { rerenderTable } = renderTable();
 
     const searchInput = screen.getByRole("textbox");
     expect(searchInput).toHaveValue("Admin");
@@ -145,6 +151,22 @@ describe("AuditTable", () => {
     expect(replace).toHaveBeenCalledWith(
       "/audits?page=1&pageSize=25&eventType=resource.updated&result=success&q=Orders",
     );
+
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=External");
+    rerenderTable();
+    expect(searchInput).toHaveValue("External");
+  });
+
+  it("reconciles browser navigation changes from the URL into the search input", () => {
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=Admin");
+    const { rerenderTable } = renderTable();
+
+    expect(screen.getByRole("textbox")).toHaveValue("Admin");
+
+    currentSearchParams = new URLSearchParams("page=1&pageSize=25&q=Orders");
+    rerenderTable();
+
+    expect(screen.getByRole("textbox")).toHaveValue("Orders");
   });
 
   it("renders created timestamps using the active locale", () => {

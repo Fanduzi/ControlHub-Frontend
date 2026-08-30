@@ -47,7 +47,7 @@ Vitest component tests for React UI components.
 | cluster-members-table.test.tsx | Cluster members table, including the localized empty state |
 | overview-content.test.tsx | Overview content, including exact actionable attention membership and accessible in-page expansion |
 | activity-timeline.test.tsx | Activity timeline |
-| audit-table.test.tsx | Audit table, including debounced URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
+| audit-table.test.tsx | Audit table, including navigation-reconciled debounced server search, stale-URL draft protection, complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar, including canonical environment-scoped Topology navigation |
 | machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |
