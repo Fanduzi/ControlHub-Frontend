@@ -1383,6 +1383,9 @@
       "loadError": "Could not load your workspace.",
       "saveError": "Could not save your workspace.",
       "limitReached": "A workspace can contain at most 32 worksheets.",
+      "targetUnavailable": "The saved target for this worksheet is unavailable. Choose a new target before using execution or schema actions.",
+      "unavailableTargetLabel": "Unavailable target #{id}",
+      "retargetTo": "Change target to {target}",
       "retry": "Retry"
     },
     "actions": {

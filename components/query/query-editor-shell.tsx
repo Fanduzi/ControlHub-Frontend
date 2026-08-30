@@ -1,5 +1,5 @@
 // input: query components, workspace/execution services, query transport types, shared libraries, UI dependencies
-// output: query editor shell with workspace OCC persistence, owner-statement restore, tabbed editor, history, saved statements, and safe CSV export
+// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation, owner-statement restore, and execution/history/schema/result UI
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -395,6 +395,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [historyRestoreError, setHistoryRestoreError] = useState<string | null>(null);
   const [isRestoringHistoryStatement, setIsRestoringHistoryStatement] = useState(false);
   const savedWorkspaceSignatureRef = useRef<string | null>(null);
+  const workspaceSaveInFlightRef = useRef(false);
+  const queuedWorkspaceSaveRef = useRef<{
+    signature: string;
+    worksheets: readonly QueryWorkspaceWorksheet[];
+  } | null>(null);
   const localWorkspaceChangedRef = useRef(false);
   const activeTargetRef = useRef(activeTarget);
   activeTargetRef.current = activeTarget;
@@ -447,6 +452,42 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     void loadWorkspace();
   }, [loadWorkspace]);
 
+  const saveWorkspace = useCallback(function persistWorkspace(
+    version: number,
+    signature: string,
+    snapshot: readonly QueryWorkspaceWorksheet[],
+  ): void {
+    if (workspaceSaveInFlightRef.current) {
+      queuedWorkspaceSaveRef.current = { signature, worksheets: snapshot };
+      return;
+    }
+
+    workspaceSaveInFlightRef.current = true;
+    void putQueryWorkspace(version, snapshot).then(
+      (workspace) => {
+        savedWorkspaceSignatureRef.current = signature;
+        setWorkspaceVersion(workspace.version);
+        setWorkspaceProblem(null);
+
+        const queued = queuedWorkspaceSaveRef.current;
+        queuedWorkspaceSaveRef.current = null;
+        workspaceSaveInFlightRef.current = false;
+        if (queued && queued.signature !== signature) {
+          persistWorkspace(workspace.version, queued.signature, queued.worksheets);
+        }
+      },
+      (error: unknown) => {
+        queuedWorkspaceSaveRef.current = null;
+        workspaceSaveInFlightRef.current = false;
+        if (error instanceof QueryExecuteError && error.code === "query_workspace_conflict") {
+          setWorkspaceConflict(true);
+          return;
+        }
+        setWorkspaceProblem("save");
+      },
+    );
+  }, []);
+
   useEffect(() => {
     if (
       workspaceVersion === null ||
@@ -456,23 +497,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     ) return;
 
     const timer = window.setTimeout(() => {
-      void putQueryWorkspace(workspaceVersion, workspaceWorksheets).then(
-        (workspace) => {
-          savedWorkspaceSignatureRef.current = workspaceSignature;
-          setWorkspaceVersion(workspace.version);
-          setWorkspaceProblem(null);
-        },
-        (error: unknown) => {
-          if (error instanceof QueryExecuteError && error.code === "query_workspace_conflict") {
-            setWorkspaceConflict(true);
-            return;
-          }
-          setWorkspaceProblem("save");
-        },
-      );
+      saveWorkspace(workspaceVersion, workspaceSignature, workspaceWorksheets);
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [workspaceConflict, workspaceProblem, workspaceSignature, workspaceVersion, workspaceWorksheets]);
+  }, [saveWorkspace, workspaceConflict, workspaceProblem, workspaceSignature, workspaceVersion, workspaceWorksheets]);
 
   useEffect(() => {
     activeMaxRowsDraftValidityRef.current = {
@@ -489,9 +517,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   // Derive execution permissions from the worksheet's own target, not the
   // parent's activeTarget. This prevents a race where switching worksheets
   // briefly uses the wrong target's availableActions.
-  const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? activeTarget;
-  const actions = worksheetTarget.availableActions;
-  const canExecute = actions.run === true;
+  const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? null;
+  const actions = worksheetTarget?.availableActions;
+  const canExecute = actions?.run === true;
 
   function activeMaxRowsDraftIsValid(): boolean {
     const tracked = activeMaxRowsDraftValidityRef.current;
@@ -1004,6 +1032,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     if (request.targetId !== activeTarget.resourceId) {
       return;
     }
+    if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
 
     const quotedDb = `\`${request.database.replace(/`/g, "``")}\``;
     const quotedTable = `\`${request.table.replace(/`/g, "``")}\``;
@@ -1107,7 +1139,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     const generation = ++metadataGenerationRef.current;
     const controller = new AbortController();
 
-    if (!worksheetTarget.availableActions.run) {
+    if (!worksheetTarget?.availableActions.run) {
       dbListControllerRef.current?.abort();
       dbListControllerRef.current = null;
       setLoadedObjects([]);
@@ -1191,7 +1223,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     ensureDbListForTarget,
     applyDefaultToNullWorksheets,
     metadataRetryKey,
-    worksheetTarget.availableActions.run,
+    worksheetTarget?.availableActions.run,
   ]);
 
   function retryMetadata() {
@@ -1567,7 +1599,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     // SQL which must never reach the ordinary explain route.
     const statement = activeWorksheet.statement.trim();
     const canExplain =
-      actions.explain === true &&
+      actions?.explain === true &&
       !templateMode &&
       statement !== "";
     if (!canExplain || activeWorksheet.isExecuting || activeWorksheet.explain.status === "loading") {
@@ -1703,6 +1735,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       updateActiveWorksheet({ formatError: result.error });
     }
   }
+
+  const retargetWorksheet = retargetDialog
+    ? worksheets.find((worksheet) => worksheet.id === retargetDialog.worksheetId)
+    : undefined;
+  const retargetCurrentTarget = retargetWorksheet
+    ? targetsById.get(retargetWorksheet.targetResourceId)
+    : undefined;
 
   return (
     <section
@@ -1892,21 +1931,41 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         </div>
       </div>
 
-      <QueryGovernancePanel target={worksheetTarget} />
-      <QueryObjectQuickNavigator
-        targetId={activeWorksheet.targetResourceId}
-        activeDatabase={activeWorksheet.activeDatabase}
-        onDatabaseSelect={(activeDatabase) => {
-          localWorkspaceChangedRef.current = true;
-          updateActiveWorksheet({ activeDatabase });
-        }}
-        onInsertObject={({ database, name }) => {
-          const view = editorViewRef.current;
-          if (!view) return;
-          const text = objectIdentifier({ database, name, activeDatabase: activeWorksheet.activeDatabase });
-          insertIdentifierAtSelection(view, text);
-        }}
-      />
+      {worksheetTarget ? (
+        <>
+          <QueryGovernancePanel target={worksheetTarget} />
+          <QueryObjectQuickNavigator
+            targetId={activeWorksheet.targetResourceId}
+            activeDatabase={activeWorksheet.activeDatabase}
+            onDatabaseSelect={(activeDatabase) => {
+              localWorkspaceChangedRef.current = true;
+              updateActiveWorksheet({ activeDatabase });
+            }}
+            onInsertObject={({ database, name }) => {
+              const view = editorViewRef.current;
+              if (!view) return;
+              const text = objectIdentifier({ database, name, activeDatabase: activeWorksheet.activeDatabase });
+              insertIdentifierAtSelection(view, text);
+            }}
+          />
+        </>
+      ) : (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <span>{t("workspace.targetUnavailable")}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setRetargetDialog({
+              open: true,
+              worksheetId: activeWorksheet.id,
+              newTargetId: activeTarget.resourceId,
+            })}
+          >
+            {t("workspace.retargetTo", { target: activeTarget.displayName })}
+          </Button>
+        </div>
+      )}
 
       {activeTab === "worksheet" ? (
         canExecute ? (
@@ -1947,7 +2006,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onRun={handleRun}
               explainEnabled={
                 !templateMode &&
-                actions.explain === true &&
+                actions?.explain === true &&
                 activeWorksheet.statement.trim() !== ""
               }
               explainState={activeWorksheet.explain}
@@ -1980,13 +2039,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onNextPage={handleNextPage}
               onPreviousPage={handlePreviousPage}
               onPageSizeChange={handlePageSizeChange}
-              exportEnabled={actions.export === true}
+              exportEnabled={actions?.export === true}
             />
           </div>
         ) : (
           <div id="section-panel-worksheet" role="tabpanel" aria-labelledby="section-tab-worksheet" className="flex flex-col">
             <LockedActionBar
-              blockerLabelKey={actions.run ? "actions.explain" : "actionState.locked"}
+              blockerLabelKey={actions?.run ? "actions.explain" : "actionState.locked"}
             />
 
             <div className="relative border-b border-border bg-muted/20 p-4">
@@ -2041,7 +2100,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             restoreBlocked={worksheets.length >= MAX_WORKSHEETS}
           />
         </div>
-      ) : activeTab === "savedStatements" ? (
+      ) : activeTab === "savedStatements" && worksheetTarget ? (
         <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
           <QuerySavedStatements
             targetResourceId={activeWorksheet.targetResourceId}
@@ -2065,11 +2124,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               <div className="rounded-lg border border-border p-3">
                 <p className="font-medium">{t("retarget.currentTarget")}</p>
                 <p className="text-muted-foreground">
-                  {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.displayName}
+                  {retargetCurrentTarget?.displayName ?? t("workspace.unavailableTargetLabel", {
+                    id: String(retargetWorksheet?.targetResourceId ?? ""),
+                  })}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.environment} • {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.engine} • {targetsById.get(worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0)?.connectionContext.host}
-                </p>
+                {retargetCurrentTarget ? (
+                  <p className="text-xs text-muted-foreground">
+                    {retargetCurrentTarget.connectionContext.environment} • {retargetCurrentTarget.connectionContext.engine} • {retargetCurrentTarget.connectionContext.host}
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-lg border border-border p-3">
                 <p className="font-medium">{t("retarget.newTarget")}</p>

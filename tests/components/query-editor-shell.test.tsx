@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, mocked query/workspace services, localized messages
-// output: QueryEditorShell behavioral tests for worksheet lifecycle, OCC persistence, history restore, execution routing, and redaction
+// output: QueryEditorShell behavioral tests for unavailable-target locking, serialized OCC persistence, bounded worksheet creation, history restore, execution routing, and redaction
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -95,6 +95,87 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     expect(screen.queryByRole("tab", { name: "Server draft" })).toBeNull();
   });
 
+  it("locks a persisted worksheet whose target is unavailable until it is explicitly retargeted", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-production",
+        name: "Production draft",
+        targetResourceId: 99,
+        statement: "select * from production_orders",
+        activeDatabase: "orders",
+      }],
+    });
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse());
+    const user = userEvent.setup();
+    renderReady();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/saved target for this worksheet is unavailable/i);
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+    expect(mockGetSchemaDatabases).not.toHaveBeenCalledWith(99, expect.anything());
+
+    await user.click(screen.getByRole("button", { name: /change target to local mysql dev/i }));
+    expect(screen.getByText(/unavailable target #99/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^change target$/i }));
+    await user.click(await screen.findByRole("button", { name: /^run$/i }));
+
+    expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, expect.objectContaining({
+      statement: "select * from production_orders",
+    }));
+  });
+
+  it("serializes autosaves and sends the latest queued draft with the returned version", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      }],
+    });
+    const firstSave = Promise.withResolvers<Awaited<ReturnType<typeof putQueryWorkspace>>>();
+    mockPutQueryWorkspace
+      .mockReturnValueOnce(firstSave.promise)
+      .mockResolvedValueOnce({
+        version: 5,
+        updatedAt: "2026-08-30T00:02:00Z",
+        worksheets: [],
+      });
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Orders draft" });
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select first_draft");
+    await waitFor(() => expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1));
+
+    await user.clear(statement);
+    await user.type(statement, "select latest_draft");
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstSave.resolve({
+        version: 4,
+        updatedAt: "2026-08-30T00:01:00Z",
+        worksheets: [],
+      });
+    });
+
+    await waitFor(() => expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(2));
+    expect(mockPutQueryWorkspace.mock.calls[0]?.[0]).toBe(3);
+    expect(mockPutQueryWorkspace.mock.calls[1]?.[0]).toBe(4);
+    expect(mockPutQueryWorkspace.mock.calls[1]?.[1]).toEqual([
+      expect.objectContaining({ statement: "select latest_draft" }),
+    ]);
+  });
+
   it("refuses to add a thirty-third worksheet", async () => {
     mockGetQueryWorkspace.mockResolvedValueOnce({
       version: 3,
@@ -156,6 +237,53 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
     expect(screen.queryByRole("button", { name: /open in new worksheet/i })).toBeNull();
     expect(mockGetQueryExecutionStatement).not.toHaveBeenCalled();
+  });
+
+  it("refuses a preview event when the workspace already has thirty-two worksheets", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: Array.from({ length: 32 }, (_, index) => ({
+        id: `worksheet-${index + 1}`,
+        name: `Worksheet ${index + 1}`,
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      })),
+    });
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 30,
+      defaultDatabase: "orders",
+      items: [{ name: "orders", isDefault: true }],
+      pageInfo: pageInfoFor([]),
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 30,
+      database: "orders",
+      items: [{ name: "order_items", kind: "table", database: "orders" }],
+      pageInfo: pageInfoFor([]),
+    });
+    mockGetObjectDetails.mockResolvedValue({
+      targetResourceId: 30,
+      database: "orders",
+      name: "order_items",
+      kind: "table",
+      columns: [],
+      indexes: [],
+      foreignKeys: [],
+      truncated: { columns: false, indexes: false, foreignKeys: false },
+    });
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Worksheet 32" });
+    await user.click(screen.getByRole("button", { name: "Objects" }));
+    await user.click(await screen.findByRole("button", { name: "orders" }));
+    await user.click(await screen.findByRole("button", { name: "order_items" }));
+    await user.click(await screen.findByRole("button", { name: "Preview rows" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
+    expect(screen.queryByRole("tab", { name: "Preview: order_items" })).toBeNull();
   });
 
   it("keeps local drafts on a workspace conflict until the operator explicitly reloads", async () => {

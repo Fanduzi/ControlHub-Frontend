@@ -1383,6 +1383,9 @@
       "loadError": "无法加载你的工作表。",
       "saveError": "无法保存你的工作表。",
       "limitReached": "一个工作表空间最多只能包含 32 个工作表。",
+      "targetUnavailable": "此工作表保存的目标不可用。请先选择新目标，再使用执行或 Schema 操作。",
+      "unavailableTargetLabel": "不可用目标 #{id}",
+      "retargetTo": "将目标更改为 {target}",
       "retry": "重试"
     },
     "actions": {

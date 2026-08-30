@@ -17,7 +17,7 @@ Vitest component tests for React UI components.
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates |
 | query-workbench.test.tsx | QueryWorkbench — unavailable-target recovery, scoped search/fallback/retry, engine filtering, and formula-safe CSV export |
-| query-editor-shell.test.tsx | QueryEditorShell — tabs, template mode, lifecycle, workspace OCC/hydration, execution routing, history restore, and blocked-result redaction |
+| query-editor-shell.test.tsx | QueryEditorShell — tabs, template mode, lifecycle, serialized workspace OCC/hydration, unavailable-target locking, worksheet limits, execution routing, history restore, and blocked-result redaction |
 | query-connection-navigator.test.tsx | Connection navigator |
 | query-credential-settings.test.tsx | Query credential settings |
 | query-disclosure-settings.test.tsx | Query disclosure settings |
