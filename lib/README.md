@@ -32,7 +32,8 @@ parser for URL IDs.
 
 `query-result-csv.ts` emits the current visible result page only. Raw values
 need both `raw_copy_allowed` and `copyAllowed`; masked and malformed disclosure
-metadata become stable placeholders.
+metadata become stable placeholders, and values/headers beginning with a
+spreadsheet formula prefix are emitted as literal text.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

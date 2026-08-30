@@ -6,8 +6,8 @@ React client components for the query workbench feature.
 
 | File | Purpose |
 |------|---------|
-| query-workbench.tsx | Top-level workbench with scoped search, fallback/retry, engine discovery, navigation, unavailable-target recovery, and editor shell |
-| query-editor-shell.tsx | Tabbed editor shell with disclosure-safe current-page CSV export |
+| query-workbench.tsx | Scoped search, fallback/retry, engine discovery, navigation, unavailable-target recovery, and editor shell |
+| query-editor-shell.tsx | Tabbed editor shell with server-authorized, disclosure/formula-safe current-page CSV export |
 | query-saved-statements.tsx | Saved statement terminal list generations with CRUD, shared-template affordance gate, and a terminal delete state machine (pending blocks dismissal/duplicate submit; retryable codes retry; forbidden is non-retryable; not_found / saved_statement_not_found refreshes and announces absence; last-row-on-later-page falls back to the previous page) |
 | query-workbench-navigator.tsx | Target navigator wrapper |
 | query-connection-navigator.tsx | Connection target selector dialog/sheet with localized loaded/total paging |

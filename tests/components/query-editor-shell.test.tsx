@@ -1,5 +1,5 @@
 // input: @testing-library/react, @/components/query/query-workbench, mocked services
-// output: Vitest component tests for QueryEditorShell (template mode, lifecycle disposal, target switch, execution routing)
+// output: Vitest component tests for QueryEditorShell (template mode, lifecycle disposal, target switch, execution routing, and blocked-result redaction)
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -779,7 +779,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
 
-  it("shows controlled error for blocked column in successful response", async () => {
+  it("redacts blocked values before the successful result reaches the grid", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       executionId: 1001,
@@ -800,11 +800,15 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
 
     await user.click(screen.getByRole("button", { name: /^run$/i }));
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/blocked column/i)).toBeInTheDocument();
-    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    // WHY: the response remains structurally valid for export, but the raw
+    // blocked value must not become a screen-readable or copyable value.
+    expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
+    expect(screen.queryByText("alice@example.com")).toBeNull();
+    await user.click(screen.getByRole("cell", { name: "[blocked]" }));
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
   });
 
   it("shows controlled error for raw_copy_allowed with copyAllowed=false", async () => {

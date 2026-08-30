@@ -1,5 +1,5 @@
 // input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
-// output: QueryEditorShell component with safe current-page CSV export, tabbed editor, history, and saved statements
+// output: QueryEditorShell component with server-authorized, disclosure/formula-safe current-page CSV export, tabbed editor, history, and saved statements
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -1805,6 +1805,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onNextPage={handleNextPage}
               onPreviousPage={handlePreviousPage}
               onPageSizeChange={handlePageSizeChange}
+              exportEnabled={actions.export === true}
             />
           </div>
         ) : (
@@ -2087,6 +2088,7 @@ function ReadyWorksheet({
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
+  exportEnabled,
 }: {
   worksheetId: string;
   statement: string;
@@ -2133,6 +2135,7 @@ function ReadyWorksheet({
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (value: number) => void;
+  exportEnabled: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
   const { namespace, columnFetcher } = useWorksheetSchemaAdapter(
@@ -2354,6 +2357,7 @@ function ReadyWorksheet({
               }
               relatedRecordsTriggerRef={relatedRecordsTriggerRef}
               onRelatedRecordsIneligible={onCloseRelatedRecords}
+              exportEnabled={exportEnabled}
             />
             {resultPagination && (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3" data-testid="result-paging">
@@ -2449,9 +2453,6 @@ function normalizeExecuteResponse(
     if (!VALID_DISCLOSURE_MODES.has(col.displayMode)) {
       return { ok: false, error: "Invalid response: column has unknown disclosure mode" };
     }
-    if (col.displayMode === "blocked") {
-      return { ok: false, error: "Invalid response: successful result contains blocked column" };
-    }
     if (typeof col.copyAllowed !== "boolean") {
       return { ok: false, error: "Invalid response: copyAllowed must be a boolean" };
     }
@@ -2460,6 +2461,9 @@ function normalizeExecuteResponse(
     }
     if (col.displayMode === "masked_no_copy" && col.copyAllowed !== false) {
       return { ok: false, error: "Invalid response: masked_no_copy column must have copyAllowed=false" };
+    }
+    if (col.displayMode === "blocked" && col.copyAllowed !== false) {
+      return { ok: false, error: "Invalid response: blocked column must have copyAllowed=false" };
     }
   }
 
@@ -2500,10 +2504,19 @@ function normalizeExecuteResponse(
     }
   }
 
-  return { ok: true, response: raw };
+  return {
+    ok: true,
+    response: {
+      ...raw,
+      // Blocked cells must never reach the result grid or CSV serializer as raw values.
+      rows: raw.rows.map((row) => row.map((cell, index) =>
+        raw.columns[index]?.displayMode === "blocked" ? "[blocked]" : cell,
+      )),
+    },
+  };
 }
 
-function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef, onRelatedRecordsIneligible }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>; onRelatedRecordsIneligible?: () => void }) {
+function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef, onRelatedRecordsIneligible, exportEnabled }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>; onRelatedRecordsIneligible?: () => void; exportEnabled: boolean }) {
   const t = useTranslations("queryWorkbench");
 
   const normalized = normalizeExecuteResponse(result);
@@ -2539,7 +2552,7 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef,
         </dd>
       </dl>
 
-      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} />
+      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
     </div>
   );
 }
@@ -2603,7 +2616,7 @@ function RelatedRecordsPanel({
               <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
               {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
             </dl>
-            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} />
+            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} exportEnabled={false} />
           </>
         );
       })()}
@@ -2796,12 +2809,14 @@ function ResultTable({
   navigationCapability,
   relatedRecordsTriggerRef,
   onRelatedRecordsIneligible,
+  exportEnabled,
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
   navigationCapability?: NavigationCapability;
   relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
   onRelatedRecordsIneligible?: () => void;
+  exportEnabled: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
 
@@ -3023,6 +3038,7 @@ function ResultTable({
   }
 
   function handleExportCsv() {
+    if (!exportEnabled) return;
     const url = URL.createObjectURL(
       new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
     );
@@ -3071,7 +3087,7 @@ function ResultTable({
           <Copy className="size-3.5" aria-hidden />
           {t("result.copyCellValue")}
         </Button>
-        <Button
+        {exportEnabled && <Button
           type="button"
           size="sm"
           variant="outline"
@@ -3079,7 +3095,7 @@ function ResultTable({
         >
           <Download className="size-3.5" aria-hidden />
           {t("result.exportCsv")}
-        </Button>
+        </Button>}
         {eligibleFKs.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger

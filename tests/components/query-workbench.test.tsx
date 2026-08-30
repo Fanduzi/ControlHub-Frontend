@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, CSV serialization, mocked query services, and locale messages
-// output: QueryWorkbench unavailable-target recovery, safe CSV export, search guards, and interaction tests
+// output: unavailable-target recovery, formula-safe/disclosure-safe server-authorized CSV export, and search interaction tests
 // pos: component-level behavioral coverage for the complete query workbench
 // note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
@@ -3117,8 +3117,8 @@ describe("QueryWorkbench SQL completion vocabulary", () => {
  * exactly one visible cell value or one visible column name. Copy is local
  * (no API request), keyboard accessible, and shows success/failure feedback.
  * SQL NULL copies as the explicit NULL marker. CSV export is limited to the
- * current visible page and enforces the same disclosure policy. No copy-all
- * or bulk operations exist.
+ * current visible page and enforces the same disclosure policy and server-owned
+ * export permission. No copy-all or bulk operations exist.
  */
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -3132,7 +3132,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     mockCopyToClipboard.mockResolvedValue(true);
   });
 
-  function buildReadyTarget() {
+  function buildReadyTarget(overrides: DeepPartial<QueryTarget> = {}) {
     return buildQueryTarget({
       resourceId: 30,
       displayName: "Local MySQL Dev",
@@ -3158,11 +3158,12 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       availableActions: {
         run: true,
         explain: false,
-        export: false,
+        export: true,
         saveSheet: false,
         requestAccess: false,
       },
       missingFields: [],
+      ...overrides,
     });
   }
 
@@ -3213,12 +3214,32 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(csv).not.toContain("still secret");
   });
 
+  it("neutralizes formula-leading visible values and column names while leaving ordinary CSV text unchanged", () => {
+    const csv = serializeQueryResultCsv(
+      [
+        col("=formula", "VARCHAR", true),
+        col("+formula", "VARCHAR", true),
+        col("-formula", "VARCHAR", true),
+        col("@formula", "VARCHAR", true),
+        col("ordinary", "VARCHAR", true),
+      ],
+      [["=SUM(A1:A2)", "+1+1", "-1+1", "@cmd", "plain text"]],
+    );
+
+    // WHY: CSV opens in spreadsheet programs, where these prefixes become
+    // formulas even though the query result is otherwise disclosure-safe.
+    expect(csv).toBe(
+      "'=formula,'+formula,'-formula,'@formula,ordinary\r\n'=SUM(A1:A2),'+1+1,'-1+1,'@cmd,plain text\r\n",
+    );
+  });
+
   /**
    * Render the workbench, execute a query, and wait for the result table to
    * appear. Returns the userEvent instance for further interaction.
    */
   async function renderWithResult(
     resultOverride?: Partial<QueryExecuteResponse>,
+    target = buildReadyTarget(),
   ) {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce(
@@ -3228,8 +3249,8 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <QueryWorkbench
-          targets={[buildReadyTarget()]}
-          pageInfo={pageInfoFor([buildReadyTarget()])}
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
           initialFilters={EMPTY_FILTERS}
         />
       </NextIntlClientProvider>,
@@ -3418,6 +3439,54 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       click.mockRestore();
       vi.unstubAllGlobals();
     }
+  });
+
+  it("exports blocked disclosure as [blocked] without rendering or serializing the raw value", async () => {
+    const rawSecret = "TOP SECRET 123";
+    await renderWithResult({
+      columns: [
+        col("id", "BIGINT", false),
+        { name: "secret", databaseType: "VARCHAR", nullable: false, displayMode: "blocked", copyAllowed: false },
+      ],
+      rows: [[1, rawSecret]],
+      rowCount: 1,
+    });
+
+    // WHY: a blocked value must remain exportable as a placeholder, while the
+    // result grid never receives its raw value.
+    expect(screen.getByRole("columnheader", { name: "secret" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
+    expect(screen.queryByText(rawSecret)).toBeNull();
+
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:blocked-results");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      await userEvent.setup().click(screen.getByRole("button", { name: "Export CSV" }));
+      const blob = createObjectURL.mock.calls[0]![0];
+      await expect(blob.text()).resolves.toBe("id,secret\r\n1,[blocked]\r\n");
+      expect(await blob.text()).not.toContain(rawSecret);
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not render or execute CSV export when the server disables export", async () => {
+    await renderWithResult(undefined, buildReadyTarget({
+      availableActions: {
+        run: true,
+        explain: false,
+        export: false,
+        saveSheet: false,
+        requestAccess: false,
+      },
+    }));
+
+    // WHY: export permission belongs to the active target returned by the
+    // server, so a browser-only result must not bypass that decision.
+    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 
   it("does not render Export CSV for an empty current result page", async () => {
