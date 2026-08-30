@@ -1,5 +1,5 @@
-// input: vitest, testing-library, command palette, auth-role, resource/settings service mocks
-// output: command palette tests — bounded all-type resource search/routing with localized context and stale/error recovery, create-resource admin gating, and empty-query operator navigation
+// input: vitest, testing-library, command palette, auth-role, resource service and environment-provider mocks
+// output: command palette tests — server-authoritative all-type resource search with keyboard routing, localized context, and stale/error recovery, create-resource admin gating, and empty-query operator navigation
 // pos: component tests for the console command palette affordance gating
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -27,6 +27,14 @@ vi.mock("@/services/resources", () => ({
 
 vi.mock("@/services/settings", () => ({
   listEnvironments: listEnvironmentsMock,
+}));
+
+vi.mock("@/components/providers/environment-provider", () => ({
+  useEnvironment: () => ({
+    environments: [
+      { id: 7, name: "Production", slug: "production", description: "", createdAt: "2026-01-01T00:00:00Z" },
+    ],
+  }),
 }));
 
 vi.mock("next-themes", () => ({
@@ -73,7 +81,7 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Overview")).toBeInTheDocument();
   });
 
-  it("searches every resource type with ten server results, localized context, and resource navigation", async () => {
+  it("shows and keyboard-navigates a server match whose display name excludes the query", async () => {
     listResourcesMock.mockResolvedValue({
       items: [{
         id: 79,
@@ -87,18 +95,21 @@ describe("CommandPalette", () => {
     const user = userEvent.setup();
 
     renderPalette();
-    await user.type(screen.getByPlaceholderText("Search resources, owners, IDs"), "orders");
+    await user.type(screen.getByPlaceholderText("Search resources, owners, IDs"), "10.0.0.7");
 
     await waitFor(() => {
       // WHY: the palette is a cross-inventory finder, so every CI type is
       // searched server-side without a type filter and has a bounded payload.
-      expect(listResourcesMock).toHaveBeenCalledWith({ q: "orders", pageSize: 10 });
+      expect(listResourcesMock).toHaveBeenCalledWith({ q: "10.0.0.7", pageSize: 10 });
     });
+    expect(listEnvironmentsMock).not.toHaveBeenCalled();
+    expect(await screen.findByRole("option", { name: /Orders database/i })).toBeVisible();
+    expect(screen.queryByText("No results found.")).toBeNull();
     expect(await screen.findByText("DB Instance")).toBeInTheDocument();
     expect(screen.getByText("Production")).toBeInTheDocument();
     expect(screen.getByText("Warning")).toBeInTheDocument();
     expect(screen.queryByText("Overview")).toBeNull();
-    await user.click(screen.getByText("Orders database"));
+    await user.keyboard("{Enter}");
 
     expect(routerPushMock).toHaveBeenCalledWith("/resources/79");
   });

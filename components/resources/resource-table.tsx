@@ -1,5 +1,5 @@
 // input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, bulk resource services, and ingestion dialog
-// output: inventory table with server-owned taxonomy/label filters, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
+// output: inventory table with server-owned taxonomy/label filters, URL-synced optimistic label controls, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
 // pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit/import controls
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -164,16 +164,21 @@ export function ResourceTable({
     () => readMultiSelectValues(searchParams, "healthStatus"),
     [searchParams],
   );
-  const selectedLabelValues = useMemo(
+  const urlLabelValues = useMemo(
     () => searchParams.getAll("label")
       .map(normalizeLabelFilter)
       .filter((label): label is string => label !== undefined),
     [searchParams],
   );
+  const [selectedLabelValues, setSelectedLabelValues] = useState(urlLabelValues);
 
   useEffect(() => {
     setSearchDraft(search);
   }, [search]);
+
+  useEffect(() => {
+    setSelectedLabelValues(urlLabelValues);
+  }, [searchParams, urlLabelValues]);
 
   const columns = useMemo(() => [
     ...(isAdmin === true ? [columnHelper.display({
@@ -496,6 +501,7 @@ export function ResourceTable({
 
   const updateLabelFilters = useCallback(
     (values: string[]) => {
+      setSelectedLabelValues(values);
       updateMultiSelectParams(pathname, router, searchParams, "label", values);
     },
     [pathname, router, searchParams],

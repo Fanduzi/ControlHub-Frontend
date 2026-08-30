@@ -24,7 +24,8 @@ their results, and manages selected views when authorized.
 - `ResourceTable` renders the current server-owned Inventory result page. Its
   label chips accept bounded `key` or `key:value` tokens, restore repeated
   `label` URL parameters, and replace them on page one; the loaded page is never
-  filtered client-side.
+  filtered client-side. Optimistic chips preserve rapid additions until the URL
+  refresh confirms the server-owned filter state.
 - `NamedInventoryViewControls` saves URL filters and visible columns, then reapplies them on page 1.
 - `IngestionDialog` retains the chosen native `File` and format, renders server previews without client matching or writes, and requires explicit operator confirmation after a returned 409 preview.
 

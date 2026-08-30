@@ -1,4 +1,4 @@
-// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resource/settings services
+// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resource service, environment provider
 // output: empty-query commands and bounded server-backed resource search with localized type, environment, and health context; create-resource command is admin-only
 // pos: console quick-navigation overlay with role-gated mutation affordances
 // note: if this file changes, update header and components/app-shell/README.md
@@ -27,9 +27,8 @@ import { useAdminRole } from "@/lib/auth-role";
 import { consoleNavigation } from "@/lib/navigation";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { listResources } from "@/services/resources";
-import { listEnvironments } from "@/services/settings";
+import { useEnvironment } from "@/components/providers/environment-provider";
 import type { Resource } from "@/types/resource";
-import type { Environment } from "@/types/settings";
 
 type CommandPaletteProps = {
   open: boolean;
@@ -49,9 +48,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const { setTheme, theme } = useTheme();
   const isAdmin = useAdminRole();
+  const { environments } = useEnvironment();
   const [query, setQuery] = useState("");
   const [resources, setResources] = useState<Resource[]>([]);
-  const [environments, setEnvironments] = useState<Environment[]>([]);
   const searchGeneration = useRef(0);
   const isSearching = query.trim().length > 0;
 
@@ -70,23 +69,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-
-    void listEnvironments()
-      .then((items) => {
-        if (active) setEnvironments(items);
-      })
-      .catch(() => {
-        if (active) setEnvironments([]);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [open]);
 
   useEffect(() => {
     const search = query.trim();
@@ -123,6 +105,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     <Command.Dialog
       open={open}
       onOpenChange={onOpenChange}
+      shouldFilter={false}
       label={t("shell.openCommandPalette")}
       overlayClassName="fixed inset-0 z-50 bg-black/50"
       contentClassName="fixed top-[20%] left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
@@ -175,7 +158,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <Command.Item
                 key={resource.id}
                 value={resource.displayName}
-                forceMount
                 onSelect={() =>
                   runCommand(() => router.push(`/resources/${resource.id}`))
                 }

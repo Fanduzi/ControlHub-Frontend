@@ -15,7 +15,7 @@ presenting a logged-out UI while the HttpOnly Operator Session cookie survives.
 The command palette keeps page navigation, workspace, and theme commands in its
 empty-query state. A nonblank query searches the unified inventory through the
 resources service with `pageSize=10`, then shows the localized resource type,
-environment name, and health context before opening `/resources/{id}`. Debounce,
+environment name from the shared EnvironmentProvider and health context before opening `/resources/{id}`. Debounce,
 generation checks, and failure fallback prevent stale or failed searches from
 changing the active results.
 
