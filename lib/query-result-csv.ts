@@ -4,14 +4,19 @@
 // note: if this file changes, update this header and lib/README.md
 import type { QueryResultCellValue, QueryResultColumn } from "@/types/query-execution";
 
-function escapeCsvField(value: string): string {
-  const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
+function escapeCsvField(value: Exclude<QueryResultCellValue, null>): string {
+  const safeValue = typeof value === "string" && /^[=+\-@]/.test(value)
+    ? `'${value}`
+    : String(value);
   return /[",\r\n]/.test(safeValue) ? `"${safeValue.replaceAll('"', '""')}"` : safeValue;
 }
 
-function csvValue(column: QueryResultColumn | undefined, value: QueryResultCellValue): string {
+function csvValue(
+  column: QueryResultColumn | undefined,
+  value: QueryResultCellValue,
+): Exclude<QueryResultCellValue, null> {
   if (column?.displayMode === "raw_copy_allowed" && column.copyAllowed === true) {
-    return value === null ? "" : String(value);
+    return value ?? "";
   }
   return column?.displayMode === "masked_no_copy" && column.copyAllowed === false
     ? "[masked]"

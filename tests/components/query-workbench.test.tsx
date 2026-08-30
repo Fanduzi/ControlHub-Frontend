@@ -3233,6 +3233,17 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     );
   });
 
+  it("keeps negative numbers numeric while neutralizing formula-leading strings", () => {
+    const csv = serializeQueryResultCsv(
+      [col("amount", "BIGINT", false), col("expression", "VARCHAR", true)],
+      [[-42, "-1+1"]],
+    );
+
+    // WHY: a number is data, not a spreadsheet formula; string formulas still
+    // need neutralization before an operator opens the export.
+    expect(csv).toBe("amount,expression\r\n-42,'-1+1\r\n");
+  });
+
   /**
    * Render the workbench, execute a query, and wait for the result table to
    * appear. Returns the userEvent instance for further interaction.
