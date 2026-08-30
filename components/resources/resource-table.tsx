@@ -1,5 +1,5 @@
-// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, bulk resource services, and ingestion dialog
-// output: inventory table with server-owned taxonomy/label filters, URL-synced optimistic label controls, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
+// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, atomic bulk resource services, and ingestion dialog
+// output: inventory table with server-owned taxonomy/label filters, URL-synced optimistic label controls, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed atomic bulk mutations with localized feedback
 // pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit/import controls
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -62,7 +62,7 @@ import { ApiError } from "@/services/api-client";
 import { confirmBulkResourceMutation, previewBulkResourceMutation } from "@/services/resources";
 import type { BulkResourceMutationPreview, BulkResourceMutationRequest, PageInfo } from "@/types/resource";
 import type { ResourceListViewModel } from "@/types/view-models";
-import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
+import type { DictionaryItem, Environment, Owner, ResourceTypeDefinition } from "@/types/settings";
 
 import { Columns3, X } from "lucide-react";
 
@@ -80,12 +80,16 @@ type ResourceTableProps = {
   resourceTypes: ResourceTypeDefinition[];
   lifecycleStatuses: DictionaryItem[];
   healthStatuses: DictionaryItem[];
+  environments?: Environment[];
+  owners?: Owner[];
   availableSubtypes?: string[];
 };
 
 const columnHelper = createColumnHelper<ResourceListViewModel>();
 
 type LabelOperation = "add" | "update" | "remove";
+type LifecycleStatus = NonNullable<BulkResourceMutationRequest["fieldPatch"]>["lifecycleStatus"];
+const BULK_UNCHANGED = "__unchanged";
 
 function isBulkMutationConflict(error: unknown) {
   return error instanceof ApiError
@@ -110,6 +114,8 @@ export function ResourceTable({
   resourceTypes,
   lifecycleStatuses,
   healthStatuses,
+  environments = [],
+  owners = [],
   availableSubtypes,
 }: ResourceTableProps) {
   const t = useTranslations();
@@ -126,6 +132,9 @@ export function ResourceTable({
   const [labelOperation, setLabelOperation] = useState<LabelOperation>("add");
   const [labelKey, setLabelKey] = useState("");
   const [labelValue, setLabelValue] = useState("");
+  const [bulkOwnerId, setBulkOwnerId] = useState(BULK_UNCHANGED);
+  const [bulkEnvironmentId, setBulkEnvironmentId] = useState(BULK_UNCHANGED);
+  const [bulkLifecycleStatus, setBulkLifecycleStatus] = useState(BULK_UNCHANGED);
   const [bulkRequest, setBulkRequest] = useState<BulkResourceMutationRequest | null>(null);
   const [preview, setPreview] = useState<BulkResourceMutationPreview | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -387,14 +396,21 @@ export function ResourceTable({
 
   const handleBulkPreview = useCallback(async () => {
     const key = labelKey.trim();
+    const fieldPatch = {
+      ...(bulkOwnerId === BULK_UNCHANGED ? {} : { ownerId: Number(bulkOwnerId) }),
+      ...(bulkEnvironmentId === BULK_UNCHANGED ? {} : { environmentId: Number(bulkEnvironmentId) }),
+      ...(bulkLifecycleStatus === BULK_UNCHANGED ? {} : { lifecycleStatus: bulkLifecycleStatus as LifecycleStatus }),
+    };
+    const labels = !key ? undefined : labelOperation === "remove"
+      ? { remove: [key] }
+      : labelValue ? { [labelOperation]: { [key]: labelValue } } : undefined;
     const request: BulkResourceMutationRequest = {
       targets: selectedResources.map((resource) => ({
         resourceId: resource.id,
         expectedVersion: resource.updatedAt,
       })),
-      labels: labelOperation === "remove"
-        ? { remove: [key] }
-        : { [labelOperation]: { [key]: labelValue } },
+      ...(Object.keys(fieldPatch).length ? { fieldPatch } : {}),
+      ...(labels ? { labels } : {}),
     };
 
     setBulkPending(true);
@@ -409,7 +425,7 @@ export function ResourceTable({
     } finally {
       setBulkPending(false);
     }
-  }, [labelKey, labelOperation, labelValue, selectedResources, t]);
+  }, [bulkEnvironmentId, bulkLifecycleStatus, bulkOwnerId, labelKey, labelOperation, labelValue, selectedResources, t]);
 
   const handleBulkConfirm = useCallback(async () => {
     if (!bulkRequest || !preview?.fingerprint) return;
@@ -594,7 +610,7 @@ export function ResourceTable({
                     setBulkOpen(true);
                   }}
                 >
-                  {t("tables.resources.bulk.editLabels", { count: selectedResources.length })}
+                  {t("tables.resources.bulk.editResources", { count: selectedResources.length })}
                 </Button>
               </>
             )}
@@ -824,6 +840,51 @@ export function ResourceTable({
           </DialogHeader>
           <div className="grid gap-3">
             <label className="grid gap-1 text-sm">
+              {t("common.fields.owner")}
+              <Select value={bulkOwnerId} onValueChange={(value) => {
+                setBulkOwnerId(value ?? BULK_UNCHANGED);
+                resetBulkPreview();
+              }} disabled={Boolean(preview)}>
+                <SelectTrigger aria-label={t("common.fields.owner")}>
+                  <span>{bulkOwnerId === BULK_UNCHANGED ? t("tables.resources.bulk.unchanged") : owners.find((owner) => String(owner.id) === bulkOwnerId)?.name}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BULK_UNCHANGED}>{t("tables.resources.bulk.unchanged")}</SelectItem>
+                  {owners.map((owner) => <SelectItem key={owner.id} value={String(owner.id)}>{owner.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              {t("common.fields.environment")}
+              <Select value={bulkEnvironmentId} onValueChange={(value) => {
+                setBulkEnvironmentId(value ?? BULK_UNCHANGED);
+                resetBulkPreview();
+              }} disabled={Boolean(preview)}>
+                <SelectTrigger aria-label={t("common.fields.environment")}>
+                  <span>{bulkEnvironmentId === BULK_UNCHANGED ? t("tables.resources.bulk.unchanged") : environments.find((environment) => String(environment.id) === bulkEnvironmentId)?.name}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BULK_UNCHANGED}>{t("tables.resources.bulk.unchanged")}</SelectItem>
+                  {environments.map((environment) => <SelectItem key={environment.id} value={String(environment.id)}>{environment.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              {t("tables.resources.bulk.lifecycle")}
+              <Select value={bulkLifecycleStatus} onValueChange={(value) => {
+                setBulkLifecycleStatus(value ?? BULK_UNCHANGED);
+                resetBulkPreview();
+              }} disabled={Boolean(preview)}>
+                <SelectTrigger aria-label={t("tables.resources.bulk.lifecycle")}>
+                  <span>{bulkLifecycleStatus === BULK_UNCHANGED ? t("tables.resources.bulk.unchanged") : lifecycleOptions.find((status) => status.value === bulkLifecycleStatus)?.label}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BULK_UNCHANGED}>{t("tables.resources.bulk.unchanged")}</SelectItem>
+                  {lifecycleOptions.map((status) => <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-sm">
               {t("tables.resources.bulk.operation")}
               <Select value={labelOperation} onValueChange={(value) => {
                 setLabelOperation(value as LabelOperation);
@@ -855,7 +916,7 @@ export function ResourceTable({
                 }} />
               </label>
             )}
-            {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
+            {bulkError && <p role="alert" className="text-sm text-destructive">{bulkError}</p>}
             {preview && (
               <div className="max-h-56 space-y-2 overflow-auto rounded-md border p-3 text-sm">
                 {preview.items.map((item) => (
@@ -874,7 +935,7 @@ export function ResourceTable({
           </div>
           <DialogFooter>
             {!preview ? (
-              <Button onClick={handleBulkPreview} disabled={bulkPending || !labelKey.trim() || (labelOperation !== "remove" && !labelValue)}>
+              <Button onClick={handleBulkPreview} disabled={bulkPending || (!bulkOwnerId || !bulkEnvironmentId || !bulkLifecycleStatus || (!labelKey.trim() && bulkOwnerId === BULK_UNCHANGED && bulkEnvironmentId === BULK_UNCHANGED && bulkLifecycleStatus === BULK_UNCHANGED) || (Boolean(labelKey.trim()) && labelOperation !== "remove" && !labelValue))}>
                 {bulkPending ? t("tables.resources.bulk.previewing") : t("tables.resources.bulk.preview")}
               </Button>
             ) : (

@@ -2,14 +2,14 @@
 
 Server composition for the authenticated resource inventory route. The page
 resolves the optional environment slug before fetching inventory, fails closed
-to an empty result for an unknown scope, and supplies settings-backed lifecycle
-options to the table.
+to an empty result for an unknown scope, and supplies settings-backed owner,
+environment, and lifecycle options to the table.
 
 ## Files
 
 | File | Responsibility |
 |------|---------------|
-| `page.tsx` | Loads resources, resource types, lifecycle/health settings, and subtype options for `ResourceTable`. |
+| `page.tsx` | Loads resources, resource types, owner/environment/lifecycle/health settings, and subtype options for `ResourceTable`. |
 
 ## Interfaces
 

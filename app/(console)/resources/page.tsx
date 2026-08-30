@@ -1,5 +1,5 @@
-// input: Next search params, environment/resource services, settings dictionaries, resource table
-// output: scoped resource inventory page with taxonomy-backed filters; unknown environments fail closed
+// input: Next search params, environment/resource services, owner/environment/status dictionaries, resource table
+// output: scoped resource inventory page with taxonomy-backed filters and bulk-mutation dictionaries; unknown environments fail closed
 // pos: authenticated console resources route composition
 // note: if this file changes, update header and app/(console)/resources/README.md
 import { getTranslations } from "next-intl/server";
@@ -10,8 +10,10 @@ import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parseResourceListSearchParams } from "@/lib/list-page-search-params";
 import { listResourceViewModels } from "@/lib/view-models";
 import {
+  listEnvironments,
   listHealthStatuses,
   listLifecycleStatuses,
+  listOwners,
   listResourceTypes,
 } from "@/services/settings";
 import type { ResourceListParams } from "@/types/resource";
@@ -86,6 +88,8 @@ export default async function ResourcesPage({
           resourceTypes={[]}
           lifecycleStatuses={[]}
           healthStatuses={[]}
+          environments={[]}
+          owners={[]}
           availableSubtypes={[]}
         />
       </div>
@@ -97,12 +101,16 @@ export default async function ResourcesPage({
     resourceTypes,
     lifecycleStatuses,
     healthStatuses,
+    environments,
+    owners,
     availableSubtypes,
   ] = await Promise.all([
     listResourceViewModels(params),
     listResourceTypes().catch(() => []),
     listLifecycleStatuses(),
     listHealthStatuses(),
+    listEnvironments().catch(() => []),
+    listOwners().catch(() => []),
     listAvailableSubtypes(params),
   ]);
 
@@ -120,6 +128,8 @@ export default async function ResourcesPage({
         resourceTypes={resourceTypes}
         lifecycleStatuses={lifecycleStatuses}
         healthStatuses={healthStatuses}
+        environments={environments}
+        owners={owners}
         availableSubtypes={availableSubtypes}
       />
     </div>

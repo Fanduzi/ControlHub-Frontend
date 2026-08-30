@@ -1,6 +1,6 @@
 // input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries, and bulk resource service mocks
-// output: resource table tests including server-owned taxonomy/label URL filters with rapid-add retention, server-derived completeness, health evidence, admin-only create affordance, bulk-label request shapes, and localized feedback
-// pos: component tests for inventory health evidence, backend-backed filters, and role-gated mutation controls
+// output: resource table tests including server-owned taxonomy/label URL filters with rapid-add retention, server-derived completeness, health evidence, admin-only create affordance, atomic bulk request shapes, selection retention, and localized feedback
+// pos: component tests for inventory health evidence, backend-backed filters, and role-gated atomic mutation controls
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
@@ -158,6 +158,8 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
         resourceTypes={resourceTypes}
         lifecycleStatuses={lifecycleStatuses}
         healthStatuses={healthStatuses}
+        environments={[{ id: 3, name: "Staging", slug: "staging", description: "", createdAt: "2026-01-01T00:00:00Z" }]}
+        owners={[{ id: 2, name: "Platform", email: "platform@example.com", createdAt: "2026-01-01T00:00:00Z" }]}
         availableSubtypes={availableSubtypes}
       />
     </NextIntlClientProvider>,
@@ -203,7 +205,7 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.type(screen.getByLabelText("Label key"), "team");
     await user.type(screen.getByLabelText("Label value"), "platform");
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
@@ -225,6 +227,64 @@ describe("ResourceTable", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("builds one atomic owner, environment, lifecycle, and label request from selected rows", async () => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({
+      fingerprint: "reviewed-fingerprint",
+      confirmable: true,
+      items: [],
+    });
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select all resources" }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
+    await user.click(screen.getByRole("combobox", { name: "Owner" }));
+    await user.click(await screen.findByRole("option", { name: "Platform" }));
+    await user.click(screen.getByRole("combobox", { name: "Environment" }));
+    await user.click(await screen.findByRole("option", { name: "Staging" }));
+    await user.click(screen.getByRole("combobox", { name: "Lifecycle" }));
+    await user.click(await screen.findByRole("option", { name: "Stopped" }));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "platform");
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    await waitFor(() => {
+      expect(previewBulkResourceMutation).toHaveBeenCalledWith({
+        targets: [
+          { resourceId: 101, expectedVersion: "2026-04-14T10:00:00Z" },
+          { resourceId: 102, expectedVersion: "2026-04-14T11:00:00Z" },
+        ],
+        fieldPatch: { ownerId: 2, environmentId: 3, lifecycleStatus: "stopped" },
+        labels: { add: { team: "platform" } },
+      });
+    });
+  });
+
+  it.each([
+    ["owner", "Owner", "Platform", { ownerId: 2 }],
+    ["environment", "Environment", "Staging", { environmentId: 3 }],
+    ["lifecycle", "Lifecycle", "Stopped", { lifecycleStatus: "stopped" }],
+  ])("serializes an explicit %s field patch without unrelated changes", async (_field, label, option, fieldPatch) => {
+    const user = userEvent.setup();
+    previewBulkResourceMutation.mockResolvedValue({ fingerprint: "reviewed-fingerprint", confirmable: false, items: [] });
+
+    renderTable();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
+    await user.click(screen.getByRole("combobox", { name: label }));
+    await user.click(await screen.findByRole("option", { name: option }));
+    await user.click(screen.getByRole("button", { name: "Preview changes" }));
+
+    await waitFor(() => {
+      expect(previewBulkResourceMutation).toHaveBeenCalledWith({
+        targets: [{ resourceId: 101, expectedVersion: "2026-04-14T10:00:00Z" }],
+        fieldPatch,
+      });
+    });
+  });
+
   it("sends the exact update label shape", async () => {
     const user = userEvent.setup();
     previewBulkResourceMutation.mockResolvedValue({
@@ -236,7 +296,7 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.click(screen.getByRole("combobox", { name: "Label operation" }));
     await user.click(await screen.findByRole("option", { name: "Update" }));
     await user.type(screen.getByLabelText("Label key"), "team");
@@ -262,7 +322,7 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.click(screen.getByRole("combobox", { name: "Label operation" }));
     await user.click(await screen.findByRole("option", { name: "Remove" }));
     await user.type(screen.getByLabelText("Label key"), "team");
@@ -285,12 +345,12 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.type(screen.getByLabelText("Label key"), "team");
     await user.type(screen.getByLabelText("Label value"), "platform");
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
 
-    expect(await screen.findByText("Could not preview the label change.")).toBeInTheDocument();
+    expect(await screen.findByText("Could not preview the resource changes.")).toBeInTheDocument();
     expect(screen.queryByText("raw backend English error")).toBeNull();
   });
 
@@ -309,13 +369,13 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.type(screen.getByLabelText("Label key"), "team");
     await user.type(screen.getByLabelText("Label value"), "platform");
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
 
     expect(await screen.findByText("The resource state changed. Preview the changes again before confirming.")).toBeInTheDocument();
-    expect(screen.getByText("Could not preview the label change.")).toBeInTheDocument();
+    expect(screen.getByText("Could not preview the resource changes.")).toBeInTheDocument();
     expect(screen.queryByText("raw backend English error")).toBeNull();
   });
 
@@ -333,7 +393,7 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.click(screen.getByRole("checkbox", { name: "Select Orders API" }));
-    await user.click(screen.getByRole("button", { name: /edit selected labels/i }));
+    await user.click(screen.getByRole("button", { name: /edit selected resources/i }));
     await user.type(screen.getByLabelText("Label key"), "team");
     await user.type(screen.getByLabelText("Label value"), "platform");
     await user.click(screen.getByRole("button", { name: "Preview changes" }));
@@ -341,6 +401,9 @@ describe("ResourceTable", () => {
 
     expect(await screen.findByText("The resource state changed. Preview the changes again before confirming.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm changes" })).toBeNull();
+    expect(screen.getByLabelText("Label key")).toHaveValue("team");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("checkbox", { name: "Select Orders API" })).toBeChecked();
   });
 
   it("updates q in the URL and resets to the first page when searching", async () => {

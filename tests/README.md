@@ -3,7 +3,7 @@
 Frontend Vitest and route-level contract tests.
 
 List-page coverage verifies normalized pagination, server search, audit environment
-scope, settings taxonomy flow, and fail-closed behavior for unknown environment scopes.
+scope, bulk-mutation dictionary flow, settings taxonomy flow, and fail-closed behavior for unknown environment scopes.
 
 Topology tests cover graph rendering for isolated nodes, database cluster-group
 labels, explicit URL scopes, provider fallback, root selection/clearing, stale

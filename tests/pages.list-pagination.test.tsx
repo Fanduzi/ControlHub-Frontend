@@ -1,5 +1,5 @@
 // input: server-rendered page props and mocked environment/settings/view-model loaders
-// output: URL-owned pagination/search, scoped-list, taxonomy, and audit environment server-data-flow assertions
+// output: URL-owned pagination/search, scoped-list, bulk-mutation dictionaries, taxonomy, and audit environment server-data-flow assertions
 // pos: regression coverage for server list-page composition
 // note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
@@ -17,6 +17,7 @@ const listResourceTypesMock = vi.fn();
 const listLifecycleStatusesMock = vi.fn();
 const listHealthStatusesMock = vi.fn();
 const listEnvironmentsMock = vi.fn();
+const listOwnersMock = vi.fn();
 const getTranslationsMock = vi.fn();
 const resourceTableMock = vi.fn();
 const databaseTableMock = vi.fn();
@@ -39,6 +40,7 @@ vi.mock("@/services/settings", () => ({
   listLifecycleStatuses: listLifecycleStatusesMock,
   listHealthStatuses: listHealthStatusesMock,
   listEnvironments: listEnvironmentsMock,
+  listOwners: listOwnersMock,
 }));
 
 vi.mock("@/components/blocks/page-header", () => ({
@@ -166,6 +168,9 @@ describe("list pages pagination contracts", () => {
         description: "",
         createdAt: "",
       },
+    ]);
+    listOwnersMock.mockResolvedValue([
+      { id: 2, name: "Platform", email: "platform@example.com", createdAt: "" },
     ]);
     listResourceViewModelsMock.mockResolvedValue(buildResource());
     listDatabaseResourceViewModelsMock.mockResolvedValue(buildResource());
@@ -451,6 +456,8 @@ describe("list pages pagination contracts", () => {
         resources: response.items,
         pageInfo: response.pageInfo,
         availableSubtypes: ["api", "postgres"],
+        environments: expect.any(Array),
+        owners: [{ id: 2, name: "Platform", email: "platform@example.com", createdAt: "" }],
       }),
     );
   });

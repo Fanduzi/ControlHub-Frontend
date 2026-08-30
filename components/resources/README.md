@@ -38,10 +38,11 @@ Admin-only mutation affordances (`CreateResourceSheet`, `IngestionDialog`, resou
 archive/restore, and the table-level create/import/bulk buttons) are presentation hints;
 the backend remains the authorization boundary for every write.
 
-The table's admin-only bulk label control sends explicit add, update, or remove
-operations for selected rows to the server preview, renders its returned diffs,
-maps controlled errors to localized feedback, and confirms only the returned
-review fingerprint.
+The table's admin-only bulk control keeps page-row selection accessible and
+sends selected versioned targets with optional owner, environment, lifecycle,
+and explicit label add/update/remove changes to the server preview. It renders
+all returned diffs/conflicts, maps controlled errors to localized feedback, and
+confirms only the returned review fingerprint as one atomic request.
 
 Resource edit submits explicit empty typed-profile values through the profile
 PATCH contract so operators can clear stale string fields. Numeric fields are
