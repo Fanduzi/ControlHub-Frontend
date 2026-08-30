@@ -1,11 +1,11 @@
 // input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: URL-owned audit search/filtering, stable presets, localized timestamps, and field-diff rendering assertions
+// output: debounced URL-owned audit search/filtering, stable presets, localized timestamps, and field-diff rendering assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -118,21 +118,31 @@ describe("AuditTable", () => {
     );
   });
 
-  it("owns search in the URL and preserves it with filters and pagination state", async () => {
+  it("debounces URL-owned search so rapid typing navigates only the final value", () => {
+    vi.useFakeTimers();
     currentSearchParams = new URLSearchParams(
       "page=4&pageSize=25&eventType=resource.updated&result=success&q=Admin",
     );
-    const user = userEvent.setup();
 
     renderTable();
 
     const searchInput = screen.getByRole("textbox");
     expect(searchInput).toHaveValue("Admin");
 
-    await user.clear(searchInput);
-    await user.type(searchInput, "Orders");
+    fireEvent.change(searchInput, { target: { value: "O" } });
+    currentSearchParams = new URLSearchParams(
+      "page=1&pageSize=25&eventType=resource.updated&result=success&q=O",
+    );
+    fireEvent.change(searchInput, { target: { value: "Orders" } });
 
-    expect(replace).toHaveBeenLastCalledWith(
+    // WHY: an old navigation response must not overwrite the newer local draft.
+    expect(searchInput).toHaveValue("Orders");
+    expect(replace).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(300));
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith(
       "/audits?page=1&pageSize=25&eventType=resource.updated&result=success&q=Orders",
     );
   });

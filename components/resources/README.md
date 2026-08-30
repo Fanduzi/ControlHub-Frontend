@@ -16,8 +16,9 @@ time, observer, and manual override consistently in list and detail surfaces.
 | `resource-archive-button.tsx` | Admin archive/restore control that refreshes Server Components and same-id detail data after successful mutations |
 
 `named-inventory-view-controls.tsx` saves personal or administrator-shared
-resource-filter URLs, applies personal or shared saved views without caching
-their results, and manages selected views when authorized.
+resource-filter URLs, preserving every valid repeated environment scope, applies
+personal or shared saved views without caching their results, and manages
+selected views when authorized.
 
 ## Interfaces
 
@@ -26,7 +27,7 @@ their results, and manages selected views when authorized.
   `label` URL parameters, and replace them on page one; the loaded page is never
   filtered client-side. Optimistic chips preserve rapid additions until the URL
   refresh confirms the server-owned filter state.
-- `NamedInventoryViewControls` saves URL filters and visible columns, then reapplies them on page 1.
+- `NamedInventoryViewControls` saves URL filters (including repeated positive safe-integer environment IDs) and visible columns, then reapplies them on page 1.
 - `IngestionDialog` retains the chosen native `File` and format, renders server previews without client matching or writes, and requires explicit operator confirmation after a returned 409 preview.
 
 ## Dependencies

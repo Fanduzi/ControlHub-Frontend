@@ -33,7 +33,7 @@ Vitest component tests for React UI components.
 | resource-table-ingestion.test.tsx | Resource-table editor gate for the inventory import control |
 | ingestion-dialog.test.tsx | Admin ingestion preview/confirm, localized summary, server conflict, malformed upload, and fresh-409 review handling |
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized completeness and health/override evidence, empty states, effective-value provenance, and admin override conflicts |
-| named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view save, apply, rename, and delete controls |
+| named-inventory-view-controls.test.tsx | Personal/shared saved inventory-view repeated-filter save/apply round trips, rename, and delete controls |
 | resource-detail-sheet-loader.test.tsx | Resource detail sheet loader, same-id archive/restore refetches, real callback forwarding, and deferred race protection |
 | resource-link.test.tsx | Resource link |
 | resource-relation-panel.test.tsx | Resource relation panel localization, accessible source direction, source-path mutations, deferred/stale/concurrent deletion, rule discovery, target constraints, controlled rejection, and role gates |
@@ -47,7 +47,7 @@ Vitest component tests for React UI components.
 | cluster-members-table.test.tsx | Cluster members table, including the localized empty state |
 | overview-content.test.tsx | Overview content, including exact actionable attention membership and accessible in-page expansion |
 | activity-timeline.test.tsx | Activity timeline |
-| audit-table.test.tsx | Audit table, including URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
+| audit-table.test.tsx | Audit table, including debounced URL-owned server search, complete inventory filters, localized operations, and server-owned before/after evidence |
 | sidebar.test.tsx | App sidebar, including canonical environment-scoped Topology navigation |
 | machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |

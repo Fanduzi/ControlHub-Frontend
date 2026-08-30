@@ -1,11 +1,11 @@
-// input: localized audit view models, stable event-type presets, URL-owned filters/search, shared table primitives
-// output: server-searchable audit table with field-level before/after evidence
+// input: localized audit view models, stable event-type presets, URL-owned filters/search, shared debounce and table primitives
+// output: debounced server-searchable audit table with field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { useDebounceCallback } from "@/hooks/use-debounce";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime, formatLabel, formatRelativeDateTime } from "@/lib/format";
 import { AUDIT_RESULT_DOT, AUDIT_RESULT_BORDER } from "@/lib/severity-colors";
@@ -90,12 +91,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
   const urlSearch = searchParams.get("q") ?? "";
   const [search, setSearch] = useState(urlSearch);
 
-  useEffect(() => {
-    setSearch(urlSearch);
-  }, [urlSearch]);
-
-  function updateSearch(value: string) {
-    setSearch(value);
+  const syncSearchToUrl = useDebounceCallback((value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value.trim()) {
       params.set("q", value);
@@ -104,7 +100,7 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
     }
     params.set("page", "1");
     router.replace(`${pathname}?${params.toString()}`);
-  }
+  }, 300);
 
   function getEventTypeLabel(eventType: string) {
     const key = eventType.replaceAll(".", "_");
@@ -242,7 +238,11 @@ export function AuditTable({ events, pageInfo }: AuditTableProps) {
         <>
           <Input
             value={search}
-            onChange={(e) => updateSearch(e.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSearch(value);
+              syncSearchToUrl(value);
+            }}
             placeholder={t("tables.audits.searchPlaceholder")}
             className="h-9 w-[240px] border-border bg-background py-2"
           />

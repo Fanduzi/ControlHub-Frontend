@@ -1,5 +1,5 @@
 // input: Next navigation URL state, named inventory view service, translations, visible columns
-// output: personal/shared saved-view save, apply, and management controls for the resource inventory
+// output: personal/shared saved-view save with repeated environment scopes, apply, and management controls for the resource inventory
 // pos: inventory controls mounted ahead of ResourceTable filters
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -26,7 +26,9 @@ type NamedInventoryViewControlsProps = {
 };
 
 function readFilters(searchParams: URLSearchParams): NamedInventoryViewFilters {
-  const environmentId = Number(searchParams.get("environmentId"));
+  const environmentIds = searchParams.getAll("environmentId")
+    .map(Number)
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
   const ownerId = Number(searchParams.get("ownerId"));
   const archiveFilter = searchParams.get("archiveFilter");
 
@@ -38,8 +40,8 @@ function readFilters(searchParams: URLSearchParams): NamedInventoryViewFilters {
     ...(searchParams.getAll("resourceSubtype").length
       ? { resourceSubtype: searchParams.getAll("resourceSubtype") }
       : {}),
-    ...(Number.isSafeInteger(environmentId) && environmentId > 0
-      ? { environmentId: [environmentId] }
+    ...(environmentIds.length
+      ? { environmentId: environmentIds }
       : {}),
     ...(searchParams.getAll("lifecycleStatus").length
       ? { lifecycleStatus: searchParams.getAll("lifecycleStatus") }

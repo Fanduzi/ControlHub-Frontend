@@ -1,5 +1,5 @@
 // input: Vitest, testing-library, named inventory view controls, mocked service/router
-// output: saved inventory-view save, apply, and management regression tests
+// output: repeated-filter saved inventory-view save, apply, and management regression tests
 // pos: component tests for URL-state round-tripping of named inventory views
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -80,7 +80,7 @@ function renderControls(onApplyColumns = vi.fn()) {
 
 describe("NamedInventoryViewControls", () => {
   beforeEach(() => {
-    mocks.currentSearch = "q=orders&resourceType=service&resourceType=database_instance&resourceSubtype=mysql&lifecycleStatus=running&healthStatus=warning&environmentId=7&ownerId=42&label=team%3Apayments&label=tier%3A1&archiveFilter=includeArchived&page=3";
+    mocks.currentSearch = "q=orders&resourceType=service&resourceType=database_instance&resourceSubtype=mysql&lifecycleStatus=running&healthStatus=warning&environmentId=7&environmentId=8&environmentId=0&environmentId=-1&environmentId=9007199254740992&environmentId=invalid&ownerId=42&label=team%3Apayments&label=tier%3A1&archiveFilter=includeArchived&page=3";
     mocks.replace.mockReset();
     mocks.createNamedInventoryView.mockReset();
     mocks.updateNamedInventoryView.mockReset();
@@ -108,7 +108,7 @@ describe("NamedInventoryViewControls", () => {
             q: "orders",
             resourceType: ["service", "database_instance"],
             resourceSubtype: ["mysql"],
-            environmentId: [7],
+            environmentId: [7, 8],
             lifecycleStatus: ["running"],
             healthStatus: ["warning"],
             ownerId: 42,
@@ -145,7 +145,7 @@ describe("NamedInventoryViewControls", () => {
             q: "orders",
             resourceType: ["service", "database_instance"],
             resourceSubtype: ["mysql"],
-            environmentId: [7],
+            environmentId: [7, 8],
             lifecycleStatus: ["running"],
             healthStatus: ["warning"],
             ownerId: 42,
