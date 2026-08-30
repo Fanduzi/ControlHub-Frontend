@@ -1,6 +1,6 @@
-// input: node:fs/path, vitest, e2e/query-workbench.spec.ts source
-// output: static regression checks for safe query-workbench target-selection policy
-// pos: fast E2E governance seam preventing forced or duplicate connection selection
+// input: node:fs/path, vitest, playwright.config.ts and e2e/query-workbench.spec.ts source
+// output: static regression checks for isolated workspace ownership and safe target-selection policy
+// pos: fast E2E governance seam preventing concurrent, forced, or duplicate workspace writers
 // note: if this file changes, update this header and tests/README.md.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SPEC_PATH = resolve(process.cwd(), "e2e/query-workbench.spec.ts");
+const CONFIG_PATH = resolve(process.cwd(), "playwright.config.ts");
 
 function extractFunctionBody(source: string, functionName: string): string {
   const start = source.indexOf(`async function ${functionName}`);
@@ -34,8 +35,13 @@ function extractFunctionBody(source: string, functionName: string): string {
 
 describe("query-workbench connection selection policy", () => {
   const source = readFileSync(SPEC_PATH, "utf8");
+  const configSource = readFileSync(CONFIG_PATH, "utf8");
   const selectBody = extractFunctionBody(source, "selectConnectionTarget");
   const readyBody = extractFunctionBody(source, "waitForCommittedRunState");
+
+  it("P3-2: shared owner-scoped workspace fixtures run in one worker", () => {
+    expect(configSource).toMatch(/workers:\s*1[,\n]/);
+  });
 
   it("P3-1: selectConnectionTarget never uses force:true", () => {
     expect(selectBody).not.toMatch(/force\s*:\s*true/);

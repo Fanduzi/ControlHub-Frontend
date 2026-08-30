@@ -187,6 +187,10 @@ and resets the listing to the unfiltered first page.
 
 ## Verification
 
+Playwright uses one worker because the E2E fixture operators own mutable,
+account-scoped workspace state. This keeps the suite's optimistic-concurrency
+checks strict instead of allowing two spec files to write as the same owner.
+
 ```bash
 npx vitest run
 npm run build
