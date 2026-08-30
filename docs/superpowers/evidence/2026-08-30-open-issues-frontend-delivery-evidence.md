@@ -16,9 +16,9 @@ success and the exact tracker state is independently verified.
 |------|-------|
 | Repository | `Fanduzi/ControlHub-Frontend` |
 | Integration base | `175add77e5a0323362ccaf04db65d84ef5c295c1` |
-| Product SHA | `818cd3186fb9cadba42f5297cec67cfade4d3003` |
-| Product CI | [33292295456](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33292295456) |
-| Required product CI jobs | `release-local` (`99205934184`) and `release-e2e` (`99205934128`) |
+| Product SHA | `85fe3fded4bec6eb5cd5f2278472f33bfd26c902` |
+| Product CI | [33293495678](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33293495678) |
+| Required product CI jobs | `release-local` (`99209094303`) and `release-e2e` (`99209094286`) |
 | Integration worktree | `/Users/fan/JsProjects/ControlHub-wt-integration` — clean before this evidence record |
 
 The linked GitHub Actions records are the authoritative runtime evidence. Both
