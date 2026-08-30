@@ -1,5 +1,5 @@
 // input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries, and bulk resource service mocks
-// output: resource table tests including taxonomy filters, server-derived completeness, health evidence, admin-only create affordance, bulk-label request shapes, and localized feedback
+// output: resource table tests including server-owned taxonomy/label URL filters, server-derived completeness, health evidence, admin-only create affordance, bulk-label request shapes, and localized feedback
 // pos: component tests for inventory health evidence, backend-backed filters, and role-gated mutation controls
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -21,6 +21,7 @@ vi.mock("@/lib/auth-role", () => ({
 
 const replace = vi.fn();
 const refresh = vi.fn();
+let resourceTableQuery = "environmentId=1&page=3";
 const { previewBulkResourceMutation, confirmBulkResourceMutation } = vi.hoisted(() => ({
   previewBulkResourceMutation: vi.fn(),
   confirmBulkResourceMutation: vi.fn(),
@@ -43,7 +44,7 @@ const healthStatuses: DictionaryItem[] = [
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh }),
   usePathname: () => "/resources",
-  useSearchParams: () => new URLSearchParams("environmentId=1&page=3"),
+  useSearchParams: () => new URLSearchParams(resourceTableQuery),
 }));
 
 vi.mock("@/services/resources", () => ({
@@ -164,6 +165,7 @@ describe("ResourceTable", () => {
     previewBulkResourceMutation.mockReset();
     confirmBulkResourceMutation.mockReset();
     isAdmin = true;
+    resourceTableQuery = "environmentId=1&page=3";
   });
 
   it("hides the create-resource affordance for non-admin operators (server stays authoritative)", () => {
@@ -351,6 +353,39 @@ describe("ResourceTable", () => {
         "/resources?environmentId=1&page=1&q=billing",
       );
     }, { timeout: 2000 });
+  });
+
+  it("restores saved label tokens and serializes each server-side AND filter as repeated params", async () => {
+    resourceTableQuery = "environmentId=1&page=3&label=team%3Apayments&label=tier";
+    const user = userEvent.setup();
+
+    renderTable();
+
+    // WHY: labels are inventory query state, never a client-side filter of this page.
+    expect(screen.getByText("team:payments")).toBeInTheDocument();
+    expect(screen.getByText("tier")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Label filters" }), "region:us");
+    await user.click(screen.getByRole("button", { name: "Add label filter" }));
+
+    expect(replace).toHaveBeenLastCalledWith(
+      "/resources?environmentId=1&page=1&label=team%3Apayments&label=tier&label=region%3Aus",
+    );
+    expect(screen.getAllByRole("button", { name: /View details for/ })).toHaveLength(2);
+  });
+
+  it("removes individual or all label filters while retaining unknown saved-view tokens", async () => {
+    resourceTableQuery = "environmentId=1&page=3&label=legacy%3Aunrecognized&label=tier";
+    const user = userEvent.setup();
+
+    renderTable();
+
+    expect(screen.getByText("legacy:unrecognized")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Remove label filter legacy:unrecognized" }));
+    expect(replace).toHaveBeenLastCalledWith(
+      "/resources?environmentId=1&page=1&label=tier",
+    );
+    await user.click(screen.getByRole("button", { name: "Clear label filters" }));
+    expect(replace).toHaveBeenLastCalledWith("/resources?environmentId=1&page=1");
   });
 
   it("updates resourceType in the URL with repeated params when filtering (multi-select)", async () => {

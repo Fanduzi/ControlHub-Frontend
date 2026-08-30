@@ -1,5 +1,5 @@
 // input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, bulk resource services, and ingestion dialog
-// output: inventory table with taxonomy filters, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
+// output: inventory table with server-owned taxonomy/label filters, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed bulk-label mutations with localized feedback
 // pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit/import controls
 // note: if this file changes, update header and components/resources/README.md
 "use client";
@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -55,6 +56,7 @@ import {
 } from "@/components/ui/table";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatLabel, formatRelativeDateTime } from "@/lib/format";
+import { normalizeLabelFilter } from "@/lib/list-page-search-params";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { ApiError } from "@/services/api-client";
 import { confirmBulkResourceMutation, previewBulkResourceMutation } from "@/services/resources";
@@ -62,7 +64,7 @@ import type { BulkResourceMutationPreview, BulkResourceMutationRequest, PageInfo
 import type { ResourceListViewModel } from "@/types/view-models";
 import type { DictionaryItem, ResourceTypeDefinition } from "@/types/settings";
 
-import { Columns3 } from "lucide-react";
+import { Columns3, X } from "lucide-react";
 
 import { saveResourceListUrl } from "@/lib/resource-list-persistence";
 
@@ -144,6 +146,7 @@ export function ResourceTable({
     ?? (searchParams.get("archivedOnly") === "true" ? "archivedOnly" : null)
     ?? (searchParams.get("includeArchived") === "true" ? "includeArchived" : "all");
   const [searchDraft, setSearchDraft] = useState(search);
+  const [labelDraft, setLabelDraft] = useState("");
 
   const selectedTypeValues = useMemo(
     () => readMultiSelectValues(searchParams, "resourceType"),
@@ -159,6 +162,12 @@ export function ResourceTable({
   );
   const selectedHealthValues = useMemo(
     () => readMultiSelectValues(searchParams, "healthStatus"),
+    [searchParams],
+  );
+  const selectedLabelValues = useMemo(
+    () => searchParams.getAll("label")
+      .map(normalizeLabelFilter)
+      .filter((label): label is string => label !== undefined),
     [searchParams],
   );
 
@@ -485,6 +494,20 @@ export function ResourceTable({
     [pathname, router, searchParams],
   );
 
+  const updateLabelFilters = useCallback(
+    (values: string[]) => {
+      updateMultiSelectParams(pathname, router, searchParams, "label", values);
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleAddLabelFilter = useCallback(() => {
+    const label = normalizeLabelFilter(labelDraft);
+    if (!label || selectedLabelValues.includes(label)) return;
+    updateLabelFilters([...selectedLabelValues, label]);
+    setLabelDraft("");
+  }, [labelDraft, selectedLabelValues, updateLabelFilters]);
+
   // Self-describing archive filter trigger label
   const archiveTriggerText = archiveFilter === "all"
     ? `${t("tables.resources.filterArchive")}: ${t("tables.resources.allArchive")}`
@@ -616,6 +639,41 @@ export function ResourceTable({
               placeholder={t("tables.resources.searchPlaceholder")}
               className="h-9 w-[220px] border-border bg-background py-2"
             />
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("tables.resources.filterLabels")}>
+              <Input
+                value={labelDraft}
+                onChange={(event) => setLabelDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleAddLabelFilter();
+                  }
+                }}
+                aria-label={t("tables.resources.filterLabels")}
+                placeholder={t("tables.resources.labelFilterPlaceholder")}
+                className="h-9 w-[160px] border-border bg-background py-2"
+              />
+              <Button size="sm" variant="outline" onClick={handleAddLabelFilter}>
+                {t("tables.resources.addLabelFilter")}
+              </Button>
+              {selectedLabelValues.map((label) => (
+                <Badge key={label} variant="outline" className="gap-1">
+                  {label}
+                  <button
+                    type="button"
+                    onClick={() => updateLabelFilters(selectedLabelValues.filter((value) => value !== label))}
+                    aria-label={t("tables.resources.removeLabelFilter", { label })}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+              {selectedLabelValues.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => updateLabelFilters([])}>
+                  {t("tables.resources.clearLabelFilters")}
+                </Button>
+              )}
+            </div>
             <MultiSelectFilter
               label={t("tables.resources.filterType")}
               options={typeOptions}

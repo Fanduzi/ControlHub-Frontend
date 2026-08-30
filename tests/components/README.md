@@ -24,12 +24,12 @@ Vitest component tests for React UI components.
 | query-object-explorer.test.tsx | Schema object explorer |
 | query-object-inspector.test.tsx | Object inspector controlled error codes, retry behavior, localization, and raw-message isolation |
 | query-object-quick-navigator.test.tsx | Quick object navigator |
-| command-palette.test.tsx | Command palette navigation, resource search, and admin gating |
+| command-palette.test.tsx | Command palette empty-query navigation/admin gating and bounded all-type resource search with localized context and stale/error recovery |
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map controlled error codes, retry behavior, localization, and raw-message isolation |
 | create-resource-sheet.test.tsx | Create resource sheet, governed-identity normalization and conflicts, and all typed-profile identity fields |
 | edit-resource-sheet.test.tsx | Edit resource sheet, immutable origin, governed-identity conflicts, manual health override set/clear, all typed-profile fields/errors, PATCH clears, numeric rejection, and confirmed profile removal |
-| resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, completeness and health evidence fields, reviewed admin bulk-label request shapes, and localized error feedback |
+| resource-table.test.tsx | Resource table, including settings-backed lifecycle and health taxonomies, repeated server-owned label URL filters, completeness and health evidence fields, reviewed admin bulk-label request shapes, and localized error feedback |
 | resource-table-ingestion.test.tsx | Resource-table editor gate for the inventory import control |
 | ingestion-dialog.test.tsx | Admin ingestion preview/confirm, localized summary, server conflict, malformed upload, and fresh-409 review handling |
 | resource-detail-sheet.test.tsx | Resource detail sheet identity, localized completeness and health/override evidence, empty states, effective-value provenance, and admin override conflicts |

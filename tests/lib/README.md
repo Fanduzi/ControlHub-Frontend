@@ -30,4 +30,4 @@ Operator Session BFF tests (Phase 38X-1C):
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |
 | `view-models.test.ts` | Resource and Database Estate view-model composition, unambiguous relation-derived parents, scoped server search, and retained empty cluster members |
 | `database-read-model-consistency.test.ts` | Database member, parent, profile, and topology consistency outcomes |
-| `list-page-search-params.test.ts` | Resource/audit URL parsing, including safe pagination/search normalization and repeated environment/label and owner filters |
+| `list-page-search-params.test.ts` | Resource/audit URL parsing, including bounded key/key:value labels plus safe pagination/search normalization and repeated environment/owner filters |

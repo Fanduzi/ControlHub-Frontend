@@ -1,10 +1,10 @@
-// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resources service
-// output: command palette navigation and server-backed resource search; create-resource command is admin-only
+// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resource/settings services
+// output: empty-query commands and bounded server-backed resource search with localized type, environment, and health context; create-resource command is admin-only
 // pos: console quick-navigation overlay with role-gated mutation affordances
 // note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useTranslations } from "next-intl";
@@ -25,8 +25,11 @@ import { Command } from "cmdk";
 
 import { useAdminRole } from "@/lib/auth-role";
 import { consoleNavigation } from "@/lib/navigation";
+import { localizeResourceType } from "@/lib/resource-summary";
 import { listResources } from "@/services/resources";
+import { listEnvironments } from "@/services/settings";
 import type { Resource } from "@/types/resource";
+import type { Environment } from "@/types/settings";
 
 type CommandPaletteProps = {
   open: boolean;
@@ -48,7 +51,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const isAdmin = useAdminRole();
   const [query, setQuery] = useState("");
   const [resources, setResources] = useState<Resource[]>([]);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
   const searchGeneration = useRef(0);
+  const isSearching = query.trim().length > 0;
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
@@ -67,6 +72,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open, onOpenChange]);
 
   useEffect(() => {
+    if (!open) return;
+    let active = true;
+
+    void listEnvironments()
+      .then((items) => {
+        if (active) setEnvironments(items);
+      })
+      .catch(() => {
+        if (active) setEnvironments([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
     const search = query.trim();
     const generation = ++searchGeneration.current;
 
@@ -74,7 +96,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
     const timer = setTimeout(async () => {
       try {
-        const response = await listResources({ q: search, pageSize: 20 });
+        const response = await listResources({ q: search, pageSize: 10 });
         if (generation === searchGeneration.current) setResources(response.items);
       } catch {
         if (generation === searchGeneration.current) setResources([]);
@@ -90,6 +112,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       command();
     },
     [onOpenChange],
+  );
+
+  const environmentNames = useMemo(
+    () => new Map(environments.map((environment) => [environment.id, environment.name])),
+    [environments],
   );
 
   return (
@@ -115,27 +142,29 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           {t("common.noResults")}
         </Command.Empty>
 
-        <Command.Group
-          heading={t("navigation._label")}
-          className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
-        >
-          {consoleNavigation
-            .filter((item) => isAdmin === true || !item.adminOnly)
-            .map((item) => {
-            const Icon = NAV_ICONS[item.id] ?? LayoutDashboard;
-            return (
-              <Command.Item
-                key={item.id}
-                value={item.id}
-                onSelect={() => runCommand(() => router.push(item.href))}
-                className="relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-selected:bg-muted data-selected:text-foreground"
-              >
-                <Icon className="size-4" />
-                {t(`navigation.${item.id}.title`)}
-              </Command.Item>
-            );
-          })}
-        </Command.Group>
+        {!isSearching && (
+          <Command.Group
+            heading={t("navigation._label")}
+            className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+          >
+            {consoleNavigation
+              .filter((item) => isAdmin === true || !item.adminOnly)
+              .map((item) => {
+                const Icon = NAV_ICONS[item.id] ?? LayoutDashboard;
+                return (
+                  <Command.Item
+                    key={item.id}
+                    value={item.id}
+                    onSelect={() => runCommand(() => router.push(item.href))}
+                    className="relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-selected:bg-muted data-selected:text-foreground"
+                  >
+                    <Icon className="size-4" />
+                    {t(`navigation.${item.id}.title`)}
+                  </Command.Item>
+                );
+              })}
+          </Command.Group>
+        )}
 
         {resources.length > 0 && (
           <Command.Group
@@ -154,17 +183,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               >
                 <ServerCog className="size-4" />
                 <span className="font-medium">{resource.displayName}</span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {resource.resourceType}
+                <span className="ml-auto flex gap-1 text-xs text-muted-foreground">
+                  <span>{localizeResourceType(resource.resourceType, t)}</span>
+                  <span>·</span>
+                  <span>{environmentNames.get(resource.environmentId) ?? String(resource.environmentId)}</span>
+                  <span>·</span>
+                  <span>{t.has(`statusValues.${resource.healthStatus}`)
+                    ? t(`statusValues.${resource.healthStatus}`)
+                    : resource.healthStatus}</span>
                 </span>
               </Command.Item>
             ))}
           </Command.Group>
         )}
 
-        <Command.Separator className="-mx-1 h-px bg-border" />
+        {!isSearching && <Command.Separator className="-mx-1 h-px bg-border" />}
 
-        <Command.Group
+        {!isSearching && <Command.Group
           heading={t("shell.workspace")}
           className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
         >
@@ -184,11 +219,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {t("common.actions.createResource")}
             </Command.Item>
           )}
-        </Command.Group>
+        </Command.Group>}
 
-        <Command.Separator className="-mx-1 h-px bg-border" />
+        {!isSearching && <Command.Separator className="-mx-1 h-px bg-border" />}
 
-        <Command.Group
+        {!isSearching && <Command.Group
           heading={t("controls.theme.label")}
           className="overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
         >
@@ -218,7 +253,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               </span>
             )}
           </Command.Item>
-        </Command.Group>
+        </Command.Group>}
       </Command.List>
     </Command.Dialog>
   );

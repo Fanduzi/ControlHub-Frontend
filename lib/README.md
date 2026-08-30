@@ -27,8 +27,10 @@ admin UI.
 unknown slugs fail closed so those pages render an empty scoped result.
 
 `list-page-search-params.ts` normalizes page, filter, and audit search values
-from shareable list URLs. `parsePositiveDecimalInteger` is the shared strict
-parser for URL IDs.
+from shareable list URLs. Resource labels retain valid unknown `key` or
+`key:value` tokens without requiring a current-page taxonomy, while discarding
+blank, malformed, and overlong values. `parsePositiveDecimalInteger` is the
+shared strict parser for URL IDs.
 
 `query-result-csv.ts` emits the current visible result page only. Raw values
 need both `raw_copy_allowed` and `copyAllowed`; masked and malformed disclosure

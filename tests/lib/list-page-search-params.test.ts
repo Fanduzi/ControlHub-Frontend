@@ -1,5 +1,5 @@
 // input: Vitest and list-page URL search-param parsers
-// output: resource/audit pagination and structured-filter normalization, including audit environment URL state
+// output: resource/audit pagination and structured-filter normalization, including bounded label filters and audit environment URL state
 // pos: public parser contract tests for list-page URL state
 // note: if this file changes, update this header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
@@ -55,6 +55,18 @@ describe("parseResourceListSearchParams", () => {
     expect(result.environmentId).toEqual([7, 8]);
     expect(result.ownerId).toBe(42);
     expect(result.label).toEqual(["team:payments", "tier:1"]);
+  });
+
+  it("keeps bounded key and key:value label filters while rejecting blank or malformed URL tokens", async () => {
+    const result = await parseResourceListSearchParams(
+      Promise.resolve({
+        label: ["team", " team:payments ", "", "key:", ":value", "x".repeat(129)],
+      }),
+    );
+
+    // WHY: saved views may contain labels unknown to the current page, but URLs
+    // must not forward blank, malformed, or unbounded query tokens.
+    expect(result.label).toEqual(["team", "team:payments"]);
   });
 
   it("rejects malformed numeric environmentId values", async () => {

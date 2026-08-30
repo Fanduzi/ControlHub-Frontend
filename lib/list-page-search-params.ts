@@ -1,5 +1,5 @@
 // input: Next.js list-page URL search params and resource/audit list parameter types
-// output: normalized resource/audit list parameters, including environment slugs, and strict positive-decimal URL ID parsing
+// output: normalized resource/audit list parameters, including bounded key/key:value labels and environment slugs, and strict positive-decimal URL ID parsing
 // pos: shared URL-state parser for paginated list pages and environment-scoped routes
 // note: if this file changes, update this header and lib/README.md
 import type { AuditEventListParams } from "@/types/audit";
@@ -12,6 +12,7 @@ type PageSearchParamsProp = Promise<RawSearchParams>;
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const MAX_LABEL_FILTER_LENGTH = 128;
 
 function parseSafePositiveInt(raw: string) {
   const parsed = Number(raw);
@@ -43,6 +44,18 @@ function normalizeText(value: string | string[] | undefined) {
 function normalizeTextArray(value: string | string[] | undefined) {
   const values = readAll(value).map((v) => v.trim()).filter(Boolean);
   return values.length > 0 ? values : undefined;
+}
+
+/** Keeps shareable server-side label filters bounded without requiring a current-page taxonomy. */
+export function normalizeLabelFilter(value: string) {
+  const token = value.trim();
+  if (!token || token.length > MAX_LABEL_FILTER_LENGTH) return undefined;
+
+  const separator = token.indexOf(":");
+  if (separator === -1) return token;
+  return token.slice(0, separator).trim() && token.slice(separator + 1).trim()
+    ? token
+    : undefined;
 }
 
 function normalizePositiveInt(
@@ -107,7 +120,11 @@ export async function parseResourceListSearchParams(
     lifecycleStatus,
     healthStatus,
     ownerId: normalizeOptionalPositiveInt(resolved.ownerId),
-    label: toSingleOrArray(normalizeTextArray(resolved.label)),
+    label: toSingleOrArray(
+      readAll(resolved.label)
+        .map(normalizeLabelFilter)
+        .filter((label): label is string => label !== undefined),
+    ),
     q: normalizeText(resolved.q),
     includeArchived,
     archivedOnly,
