@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, mocked query/workspace services, localized messages
-// output: QueryEditorShell behavioral tests for scoped persisted-target recovery, unavailable-target locking, serialized OCC persistence, navigator-safe worksheet limits, server-authorized history restore, execution routing, and redaction
+// output: QueryEditorShell behavioral tests for scoped/All persisted-target recovery, unavailable-target locking, serialized OCC persistence, navigator-safe worksheet limits, server-authorized history restore, execution routing, and redaction
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -43,6 +43,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
       worksheets: [],
       version: 1,
       updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [],
+      pageInfo: pageInfoFor([]),
     });
   });
 

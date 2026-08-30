@@ -95,7 +95,7 @@ function renderSettings(
   targets: QueryTarget[] = buildTargets(),
   messages: Record<string, unknown> = enMessages,
   options: {
-    environmentId?: number;
+    environmentId?: number | null;
     locale?: string;
     pageInfo?: {
       page: number;
@@ -686,6 +686,48 @@ describe("QueryDisclosureSettings target switching", () => {
     await waitFor(() => {
       expect(mockListDisclosurePolicies).toHaveBeenCalledWith(99);
     });
+  });
+
+  it("loads the next target page across all environments", async () => {
+    const user = userEvent.setup();
+    mockListDisclosurePolicies.mockResolvedValue({ items: [] });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 99 })],
+      pageInfo: {
+        page: 2,
+        pageSize: 25,
+        totalItems: 26,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+    });
+
+    renderSettings([buildTargets()[0]!], enMessages, {
+      pageInfo: {
+        page: 1,
+        pageSize: 25,
+        totalItems: 26,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Next targets" }));
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenCalledWith({ page: 2, pageSize: 25 });
+    });
+  });
+
+  it("keeps an invalid environment scope from loading unscoped targets", async () => {
+    const user = userEvent.setup();
+    renderSettings([], enMessages, { environmentId: null });
+
+    await user.type(screen.getByPlaceholderText("Select a target"), "mysql");
+
+    expect(mockGetQueryTargets).not.toHaveBeenCalled();
   });
 
   it("reports a target page failure without exposing stale pagination as success", async () => {

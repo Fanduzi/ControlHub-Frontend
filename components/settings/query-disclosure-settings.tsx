@@ -60,7 +60,7 @@ import { cn } from "@/lib/utils";
 type QueryDisclosureSettingsProps = {
   targets: QueryTarget[];
   pageInfo: PageInfo;
-  environmentId?: number;
+  environmentId?: number | null;
 };
 
 type PolicyFormData = {
@@ -122,7 +122,7 @@ export function QueryDisclosureSettings({
 
   const loadTargetPage = useCallback(
     async (page: number, q = targetSearch) => {
-      if (environmentId === undefined) return;
+      if (environmentId === null) return;
       setTargetsLoading(true);
       setTargetLoadError(null);
       try {
@@ -130,7 +130,7 @@ export function QueryDisclosureSettings({
           page,
           pageSize: targetPageInfo.pageSize,
           ...(q.trim() && { q: q.trim() }),
-          ...(environmentId !== undefined && { environmentId }),
+          ...(typeof environmentId === "number" && { environmentId }),
         });
         setTargetList(response.items);
         setTargetPageInfo(response.pageInfo);

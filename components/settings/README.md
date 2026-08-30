@@ -14,7 +14,7 @@ Settings-page controls and administrator-gated entry points.
 | `query-credential-entry.tsx` | Links administrators to query credential management. |
 | `query-credential-settings.tsx` | Manages query credential metadata. |
 | `query-disclosure-entry.tsx` | Links administrators to disclosure policies. |
-| `query-disclosure-settings.tsx` | Manages disclosure policies. |
+| `query-disclosure-settings.tsx` | Manages disclosure policies with scoped or all-environment target search and pagination. |
 | `theme-toggle.tsx` | Selects the console theme. |
 
 ## Interfaces

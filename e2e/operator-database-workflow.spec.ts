@@ -1,6 +1,11 @@
+// input: Playwright, live console/backend, and per-run admin fixture identity
+// output: real-browser database drilldown checks with explicit fresh health evidence
+// pos: E2E coverage for database operator decision and supporting-detail workflows
+// note: if this file changes, update this header and e2e/README.md
 import { expect, test } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
+import { apiFetch, getAuthToken } from "./api.helpers";
 import {
   assertClean,
   collectConsoleMessages,
@@ -199,6 +204,17 @@ test.describe("Database operator drilldown workflow", () => {
     const healthyInstanceLink = page.locator("table").getByRole("link", { name: /Analytics ClickHouse Node 01/i });
     await expect(healthyInstanceLink).toBeVisible();
     const instanceHref = await healthyInstanceLink.getAttribute("href");
+    const resourceId = instanceHref?.match(/\/resources\/(\d+)/)?.[1];
+    expect(resourceId).toBeDefined();
+    await apiFetch<void>(`/resources/${resourceId}/health-observations`, {
+      method: "POST",
+      token: await getAuthToken(),
+      body: JSON.stringify({
+        status: "healthy",
+        observedAt: new Date().toISOString(),
+        observer: "e2e-operator-workflow",
+      }),
+    });
     await healthyInstanceLink.click();
     await expect(page).toHaveURL(new RegExp(instanceHref!.replace(/\//g, "\\/")), { timeout: 10_000 });
 

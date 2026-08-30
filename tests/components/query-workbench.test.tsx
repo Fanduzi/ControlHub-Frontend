@@ -1259,6 +1259,32 @@ describe("QueryWorkbench target picker search", () => {
     }
   });
 
+  it("searches all environments without inventing an environment id", async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetQueryTargets.mockResolvedValue({
+        items: [],
+        pageInfo: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false },
+      });
+
+      renderWorkbench(buildThreeTargets(), enMessages, EMPTY_FILTERS);
+      openConnections();
+      fireEvent.change(screen.getByPlaceholderText(/Search by name, engine, host/), {
+        target: { value: "outside" },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(275);
+      });
+
+      expect(mockGetQueryTargets).toHaveBeenCalledWith(
+        { page: 1, pageSize: 50, q: "outside" },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the resolved environment scope when searching targets", async () => {
     vi.useFakeTimers();
     try {

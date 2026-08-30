@@ -210,8 +210,21 @@ describe("/query page", () => {
     });
   });
 
-  it.each([undefined, "0", "-1", "1.5", "1e2", "9007199254740992"]) (
-    "ignores an absent or invalid environment id of %s",
+  it("loads unscoped targets when the environment selector is All", async () => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 9 })],
+      pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+    });
+
+    const element = await QueryWorkbenchPage({ searchParams: Promise.resolve({}) });
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 50 });
+    expect(captured.targets).toHaveLength(1);
+  });
+
+  it.each(["0", "-1", "1.5", "1e2", "9007199254740992"]) (
+    "fails closed for an explicitly invalid environment id of %s",
     async (environmentId) => {
       getQueryTargetsMock.mockResolvedValue({
         items: [buildQueryTarget({ resourceId: 9 })],
@@ -245,8 +258,22 @@ describe("/query page", () => {
     });
   });
 
-  it.each([undefined, "0", "-1", "1.5", "1e2", "9007199254740992"]) (
-    "does not scope disclosure targets for an absent or invalid environment id of %s",
+  it("loads unscoped disclosure targets when the environment selector is All", async () => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 9 })],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    });
+
+    const element = await QueryDisclosurePoliciesPage({
+      searchParams: Promise.resolve({}),
+    } as never);
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenCalledWith({ page: 1, pageSize: 25 });
+  });
+
+  it.each(["0", "-1", "1.5", "1e2", "9007199254740992"]) (
+    "fails closed for an explicitly invalid disclosure environment id of %s",
     async (environmentId) => {
       getQueryTargetsMock.mockResolvedValue({
         items: [buildQueryTarget({ resourceId: 9 })],

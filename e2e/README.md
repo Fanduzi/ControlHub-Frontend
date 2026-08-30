@@ -13,7 +13,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | list-pagination.spec.ts | List pagination behavior |
 | login.spec.ts | Login flow |
 | operator-console-smoke.spec.ts | Operator console smoke tests |
-| operator-database-workflow.spec.ts | Operator database workflow |
+| operator-database-workflow.spec.ts | Operator database workflow, including fresh observed-health setup for the healthy compact deck |
 | operator-interaction-stability.spec.ts | Operator interaction stability |
 | query-credential-settings.spec.ts | Query credential settings (BFF-session-backed admin flows with no readable browser role state) |
 | resource-archive.spec.ts | Resource archiving |

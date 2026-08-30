@@ -104,7 +104,7 @@ export function QueryWorkbench({
   const exactTargetGeneration = useRef(0);
   const exactTargetController = useRef<AbortController | null>(null);
   const exactTargetAttempt = useRef<{
-    readonly environmentId: number;
+    readonly environmentId: number | undefined;
     readonly resourceId: number;
   } | null>(null);
   const schemaStore = useMemo(() => new QuerySchemaStore(), []);
@@ -230,7 +230,6 @@ export function QueryWorkbench({
 
     if (
       (query.length === 0 && engine === "") ||
-      environmentId === undefined ||
       environmentId === null
     ) {
       setSearchResult(null);
@@ -246,7 +245,7 @@ export function QueryWorkbench({
           page: 1,
           pageSize: 50,
           ...(query && { q: query }),
-          ...(environmentId !== undefined && { environmentId }),
+          ...(typeof environmentId === "number" && { environmentId }),
           ...(engine && { engine }),
         },
         { signal: controller.signal },
@@ -340,7 +339,6 @@ export function QueryWorkbench({
     if (
       !navigatorPageInfo.hasNextPage ||
       targetsLoading ||
-      environmentId === undefined ||
       environmentId === null
     ) {
       return;
@@ -353,7 +351,7 @@ export function QueryWorkbench({
         page: navigatorPageInfo.page + 1,
         pageSize: navigatorPageInfo.pageSize,
         ...(query && { q: query }),
-        ...(environmentId !== undefined && { environmentId }),
+        ...(typeof environmentId === "number" && { environmentId }),
         ...(engine && { engine }),
       });
 
@@ -379,7 +377,7 @@ export function QueryWorkbench({
   }
 
   async function loadAllEngines() {
-    if (environmentId === undefined || environmentId === null || enginesLoading) {
+    if (environmentId === null || enginesLoading) {
       return;
     }
 
@@ -394,7 +392,7 @@ export function QueryWorkbench({
         const response = await getQueryTargets({
           page: nextPage,
           pageSize: 50,
-          environmentId,
+          ...(environmentId !== undefined && { environmentId }),
         });
         allTargets.push(...response.items);
         hasNextPage = response.pageInfo.hasNextPage;
@@ -454,10 +452,12 @@ export function QueryWorkbench({
       setActiveTargetId(resourceId);
       return;
     }
-    if (environmentId === undefined || environmentId === null) return;
+    if (environmentId === null) return;
+    const previousAttempt = exactTargetAttempt.current;
     if (
-      exactTargetAttempt.current?.environmentId === environmentId &&
-      exactTargetAttempt.current.resourceId === resourceId
+      previousAttempt !== null &&
+      previousAttempt.environmentId === environmentId &&
+      previousAttempt.resourceId === resourceId
     ) {
       return;
     }
@@ -466,7 +466,10 @@ export function QueryWorkbench({
     const controller = new AbortController();
     exactTargetController.current = controller;
     void getQueryTargets(
-      { targetId: resourceId, environmentId },
+      {
+        targetId: resourceId,
+        ...(environmentId !== undefined && { environmentId }),
+      },
       { signal: controller.signal },
     ).then(
       (response) => {

@@ -26,13 +26,16 @@ export default async function QueryWorkbenchPage({
   const targetId = typeof resolved.targetId === "string"
     ? parsePositiveDecimalInteger(resolved.targetId)
     : undefined;
-  const scope = await resolveEnvironmentSlugToId({
-    environmentId: parsePositiveDecimalInteger(resolved.environmentId),
-    environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
-  });
+  const parsedEnvironmentId = parsePositiveDecimalInteger(resolved.environmentId);
+  const scope = resolved.environmentId !== undefined && parsedEnvironmentId === undefined
+    ? null
+    : await resolveEnvironmentSlugToId({
+        environmentId: parsedEnvironmentId,
+        environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
+      });
   const initialFilters = await parseQueryWorkbenchSearchParams(Promise.resolve(resolved));
 
-  if (!scope || typeof scope.environmentId !== "number") {
+  if (!scope) {
     return (
       <div className="min-h-0">
         <QueryWorkbench
@@ -53,12 +56,12 @@ export default async function QueryWorkbenchPage({
     );
   }
 
-  const environmentId = scope.environmentId;
+  const environmentId = typeof scope.environmentId === "number" ? scope.environmentId : undefined;
 
   const { items: navigatorItems, pageInfo } = await getQueryTargets({
     page: 1,
     pageSize: 50,
-    environmentId,
+    ...(environmentId !== undefined && { environmentId }),
     ...(initialFilters.q && { q: initialFilters.q }),
     ...(!isAllFilter(initialFilters.engine) && { engine: initialFilters.engine }),
   });
@@ -67,7 +70,7 @@ export default async function QueryWorkbenchPage({
   if (targetId !== undefined) {
     const response = await getQueryTargets({
       targetId,
-      environmentId,
+      ...(environmentId !== undefined && { environmentId }),
     });
     selectedTarget = response.items.find((target) => target.resourceId === targetId);
   }

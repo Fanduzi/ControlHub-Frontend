@@ -1,3 +1,7 @@
+// input: Next search params, environment scope, and query-target service
+// output: admin disclosure-policy page with fail-closed invalid scope and unscoped All support
+// pos: authenticated disclosure-policy route composition
+// note: if this file changes, update this header and README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";
@@ -13,16 +17,19 @@ export default async function QueryDisclosurePoliciesPage({
 }) {
   const t = await getTranslations();
   const resolved = await searchParams;
-  const scope = await resolveEnvironmentSlugToId({
-    environmentId: parsePositiveDecimalInteger(resolved.environmentId),
-    environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
-  });
+  const parsedEnvironmentId = parsePositiveDecimalInteger(resolved.environmentId);
+  const scope = resolved.environmentId !== undefined && parsedEnvironmentId === undefined
+    ? null
+    : await resolveEnvironmentSlugToId({
+        environmentId: parsedEnvironmentId,
+        environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
+      });
   const environmentId = typeof scope?.environmentId === "number" ? scope.environmentId : undefined;
-  const targetResponse = environmentId !== undefined
+  const targetResponse = scope
     ? await getQueryTargets({
         page: 1,
         pageSize: 25,
-        environmentId,
+        ...(environmentId !== undefined && { environmentId }),
       })
     : {
         items: [],
@@ -46,7 +53,7 @@ export default async function QueryDisclosurePoliciesPage({
       <QueryDisclosureSettings
         targets={targetResponse.items}
         pageInfo={targetResponse.pageInfo}
-        environmentId={environmentId}
+        environmentId={scope ? environmentId : null}
       />
     </div>
   );

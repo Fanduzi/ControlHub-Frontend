@@ -18,7 +18,7 @@ responses, and fail-closed scopes.
 | `lib/` | Shared list URL parsing and utility contracts |
 | `use-debounce.test.ts` | Shared callback debounce timing and unmount cancellation |
 | `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, server search/pagination requests, settings dictionaries, and table data flow. |
-| `pages.query.test.tsx` | Verifies Query Workbench URL scope and fail-closed explicit target selection. |
+| `pages.query.test.tsx` | Verifies Query Workbench/disclosure All-environment loading, URL scope, and fail-closed explicit environment/target selection. |
 | `topology-page.test.tsx` | Verifies server resolution of canonical topology environment/root URL state. |
 
 ## Interfaces
