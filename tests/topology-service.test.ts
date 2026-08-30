@@ -1,3 +1,7 @@
+// input: mocked API client and topology service requests
+// output: topology request-path and invalid-root serialization contracts
+// pos: topology transport regression tests
+// note: if this file changes, update this header and tests/services/README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/services/api-client", async () => {
@@ -151,6 +155,16 @@ describe("getEnvironmentTopology", () => {
 
     expect(mockApiClient).toHaveBeenCalledWith(
       "/environments/7/topology?rootResourceId=42&depth=3",
+    );
+  });
+
+  it("omits an invalid root rather than widening it into a backend request", async () => {
+    mockApiClient.mockResolvedValueOnce(minimalResponse({ depth: 2 }));
+
+    await getEnvironmentTopology(7, { rootResourceId: -1, depth: 2 });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/environments/7/topology?depth=2",
     );
   });
 });

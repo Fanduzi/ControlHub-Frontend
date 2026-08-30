@@ -1,6 +1,7 @@
-// input: environment provider, topology panel, translations
-// output: current-environment topology surface with a controlled empty state
+// input: resolved URL environment/root scope, environment provider fallback, topology panel, translations
+// output: fail-closed URL-authoritative topology workspace with a controlled empty state
 // pos: dedicated topology route client content
+// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useTranslations } from "next-intl";
@@ -10,13 +11,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { TopologyPanel } from "./topology-panel";
 
-export function EnvironmentTopologyContent() {
+type EnvironmentTopologyContentProps = {
+  environmentId?: number | null;
+  rootResourceId?: number;
+};
+
+export function EnvironmentTopologyContent({
+  environmentId,
+  rootResourceId,
+}: EnvironmentTopologyContentProps) {
   const t = useTranslations();
   const { currentEnvironmentId, loading } = useEnvironment();
+  const hasUrlEnvironment = environmentId !== undefined;
+  const selectedEnvironmentId = hasUrlEnvironment
+    ? environmentId
+    : currentEnvironmentId;
 
   if (loading) return <Skeleton className="h-[500px] w-full rounded-lg" />;
 
-  if (!currentEnvironmentId) {
+  if (!selectedEnvironmentId) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
         {t("topology.selectEnvironment")}
@@ -24,5 +37,11 @@ export function EnvironmentTopologyContent() {
     );
   }
 
-  return <TopologyPanel environmentId={currentEnvironmentId} />;
+  return (
+    <TopologyPanel
+      environmentId={selectedEnvironmentId}
+      initialRootResourceId={rootResourceId}
+      urlSync={hasUrlEnvironment}
+    />
+  );
 }

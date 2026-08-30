@@ -4,7 +4,8 @@ Topology graph presentation primitives.
 
 `TopologyControls` exposes localized depth, direction, and relation-type
 filters. Resource relation filters are URL-synchronized by `TopologyPanel`;
-environment topology keeps its existing root/depth controls.
+environment topology synchronizes its root and depth controls too, preserving
+the canonical environment slug and other topology controls on root changes.
 
 ## Members
 

@@ -20,3 +20,7 @@
 `resource-search-combobox.tsx` and `deployed-resources-card.tsx` use root locale labels for resource types.
 
 `topology-panel.tsx` renders a topology whenever the response contains nodes or edges, preserving isolated entry/proxy nodes; topology group labels use localized roles only when no cluster name is available.
+
+`environment-topology-content.tsx` accepts the server-resolved environment and
+root scope for `/topology`; it does not fall back to the persisted environment
+when that URL scope is invalid.

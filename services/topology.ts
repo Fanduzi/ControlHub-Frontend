@@ -1,3 +1,7 @@
+// input: API client, typed resource/environment topology parameters
+// output: validated resource and environment topology requests
+// pos: topology backend transport boundary
+// note: if this file changes, update this header and services/README.md.
 import { ApiError, apiClient } from "@/services/api-client";
 import type { EnvironmentTopologyParams, TopologyParams, TopologyResponse } from "@/types/resource";
 
@@ -20,9 +24,10 @@ function buildTopologyPath(resourceId: number, params: TopologyParams = {}) {
 
 function buildEnvironmentTopologyPath(environmentId: number, params: EnvironmentTopologyParams = {}) {
   const searchParams = new URLSearchParams();
+  const rootResourceId = params.rootResourceId;
 
-  if (params.rootResourceId) {
-    searchParams.set("rootResourceId", String(params.rootResourceId));
+  if (rootResourceId !== undefined && Number.isSafeInteger(rootResourceId) && rootResourceId > 0) {
+    searchParams.set("rootResourceId", String(rootResourceId));
   }
   if (params.depth) {
     searchParams.set("depth", String(params.depth));

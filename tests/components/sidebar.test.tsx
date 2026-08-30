@@ -168,6 +168,10 @@ describe("Sidebar", () => {
       "href",
       "/audits?environment=prod",
     );
+    expect(screen.getByRole("link", { name: "Topology" })).toHaveAttribute(
+      "href",
+      "/topology?environment=prod",
+    );
   });
 
   it("falls back to provider environment context when the URL is not environment-scoped", () => {

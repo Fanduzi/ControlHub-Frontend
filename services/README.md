@@ -50,6 +50,9 @@ contract and never resends immutable scope.
 `machine-principals.ts` lists only backend-safe credential lifecycle metadata;
 plaintext remains confined to create and rotate responses.
 
+`topology.ts` serializes an environment root only when it is a positive safe
+integer, so malformed client values cannot reach the backend query.
+
 ## Interfaces
 
 - Named-view list/create/update/delete functions expose the backend wire contract.

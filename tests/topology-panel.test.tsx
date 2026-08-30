@@ -14,9 +14,10 @@ import zhCN from "@/messages/zh-CN.json";
 const push = vi.fn();
 const replace = vi.fn();
 let searchParams = new URLSearchParams();
+let pathname = "/resources/1";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
-  usePathname: () => "/resources/1",
+  usePathname: () => pathname,
   useSearchParams: () => searchParams,
 }));
 
@@ -171,6 +172,7 @@ describe("TopologyPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams = new URLSearchParams();
+    pathname = "/resources/1";
   });
 
   it("renders loading state initially", () => {
@@ -569,5 +571,52 @@ describe("TopologyPanel", () => {
 
     expect(screen.getByTestId("topology-root-select")).toHaveTextContent("Order MySQL Primary Prod");
     expect(screen.getByTestId("topology-truncated")).toBeInTheDocument();
+  });
+
+  it("hydrates a deep-linked environment root and preserves topology controls when changing it", async () => {
+    const user = userEvent.setup();
+    pathname = "/topology";
+    searchParams = new URLSearchParams("environment=prod&rootId=42&topologyDepth=3&topologyExpanded=1");
+    mockGetEnvironmentTopology.mockResolvedValue({
+      ...mockTopologyResponse,
+      depth: 3,
+      candidates: [mockTopologyResponse.nodes[1]],
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+
+    await waitFor(() => {
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, {
+        rootResourceId: 42,
+        depth: 3,
+      });
+    });
+
+    await user.selectOptions(screen.getByTestId("topology-root-select"), "2");
+    expect(push).toHaveBeenLastCalledWith(
+      "/topology?environment=prod&rootId=2&topologyDepth=3&topologyExpanded=1",
+    );
+
+    await user.selectOptions(screen.getByTestId("topology-root-select"), "");
+    expect(push).toHaveBeenLastCalledWith(
+      "/topology?environment=prod&topologyDepth=3&topologyExpanded=1",
+    );
+  });
+
+  it("loads the candidate graph when the URL has no valid root", async () => {
+    pathname = "/topology";
+    searchParams = new URLSearchParams("environment=prod&rootId=0");
+    mockGetEnvironmentTopology.mockResolvedValue({
+      ...mockTopologyResponse,
+      depth: 2,
+      candidates: [mockTopologyResponse.nodes[1]],
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+
+    await waitFor(() => {
+      expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 });
+      expect(screen.getByTestId("topology-root-select")).toBeInTheDocument();
+    });
   });
 });

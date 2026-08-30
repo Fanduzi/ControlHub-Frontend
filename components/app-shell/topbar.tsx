@@ -1,5 +1,5 @@
 // input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar identity/role controls refreshed from the BFF, fail-closed admin UI, and fail-closed sign-out
+// output: console topbar identity/role controls, canonical environment navigation, fail-closed admin UI/sign-out
 // pos: console shell chrome
 // note: if this file changes, update header and components/app-shell/README.md
 
@@ -175,7 +175,11 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
       params.delete("environment");
     }
 
-    params.set("page", "1");
+    if (pathname === "/topology") {
+      params.delete("page");
+    } else {
+      params.set("page", "1");
+    }
     router.replace(`${pathname}?${params.toString()}`);
   }
 

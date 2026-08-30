@@ -1,5 +1,5 @@
 // input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
-// output: Vitest tests for the console topbar (including audit environment URL switching and server-confirmed fail-closed sign-out)
+// output: Vitest tests for console topbar environment URL switching and server-confirmed fail-closed sign-out
 // pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
 // note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
@@ -85,6 +85,9 @@ describe("Topbar", () => {
     searchParams.delete("targetResourceId");
     searchParams.delete("eventType");
     searchParams.delete("result");
+    searchParams.delete("rootId");
+    searchParams.delete("topologyDepth");
+    searchParams.delete("topologyExpanded");
     searchParams.set("page", "3");
     searchParams.set("q", "orders");
   });
@@ -141,6 +144,26 @@ describe("Topbar", () => {
 
     expect(replace).toHaveBeenCalledWith(
       "/settings/query-disclosure-policies?page=1&q=orders&environment=prod",
+    );
+  });
+
+  it("keeps topology controls while switching to a canonical environment slug", async () => {
+    const user = userEvent.setup();
+    searchParams.set("rootId", "42");
+    searchParams.set("topologyDepth", "3");
+    searchParams.set("topologyExpanded", "1");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/topology" />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Production" }));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/topology?q=orders&rootId=42&topologyDepth=3&topologyExpanded=1&environment=prod",
     );
   });
 

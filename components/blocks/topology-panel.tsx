@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData, type LayerBand } from "@/lib/topology-mapper";
 import { getEnvironmentTopology, getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
 import { cn } from "@/lib/utils";
+import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";
 import type { TopologyParams, TopologyResponse } from "@/types/resource";
 
 import { NODE_TYPES } from "./topology/topology-nodes";
@@ -38,6 +39,7 @@ type TopologyPanelProps = {
   className?: string;
   compact?: boolean;
   urlSync?: boolean;
+  initialRootResourceId?: number;
   initialTopology?: TopologyResponse | null;
 };
 
@@ -47,6 +49,7 @@ function TopologyPanelInner({
   className,
   compact = false,
   urlSync = false,
+  initialRootResourceId,
   initialTopology,
 }: TopologyPanelProps) {
   const t = useTranslations();
@@ -65,6 +68,7 @@ function TopologyPanelInner({
     urlRelationType as (typeof TOPOLOGY_RELATION_TYPES)[number],
   ) ? urlRelationType as (typeof TOPOLOGY_RELATION_TYPES)[number] : undefined;
   const urlExpanded = urlParams.get("topologyExpanded") === "1";
+  const urlRootResourceId = parsePositiveDecimalInteger(urlParams.get("rootId") ?? undefined);
 
   const [localDepth, setLocalDepth] = useState(defaultDepth);
   const [localDirection, setLocalDirection] = useState<TopologyParams["direction"]>("both");
@@ -75,7 +79,8 @@ function TopologyPanelInner({
   const direction = urlSync ? urlDirection : localDirection;
   const relationType = urlSync ? parsedUrlRelationType : localRelationType;
   const expanded = urlSync ? urlExpanded : localExpanded;
-  const [rootResourceId, setRootResourceId] = useState<number>();
+  const [localRootResourceId, setLocalRootResourceId] = useState(initialRootResourceId);
+  const rootResourceId = urlSync ? urlRootResourceId : localRootResourceId;
 
   const [topology, setTopology] = useState<TopologyResponse | null>(initialTopology ?? null);
   const [loading, setLoading] = useState(!initialTopology);
@@ -154,6 +159,17 @@ function TopologyPanelInner({
       }
     },
     [urlSync, updateUrlParams],
+  );
+
+  const setRootResourceId = useCallback(
+    (value: number | undefined) => {
+      if (urlSync) {
+        updateUrlParams({ rootId: value ? String(value) : null });
+      } else {
+        setLocalRootResourceId(value);
+      }
+    },
+    [updateUrlParams, urlSync],
   );
 
   const fetchTopology = useCallback(
@@ -238,7 +254,7 @@ function TopologyPanelInner({
         position: { x: rect.right + 12, y: rect.top },
       });
     },
-    [isEnvironmentTopology],
+    [isEnvironmentTopology, setRootResourceId],
   );
 
   const handleRetry = useCallback(() => {
