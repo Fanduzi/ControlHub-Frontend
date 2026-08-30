@@ -699,4 +699,41 @@ describe("TopologyPanel", () => {
     expect(screen.queryByText("Stale root")).not.toBeInTheDocument();
     expect(screen.getByText("Fresh root")).toBeInTheDocument();
   });
+
+  it("refetches and aborts the prior scope when the environment changes with identical controls", async () => {
+    pathname = "/topology";
+    searchParams = new URLSearchParams("environment=prod&rootId=2&topologyDepth=3");
+    mockGetEnvironmentTopology
+      .mockResolvedValueOnce({
+        ...mockTopologyResponse,
+        depth: 3,
+        nodes: [{ ...mockTopologyResponse.nodes[1], isRoot: true, displayName: "Environment 7" }],
+        edges: [],
+      })
+      .mockResolvedValueOnce({
+        ...mockTopologyResponse,
+        depth: 3,
+        nodes: [{ ...mockTopologyResponse.nodes[1], isRoot: true, displayName: "Environment 8" }],
+        edges: [],
+      });
+
+    const { rerender } = renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
+    expect(await screen.findByText("Environment 7")).toBeInTheDocument();
+    const firstSignal = mockGetEnvironmentTopology.mock.calls[0]?.[2]?.signal;
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <TopologyPanel environmentId={8} urlSync />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(
+      8,
+      { rootResourceId: 2, depth: 3 },
+      expect.anything(),
+    ));
+    expect(firstSignal?.aborted).toBe(true);
+    expect(await screen.findByText("Environment 8")).toBeInTheDocument();
+    expect(screen.queryByText("Environment 7")).not.toBeInTheDocument();
+  });
 });

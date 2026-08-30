@@ -81,6 +81,9 @@ function TopologyPanelInner({
   const relationType = urlSync ? parsedUrlRelationType : localRelationType;
   const expanded = urlSync ? urlExpanded : localExpanded;
   const rootResourceId = urlRootResourceId;
+  const topologyScope = environmentId !== undefined
+    ? `environment:${environmentId}`
+    : `resource:${resourceId ?? ""}`;
 
   const [topology, setTopology] = useState<TopologyResponse | null>(initialTopology ?? null);
   const [loading, setLoading] = useState(!initialTopology);
@@ -90,7 +93,7 @@ function TopologyPanelInner({
   // Track params that current topology data was loaded with,
   // so we can skip re-fetching when params haven't changed.
   const loadedParamsRef = useRef<string | null>(
-    initialTopology ? `:${defaultDepth}:both:` : null,
+    initialTopology ? `${topologyScope}::${defaultDepth}:both:` : null,
   );
   const topologyRequestGeneration = useRef(0);
   const topologyRequestController = useRef<AbortController | null>(null);
@@ -194,7 +197,7 @@ function TopologyPanelInner({
             }, { signal: controller.signal });
         if (controller.signal.aborted || generation !== topologyRequestGeneration.current) return;
         setTopology(result);
-        loadedParamsRef.current = `${rootResourceId ?? ""}:${d}:${dir ?? "both"}:${rel ?? ""}`;
+        loadedParamsRef.current = `${topologyScope}:${rootResourceId ?? ""}:${d}:${dir ?? "both"}:${rel ?? ""}`;
       } catch (err) {
         if (controller.signal.aborted || generation !== topologyRequestGeneration.current) return;
         if (err instanceof TopologyNotAvailableError) {
@@ -210,16 +213,16 @@ function TopologyPanelInner({
         }
       }
     },
-    [environmentId, isEnvironmentTopology, resourceId, rootResourceId, t],
+    [environmentId, isEnvironmentTopology, resourceId, rootResourceId, t, topologyScope],
   );
 
   useEffect(() => {
-    const loadKey = `${rootResourceId ?? ""}:${depth}:${direction ?? "both"}:${relationType ?? ""}`;
+    const loadKey = `${topologyScope}:${rootResourceId ?? ""}:${depth}:${direction ?? "both"}:${relationType ?? ""}`;
     if (loadedParamsRef.current === loadKey) {
       return;
     }
     fetchTopology(depth, direction, relationType);
-  }, [depth, direction, fetchTopology, relationType, rootResourceId]);
+  }, [depth, direction, fetchTopology, relationType, rootResourceId, topologyScope]);
 
   useEffect(() => () => topologyRequestController.current?.abort(), []);
 
