@@ -16,9 +16,9 @@ success and the exact tracker state is independently verified.
 |------|-------|
 | Repository | `Fanduzi/ControlHub-Frontend` |
 | Integration base | `175add77e5a0323362ccaf04db65d84ef5c295c1` |
-| Product SHA | `85fe3fded4bec6eb5cd5f2278472f33bfd26c902` |
-| Product CI | [33293495678](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33293495678) |
-| Required product CI jobs | `release-local` (`99209094303`) and `release-e2e` (`99209094286`) |
+| Product SHA | `489dae31595ee4390d2e4f81127249540483f1bb` |
+| Product CI | [33295988041](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/33295988041) — successful |
+| Required product CI jobs | `release-local` (`99215616537`) and `release-e2e` (`99215616439`) — both successful |
 | Integration worktree | `/Users/fan/JsProjects/ControlHub-wt-integration` — clean before this evidence record |
 
 The linked GitHub Actions records are the authoritative runtime evidence. Both
@@ -35,13 +35,18 @@ The local product gates passed at the exact product SHA:
 - Controlled-error-code check covering 50 codes
 - E2E preflight and governance checks
 - Webpack production build
+- Full cross-repository Playwright E2E: 183 passed, 0 failed, 0 skipped
+- E2E artifact: `frontend-cross-repo-e2e-artifacts`
 - Independent standards review: P1=0, P2=0
 - Independent specification review: P1=0, P2=0
 - MySQL CI root-cause fix reviews: P1=0, P2=0
+- Open-source/CI checkout review: P1=0, P2=0
 
 ## Publication and preservation
 
-The product was pushed directly as a normal fast-forward update to
-`Fanduzi/ControlHub-Frontend` `main` over authenticated HTTPS; no force push was used. The
-dirty root worktree and its user WIP were preserved; no reset, clean, stash,
-rebase, or unrelated-file cleanup was performed.
+The product and Apache-2.0 license were pushed directly as normal fast-forward
+updates to the public `Fanduzi/ControlHub-Frontend` `main`; no force push was
+used. Both CI jobs checked out the public backend without a repository token,
+and the obsolete checkout secret was removed after the workflow was verified.
+The dirty root worktree and its user WIP were preserved; no reset, clean,
+stash, rebase, or unrelated-file cleanup was performed.
