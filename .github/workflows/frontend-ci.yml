@@ -261,6 +261,7 @@ jobs:
       - name: Create disposable E2E metadata database
         run: |
           mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          SET GLOBAL log_bin_trust_function_creators = 1;
           CREATE DATABASE IF NOT EXISTS controlhub_e2e CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
           GRANT ALL PRIVILEGES ON controlhub_e2e.* TO 'controlhub'@'%';
           FLUSH PRIVILEGES;
