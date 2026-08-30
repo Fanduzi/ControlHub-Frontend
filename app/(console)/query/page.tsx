@@ -1,3 +1,7 @@
+// input: URL params and query services
+// output: fail-closed Query Workbench props
+// pos: authenticated Query Workbench route
+// note: update app/(console)/query/README.md if this changes
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";
@@ -18,7 +22,10 @@ export default async function QueryWorkbenchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolved = await searchParams;
-  const targetId = parsePositiveDecimalInteger(resolved.targetId);
+  const hasExplicitTargetId = resolved.targetId !== undefined;
+  const targetId = typeof resolved.targetId === "string"
+    ? parsePositiveDecimalInteger(resolved.targetId)
+    : undefined;
   const scope = await resolveEnvironmentSlugToId({
     environmentId: parsePositiveDecimalInteger(resolved.environmentId),
     environmentSlug: Array.isArray(resolved.environment) ? resolved.environment[0] : resolved.environment,
@@ -73,7 +80,7 @@ export default async function QueryWorkbenchPage({
         targets={targets}
         pageInfo={pageInfo}
         initialFilters={initialFilters}
-        initialActiveTargetId={targetId === undefined ? undefined : selectedTarget?.resourceId ?? null}
+        initialActiveTargetId={hasExplicitTargetId ? selectedTarget?.resourceId ?? null : undefined}
         environmentId={environmentId}
       />
     </div>

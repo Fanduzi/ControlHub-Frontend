@@ -1,3 +1,7 @@
+// input: Query Workbench server page props and mocked environment/target services
+// output: URL scope, target-selection, and fail-closed page-composition assertions
+// pos: route-level regression coverage for Query Workbench server state
+// note: if this file changes, update this header and tests/README.md
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -386,6 +390,31 @@ describe("/query page", () => {
     });
     render(element);
 
+    expect(captured.targets?.map((target) => target.resourceId)).toEqual([1]);
+    expect(captured.initialActiveTargetId).toBeNull();
+  });
+
+  it.each([
+    "0",
+    "-1",
+    "1.5",
+    "1e2",
+    "not-a-target",
+    "",
+    ["42"],
+    ["42", "43"],
+  ])("fails closed for an explicitly invalid targetId of %o", async (targetId) => {
+    getQueryTargetsMock.mockResolvedValue({
+      items: [buildQueryTarget({ resourceId: 1 })],
+      pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+    });
+
+    const element = await QueryWorkbenchPage({
+      searchParams: Promise.resolve({ environmentId: "7", targetId }),
+    });
+    render(element);
+
+    expect(getQueryTargetsMock).toHaveBeenCalledTimes(1);
     expect(captured.targets?.map((target) => target.resourceId)).toEqual([1]);
     expect(captured.initialActiveTargetId).toBeNull();
   });

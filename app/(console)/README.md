@@ -23,6 +23,9 @@ attention data before client metrics render.
 
 Query Workbench and query disclosure policies use the same URL environment
 scope, including their target lookups and searches.
+An explicit invalid or unavailable Query Workbench `targetId` fails closed to
+the unavailable-target state while retaining the navigator; omitting it keeps
+the default target selection.
 
 `settings/README.md` documents the Settings overview and direct administrator
 routes.
