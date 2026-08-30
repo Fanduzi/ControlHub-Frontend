@@ -15,3 +15,7 @@ does not navigate or issue another resource request.
 Attention reasons prefer status-specific copy. When a future or less common
 status lacks that copy, the shared diagnostic field and status translations
 produce a readable localized fallback instead of exposing an i18n key.
+
+During provisioning and decommissioning, an unknown health value is the normal
+pre-observation state and is omitted from the row. Warning and critical health
+badges remain visible alongside the lifecycle badge.

@@ -1,9 +1,9 @@
 // input: localized messages and resource view-model fixtures
-// output: regression coverage for the Overview attention queue, expansion, and readable localized reasons
+// output: regression coverage for the Overview attention queue, expansion, readable reasons, and transition-aware badges
 // pos: component test for exact actionable membership, expansion, and labels
 // note: if this file changes, update this header and tests/components/README.md.
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 
@@ -318,5 +318,45 @@ describe("OverviewContent attention reason", () => {
 
     expect(screen.getByText("生命周期状态：创建中")).toBeInTheDocument();
     expect(screen.queryByText(/diagnostics\.reasons\.lifecycleStatus/)).not.toBeInTheDocument();
+  });
+
+  it("suppresses only normal unknown health during lifecycle transitions", () => {
+    const resources = [
+      makeResource({
+        id: 1,
+        displayName: "Provisioning cluster",
+        healthStatus: "unknown",
+        lifecycleStatus: "provisioning",
+      }),
+      makeResource({
+        id: 2,
+        displayName: "Decommissioning cluster",
+        healthStatus: "unknown",
+        lifecycleStatus: "decommissioning",
+      }),
+      makeResource({
+        id: 3,
+        displayName: "Warning provisioning cluster",
+        healthStatus: "warning",
+        lifecycleStatus: "provisioning",
+      }),
+    ];
+
+    renderZh(
+      <OverviewContent resources={resources} attentionResources={resources} />,
+    );
+
+    const provisioningRow = screen.getByRole("link", { name: "Provisioning cluster" }).closest("tr");
+    const decommissioningRow = screen.getByRole("link", { name: "Decommissioning cluster" }).closest("tr");
+    const warningRow = screen.getByRole("link", { name: "Warning provisioning cluster" }).closest("tr");
+    expect(provisioningRow).not.toBeNull();
+    expect(decommissioningRow).not.toBeNull();
+    expect(warningRow).not.toBeNull();
+    expect(within(provisioningRow!).getByText("创建中")).toBeInTheDocument();
+    expect(within(provisioningRow!).queryByText("未知")).not.toBeInTheDocument();
+    expect(within(decommissioningRow!).getByText("下线中")).toBeInTheDocument();
+    expect(within(decommissioningRow!).queryByText("未知")).not.toBeInTheDocument();
+    expect(within(warningRow!).getByText("告警")).toBeInTheDocument();
+    expect(within(warningRow!).getByText("创建中")).toBeInTheDocument();
   });
 });

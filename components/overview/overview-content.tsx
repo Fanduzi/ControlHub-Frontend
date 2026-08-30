@@ -1,5 +1,5 @@
 // input: environment-scoped resource view models and localized UI messages
-// output: posture metrics and an expandable attention queue with readable localized reason fallbacks
+// output: posture metrics and an expandable attention queue with readable reasons and transition-aware status badges
 // pos: client-rendered Overview content; queue membership uses isActionableAttention
 // note: if this file changes, update this header and components/overview/README.md.
 "use client";
@@ -294,10 +294,17 @@ export function OverviewContent({
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex gap-1">
-                        <StatusBadge
-                          status={resource.healthStatus}
-                          tone="health"
-                        />
+                        {!(
+                          resource.healthStatus === "unknown" &&
+                          ["provisioning", "decommissioning"].includes(
+                            resource.lifecycleStatus,
+                          )
+                        ) && (
+                          <StatusBadge
+                            status={resource.healthStatus}
+                            tone="health"
+                          />
+                        )}
                         <StatusBadge
                           status={resource.lifecycleStatus}
                           tone="lifecycle"
