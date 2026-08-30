@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: admin-workspace-isolated Playwright E2E specs for the query workbench (shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -35,10 +35,15 @@ const PROBE_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://localhost:8081";
 
+let readyTargetDisplayName: string | null = null;
+let readyTargetResourceId: number | null = null;
+let fixtureAdminToken: string | null = null;
+
 test.beforeAll(async () => {
   await checkBackendHealth();
 
   const token = await getAuthToken();
+  fixtureAdminToken = token;
 
   const targetsRes = await fetch(`${PROBE_API_BASE}/query-targets`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -53,6 +58,7 @@ test.beforeAll(async () => {
   const targetsBody = (await targetsRes.json()) as {
     items?: Array<{
       resourceId: number;
+      displayName?: string;
       availableActions?: { run?: boolean };
     }>;
   };
@@ -63,6 +69,13 @@ test.beforeAll(async () => {
       `Fixture readiness probe failed: no query target with availableActions.run === true. ${FIXTURE_DIAGNOSTIC}`,
     );
   }
+  if (!readyTarget.displayName) {
+    throw new Error(
+      `Fixture readiness probe failed: ready query target has no displayName. ${FIXTURE_DIAGNOSTIC}`,
+    );
+  }
+  readyTargetDisplayName = readyTarget.displayName;
+  readyTargetResourceId = readyTarget.resourceId;
 
   const schemaRes = await fetch(
     `${PROBE_API_BASE}/query-targets/${readyTarget.resourceId}/schema/databases`,
@@ -76,6 +89,20 @@ test.beforeAll(async () => {
       `Fixture readiness probe failed: GET /query-targets/${readyTarget.resourceId}/schema/databases returned ${schemaRes.status}. ${FIXTURE_DIAGNOSTIC}`,
     );
   }
+});
+
+test.beforeEach(async () => {
+  if (fixtureAdminToken === null) throw new Error("E2E fixture admin token is unavailable");
+  const workspace = await apiFetch<{ worksheets: unknown[]; version: number }>(
+    "/query-workspace",
+    { token: fixtureAdminToken },
+  );
+  if (workspace.worksheets.length === 0) return;
+  await apiFetch("/query-workspace", {
+    method: "PUT",
+    token: fixtureAdminToken,
+    body: JSON.stringify({ expectedVersion: workspace.version, worksheets: [] }),
+  });
 });
 
 /**
@@ -1147,8 +1174,14 @@ async function selectConnectionTarget(page: Page, index: number): Promise<void> 
   await expect(target).toBeVisible({ timeout: 5_000 });
   await target.scrollIntoViewIfNeeded();
   await expect(target).toBeEnabled({ timeout: 5_000 });
+  const targetName = await target.getAttribute("aria-label");
   await target.click();
   await expect(dialog).toBeHidden({ timeout: 5_000 });
+  if (targetName) {
+    await expect(
+      page.locator("span[title]").filter({ hasText: targetName }).first(),
+    ).toHaveAttribute("title", targetName, { timeout: 5_000 });
+  }
 }
 
 /**
@@ -1183,6 +1216,9 @@ async function waitForCommittedRunState(page: Page): Promise<boolean> {
 }
 
 async function findReadyOptionIndex(page: Page): Promise<number | null> {
+  if (readyTargetDisplayName === null || readyTargetResourceId === null) {
+    throw noReadyTargetFixtureError();
+  }
   const count = await connectionTargetCount(page);
   if (count === 0) {
     throw new Error(
@@ -1190,13 +1226,18 @@ async function findReadyOptionIndex(page: Page): Promise<number | null> {
         "Seed at least one query target before this suite.",
     );
   }
-  for (let index = 0; index < count; index += 1) {
-    await selectConnectionTarget(page, index);
-    if (await waitForCommittedRunState(page)) {
-      return index;
-    }
+  const labels = await getConnectionTargetButtons(page).evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute("aria-label")),
+  );
+  const readyIndex = labels.indexOf(readyTargetDisplayName);
+  if (readyIndex === -1) {
+    return null;
   }
-  return null;
+  await selectConnectionTarget(page, readyIndex);
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("targetId"), { timeout: 5_000 })
+    .toBe(String(readyTargetResourceId));
+  return (await waitForCommittedRunState(page)) ? readyIndex : null;
 }
 
 async function setThemeToDark(page: Page): Promise<void> {
@@ -5258,7 +5299,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await page.getByLabel("minimum_id value").fill("99");
     await expect(page.getByLabel("minimum_id value")).toHaveValue("99");
 
-    await page.getByText("Chen Hao").first().click();
+    await page.locator('[data-slot="dropdown-menu-trigger"]').click();
     await page.getByRole("menuitem", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
 
