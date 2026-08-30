@@ -1,5 +1,5 @@
 // input: query components, workspace/execution services, query transport types, shared libraries, UI dependencies
-// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation, server-authorized statement restore, and execution/history/schema/result UI
+// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation across navigator actions, server-authorized statement restore, and execution/history/schema/result UI
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -996,6 +996,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       return;
     }
     lastSeenVersionRef.current = targetSelectionVersion;
+    if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
     localWorkspaceChangedRef.current = true;
 
     // Create a new worksheet for the new target instead of retargeting the active one

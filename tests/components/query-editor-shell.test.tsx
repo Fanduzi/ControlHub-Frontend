@@ -1,5 +1,5 @@
 // input: Testing Library, QueryWorkbench, mocked query/workspace services, localized messages
-// output: QueryEditorShell behavioral tests for unavailable-target locking, serialized OCC persistence, bounded worksheet creation, server-authorized history restore, execution routing, and redaction
+// output: QueryEditorShell behavioral tests for scoped persisted-target recovery, unavailable-target locking, serialized OCC persistence, navigator-safe worksheet limits, server-authorized history restore, execution routing, and redaction
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -126,6 +126,244 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     }));
   });
 
+  it("resolves and caches a hydrated worksheet target outside the initial page before Run", async () => {
+    const initialTarget = buildReadyTarget();
+    const pageTwoTarget = buildReadyTarget({
+      resourceId: 81,
+      displayName: "Page Two MySQL",
+      resourceName: "page-two-mysql",
+    });
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [
+        {
+          id: "initial-target",
+          name: "Initial target",
+          targetResourceId: 30,
+          statement: "select 1",
+          activeDatabase: null,
+        },
+        {
+          id: "page-two-target",
+          name: "Page two target",
+          targetResourceId: 81,
+          statement: "select * from page_two_orders",
+          activeDatabase: null,
+        },
+      ],
+    });
+    mockGetQueryTargets.mockResolvedValueOnce({
+      items: [pageTwoTarget],
+      pageInfo: pageInfoFor([pageTwoTarget]),
+    });
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse({ targetResourceId: 81 }));
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[initialTarget]}
+          pageInfo={pageInfoFor([initialTarget])}
+          initialFilters={EMPTY_FILTERS}
+          environmentId={7}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("tab", { name: "Page two target" }));
+    expect(mockGetQueryTargets).toHaveBeenCalledWith(
+      { targetId: 81, environmentId: 7 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    await user.click(await screen.findByRole("button", { name: /^run$/i }));
+
+    expect(mockExecuteQueryTarget).toHaveBeenCalledWith(81, expect.objectContaining({
+      statement: "select * from page_two_orders",
+    }));
+    await user.click(screen.getByRole("tab", { name: "Initial target" }));
+    await user.click(screen.getByRole("tab", { name: "Page two target" }));
+    expect(mockGetQueryTargets).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache a stale exact target response after another worksheet wins", async () => {
+    const initialTarget = buildReadyTarget();
+    const targetA = buildReadyTarget({ resourceId: 81, displayName: "Race A MySQL" });
+    const targetB = buildReadyTarget({ resourceId: 82, displayName: "Race B MySQL" });
+    const first = Promise.withResolvers<Awaited<ReturnType<typeof getQueryTargets>>>();
+    const second = Promise.withResolvers<Awaited<ReturnType<typeof getQueryTargets>>>();
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [
+        { id: "initial", name: "Initial", targetResourceId: 30, statement: "select 1", activeDatabase: null },
+        { id: "race-a", name: "Race A", targetResourceId: 81, statement: "select 81", activeDatabase: null },
+        { id: "race-b", name: "Race B", targetResourceId: 82, statement: "select 82", activeDatabase: null },
+      ],
+    });
+    mockGetQueryTargets
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce({ items: [targetA], pageInfo: pageInfoFor([targetA]) });
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[initialTarget]}
+          pageInfo={pageInfoFor([initialTarget])}
+          initialFilters={EMPTY_FILTERS}
+          environmentId={7}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("tab", { name: "Race A" }));
+    await user.click(screen.getByRole("tab", { name: "Race B" }));
+    const firstSignal = mockGetQueryTargets.mock.calls[0]?.[1]?.signal;
+    expect(firstSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      second.resolve({ items: [targetB], pageInfo: pageInfoFor([targetB]) });
+    });
+    expect(await screen.findByText("Race B MySQL")).toBeInTheDocument();
+    await act(async () => {
+      first.resolve({ items: [targetA], pageInfo: pageInfoFor([targetA]) });
+    });
+    await user.click(screen.getByRole("tab", { name: "Race A" }));
+
+    expect(mockGetQueryTargets).toHaveBeenCalledTimes(3);
+  });
+
+  it("aborts a pending exact target lookup when the workbench unmounts", async () => {
+    const initialTarget = buildReadyTarget();
+    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof getQueryTargets>>>();
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [
+        { id: "initial", name: "Initial", targetResourceId: 30, statement: "select 1", activeDatabase: null },
+        { id: "pending", name: "Pending exact", targetResourceId: 81, statement: "select 81", activeDatabase: null },
+      ],
+    });
+    mockGetQueryTargets.mockReturnValueOnce(deferred.promise);
+    const user = userEvent.setup();
+    const view = render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[initialTarget]}
+          pageInfo={pageInfoFor([initialTarget])}
+          initialFilters={EMPTY_FILTERS}
+          environmentId={7}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("tab", { name: "Pending exact" }));
+    const signal = mockGetQueryTargets.mock.calls[0]?.[1]?.signal;
+    expect(signal?.aborted).toBe(false);
+
+    view.unmount();
+
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it.each(["missing", "unauthorized"] as const)(
+    "keeps a %s exact target lookup unavailable without an unscoped fallback",
+    async (result) => {
+      const initialTarget = buildReadyTarget();
+      mockGetQueryWorkspace.mockResolvedValueOnce({
+        version: 3,
+        updatedAt: "2026-08-30T00:00:00Z",
+        worksheets: [{
+          id: "unavailable",
+          name: "Unavailable exact",
+          targetResourceId: 81,
+          statement: "select 81",
+          activeDatabase: null,
+        }],
+      });
+      if (result === "missing") {
+        mockGetQueryTargets.mockResolvedValueOnce({
+          items: [],
+          pageInfo: pageInfoFor([]),
+        });
+      } else {
+        mockGetQueryTargets.mockRejectedValueOnce(new Error("forbidden"));
+      }
+
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <QueryWorkbench
+            targets={[initialTarget]}
+            pageInfo={pageInfoFor([initialTarget])}
+            initialFilters={EMPTY_FILTERS}
+            environmentId={7}
+          />
+        </NextIntlClientProvider>,
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /saved target for this worksheet is unavailable/i,
+      );
+      await waitFor(() => {
+        expect(mockGetQueryTargets).toHaveBeenCalledWith(
+          { targetId: 81, environmentId: 7 },
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+      });
+      expect(mockGetQueryTargets).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
+    },
+  );
+
+  it("does not reuse an exact target cache entry across environments", async () => {
+    const initialTarget = buildReadyTarget();
+    const exactTarget = buildReadyTarget({ resourceId: 81, displayName: "Scoped MySQL" });
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "scoped",
+        name: "Scoped exact",
+        targetResourceId: 81,
+        statement: "select 81",
+        activeDatabase: null,
+      }],
+    });
+    mockGetQueryTargets
+      .mockResolvedValueOnce({ items: [exactTarget], pageInfo: pageInfoFor([exactTarget]) })
+      .mockResolvedValueOnce({ items: [], pageInfo: pageInfoFor([]) });
+    const view = render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[initialTarget]}
+          pageInfo={pageInfoFor([initialTarget])}
+          initialFilters={EMPTY_FILTERS}
+          environmentId={7}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(await screen.findByRole("button", { name: /^run$/i })).toBeEnabled();
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[initialTarget]}
+          pageInfo={pageInfoFor([initialTarget])}
+          initialFilters={EMPTY_FILTERS}
+          environmentId={8}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenLastCalledWith(
+        { targetId: 81, environmentId: 8 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+    expect(screen.queryByRole("button", { name: /^run$/i })).toBeNull();
+  });
+
   it("serializes autosaves and sends the latest queued draft with the returned version", async () => {
     mockGetQueryWorkspace.mockResolvedValueOnce({
       version: 3,
@@ -238,6 +476,47 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
     expect(screen.queryByRole("button", { name: /open in new worksheet/i })).toBeNull();
     expect(mockGetQueryExecutionStatement).not.toHaveBeenCalled();
+  });
+
+  it("refuses a navigator target switch when the workspace already has thirty-two worksheets", async () => {
+    const secondTarget = buildReadyTarget({
+      resourceId: 31,
+      displayName: "Remote MySQL",
+      resourceName: "remote-mysql",
+    });
+    const targets = [buildReadyTarget(), secondTarget];
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: Array.from({ length: 32 }, (_, index) => ({
+        id: `worksheet-${index + 1}`,
+        name: `Worksheet ${index + 1}`,
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      })),
+    });
+    mockGetQueryTargets.mockResolvedValue({
+      items: targets,
+      pageInfo: pageInfoFor(targets),
+    });
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={targets}
+          pageInfo={pageInfoFor(targets)}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await screen.findByRole("tab", { name: "Worksheet 32" });
+    await user.click(screen.getByRole("button", { name: /^open connections$/i }));
+    await user.click(within(screen.getByRole("dialog", { name: /connections/i })).getByRole("button", { name: "Remote MySQL" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
+    expect(screen.queryByRole("tab", { name: "Worksheet 33" })).toBeNull();
   });
 
   it("refuses a preview event when the workspace already has thirty-two worksheets", async () => {

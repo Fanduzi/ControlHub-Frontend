@@ -1,10 +1,10 @@
 // input: QueryWorkbench props, target/schema services, navigation, and messages
-// output: scoped target search, unavailable-target recovery, and editor state
+// output: scoped target search, exact persisted-target recovery, unavailable-target locking, and editor state
 // pos: top-level query workbench and target-search generation boundary
 // note: if this file changes, update header and components/query/README.md
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Check, Database, ListTree, TriangleAlert, XCircle } from "lucide-react";
@@ -55,6 +55,11 @@ type TargetSearchError = {
   readonly key: string;
 };
 
+type ScopedTargetCache = {
+  readonly environmentId: number | null | undefined;
+  readonly items: Map<number, QueryTarget>;
+};
+
 function getInitialActiveTargetId(targets: QueryTarget[]): number | null {
   return (
     targets.find((target) => target.availableActions.run === true)?.resourceId ??
@@ -75,7 +80,10 @@ export function QueryWorkbench({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<WorkbenchFilters>(initialFilters);
-  const [targetCache, setTargetCache] = useState<Map<number, QueryTarget>>(() => new Map());
+  const [targetCache, setTargetCache] = useState<ScopedTargetCache>(() => ({
+    environmentId,
+    items: new Map(),
+  }));
   const [loadedTargets, setLoadedTargets] = useState<QueryTarget[]>(targets);
   const [loadedPageInfo, setLoadedPageInfo] = useState<PageInfo>(pageInfo);
   const [searchResult, setSearchResult] = useState<TargetSearchResult | null>(null);
@@ -93,12 +101,24 @@ export function QueryWorkbench({
   const [targetSelectionVersion, setTargetSelectionVersion] = useState(0);
   const [activeDatabase, setActiveDatabase] = useState<string | null>(null);
   const searchGeneration = useRef(0);
+  const exactTargetGeneration = useRef(0);
+  const exactTargetController = useRef<AbortController | null>(null);
+  const exactTargetAttempt = useRef<{
+    readonly environmentId: number;
+    readonly resourceId: number;
+  } | null>(null);
   const schemaStore = useMemo(() => new QuerySchemaStore(), []);
   const previewGeneration = useRef(0);
   const [pendingPreviewEvent, setPendingPreviewEvent] = useState<{
     id: number;
     request: TablePreviewRequest;
   } | null>(null);
+
+  useEffect(() => () => {
+    exactTargetGeneration.current += 1;
+    exactTargetController.current?.abort();
+    exactTargetController.current = null;
+  }, []);
 
   const OBJECTS_PANE_STORAGE_KEY = "query-objects-pane-open";
   const OBJECTS_WIDTH_STORAGE_KEY = "query-objects-pane-width";
@@ -261,12 +281,16 @@ export function QueryWorkbench({
   }, [environmentId, filters.engine, filters.q, searchRetryVersion]);
 
   const cachedTargets = useMemo(() => {
-    const combined = new Map(targetCache);
+    const combined = new Map(
+      targetCache.environmentId === environmentId
+        ? targetCache.items
+        : undefined,
+    );
     for (const target of loadedTargets) {
       combined.set(target.resourceId, target);
     }
     return Array.from(combined.values());
-  }, [loadedTargets, targetCache]);
+  }, [environmentId, loadedTargets, targetCache]);
   const targetsById = useMemo(
     () => new Map(cachedTargets.map((target) => [target.resourceId, target])),
     [cachedTargets],
@@ -390,6 +414,10 @@ export function QueryWorkbench({
   }
 
   function setActiveTargetFromNavigator(resourceId: number) {
+    exactTargetGeneration.current += 1;
+    exactTargetController.current?.abort();
+    exactTargetController.current = null;
+    exactTargetAttempt.current = null;
     const selectedTarget =
       targetsById.get(resourceId) ??
       searchResult?.items.find((target) => target.resourceId === resourceId);
@@ -397,7 +425,15 @@ export function QueryWorkbench({
       return;
     }
     if (!targetsById.has(resourceId)) {
-      setTargetCache((previous) => new Map(previous).set(resourceId, selectedTarget));
+      setTargetCache((previous) => {
+        const items = new Map(
+          previous.environmentId === environmentId
+            ? previous.items
+            : undefined,
+        );
+        items.set(resourceId, selectedTarget);
+        return { environmentId, items };
+      });
     }
     setActiveTargetId(resourceId);
     setTargetSelectionVersion((version) => version + 1);
@@ -407,12 +443,69 @@ export function QueryWorkbench({
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  function setActiveTargetFromWorksheet(resourceId: number) {
-    if (!targetsById.has(resourceId)) {
+  const setActiveTargetFromWorksheet = useCallback((resourceId: number) => {
+    const generation = exactTargetGeneration.current + 1;
+    exactTargetGeneration.current = generation;
+    exactTargetController.current?.abort();
+    exactTargetController.current = null;
+
+    if (targetsById.has(resourceId)) {
+      exactTargetAttempt.current = null;
+      setActiveTargetId(resourceId);
       return;
     }
-    setActiveTargetId(resourceId);
-  }
+    if (environmentId === undefined || environmentId === null) return;
+    if (
+      exactTargetAttempt.current?.environmentId === environmentId &&
+      exactTargetAttempt.current.resourceId === resourceId
+    ) {
+      return;
+    }
+    exactTargetAttempt.current = { environmentId, resourceId };
+
+    const controller = new AbortController();
+    exactTargetController.current = controller;
+    void getQueryTargets(
+      { targetId: resourceId, environmentId },
+      { signal: controller.signal },
+    ).then(
+      (response) => {
+        if (
+          controller.signal.aborted ||
+          generation !== exactTargetGeneration.current
+        ) {
+          return;
+        }
+        exactTargetController.current = null;
+        const exactTarget = response.items.find(
+          (target) => target.resourceId === resourceId,
+        );
+        if (!exactTarget) return;
+        setTargetCache((previous) => {
+          const items = new Map(
+            previous.environmentId === environmentId
+              ? previous.items
+              : undefined,
+          );
+          items.set(resourceId, exactTarget);
+          return { environmentId, items };
+        });
+        setActiveTargetId(resourceId);
+      },
+      () => {
+        if (exactTargetController.current === controller) {
+          exactTargetController.current = null;
+        }
+        // Missing, unauthorized, and failed exact lookups remain unavailable.
+      },
+    );
+  }, [environmentId, targetsById]);
+
+  useEffect(() => {
+    if (activeTargetId !== null && !targetsById.has(activeTargetId)) {
+      setActiveTargetFromWorksheet(activeTargetId);
+    }
+  }, [activeTargetId, setActiveTargetFromWorksheet, targetsById]);
 
   function handlePreviewRequest(request: TablePreviewRequest) {
     previewGeneration.current += 1;
