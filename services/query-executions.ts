@@ -1,3 +1,7 @@
+// input: @/services/api-client, @/types/query-execution
+// output: governed query execution, history, and owner statement API operations
+// pos: narrow client transport boundary for query target operations
+// note: if this file changes, update this header and services/README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import type {
   ExplainRequest,
@@ -5,6 +9,7 @@ import type {
   QueryExecuteRequest,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
+  QueryExecutionStatementResponse,
   QueryExecutionStatus,
   RelatedRecordNavigationRequest,
   RelatedRecordNavigationResponse,
@@ -153,6 +158,20 @@ export async function listQueryExecutions(
   return apiClient<QueryExecutionCursorPage>(
     `/query-targets/${targetResourceId}/executions?${searchParams.toString()}`,
   );
+}
+
+/** Fetch full SQL only through the backend's owner-only execution-statement gate. */
+export async function getQueryExecutionStatement(
+  targetResourceId: number,
+  executionId: number,
+): Promise<QueryExecutionStatementResponse> {
+  try {
+    return await apiClient<QueryExecutionStatementResponse>(
+      `/query-targets/${targetResourceId}/executions/${executionId}/statement`,
+    );
+  } catch (error) {
+    throw toQueryExecuteError(error);
+  }
 }
 
 /**

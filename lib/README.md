@@ -46,6 +46,8 @@ Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 This includes `bulk_resource_mutation_conflict` for reviewed bulk-label writes
 and ingestion conflict/stale-preview outcomes, so the console handles the
 backend contract without deriving errors from HTTP status.
+It also includes `query_workspace_conflict` and `query_execution_not_found`
+for server-authoritative workspace persistence and owner-only statement recovery.
 `profile-field-registry.ts` catalogs typed-profile fields for host, database
 instance, database cluster, and service, plus domain_name (required FQDN) and
 virtual_ip (required single IP address). Required flags match backend minimum

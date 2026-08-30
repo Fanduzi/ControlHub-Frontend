@@ -1,5 +1,5 @@
-// input: @testing-library/react, @/components/query/query-workbench, mocked services
-// output: Vitest component tests for QueryEditorShell (template mode, lifecycle disposal, target switch, execution routing, and blocked-result redaction)
+// input: Testing Library, QueryWorkbench, mocked query/workspace services, localized messages
+// output: QueryEditorShell behavioral tests for worksheet lifecycle, OCC persistence, history restore, execution routing, and redaction
 // pos: unit-level behavioral tests for the query editor shell component
 // note: if this file changes, update header and tests/components/README.md
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -24,13 +24,330 @@ vi.mock("@/services/query-executions", async () => {
     ...actual,
     executeQueryTarget: vi.fn(),
     explainQueryTarget: vi.fn(),
+    getQueryExecutionStatement: vi.fn(),
     listQueryExecutions: vi.fn(),
     navigateRelatedRecords: vi.fn(),
   };
 });
 
+describe("QueryEditorShell workspace persistence and history restore", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 0,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockPutQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 1,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+  });
+
+  it("hydrates persisted drafts through a fresh worksheet with no result state", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select * from orders",
+        activeDatabase: "orders",
+      }],
+    });
+
+    renderReady();
+
+    expect(await screen.findByRole("tab", { name: "Orders draft" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from orders");
+    expect(screen.getByText(/0 rows.*not executed/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("explain-panel")).toBeNull();
+  });
+
+  it("preserves a draft typed before initial workspace hydration and requires explicit reload", async () => {
+    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof getQueryWorkspace>>>();
+    mockGetQueryWorkspace.mockReturnValueOnce(deferred.promise);
+    const user = userEvent.setup();
+    renderReady();
+
+    const statement = await screen.findByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select * from typed_before_load");
+    await act(async () => {
+      deferred.resolve({
+        version: 3,
+        updatedAt: "2026-08-30T00:00:00Z",
+        worksheets: [{
+          id: "server-draft",
+          name: "Server draft",
+          targetResourceId: 30,
+          statement: "select * from server_draft",
+          activeDatabase: "orders",
+        }],
+      });
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/workspace changed elsewhere/i);
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from typed_before_load");
+    expect(screen.queryByRole("tab", { name: "Server draft" })).toBeNull();
+  });
+
+  it("refuses to add a thirty-third worksheet", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: Array.from({ length: 32 }, (_, index) => ({
+        id: `worksheet-${index + 1}`,
+        name: `Worksheet ${index + 1}`,
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      })),
+    });
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Worksheet 32" });
+    await user.click(screen.getByRole("button", { name: /add worksheet/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
+    expect(screen.queryByRole("tab", { name: "Worksheet 33" })).toBeNull();
+  });
+
+  it("refuses history restore when the workspace already has thirty-two worksheets", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: Array.from({ length: 32 }, (_, index) => ({
+        id: `worksheet-${index + 1}`,
+        name: `Worksheet ${index + 1}`,
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      })),
+    });
+    mockListQueryExecutions.mockResolvedValueOnce({
+      items: [{
+        id: 1001,
+        targetResourceId: 30,
+        actor: { kind: "user", displayName: "Chen Hao" },
+        engine: "mysql",
+        statementDigest: "select * from orders",
+        statementPreview: "select * from orders",
+        status: "success",
+        rowCount: 1,
+        durationMs: 12,
+        errorCode: "",
+        errorMessage: "",
+        createdAt: "2026-08-30T00:00:00Z",
+      }],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Worksheet 32" });
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+    await user.click(await screen.findByRole("button", { name: "select * from orders" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
+    expect(screen.queryByRole("button", { name: /open in new worksheet/i })).toBeNull();
+    expect(mockGetQueryExecutionStatement).not.toHaveBeenCalled();
+  });
+
+  it("keeps local drafts on a workspace conflict until the operator explicitly reloads", async () => {
+    mockGetQueryWorkspace
+      .mockResolvedValueOnce({
+        version: 3,
+        updatedAt: "2026-08-30T00:00:00Z",
+        worksheets: [{
+          id: "saved-orders",
+          name: "Orders draft",
+          targetResourceId: 30,
+          statement: "select * from orders",
+          activeDatabase: "orders",
+        }],
+      })
+      .mockResolvedValueOnce({
+        version: 4,
+        updatedAt: "2026-08-30T00:01:00Z",
+        worksheets: [{
+          id: "remote-orders",
+          name: "Remote draft",
+          targetResourceId: 30,
+          statement: "select * from remote_orders",
+          activeDatabase: "orders",
+        }],
+      });
+    mockPutQueryWorkspace.mockRejectedValueOnce(
+      new QueryExecuteError(409, "query_workspace_conflict", "workspace changed"),
+    );
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Orders draft" });
+    const statement = await screen.findByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select * from local_draft");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/workspace changed elsewhere/i);
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from local_draft");
+    expect(mockGetQueryWorkspace).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: /reload workspace/i }));
+    expect(await screen.findByRole("tab", { name: "Remote draft" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from remote_orders");
+  });
+
+  it("restores an owned successful execution into a new worksheet without replacing the current draft", async () => {
+    mockListQueryExecutions.mockResolvedValueOnce({
+      items: [{
+        id: 1001,
+        targetResourceId: 30,
+        actor: { kind: "user", displayName: "Chen Hao" },
+        engine: "mysql",
+        statementDigest: "select * from orders",
+        statementPreview: "select * from orders",
+        status: "success",
+        rowCount: 1,
+        durationMs: 12,
+        errorCode: "",
+        errorMessage: "",
+        createdAt: "2026-08-30T00:00:00Z",
+      }],
+      nextCursor: null,
+    });
+    mockGetQueryExecutionStatement.mockResolvedValueOnce({ statement: "select * from restored_orders" });
+    const user = userEvent.setup();
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+    await user.click(await screen.findByRole("button", { name: "select * from orders" }));
+    await user.click(await screen.findByRole("button", { name: /open in new worksheet/i }));
+
+    expect(await screen.findByRole("tab", { name: /worksheet 2/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from restored_orders");
+    await user.click(screen.getByRole("tab", { name: /worksheet 1/i }));
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+  });
+
+  it("does not replace the current worksheet when statement recovery is refused", async () => {
+    mockListQueryExecutions.mockResolvedValueOnce({
+      items: [{
+        id: 1001,
+        targetResourceId: 30,
+        actor: { kind: "user", displayName: "Chen Hao" },
+        engine: "mysql",
+        statementDigest: "select * from orders",
+        statementPreview: "select * from orders",
+        status: "success",
+        rowCount: 1,
+        durationMs: 12,
+        errorCode: "",
+        errorMessage: "",
+        createdAt: "2026-08-30T00:00:00Z",
+      }],
+      nextCursor: null,
+    });
+    mockGetQueryExecutionStatement.mockRejectedValueOnce(
+      new QueryExecuteError(404, "query_execution_not_found", "statement not found"),
+    );
+    const user = userEvent.setup();
+    renderReady();
+
+    const statement = await screen.findByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select * from keep_me");
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+    await user.click(await screen.findByRole("button", { name: "select * from orders" }));
+    await user.click(await screen.findByRole("button", { name: /open in new worksheet/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/statement is no longer available/i);
+    await user.click(within(screen.getByRole("dialog", { name: /execution details/i })).getAllByRole("button", { name: /^close$/i })[0]!);
+    await user.click(screen.getByRole("tab", { name: /^worksheet$/i }));
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from keep_me");
+    expect(screen.queryByRole("tab", { name: /worksheet 2/i })).toBeNull();
+  });
+
+  it("never offers statement recovery for machine, failed, or legacy history rows", async () => {
+    mockListQueryExecutions.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1001,
+          targetResourceId: 30,
+          actor: { kind: "machine", displayName: "CI bot" },
+          engine: "mysql",
+          statementDigest: "machine digest",
+          statementPreview: "select machine",
+          status: "success",
+          rowCount: 1,
+          durationMs: 12,
+          errorCode: "",
+          errorMessage: "",
+          createdAt: "2026-08-30T00:00:00Z",
+        },
+        {
+          id: 1002,
+          targetResourceId: 30,
+          actor: { kind: "user", displayName: "Chen Hao" },
+          engine: "mysql",
+          statementDigest: "failed digest",
+          statementPreview: "select failed",
+          status: "failed",
+          rowCount: 0,
+          durationMs: 12,
+          errorCode: "query_backend_error",
+          errorMessage: "failed",
+          createdAt: "2026-08-30T00:00:00Z",
+        },
+        {
+          id: 1003,
+          targetResourceId: 30,
+          actor: { displayName: "Legacy user" },
+          engine: "mysql",
+          statementDigest: "legacy digest",
+          statementPreview: "select legacy",
+          status: "success",
+          rowCount: 1,
+          durationMs: 12,
+          errorCode: "",
+          errorMessage: "",
+          createdAt: "2026-08-30T00:00:00Z",
+        },
+      ],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderReady();
+
+    await user.click(screen.getByRole("tab", { name: /query history/i }));
+    for (const statement of ["select machine", "select failed", "select legacy"]) {
+      await user.click(await screen.findByRole("button", { name: statement }));
+      expect(screen.queryByRole("button", { name: /open in new worksheet/i })).toBeNull();
+      await user.click(within(screen.getByRole("dialog", { name: /execution details/i })).getAllByRole("button", { name: /^close$/i })[0]!);
+    }
+    expect(mockGetQueryExecutionStatement).not.toHaveBeenCalled();
+  });
+});
+
 vi.mock("@/services/query-targets", () => ({
   getQueryTargets: vi.fn(),
+}));
+
+vi.mock("@/services/query-workspace", () => ({
+  getQueryWorkspace: vi.fn().mockResolvedValue({
+    worksheets: [],
+    version: 0,
+    updatedAt: "2026-08-30T00:00:00Z",
+  }),
+  putQueryWorkspace: vi.fn().mockResolvedValue({
+    worksheets: [],
+    version: 1,
+    updatedAt: "2026-08-30T00:00:00Z",
+  }),
 }));
 
 vi.mock("@/services/query-schema", () => ({
@@ -100,9 +417,11 @@ import { EMPTY_FILTERS } from "@/lib/query-target-display";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
   executeQueryTarget,
+  getQueryExecutionStatement,
   listQueryExecutions,
   navigateRelatedRecords,
 } from "@/services/query-executions";
+import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
 import { getQueryTargets } from "@/services/query-targets";
 import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
 import { listSavedStatements, executeSavedStatementTemplate } from "@/services/query-saved-statements";
@@ -114,6 +433,9 @@ import enMessages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
 
 const mockExecuteQueryTarget = vi.mocked(executeQueryTarget);
+const mockGetQueryExecutionStatement = vi.mocked(getQueryExecutionStatement);
+const mockGetQueryWorkspace = vi.mocked(getQueryWorkspace);
+const mockPutQueryWorkspace = vi.mocked(putQueryWorkspace);
 const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
 const mockNavigateRelatedRecords = vi.mocked(navigateRelatedRecords);

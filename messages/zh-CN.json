@@ -1378,6 +1378,13 @@
       "metadataWarning": "Schema 元数据不可用，补全仅限于关键字。",
       "metadataRetry": "重试元数据"
     },
+    "workspace": {
+      "reload": "重新加载工作表",
+      "loadError": "无法加载你的工作表。",
+      "saveError": "无法保存你的工作表。",
+      "limitReached": "一个工作表空间最多只能包含 32 个工作表。",
+      "retry": "重试"
+    },
     "actions": {
       "run": "执行已锁定",
       "explain": "Explain 已锁定",
@@ -1446,7 +1453,9 @@
       "retry": "重试",
       "detailLabel": "详情",
       "query_explain_not_supported": "此目标不支持 Explain",
-      "query_result_disclosure_blocked": "查询被结果披露策略阻止"
+      "query_result_disclosure_blocked": "查询被结果披露策略阻止",
+      "query_workspace_conflict": "工作表已在其他位置更改；本地草稿仍已保留。",
+      "query_execution_not_found": "此语句已不可用。"
     },
     "paging": {
       "previousPage": "上一页",
@@ -1509,7 +1518,9 @@
         "rowCount": "行数",
         "duration": "耗时",
         "error": "错误"
-      }
+      },
+      "restore": "在新工作表中打开",
+      "restoreFailed": "无法恢复此语句。"
     },
     "governance": {
       "title": "治理与访问",

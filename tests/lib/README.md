@@ -17,6 +17,9 @@ audit list pages plus fail-closed unknown-slug behavior.
 `format.test.ts` covers safe caller-locale relative timestamp labels and the
 24-hour/future date-time fallback.
 
+`messages-workspace-history-parity.test.ts` keeps the workspace conflict and
+history statement-recovery copy present in both English and zh-CN.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |

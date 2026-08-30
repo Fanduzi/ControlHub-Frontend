@@ -1,3 +1,7 @@
+// input: query execution history records, callbacks, next-intl, Base UI controls
+// output: accessible execution-history list and owner-only statement restore action
+// pos: presentation boundary for query history metadata and details
+// note: if this file changes, update this header and components/query/README.md.
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -48,6 +52,10 @@ type QueryHistoryPanelProps = {
   detailExecution: QueryExecutionRecord | null;
   onOpenDetail: (execution: QueryExecutionRecord) => void;
   onCloseDetail: () => void;
+  onRestoreStatement?: (execution: QueryExecutionRecord) => void;
+  restoreError?: string | null;
+  isRestoringStatement?: boolean;
+  restoreBlocked?: boolean;
 };
 
 const STATUS_TONE: Record<QueryExecutionStatus, string> = {
@@ -93,10 +101,18 @@ function HistoryDetailSheet({
   execution,
   onClose,
   triggerRef,
+  onRestoreStatement,
+  restoreError,
+  isRestoringStatement = false,
+  restoreBlocked = false,
 }: {
   execution: QueryExecutionRecord;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLElement | null>;
+  onRestoreStatement?: (execution: QueryExecutionRecord) => void;
+  restoreError?: string | null;
+  isRestoringStatement?: boolean;
+  restoreBlocked?: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
@@ -123,6 +139,7 @@ function HistoryDetailSheet({
   const initialFocus = useCallback((): HTMLElement | false | void => {
     return closeButtonRef.current ?? false;
   }, []);
+  const canRestore = execution.status === "success" && execution.actor?.kind === "user";
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -161,6 +178,24 @@ function HistoryDetailSheet({
           </dl>
         </div>
         <div className="px-4 pb-4">
+          {canRestore && onRestoreStatement ? (
+            restoreBlocked ? (
+              <p role="alert" className="mb-2 text-sm text-amber-700 dark:text-amber-300">
+                {t("workspace.limitReached")}
+              </p>
+            ) : <>
+              {restoreError ? (
+                <p role="alert" className="mb-2 text-sm text-rose-700 dark:text-rose-300">
+                  {restoreError === "query_execution_not_found"
+                    ? t("error.query_execution_not_found")
+                    : t("history.restoreFailed")}
+                </p>
+              ) : null}
+              <Button type="button" variant="outline" className="mr-2" disabled={isRestoringStatement} onClick={() => onRestoreStatement(execution)}>
+                {t("history.restore")}
+              </Button>
+            </>
+          ) : null}
           <Button type="button" variant="outline" ref={closeButtonRef} onClick={onClose}>{t("history.detail.close")}</Button>
         </div>
       </SheetContent>
@@ -171,6 +206,7 @@ function HistoryDetailSheet({
 export function QueryHistoryPanel({
   status, items, error, onRetry, nextCursor, filter, isLoadingMore, appendError,
   onApplyFilter, onClearFilter, onLoadMore, detailExecution, onOpenDetail, onCloseDetail,
+  onRestoreStatement, restoreError, isRestoringStatement, restoreBlocked,
 }: QueryHistoryPanelProps) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
@@ -194,10 +230,10 @@ export function QueryHistoryPanel({
 
   // Controlled filter → local draft sync on external reset (Clear, target switch)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync only on filter identity change
     setLocalStatus(filter.status ?? "");
     setLocalFrom(filter.from ?? "");
     setLocalTo(filter.to ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only on filter identity change
   }, [filter.status, filter.from, filter.to]);
 
   const handleApply = useCallback(() => {
@@ -326,6 +362,10 @@ export function QueryHistoryPanel({
           execution={detailExecution}
           onClose={onCloseDetail}
           triggerRef={detailTriggerRef}
+          onRestoreStatement={onRestoreStatement}
+          restoreError={restoreError}
+          isRestoringStatement={isRestoringStatement}
+          restoreBlocked={restoreBlocked}
         />
       )}
     </div>

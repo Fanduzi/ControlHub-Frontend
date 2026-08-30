@@ -16,6 +16,8 @@ deployment fails closed against an older backend payload.
 | `resource.ts` | Inventory resource, pagination, and structured list-filter contracts |
 | `named-inventory-view.ts` | Named-view filters, sort, columns, CRUD inputs, and responses |
 | `machine-principal.ts` | One-time credential issue plus safe reload lifecycle metadata |
+| `query-execution.ts` | Governed execution/history metadata and owner-only statement response contracts |
+| `query-workspace.ts` | Persisted worksheet draft aggregate and optimistic-concurrency request contract |
 
 `audit.ts` defines the append-only audit event contract. Inventory events may
 include server-owned field changes with a domain field name, operation, and
@@ -36,6 +38,10 @@ JSON number, matching OpenAPI exactly.
 
 `machine-principal.ts` keeps one-time issue data separate from listed
 credential lifecycle metadata, which exposes only IDs and timestamps.
+
+`query-workspace.ts` intentionally contains only worksheet id, name, target,
+statement, and active database; results, credentials, templates, paging, and
+active-tab state are not transport fields.
 
 ## Interfaces
 

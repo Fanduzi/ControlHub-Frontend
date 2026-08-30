@@ -1,5 +1,5 @@
-// input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
-// output: QueryEditorShell component with server-authorized, disclosure/formula-safe current-page CSV export, tabbed editor, history, and saved statements
+// input: query components, workspace/execution services, query transport types, shared libraries, UI dependencies
+// output: query editor shell with workspace OCC persistence, owner-statement restore, tabbed editor, history, saved statements, and safe CSV export
 // pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -24,15 +24,18 @@ import type {
   RelatedRecordNavigationResponse,
   TablePreviewRequest,
 } from "@/types/query-execution";
+import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
 import type { QuerySavedStatementParameterDefinition, QuerySavedStatementParameterValue, QuerySavedStatementRecord } from "@/types/query-saved-statement";
 import {
   executeQueryTarget,
   explainQueryTarget,
+  getQueryExecutionStatement,
   isRetryableControlledErrorCode,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
 } from "@/services/query-executions";
+import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
 import { executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +115,7 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
 ];
 
 const DEFAULT_STATEMENT = "select 1";
+const MAX_WORKSHEETS = 32;
 const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "success",
   "rejected",
@@ -325,6 +329,24 @@ function createWorksheet(index: number, targetResourceId: number): LocalWorkshee
   };
 }
 
+function persistedWorksheet(worksheet: LocalWorksheet): QueryWorkspaceWorksheet {
+  return {
+    id: worksheet.id,
+    name: worksheet.name,
+    targetResourceId: worksheet.targetResourceId,
+    statement: worksheet.statement,
+    activeDatabase: worksheet.activeDatabase,
+  };
+}
+
+/** Rebuild a saved draft through the normal factory so all transient state resets. */
+function hydrateWorksheet(
+  worksheet: QueryWorkspaceWorksheet,
+  index: number,
+): LocalWorksheet {
+  return { ...createWorksheet(index, worksheet.targetResourceId), ...worksheet };
+}
+
 export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
@@ -366,6 +388,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     createInitialWorksheet(activeTarget.resourceId),
   ]);
   const [activeWorksheetId, setActiveWorksheetId] = useState(INITIAL_WORKSHEET_ID);
+  const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
+  const [workspaceProblem, setWorkspaceProblem] = useState<"load" | "save" | null>(null);
+  const [workspaceConflict, setWorkspaceConflict] = useState(false);
+  const [worksheetLimitReached, setWorksheetLimitReached] = useState(false);
+  const [historyRestoreError, setHistoryRestoreError] = useState<string | null>(null);
+  const [isRestoringHistoryStatement, setIsRestoringHistoryStatement] = useState(false);
+  const savedWorkspaceSignatureRef = useRef<string | null>(null);
+  const localWorkspaceChangedRef = useRef(false);
+  const activeTargetRef = useRef(activeTarget);
+  activeTargetRef.current = activeTarget;
   const activeMaxRowsDraftValidityRef = useRef({
     worksheetId: INITIAL_WORKSHEET_ID,
     valid: true,
@@ -375,6 +407,72 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   editorHeightRef.current = editorHeight;
 
   const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
+  const workspaceWorksheets = useMemo(
+    () => worksheets.map(persistedWorksheet),
+    [worksheets],
+  );
+  const workspaceSignature = JSON.stringify(workspaceWorksheets);
+
+  const loadWorkspace = useCallback(async (replaceEmpty = false) => {
+    try {
+      const workspace = await getQueryWorkspace();
+      if (!replaceEmpty && workspace.worksheets.length > 0 && localWorkspaceChangedRef.current) {
+        setWorkspaceVersion(workspace.version);
+        setWorkspaceProblem(null);
+        setWorkspaceConflict(true);
+        return;
+      }
+      const loaded = workspace.worksheets.length > 0
+        ? workspace.worksheets.map(hydrateWorksheet)
+        : replaceEmpty
+          ? [createWorksheet(1, activeTargetRef.current.resourceId)]
+          : null;
+      if (loaded) {
+        savedWorkspaceSignatureRef.current = JSON.stringify(loaded.map(persistedWorksheet));
+        setWorksheets(loaded);
+        setActiveWorksheetId(loaded[0]!.id);
+      } else {
+        savedWorkspaceSignatureRef.current = "[]";
+      }
+      setWorkspaceVersion(workspace.version);
+      setWorkspaceProblem(null);
+      setWorkspaceConflict(false);
+      localWorkspaceChangedRef.current = false;
+    } catch {
+      setWorkspaceProblem("load");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (
+      workspaceVersion === null ||
+      workspaceProblem !== null ||
+      workspaceConflict ||
+      savedWorkspaceSignatureRef.current === workspaceSignature
+    ) return;
+
+    const timer = window.setTimeout(() => {
+      void putQueryWorkspace(workspaceVersion, workspaceWorksheets).then(
+        (workspace) => {
+          savedWorkspaceSignatureRef.current = workspaceSignature;
+          setWorkspaceVersion(workspace.version);
+          setWorkspaceProblem(null);
+        },
+        (error: unknown) => {
+          if (error instanceof QueryExecuteError && error.code === "query_workspace_conflict") {
+            setWorkspaceConflict(true);
+            return;
+          }
+          setWorkspaceProblem("save");
+        },
+      );
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [workspaceConflict, workspaceProblem, workspaceSignature, workspaceVersion, workspaceWorksheets]);
 
   useEffect(() => {
     activeMaxRowsDraftValidityRef.current = {
@@ -432,6 +530,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     parameters: readonly QuerySavedStatementParameterDefinition[] = [],
     formatError: string | null = null,
   ) {
+    localWorkspaceChangedRef.current = true;
     updateActiveWorksheet({
       statement,
       parameters: [...parameters],
@@ -477,6 +576,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function addWorksheet() {
+    if (worksheets.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
+    localWorkspaceChangedRef.current = true;
     const newIndex = worksheets.length + 1;
     const newWs = createWorksheet(newIndex, activeTarget.resourceId);
     setWorksheets((previous) => [...previous, newWs]);
@@ -484,6 +588,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function executeRetarget(worksheetId: string, newTargetId: number) {
+    localWorkspaceChangedRef.current = true;
     setWorksheets((previous) =>
       previous.map((ws) =>
         ws.id === worksheetId
@@ -532,6 +637,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function executeCloseWorksheet(id: string) {
+    localWorkspaceChangedRef.current = true;
     setWorksheets((previous) => {
       const filtered = previous.filter((ws) => ws.id !== id);
       if (activeWorksheetId === id) {
@@ -547,6 +653,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   function renameWorksheet(id: string, newName: string) {
     const trimmed = newName.trim();
     if (trimmed.length === 0) return;
+    localWorkspaceChangedRef.current = true;
     setWorksheets((previous) =>
       previous.map((ws) =>
         ws.id === id ? { ...ws, name: trimmed } : ws,
@@ -796,9 +903,48 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function closeHistoryDetail() {
+    setHistoryRestoreError(null);
     updateActiveWorksheet({
       history: { ...activeWorksheet.history, selectedRecordId: null },
     });
+  }
+
+  async function restoreHistoryStatement(record: QueryExecutionRecord) {
+    if (record.status !== "success" || record.actor?.kind !== "user" || isRestoringHistoryStatement) return;
+    const sourceWorksheet = activeWorksheet;
+    if (worksheets.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
+    setHistoryRestoreError(null);
+    setIsRestoringHistoryStatement(true);
+    try {
+      const response = await getQueryExecutionStatement(
+        record.targetResourceId,
+        record.id,
+      );
+      if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+        setWorksheetLimitReached(true);
+        return;
+      }
+      localWorkspaceChangedRef.current = true;
+      const next = createWorksheet(worksheetsRef.current.length + 1, sourceWorksheet.targetResourceId);
+      const restored = {
+        ...next,
+        statement: response.statement,
+        activeDatabase: sourceWorksheet.activeDatabase,
+        isDirty: true,
+      };
+      setWorksheets((previous) => [...previous, restored]);
+      setActiveWorksheetId(restored.id);
+      setActiveTab("worksheet");
+    } catch (error) {
+      setHistoryRestoreError(
+        error instanceof QueryExecuteError ? error.code : "internal_error",
+      );
+    } finally {
+      setIsRestoringHistoryStatement(false);
+    }
   }
 
   function selectWorksheetTab(tab: WorksheetTab) {
@@ -822,6 +968,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       return;
     }
     lastSeenVersionRef.current = targetSelectionVersion;
+    localWorkspaceChangedRef.current = true;
 
     // Create a new worksheet for the new target instead of retargeting the active one
     // This preserves the original worksheet's SQL, result, and history.
@@ -1562,6 +1709,31 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       aria-label={t("editor.worksheetTab")}
       className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
     >
+      {workspaceConflict ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <span>{t("error.query_workspace_conflict")}</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => void loadWorkspace(true)}>
+            {t("workspace.reload")}
+          </Button>
+        </div>
+      ) : workspaceProblem ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-rose-500/40 bg-rose-500/5 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+          <span>{t(`workspace.${workspaceProblem}Error`)}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => workspaceProblem === "load" ? void loadWorkspace() : setWorkspaceProblem(null)}
+          >
+            {t("workspace.retry")}
+          </Button>
+        </div>
+      ) : null}
+      {worksheetLimitReached ? (
+        <p role="alert" className="border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          {t("workspace.limitReached")}
+        </p>
+      ) : null}
       <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label={t("editor.worksheetTab")}>
         {worksheets.map((ws) => (
           <div
@@ -1724,7 +1896,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       <QueryObjectQuickNavigator
         targetId={activeWorksheet.targetResourceId}
         activeDatabase={activeWorksheet.activeDatabase}
-        onDatabaseSelect={(activeDatabase) => updateActiveWorksheet({ activeDatabase })}
+        onDatabaseSelect={(activeDatabase) => {
+          localWorkspaceChangedRef.current = true;
+          updateActiveWorksheet({ activeDatabase });
+        }}
         onInsertObject={({ database, name }) => {
           const view = editorViewRef.current;
           if (!view) return;
@@ -1860,6 +2035,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             ) ?? null}
             onOpenDetail={openHistoryDetail}
             onCloseDetail={closeHistoryDetail}
+            onRestoreStatement={restoreHistoryStatement}
+            restoreError={historyRestoreError}
+            isRestoringStatement={isRestoringHistoryStatement}
+            restoreBlocked={worksheets.length >= MAX_WORKSHEETS}
           />
         </div>
       ) : activeTab === "savedStatements" ? (

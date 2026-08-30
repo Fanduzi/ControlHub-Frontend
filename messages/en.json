@@ -1378,6 +1378,13 @@
       "metadataWarning": "Schema metadata is unavailable. Completion is limited to keywords.",
       "metadataRetry": "Retry metadata"
     },
+    "workspace": {
+      "reload": "Reload workspace",
+      "loadError": "Could not load your workspace.",
+      "saveError": "Could not save your workspace.",
+      "limitReached": "A workspace can contain at most 32 worksheets.",
+      "retry": "Retry"
+    },
     "actions": {
       "run": "Run locked",
       "explain": "Explain locked",
@@ -1446,7 +1453,9 @@
       "retry": "Retry",
       "detailLabel": "Detail",
       "query_explain_not_supported": "Explain is not supported for this target",
-      "query_result_disclosure_blocked": "Query blocked by result disclosure policy"
+      "query_result_disclosure_blocked": "Query blocked by result disclosure policy",
+      "query_workspace_conflict": "Workspace changed elsewhere. Your local drafts are still here.",
+      "query_execution_not_found": "This statement is no longer available."
     },
     "paging": {
       "previousPage": "Previous page",
@@ -1509,7 +1518,9 @@
         "rowCount": "Row count",
         "duration": "Duration",
         "error": "Error"
-      }
+      },
+      "restore": "Open in new worksheet",
+      "restoreFailed": "Could not restore this statement."
     },
     "governance": {
       "title": "Governance & access",

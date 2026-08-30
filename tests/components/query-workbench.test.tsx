@@ -38,6 +38,19 @@ vi.mock("@/services/query-targets", () => ({
   getQueryTargets: vi.fn(),
 }));
 
+vi.mock("@/services/query-workspace", () => ({
+  getQueryWorkspace: vi.fn().mockResolvedValue({
+    worksheets: [],
+    version: 0,
+    updatedAt: "2026-08-30T00:00:00Z",
+  }),
+  putQueryWorkspace: vi.fn().mockResolvedValue({
+    worksheets: [],
+    version: 1,
+    updatedAt: "2026-08-30T00:00:00Z",
+  }),
+}));
+
 vi.mock("@/services/query-schema", () => ({
   getSchemaDatabases: vi.fn().mockResolvedValue({ items: [], defaultDatabase: null }),
   getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),

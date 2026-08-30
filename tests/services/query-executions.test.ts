@@ -1,3 +1,7 @@
+// input: Vitest, mocked API client, query execution service
+// output: service contract tests for governed execution, history, and statement recovery
+// pos: service-level regression tests for query target transport operations
+// note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {
@@ -15,6 +19,7 @@ import {
   explainQueryTarget,
   isRetryableControlledErrorCode,
   listQueryExecutions,
+  getQueryExecutionStatement,
   navigateRelatedRecords,
   QueryExecuteError,
 } from "@/services/query-executions";
@@ -312,6 +317,24 @@ describe("listQueryExecutions", () => {
   });
 });
 
+describe("getQueryExecutionStatement", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("GETs the owner-only execution statement without sending actor identity", async () => {
+    mockApiClient.mockResolvedValueOnce({ statement: "select * from orders" });
+
+    await expect(getQueryExecutionStatement(22, 1001)).resolves.toEqual({
+      statement: "select * from orders",
+    });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/22/executions/1001/statement",
+    );
+  });
+});
+
 describe("navigateRelatedRecords", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -534,6 +557,7 @@ describe("query-executions module surface", () => {
         "QueryExecuteError",
         "executeQueryTarget",
         "explainQueryTarget",
+        "getQueryExecutionStatement",
         "isRetryableControlledErrorCode",
         "listQueryExecutions",
         "navigateRelatedRecords",

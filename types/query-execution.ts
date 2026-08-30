@@ -1,3 +1,7 @@
+// input: backend query execution OpenAPI schemas, resource/schema/disclosure types
+// output: query execution transport contracts
+// pos: type-only boundary for governed query execution and history
+// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import type { ResultDisclosureMode } from "@/types/query-disclosure";
@@ -95,7 +99,7 @@ export type QueryExecuteResponse = {
 export type QueryExecutionRecord = {
   id: number;
   targetResourceId: number;
-  actor: { displayName: string };
+  actor: { displayName: string; kind?: "user" | "machine" };
   engine: string;
   statementDigest: string;
   statementPreview: string;
@@ -124,6 +128,11 @@ export type QueryExecutionCursorPage = {
   items: QueryExecutionRecord[];
   nextCursor: string | null;
   pageInfo?: PageInfo;
+};
+
+/** Full SQL is available only from the owner-only statement endpoint. */
+export type QueryExecutionStatementResponse = {
+  readonly statement: string;
 };
 
 /** Filter criteria for querying execution history. All fields are optional. */

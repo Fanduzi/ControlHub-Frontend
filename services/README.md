@@ -13,6 +13,8 @@ Frontend API service modules.
 | `resources.ts` | Inventory list/detail and mutation requests |
 | `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
 | `machine-principals.ts` | Admin machine-principal list, issue, rotate, and revoke calls |
+| `query-executions.ts` | Governed execution/history calls and owner-only full-statement retrieval |
+| `query-workspace.ts` | Owner workspace aggregate GET/PUT with optimistic-concurrency version |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the
 same-origin BFF `/api/proxy` without client Authorization; the proxy attaches
@@ -27,6 +29,10 @@ envelope carries it.
 failures only by `ApiError.code`. Missing codes, non-JSON, and transport
 failures become retryable `service_unavailable`. HTTP 401 stays a Controlled
 Authorization Error and is not wrapped as a workbench feature error.
+
+`query-workspace.ts` transports only the server-owned worksheet aggregate;
+callers provide `expectedVersion` and handle `query_workspace_conflict`
+explicitly rather than merging or overwriting drafts.
 
 `audits.ts` maps a 403 from resource audit reads to an empty timeline for
 non-admin operators (the server stays authoritative); global audit list search
