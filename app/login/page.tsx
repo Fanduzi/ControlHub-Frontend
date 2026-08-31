@@ -1,5 +1,5 @@
 // input: react, next/navigation, next-intl, same-origin /api/operator-session
-// output: interactive login via Console BFF and localized validation without browser role persistence
+// output: interactive login via Console BFF, localized validation, and safe return to the protected path
 // pos: public login UI for the 38X-1C Operator Session boundary
 // note: if this file changes, update header and app/login/README.md
 "use client";
@@ -20,6 +20,19 @@ type LoginValues = {
   email: string;
   password: string;
 };
+
+function postLoginPath(): string {
+  const fallback = "/overview";
+  const from = new URLSearchParams(window.location.search).get("from");
+  try {
+    const target = new URL(from ?? fallback, window.location.origin);
+    return from?.startsWith("/") && target.origin === window.location.origin
+      ? `${target.pathname}${target.search}${target.hash}`
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function LoginPage() {
   const t = useTranslations("login");
@@ -76,7 +89,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/overview");
+      router.push(postLoginPath());
     } catch (submitError) {
       if (submitError instanceof TypeError) {
         setError(t("errors.backend"));

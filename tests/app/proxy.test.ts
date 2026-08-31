@@ -1,5 +1,5 @@
 // input: @/proxy, next/server, @/lib/operator-session/config, @/lib/operator-session/seal, @/lib/operator-session/constants
-// output: Vitest tests for the console route guard (valid sessions pass; forged/tampered/unknown-key/expired fail closed)
+// output: Vitest tests for the console route guard, including preserved protected path and query on login redirects
 // pos: unit-level contract tests for the Operator Session page boundary enforced by the proxy
 // note: if this file changes, update header and tests/app/README.md
 import { NextRequest } from "next/server";
@@ -146,6 +146,18 @@ describe("proxy Operator Session gate", () => {
     stubBffEnv();
     const response = proxy(requestWithCookies({}));
     assertRedirectsToLogin(response, "/overview", false);
+  });
+
+  it("preserves the protected path and query in the login return target", () => {
+    stubBffEnv();
+    const response = proxy(
+      requestWithCookies({}, "/audits?environment=staging"),
+    );
+    assertRedirectsToLogin(
+      response,
+      "/audits?environment=staging",
+      false,
+    );
   });
 
   it("leaves public paths untouched", () => {

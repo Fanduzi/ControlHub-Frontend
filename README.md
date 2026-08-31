@@ -37,7 +37,8 @@ return trusted operator identity and role — never a bearer token. Browser clie
 rejects client-supplied `Authorization` headers, blocked prefixes such as
 `auth/*`, and unsafe cross-origin requests. The console route guard (`proxy.ts`)
 accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
-expired cookies fail closed to login. UI sign-out is fail-closed: the console
+expired cookies fail closed to login while preserving the protected path and
+query through re-authentication. UI sign-out is fail-closed: the console
 leaves for `/login` only after the BFF confirms the session cookie is cleared;
 a failed logout (network or non-2xx) keeps the operator in the console with a
 controlled error instead of presenting a logged-out UI while the session survives.

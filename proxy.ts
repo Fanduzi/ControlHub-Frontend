@@ -1,5 +1,5 @@
 // input: next/server, @/lib/operator-session/config, @/lib/operator-session/seal, @/lib/operator-session/constants, @/lib/operator-session/session-cookie
-// output: console route guard requiring a valid unexpired Operator Session; forged/tampered/unknown-key/expired sessions fail closed to login; a valid session is never left behind a logged-out login page
+// output: console route guard requiring a valid unexpired Operator Session; invalid sessions fail closed to login with the protected path and query preserved
 // pos: authentication-boundary gate for console pages
 // note: if this file changes, update header and README.md
 import { NextRequest, NextResponse } from "next/server";
@@ -11,17 +11,17 @@ import { clearSessionCookie } from "@/lib/operator-session/session-cookie";
 
 function redirectToLogin(
   request: NextRequest,
-  pathname: string,
+  returnTo: string,
   reason?: string,
 ): NextResponse {
   const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("from", pathname);
+  loginUrl.searchParams.set("from", returnTo);
   if (reason) loginUrl.searchParams.set("reason", reason);
   return NextResponse.redirect(loginUrl);
 }
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   // BFF API routes are their own boundary; the page gate does not apply.
   if (pathname.startsWith("/api")) {
@@ -61,7 +61,7 @@ export function proxy(request: NextRequest) {
 
   const response = redirectToLogin(
     request,
-    pathname,
+    `${pathname}${search}`,
     operatorSession?.value ? "session-expired" : undefined,
   );
   if (operatorSession?.value) {
