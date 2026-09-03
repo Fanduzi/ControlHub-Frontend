@@ -46,6 +46,7 @@ import type {
   QueryCredentialUpsertRequest,
 } from "@/types/query-credential";
 import enMessages from "@/messages/en.json";
+import zhMessages from "@/messages/zh-CN.json";
 
 const mockGetQueryCredential = vi.mocked(getQueryCredential);
 const mockSaveQueryCredential = vi.mocked(saveQueryCredential);
@@ -859,6 +860,26 @@ describe("QueryCredentialSettings — credential status fan-out", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Retry").length).toBeGreaterThan(0);
     });
+  });
+
+  it("does not dump English Failed to load / Network error in zh-CN", async () => {
+    mockGetQueryCredential.mockRejectedValue(new Error("Network error"));
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryCredentialSettings
+          targets={buildTargets()}
+          pageInfo={pageInfoFor(buildTargets())}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("获取失败").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Failed to load")).not.toBeInTheDocument();
+    expect(screen.queryByText("Network error")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unknown error")).not.toBeInTheDocument();
   });
 });
 

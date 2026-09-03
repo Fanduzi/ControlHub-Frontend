@@ -244,12 +244,7 @@ export function QueryCredentialSettings({
             newMap.set(targetId, result.value);
           } else {
             newMap.set(targetId, null);
-            newErrors.set(
-              targetId,
-              result.reason instanceof Error
-                ? result.reason.message
-                : "Failed to load",
-            );
+            newErrors.set(targetId, t("errors.loadFailed"));
           }
         }
 
@@ -266,7 +261,7 @@ export function QueryCredentialSettings({
         setStatusesLoading(false);
       }
     },
-    [],
+    [t],
   );
 
   // --- Build operation rows ---
@@ -368,9 +363,7 @@ export function QueryCredentialSettings({
         ) {
           return;
         }
-        setTargetLoadError(
-          error instanceof Error ? error.message : "Failed to load targets",
-        );
+        setTargetLoadError(t("errors.loadTargetsFailed"));
       })
       .finally(() => {
         if (
@@ -382,7 +375,7 @@ export function QueryCredentialSettings({
       });
 
     return () => controller.abort();
-  }, [filters.engine, filters.search, isAdmin, page, pageSize]);
+  }, [filters.engine, filters.search, isAdmin, page, pageSize, t]);
 
   // --- Unique values for filter dropdowns ---
   const environments = useMemo(
@@ -511,10 +504,7 @@ export function QueryCredentialSettings({
           return;
         }
         setErrorMap((previous) =>
-          new Map(previous).set(
-            resourceId,
-            error instanceof Error ? error.message : "Failed to load",
-          ),
+          new Map(previous).set(resourceId, t("errors.loadFailed")),
         );
       }
     })();
@@ -1189,8 +1179,7 @@ function BulkApplyDialog({
           resourceId: target.resourceId,
           displayName: target.displayName,
           status: "failure",
-          error:
-            caught instanceof Error ? caught.message : "Unknown error",
+          error: t("errors.saveFailed"),
           runtimeStatusAfter: null,
         });
       }
@@ -1392,8 +1381,7 @@ function BulkRemoveDialog({
           resourceId: target.resourceId,
           displayName: target.displayName,
           status: "failure",
-          error:
-            caught instanceof Error ? caught.message : "Unknown error",
+          error: t("errors.removeFailed"),
           runtimeStatusAfter: null,
         });
       }
@@ -2092,13 +2080,13 @@ function CredentialDetailPanel({
       setIsDirty(false);
     } catch {
       if (activeTargetIdRef.current !== targetId) return;
-      setError("Failed to load credential status");
+      setError(t("operations.fetchErrorLabel"));
     } finally {
       if (activeTargetIdRef.current === targetId) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     activeTargetIdRef.current = target.resourceId;
@@ -2138,9 +2126,7 @@ function CredentialDetailPanel({
       onCredentialChanged();
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) return;
-      setError(
-        caught instanceof Error ? caught.message : "Failed to save credential",
-      );
+      setError(t("errors.saveFailed"));
     } finally {
       if (activeTargetIdRef.current === targetId) {
         setSaving(false);
@@ -2163,11 +2149,7 @@ function CredentialDetailPanel({
       onCredentialChanged();
     } catch (caught) {
       if (activeTargetIdRef.current !== targetId) return;
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Failed to remove credential",
-      );
+      setError(t("errors.removeFailed"));
     } finally {
       if (activeTargetIdRef.current === targetId) {
         setRemoving(false);
