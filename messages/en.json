@@ -232,7 +232,7 @@
     "description": "Platform resource context, ownership, and auditability.",
     "baseline": "Baseline phase: manual registration, relations, and audit feeds.",
     "subtitle": "Shared shell for resource visibility, ownership context, and change traces.",
-    "searchPlaceholder": "Search resources, owners, IDs",
+    "searchPlaceholder": "Search resources, owners, hostname, IP, IDs",
     "environmentPlaceholder": "Environment",
     "quickAction": "Quick action",
     "notifications": "Notifications",
@@ -625,7 +625,7 @@
         "resource": "Resource #{id}",
         "itemConflict": "Current state conflicts with the selected version."
       },
-      "searchPlaceholder": "Search resource, owner, or ID",
+      "searchPlaceholder": "Search resource, owner, hostname, IP, or ID",
       "filterType": "Filter type",
       "filterLifecycle": "Lifecycle status",
       "filterHealth": "Health status",

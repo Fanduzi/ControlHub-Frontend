@@ -232,7 +232,7 @@
     "description": "平台资源上下文、负责人和审计可见性。",
     "baseline": "基线阶段：手动登记、关系维护和审计流。",
     "subtitle": "面向资源可见性、负责人上下文和变更痕迹的共享工作台。",
-    "searchPlaceholder": "搜索资源、负责人、ID",
+    "searchPlaceholder": "搜索资源、负责人、主机名、IP、ID",
     "environmentPlaceholder": "环境",
     "quickAction": "快捷操作",
     "notifications": "通知",
@@ -625,7 +625,7 @@
         "resource": "资源 #{id}",
         "itemConflict": "当前状态与所选版本冲突。"
       },
-      "searchPlaceholder": "搜索资源、负责人或 ID",
+      "searchPlaceholder": "搜索资源、负责人、主机名、IP 或 ID",
       "filterType": "过滤类型",
       "filterLifecycle": "生命周期状态",
       "filterHealth": "健康状态",

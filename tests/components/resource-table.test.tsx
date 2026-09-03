@@ -412,7 +412,7 @@ describe("ResourceTable", () => {
     renderTable();
 
     await user.type(
-      screen.getByPlaceholderText("Search resource, owner, or ID"),
+      screen.getByPlaceholderText("Search resource, owner, hostname, IP, or ID"),
       "billing",
     );
 

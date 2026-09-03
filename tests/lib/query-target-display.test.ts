@@ -9,6 +9,7 @@ import {
   describeHostPort,
   filterTargets,
   formatHostPortLabel,
+  groupTargetsByEnvironmentAndCluster,
   isAllFilter,
   missingFieldLabel,
   missingFieldLabelKey,
@@ -282,6 +283,27 @@ describe("safetyStateLabel", () => {
       "safetyStateValues.readonly_sandbox_enabled",
     );
     expect(safetyStateLabelKey("nope")).toBeNull();
+  });
+});
+
+describe("groupTargetsByEnvironmentAndCluster", () => {
+  it("uses the supplied unknown label instead of hardcoded English Unknown", () => {
+    const targets = [
+      buildQueryTarget({
+        resourceId: 1,
+        connectionContext: {
+          environment: "",
+          engine: "mysql",
+          host: "h1",
+          port: 3306,
+        },
+      }),
+    ];
+
+    const groups = groupTargetsByEnvironmentAndCluster(targets, "未知");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].environment).toBe("未知");
+    expect(groups[0].environment).not.toBe("Unknown");
   });
 });
 
