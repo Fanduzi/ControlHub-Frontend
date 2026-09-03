@@ -40,13 +40,24 @@ export const HEALTH_METRIC_TEXT: Record<string, string> = {
 
 export const AUDIT_RESULT_DOT: Record<string, string> = {
   success: "bg-emerald-500",
+  succeeded: "bg-emerald-500",
   warning: "bg-amber-500",
   error: "bg-rose-500",
+  failure: "bg-rose-500",
+  failed: "bg-rose-500",
+  rejected: "bg-rose-500",
+  denied: "bg-rose-500",
+  unsupported: "bg-amber-500",
 };
 
 export const AUDIT_RESULT_BORDER: Record<string, string> = {
   error: "border-l-2 border-l-rose-500",
+  failure: "border-l-2 border-l-rose-500",
+  failed: "border-l-2 border-l-rose-500",
+  rejected: "border-l-2 border-l-rose-500",
+  denied: "border-l-2 border-l-rose-500",
   warning: "border-l-2 border-l-amber-500",
+  unsupported: "border-l-2 border-l-amber-500",
 };
 
 export const POSTURE_BAR_COLORS: Record<string, string> = {

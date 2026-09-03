@@ -1,5 +1,5 @@
 // input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: acknowledgment/popstate-guarded audit search, stable filters, localized timestamps, and field-diff assertions
+// output: acknowledgment/popstate-guarded audit search, seeded auth/query/machine filters, zh-CN event labels, localized timestamps, and field-diff assertions
 // pos: component-level regression contract for the operator audit table
 // note: if this file changes, update header and components/audits/README.md
 
@@ -25,29 +25,34 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearchParams,
 }));
 
-function renderTable(locale = "en", localizedMessages: typeof messages = messages) {
-  const events: AuditEventViewModel[] = [
-    {
-      id: 1,
-      actorUserId: 1,
-      actorLabel: "Platform Ops",
-      targetResourceId: 1,
-      targetResourceName: "Orders API",
-      environmentLabel: "Production",
-      eventType: "resource.updated",
-      result: "success",
-      changes: [
-        {
-          field: "identity.displayName",
-          operation: "update",
-          before: "Orders service",
-          after: "Orders API",
-        },
-      ],
-      createdAt: "2026-04-14T10:00:00Z",
-      summary: "Resource updated",
-    },
-  ];
+const defaultEvents: AuditEventViewModel[] = [
+  {
+    id: 1,
+    actorUserId: 1,
+    actorLabel: "Platform Ops",
+    targetResourceId: 1,
+    targetResourceName: "Orders API",
+    environmentLabel: "Production",
+    eventType: "resource.updated",
+    result: "success",
+    changes: [
+      {
+        field: "identity.displayName",
+        operation: "update",
+        before: "Orders service",
+        after: "Orders API",
+      },
+    ],
+    createdAt: "2026-04-14T10:00:00Z",
+    summary: "Resource updated",
+  },
+];
+
+function renderTable(
+  locale = "en",
+  localizedMessages: typeof messages = messages,
+  events: AuditEventViewModel[] = defaultEvents,
+) {
 
   const table = () => (
     <NextIntlClientProvider locale={locale} messages={localizedMessages}>
@@ -93,8 +98,56 @@ describe("AuditTable", () => {
     expect(screen.getByRole("menuitemcheckbox", { name: "Relation created" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Inventory profile updated" })).toBeVisible();
     expect(screen.getByRole("menuitemcheckbox", { name: "Inventory relationship deleted" })).toBeVisible();
-    expect(screen.getByRole("menuitemcheckbox", { name: "Query.Executed" })).toBeVisible();
-    expect(screen.getByRole("menuitemcheckbox", { name: "Related Record Navigation" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Query executed" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Related record navigation" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Login" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Machine principal created" })).toBeVisible();
+  });
+
+  it("keeps auth and query filter options when the current page is empty", async () => {
+    const user = userEvent.setup();
+
+    renderTable("en", messages, []);
+
+    await user.click(screen.getByRole("button", { name: "Event type" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Login" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Bearer authentication" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Query explain" })).toBeVisible();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Auth.Login" })).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Result" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "succeeded" })).toBeVisible();
+    expect(screen.getByRole("menuitemcheckbox", { name: "denied" })).toBeVisible();
+  });
+
+  it("localizes auth login rows and filter options in zh-CN instead of Title Case English", async () => {
+    const user = userEvent.setup();
+
+    renderTable("zh-CN", zhMessages, [
+      {
+        id: 2,
+        actorUserId: 1,
+        actorLabel: "Platform Ops",
+        targetResourceId: 1,
+        targetResourceName: "Orders API",
+        environmentLabel: "Production",
+        eventType: "auth.login",
+        result: "succeeded",
+        createdAt: "2026-04-14T10:00:00Z",
+        summary: "Login succeeded",
+      },
+    ]);
+
+    expect(screen.getByText("登录")).toBeInTheDocument();
+    expect(screen.queryByText("Auth.Login")).not.toBeInTheDocument();
+    expect(screen.queryByText("Succeeded")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "事件类型" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "登录" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "结果" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "已成功" })).toBeVisible();
   });
 
   it("updates eventType in the URL and resets to the first page", async () => {
