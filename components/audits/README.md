@@ -13,7 +13,10 @@ field, add/update/remove operation, and before/after values. Events without
 field changes keep the legacy summary row and render an em dash in the change
 column.
 
-The filter keeps every backend-emitted inventory resource/profile/relationship
-event plus the stable `query.executed` and `related_record_navigation` presets
-available even when they are absent from the current page. Change operations
-use the localized closed add/update/remove vocabulary.
+The filter seeds every backend-emitted event type (inventory, auth, query
+schema/execute/explain/credential, related-record navigation, and machine
+principal/credential) and result (`success|succeeded|warning|error|failure|failed|rejected|denied|unsupported`)
+so empty or narrow pages can still filter login, credential, and machine
+events. Labels come from `activityTimeline.eventTypes` / `results`;
+`formatLabel` is only the unknown-type fallback. Change operations use the
+localized closed add/update/remove vocabulary.

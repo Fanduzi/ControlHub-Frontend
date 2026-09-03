@@ -1,5 +1,5 @@
 // input: localized audit view models, browser navigation, URL-owned filters/search, shared debounce and table primitives
-// output: acknowledgment-guarded audit search navigation and field-level before/after evidence
+// output: acknowledgment-guarded audit search navigation, seeded backend event/result filters, and field-level before/after evidence
 // pos: operator-facing global inventory audit read surface
 // note: if this file changes, update header and components/audits/README.md
 
@@ -49,15 +49,43 @@ const KNOWN_AUDIT_EVENT_TYPES = [
   "relation.created",
   "resource.updated",
   "inventory.resource.updated",
+  "inventory.resource.bulk_updated",
   "inventory.profile.updated",
   "inventory.profile.deleted",
   "inventory.relationship.created",
   "inventory.relationship.deleted",
+  "inventory.override.updated",
+  "inventory.override.cleared",
+  "inventory.ingestion.confirmed",
   "query.executed",
+  "query.explain",
+  "query.credential.updated",
+  "query.credential.deleted",
+  "query.schema.databases.listed",
+  "query.schema.objects.listed",
+  "query.schema.object.read",
+  "query.schema.table_definition.read",
+  "query.schema.relationship_map.read",
   "related_record_navigation",
+  "auth.login",
+  "auth.bearer",
+  "auth.authorization",
+  "machine_principal.created",
+  "machine_credential.rotated",
+  "machine_credential.revoked",
 ] as const;
 
-const KNOWN_AUDIT_RESULTS = ["success", "warning", "error"] as const;
+const KNOWN_AUDIT_RESULTS = [
+  "success",
+  "succeeded",
+  "warning",
+  "error",
+  "failure",
+  "failed",
+  "rejected",
+  "denied",
+  "unsupported",
+] as const;
 
 function updateMultiSelectParams(
   pathname: string,
