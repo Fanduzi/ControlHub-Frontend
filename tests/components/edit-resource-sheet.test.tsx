@@ -329,7 +329,12 @@ describe("EditResourceSheet", () => {
   it("shows an explicit identity conflict from the API", async () => {
     const user = userEvent.setup();
     mockedUpdateResource.mockRejectedValue(
-      new ApiError(409, "Alias already belongs to another resource in this environment."),
+      new ApiError(
+        409,
+        "Alias already belongs to another resource in this environment.",
+        undefined,
+        "resource_alias_conflict",
+      ),
     );
 
     render(
@@ -344,7 +349,14 @@ describe("EditResourceSheet", () => {
     await user.type(aliasInput, "shared-orders");
     await user.click(screen.getByRole("button", { name: /Save/i }));
 
-    expect(await screen.findByText("Alias already belongs to another resource in this environment.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "This alias already belongs to another resource in this environment.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Alias already belongs to another resource in this environment."),
+    ).not.toBeInTheDocument();
   });
 
   it("pre-fills base form fields from the resource", async () => {
@@ -751,7 +763,7 @@ describe("EditResourceSheet", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Your session has expired. Please sign in again.",
+          "Authentication failed. Please sign in again.",
         ),
       ).toBeInTheDocument();
     });

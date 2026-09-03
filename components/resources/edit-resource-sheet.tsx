@@ -11,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+import { controlledErrorCopy } from "@/lib/controlled-error-copy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -96,6 +97,7 @@ export function EditResourceSheet({
 }: EditResourceSheetProps) {
   const t = useTranslations();
   const ct = useTranslations("common");
+  const errorsT = useTranslations("errors");
   const router = useRouter();
 
   const {
@@ -221,16 +223,13 @@ export function EditResourceSheet({
   const getProfileErrorMessage = useCallback(
     (error: unknown) => {
       if (error instanceof ApiError) {
-        if (error.status === 401) return t("mutations.errors.unauthorized");
-        if (error.status === 404) return t("mutations.errors.notFound");
-        if (error.status === 400) return t("mutations.errors.validation");
-        return error.message || t("mutations.errors.backend");
+        return controlledErrorCopy(errorsT, error);
       }
       return error instanceof Error
         ? t("mutations.errors.backend")
         : t("mutations.errors.unknown");
     },
-    [t],
+    [errorsT, t],
   );
 
   const onSubmit = useCallback(
@@ -369,17 +368,8 @@ export function EditResourceSheet({
               }
             }
 
-            const errorMessage = err.message;
             if (label === "base") {
-              if (err.status === 401) {
-                setBaseError(t("mutations.errors.unauthorized"));
-              } else if (err.status === 404) {
-                setBaseError(t("mutations.errors.notFound"));
-              } else if (err.status === 400) {
-                setBaseError(t("mutations.errors.validation"));
-              } else {
-                setBaseError(errorMessage || t("mutations.errors.backend"));
-              }
+              setBaseError(controlledErrorCopy(errorsT, err));
             } else {
               setProfileError(getProfileErrorMessage(err));
             }
@@ -406,7 +396,7 @@ export function EditResourceSheet({
         onOpenChange(false);
       }
     },
-    [resource, dirtyFields, router, onOpenChange, t, setFormError, getProfileErrorMessage],
+    [resource, dirtyFields, router, onOpenChange, t, errorsT, setFormError, getProfileErrorMessage],
   );
 
   const handleClearProfile = useCallback(async () => {

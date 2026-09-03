@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { controlledErrorCopy } from "@/lib/controlled-error-copy";
 import { ApiError as ApiErrorClass } from "@/services/api-client";
 import { Button } from "@/components/ui/button";
 
@@ -13,19 +14,10 @@ type ApiErrorProps = {
 export function ApiError({ error, reset }: ApiErrorProps) {
   const t = useTranslations("errors");
   const common = useTranslations("common");
-  let message: string;
-  if (error instanceof ApiErrorClass) {
-    message =
-      error.status === 401
-        ? t("auth")
-        : error.status === 403
-          ? t("forbidden")
-          : error.status === 404
-            ? t("notFound")
-            : t("unexpected", { message: error.message });
-  } else {
-    message = t("backend");
-  }
+  const message =
+    error instanceof ApiErrorClass
+      ? controlledErrorCopy(t, error)
+      : t("backend");
 
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-5">
