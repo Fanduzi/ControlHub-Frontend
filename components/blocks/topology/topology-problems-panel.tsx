@@ -47,8 +47,8 @@ export function TopologyProblemsPanel({
               <span className="font-medium text-foreground">{p.resourceName}</span>
               <span className="text-muted-foreground truncate">
                 {p.problems.map((pr) => {
-                  const key = `topology.problem${pr.code.charAt(0).toUpperCase()}${pr.code.slice(1)}`;
-                  return t.has(key) ? t(key) : pr.message;
+                  const key = `topology.problemCodes.${pr.code}`;
+                  return t.has(key) ? t(key) : t("topology.problemUnknown");
                 }).join(", ")}
               </span>
             </div>

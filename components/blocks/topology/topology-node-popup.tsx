@@ -136,7 +136,9 @@ export function TopologyNodePopup({
               <div className="flex flex-col gap-0.5 items-end">
                 {data.problems.map((p, i) => (
                   <span key={i} className={cn("text-[10px] font-medium", p.severity === "critical" ? "text-red-500" : "text-amber-500")}>
-                    {p.message}
+                    {t.has(`topology.problemCodes.${p.code}`)
+                      ? t(`topology.problemCodes.${p.code}`)
+                      : t("topology.problemUnknown")}
                   </span>
                 ))}
               </div>

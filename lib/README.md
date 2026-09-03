@@ -44,6 +44,9 @@ labels; relative labels use date-time formatting after 24 hours.
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.
+`controlled-error-copy.ts` maps a JSON `error` code to `errors.codes.*` copy
+and never interpolates the English `message`. Unknown codes use generic copy
+plus the code; a missing code is unavailability except 401.
 This includes `bulk_resource_mutation_conflict` for reviewed bulk-label writes
 and ingestion conflict/stale-preview/collector-state-limit outcomes, so the
 console handles the backend contract without deriving errors from HTTP status.

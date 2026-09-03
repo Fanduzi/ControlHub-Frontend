@@ -60,6 +60,7 @@ Vitest component tests for React UI components.
 | pagination-controls.test.tsx | Pagination controls |
 | db-type-icon.test.tsx | Database type icon |
 | status-badge.test.tsx | StatusBadge lifecycle tones aligned to backend running/degraded keys |
+| api-error.test.tsx | ApiError block copy keyed by Controlled Error Code, never English message |
 | select.test.tsx | Select component |
 | environment-provider.test.tsx | Environment provider |
 
