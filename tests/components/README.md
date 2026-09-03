@@ -59,6 +59,7 @@ Vitest component tests for React UI components.
 | multi-select-filter.test.tsx | Multi-select filter |
 | pagination-controls.test.tsx | Pagination controls |
 | db-type-icon.test.tsx | Database type icon |
+| status-badge.test.tsx | StatusBadge lifecycle tones aligned to backend running/degraded keys |
 | select.test.tsx | Select component |
 | environment-provider.test.tsx | Environment provider |
 
