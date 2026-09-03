@@ -2112,6 +2112,13 @@
       "failure": "失败",
       "retryFailed": "重试失败",
       "clearResults": "清除结果"
+    },
+    "errors": {
+      "loadFailed": "加载凭据状态失败。",
+      "loadTargetsFailed": "加载目标失败。",
+      "unknown": "未知错误",
+      "saveFailed": "保存凭据失败。",
+      "removeFailed": "删除凭据失败。"
     }
   },
   "queryDisclosureSettings": {

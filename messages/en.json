@@ -2112,6 +2112,13 @@
       "failure": "Failed",
       "retryFailed": "Retry failed",
       "clearResults": "Clear results"
+    },
+    "errors": {
+      "loadFailed": "Failed to load credential status.",
+      "loadTargetsFailed": "Failed to load targets.",
+      "unknown": "Unknown error",
+      "saveFailed": "Failed to save credential.",
+      "removeFailed": "Failed to remove credential."
     }
   },
   "queryDisclosureSettings": {
