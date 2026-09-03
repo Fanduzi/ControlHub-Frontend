@@ -95,7 +95,7 @@ describe("CommandPalette", () => {
     const user = userEvent.setup();
 
     renderPalette();
-    await user.type(screen.getByPlaceholderText("Search resources, owners, IDs"), "10.0.0.7");
+    await user.type(screen.getByPlaceholderText("Search resources, owners, hostname, IP, IDs"), "10.0.0.7");
 
     await waitFor(() => {
       // WHY: the palette is a cross-inventory finder, so every CI type is
@@ -124,10 +124,10 @@ describe("CommandPalette", () => {
     renderPalette();
     expect(screen.getByText("Overview")).toBeInTheDocument();
     expect(screen.getByText("Light")).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText("Search resources, owners, IDs"), "old");
+    await user.type(screen.getByPlaceholderText("Search resources, owners, hostname, IP, IDs"), "old");
     await waitFor(() => expect(listResourcesMock).toHaveBeenCalledTimes(1));
-    await user.clear(screen.getByPlaceholderText("Search resources, owners, IDs"));
-    await user.type(screen.getByPlaceholderText("Search resources, owners, IDs"), "new");
+    await user.clear(screen.getByPlaceholderText("Search resources, owners, hostname, IP, IDs"));
+    await user.type(screen.getByPlaceholderText("Search resources, owners, hostname, IP, IDs"), "new");
     await waitFor(() => expect(listResourcesMock).toHaveBeenCalledTimes(2));
     resolveFirst!({ items: [], pageInfo: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0 } });
 

@@ -52,6 +52,7 @@ export function QueryConnectionNavigator({
   searchInputRef,
 }: QueryConnectionNavigatorProps) {
   const t = useTranslations("queryWorkbench");
+  const common = useTranslations("common");
   const activeTarget = useMemo(
     () => targets.find((target) => target.resourceId === activeTargetId) ?? null,
     [targets, activeTargetId],
@@ -65,8 +66,8 @@ export function QueryConnectionNavigator({
     [filters, searchError, targets],
   );
   const groupedTargets = useMemo(
-    () => groupTargetsByEnvironmentAndCluster(filteredTargets),
-    [filteredTargets],
+    () => groupTargetsByEnvironmentAndCluster(filteredTargets, common("unknown")),
+    [common, filteredTargets],
   );
 
   const pageInfoLabel = useMemo(

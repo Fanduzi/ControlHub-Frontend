@@ -123,11 +123,12 @@ export type TargetGroup = {
 /** Group targets by environment and cluster, sorting ready groups first. */
 export function groupTargetsByEnvironmentAndCluster(
   targets: QueryTarget[],
+  unknownLabel = "Unknown",
 ): TargetGroup[] {
   const byEnv = new Map<string, Map<string | null, QueryTarget[]>>();
 
   for (const target of targets) {
-    const env = target.connectionContext.environment || "Unknown";
+    const env = target.connectionContext.environment || unknownLabel;
     const cluster = target.connectionContext.clusterName || null;
     if (!byEnv.has(env)) byEnv.set(env, new Map());
     if (!byEnv.get(env)!.has(cluster)) byEnv.get(env)!.set(cluster, []);
