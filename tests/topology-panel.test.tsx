@@ -575,6 +575,10 @@ describe("TopologyPanel", () => {
     });
 
     expect(screen.getByTestId("topology-root-select")).toHaveTextContent("Order MySQL Primary Prod");
+    expect(screen.getByTestId("topology-candidate-workspace")).toBeInTheDocument();
+    expect(screen.getByText("Select a starting CI")).toBeInTheDocument();
+    expect(screen.queryByTestId("topology-graph")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("react-flow-mock")).not.toBeInTheDocument();
     expect(screen.getByTestId("topology-truncated")).toBeInTheDocument();
   });
 
@@ -622,6 +626,8 @@ describe("TopologyPanel", () => {
     await waitFor(() => {
       expect(mockGetEnvironmentTopology).toHaveBeenCalledWith(7, { depth: 2 }, expect.anything());
       expect(screen.getByTestId("topology-root-select")).toBeInTheDocument();
+      expect(screen.getByTestId("topology-candidate-workspace")).toBeInTheDocument();
+      expect(screen.queryByTestId("topology-graph")).not.toBeInTheDocument();
     });
   });
 
@@ -637,11 +643,26 @@ describe("TopologyPanel", () => {
 
     renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
 
-    await user.click(await screen.findByTestId("topology-node-2"));
+    await user.click(await screen.findByTestId("topology-candidate-2"));
 
     expect(push).toHaveBeenCalledWith("/topology?environment=prod&rootId=2");
-    await user.click(screen.getByRole("button", { name: "View Full Details" }));
-    expect(push).toHaveBeenLastCalledWith("/resources/2");
+  });
+
+  it("uses response nodes as starting CIs when the backend omits candidates", async () => {
+    mockGetEnvironmentTopology.mockResolvedValue({
+      ...mockTopologyResponse,
+      rootResourceId: 0,
+      edges: [],
+      candidates: undefined,
+    });
+
+    renderWithProviders(<TopologyPanel environmentId={7} />);
+
+    expect(await screen.findByTestId("topology-candidate-1")).toHaveTextContent(
+      "Order MySQL Cluster Prod",
+    );
+    expect(screen.getByTestId("topology-candidate-workspace")).toBeInTheDocument();
+    expect(screen.queryByTestId("react-flow-mock")).not.toBeInTheDocument();
   });
 
   it.each(["Infinity", "5"])("uses the default depth instead of requesting invalid URL depth %s", async (rawDepth) => {
@@ -687,7 +708,7 @@ describe("TopologyPanel", () => {
         edges: [],
       });
     });
-    expect(await screen.findByText("Fresh root")).toBeInTheDocument();
+    expect(await screen.findByTestId("topology-node-2")).toHaveTextContent("Fresh root");
 
     await act(async () => {
       resolveFirst({
@@ -696,8 +717,8 @@ describe("TopologyPanel", () => {
         edges: [],
       });
     });
-    expect(screen.queryByText("Stale root")).not.toBeInTheDocument();
-    expect(screen.getByText("Fresh root")).toBeInTheDocument();
+    expect(screen.queryByTestId("topology-node-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("topology-node-2")).toHaveTextContent("Fresh root");
   });
 
   it("refetches and aborts the prior scope when the environment changes with identical controls", async () => {
@@ -718,7 +739,7 @@ describe("TopologyPanel", () => {
       });
 
     const { rerender } = renderWithProviders(<TopologyPanel environmentId={7} urlSync />);
-    expect(await screen.findByText("Environment 7")).toBeInTheDocument();
+    expect(await screen.findByTestId("topology-node-2")).toHaveTextContent("Environment 7");
     const firstSignal = mockGetEnvironmentTopology.mock.calls[0]?.[2]?.signal;
 
     rerender(
@@ -733,7 +754,7 @@ describe("TopologyPanel", () => {
       expect.anything(),
     ));
     expect(firstSignal?.aborted).toBe(true);
-    expect(await screen.findByText("Environment 8")).toBeInTheDocument();
+    expect(await screen.findByTestId("topology-node-2")).toHaveTextContent("Environment 8");
     expect(screen.queryByText("Environment 7")).not.toBeInTheDocument();
   });
 });

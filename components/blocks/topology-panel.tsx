@@ -226,10 +226,19 @@ function TopologyPanelInner({
 
   useEffect(() => () => topologyRequestController.current?.abort(), []);
 
-  const flowData = useMemo(() => {
-    if (!topology) return null;
-    return mapTopologyToFlow(topology);
+  const isCandidateWorkspace = isEnvironmentTopology && !rootResourceId;
+  const workspaceCandidates = useMemo(() => {
+    if (!topology) return [];
+    if (topology.candidates && topology.candidates.length > 0) {
+      return topology.candidates;
+    }
+    return topology.nodes;
   }, [topology]);
+
+  const flowData = useMemo(() => {
+    if (!topology || isCandidateWorkspace) return null;
+    return mapTopologyToFlow(topology);
+  }, [isCandidateWorkspace, topology]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowData?.nodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowData?.edges ?? []);
@@ -274,7 +283,7 @@ function TopologyPanelInner({
 
   const hasEdges = !!topology && topology.edges.length > 0;
   const hasNodes = !!topology && topology.nodes.length > 0;
-  const hasGraphContent = hasNodes || hasEdges;
+  const hasGraphContent = !isCandidateWorkspace && (hasNodes || hasEdges);
   const isDatabase = topology?.isDatabaseTopology ?? false;
 
   const getTypeLabel = useCallback(
@@ -386,7 +395,7 @@ function TopologyPanelInner({
 
   const renderEnvironmentControls = (inExpanded = false) => (
     <div className="flex flex-wrap items-center gap-3">
-      {topology?.candidates && topology.candidates.length > 0 && (
+      {workspaceCandidates.length > 0 && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           {t("topology.rootLabel")}
           <select
@@ -396,8 +405,8 @@ function TopologyPanelInner({
             className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
           >
             <option value="">{t("topology.allRoots")}</option>
-            {topology.candidates.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>{candidate.displayName}</option>
+            {workspaceCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.displayName || candidate.name}</option>
             ))}
           </select>
         </label>
@@ -475,7 +484,39 @@ function TopologyPanelInner({
         </div>
       )}
 
-      {!loading && !error && !unavailable && topology && !hasGraphContent && (
+      {!loading && !error && !unavailable && topology && isCandidateWorkspace && (
+        <div
+          data-testid="topology-candidate-workspace"
+          className="rounded-lg border border-dashed border-border bg-card px-4 py-6"
+        >
+          <p className="text-sm font-medium text-foreground">
+            {t("topology.candidateTitle")}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("topology.candidateDescription")}
+          </p>
+          {workspaceCandidates.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">{t("topology.candidateEmpty")}</p>
+          ) : (
+            <ul className="mt-4 space-y-1">
+              {workspaceCandidates.map((candidate) => (
+                <li key={candidate.id}>
+                  <button
+                    type="button"
+                    data-testid={`topology-candidate-${candidate.id}`}
+                    onClick={() => setRootResourceId(candidate.id)}
+                    className="w-full rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                  >
+                    {candidate.displayName || candidate.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && !unavailable && topology && !isCandidateWorkspace && !hasGraphContent && (
         <div
           data-testid="topology-empty"
           className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card py-12"
