@@ -299,17 +299,15 @@ export function QueryCredentialSettings({
     () => visibleRows.map((row) => row.resourceId).join(","),
     [visibleRows],
   );
-  useEffect(() => {
-    visibleTargetIdsKeyRef.current = visibleTargetIdsKey;
-  }, [visibleTargetIdsKey]);
+  // eslint-disable-next-line react-hooks/refs -- async fetch generation guard
+  visibleTargetIdsKeyRef.current = visibleTargetIdsKey;
 
   const targetListIdsKey = useMemo(
     () => targetList.map((target) => target.resourceId).join(","),
     [targetList],
   );
-  useEffect(() => {
-    targetListIdsKeyRef.current = targetListIdsKey;
-  }, [targetListIdsKey]);
+  // eslint-disable-next-line react-hooks/refs -- async fetch generation guard
+  targetListIdsKeyRef.current = targetListIdsKey;
 
   useEffect(() => {
     if (isAdmin) {
