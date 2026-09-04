@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: admin-workspace-isolated Playwright E2E specs for the query workbench (idempotent target selection, shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation)
+// output: admin-workspace-isolated Playwright E2E specs for the query workbench (idempotent target selection, shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation; workspace reset retries query_workspace_conflict)
 // pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
@@ -100,16 +100,29 @@ test.beforeAll(async () => {
 
 test.beforeEach(async () => {
   if (fixtureAdminToken === null) throw new Error("E2E fixture admin token is unavailable");
-  const workspace = await apiFetch<{ worksheets: unknown[]; version: number }>(
-    "/query-workspace",
-    { token: fixtureAdminToken },
-  );
-  if (workspace.worksheets.length === 0) return;
-  await apiFetch("/query-workspace", {
-    method: "PUT",
-    token: fixtureAdminToken,
-    body: JSON.stringify({ expectedVersion: workspace.version, worksheets: [] }),
-  });
+  const token = fixtureAdminToken;
+  // WHY: the previous spec's UI may still persist the workspace after this
+  // GET, so a single expectedVersion PUT races into query_workspace_conflict.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const workspace = await apiFetch<{ worksheets: unknown[]; version: number }>(
+      "/query-workspace",
+      { token },
+    );
+    if (workspace.worksheets.length === 0) return;
+    try {
+      await apiFetch("/query-workspace", {
+        method: "PUT",
+        token,
+        body: JSON.stringify({ expectedVersion: workspace.version, worksheets: [] }),
+      });
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes("query_workspace_conflict") || attempt === 4) {
+        throw err;
+      }
+    }
+  }
 });
 
 /**
