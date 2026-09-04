@@ -9,7 +9,7 @@ time, observer, and manual override consistently in list and detail surfaces.
 
 | File | Responsibility |
 |------|----------------|
-| `resource-table.tsx` | Inventory filters, column visibility, rows, saved-view integration, and compact completeness/health evidence |
+| `resource-table.tsx` | Inventory filters, column visibility, rows, saved-view integration, compact completeness/health evidence, and collector-unknown health guidance |
 | `resource-completeness-panel.tsx` | Read-only server-derived completeness score and missing-requirement presentation |
 | `named-inventory-view-controls.tsx` | Personal/shared view save, apply, rename, delete, and permission presentation |
 | `ingestion-dialog.tsx` | Sends one CSV/JSON file for server preview, renders localized counts and returned diffs/conflicts including fresh 409 previews, and confirms only a reviewed fingerprint |

@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/table";
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatLabel, formatRelativeDateTime } from "@/lib/format";
+import { hasMissingCollectorHealthObservation } from "@/lib/health-observation-guidance";
 import { normalizeLabelFilter } from "@/lib/list-page-search-params";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { ApiError } from "@/services/api-client";
@@ -757,6 +758,14 @@ export function ResourceTable({
         }
         pagination={<PaginationControls pageInfo={pageInfo} />}
       >
+        {hasMissingCollectorHealthObservation(resources) && (
+          <p
+            data-testid="health-observation-hint"
+            className="border-b border-border px-4 py-2 text-sm text-muted-foreground"
+          >
+            {t("tables.resources.healthObservationHint")}
+          </p>
+        )}
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
