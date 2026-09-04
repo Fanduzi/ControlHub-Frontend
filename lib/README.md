@@ -41,6 +41,9 @@ spreadsheet formula prefix are emitted as literal text.
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.
 
+`health-observation-guidance.ts` tells inventory and overview when unknown
+health is missing collector observation rather than a console setting.
+
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
 `scripts/check-controlled-error-codes.mjs` fails when the two sets drift.

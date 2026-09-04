@@ -320,6 +320,30 @@ describe("OverviewContent attention reason", () => {
     expect(screen.queryByText(/diagnostics\.reasons\.lifecycleStatus/)).not.toBeInTheDocument();
   });
 
+  it("does not treat collector-unknown health as an all-healthy empty queue", () => {
+    const resources = [
+      makeResource({
+        id: 1,
+        displayName: "Unobserved host",
+        resourceType: "host",
+        healthStatus: "unknown",
+        lifecycleStatus: "running",
+      }),
+    ];
+
+    renderZh(
+      <OverviewContent resources={resources} attentionResources={resources} />,
+    );
+
+    expect(screen.getByTestId("health-observation-hint")).toHaveTextContent(
+      "健康状态来自采集观测，不是控制台点选。未知表示还没有新的观测，不代表资源健康。",
+    );
+    expect(
+      screen.getByText("暂无关注项。未知健康表示还没有采集观测，不代表所有 CI 都健康。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("所有资源均处于健康运行状态。")).not.toBeInTheDocument();
+  });
+
   it("suppresses only normal unknown health during lifecycle transitions", () => {
     const resources = [
       makeResource({

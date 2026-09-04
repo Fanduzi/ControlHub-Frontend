@@ -376,6 +376,7 @@
         "description": "Resources needing immediate operator context or ownership follow-up.",
         "emptyTitle": "No attention items",
         "emptyDescription": "All resources are healthy and running.",
+        "unknownHealthEmpty": "No attention items. Unknown health means no collector observation yet, not that every CI is healthy.",
         "reasonColumn": "Reason",
         "viewAll": "View all attention items",
         "showLess": "Show fewer attention items",
@@ -396,7 +397,8 @@
         "totalResources": "{count} resources total",
         "showingTop": "Showing top {shown} of {total}",
         "noResources": "No resources"
-      }
+      },
+      "healthObservationHint": "Health status comes from collector observations, not from this console. Unknown means no fresh observation is available."
     },
     "resources": {
       "eyebrow": "Resources",
@@ -615,6 +617,7 @@
       "service": "Service",
       "emptyTitle": "No resources found",
       "emptyDescription": "No resources match the current filters, or no resources have been registered yet.",
+      "healthObservationHint": "Health status comes from collector observations, not from this console. Unknown means no fresh observation is available.",
       "filterArchive": "Archive state",
       "filterSubtype": "Resource subtype",
       "allArchive": "Active only",

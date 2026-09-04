@@ -19,3 +19,7 @@ produce a readable localized fallback instead of exposing an i18n key.
 During provisioning and decommissioning, an unknown health value is the normal
 pre-observation state and is omitted from the row. Warning and critical health
 badges remain visible alongside the lifecycle badge.
+
+Running CIs with unknown health are missing collector observations, not a
+console setting. Overview then shows collector guidance instead of "all
+healthy".

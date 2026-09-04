@@ -376,6 +376,7 @@
         "description": "需要立即补充运维上下文或负责人跟进的资源。",
         "emptyTitle": "暂无关注项",
         "emptyDescription": "所有资源均处于健康运行状态。",
+        "unknownHealthEmpty": "暂无关注项。未知健康表示还没有采集观测，不代表所有 CI 都健康。",
         "reasonColumn": "关注原因",
         "viewAll": "查看全部关注项",
         "showLess": "收起关注项",
@@ -396,7 +397,8 @@
         "totalResources": "共 {count} 个资源",
         "showingTop": "展示前 {shown} / {total} 项",
         "noResources": "暂无资源"
-      }
+      },
+      "healthObservationHint": "健康状态来自采集观测，不是控制台点选。未知表示还没有新的观测，不代表资源健康。"
     },
     "resources": {
       "eyebrow": "资源",
@@ -615,6 +617,7 @@
       "service": "服务",
       "emptyTitle": "未找到资源",
       "emptyDescription": "当前过滤条件没有匹配资源，或尚未登记任何资源。",
+      "healthObservationHint": "健康状态来自采集观测，不是控制台点选。未知表示还没有新的观测，不代表资源健康。",
       "filterArchive": "归档状态",
       "filterSubtype": "资源子类型",
       "allArchive": "仅活跃",

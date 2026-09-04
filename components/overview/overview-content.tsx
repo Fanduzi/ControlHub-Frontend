@@ -1,5 +1,5 @@
 // input: environment-scoped resource view models and localized UI messages
-// output: posture metrics and an expandable attention queue with readable reasons and transition-aware status badges
+// output: posture metrics, collector-unknown health guidance, and an expandable attention queue with readable reasons and transition-aware status badges
 // pos: client-rendered Overview content; queue membership uses isActionableAttention
 // note: if this file changes, update this header and components/overview/README.md.
 "use client";
@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/blocks/status-badge";
 import { formatLabel } from "@/lib/format";
 import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import { buildStatusReasonKey } from "@/lib/diagnostic-copy";
+import { hasMissingCollectorHealthObservation } from "@/lib/health-observation-guidance";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
@@ -234,10 +235,21 @@ export function OverviewContent({
         )}
       </DetailPanel>
 
+      {hasMissingCollectorHealthObservation(resources) && (
+        <p
+          data-testid="health-observation-hint"
+          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+        >
+          {t("pages.overview.healthObservationHint")}
+        </p>
+      )}
+
       {/* Attention queue */}
       {visibleAttention.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-3 text-center text-sm text-muted-foreground">
-          {t("pages.overview.attention.emptyDescription")}
+          {hasMissingCollectorHealthObservation(resources)
+            ? t("pages.overview.attention.unknownHealthEmpty")
+            : t("pages.overview.attention.emptyDescription")}
         </div>
       ) : (
         <DetailPanel
