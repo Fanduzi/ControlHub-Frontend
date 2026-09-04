@@ -221,7 +221,7 @@ test.describe("Resource topology view", () => {
     // Search for our test resource by name
     const searchInput = page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID");
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID");
     await searchInput.fill(rootResourceName);
 
     // Wait for filtered results

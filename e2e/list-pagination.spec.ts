@@ -173,7 +173,7 @@ test.describe("List pagination and backend query params", () => {
     await resetRecordedRequests("/resources");
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill("orders");
     await expectUrlParam(page, "page", "1");
     await expectUrlParam(page, "q", "orders");

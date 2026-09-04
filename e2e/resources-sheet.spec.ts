@@ -73,7 +73,7 @@ test.describe("Resources detail sheet", () => {
 
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill(resourceName);
 
     await expect(
@@ -100,7 +100,7 @@ test.describe("Resources detail sheet", () => {
 
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill(resourceName);
 
     await expect(
