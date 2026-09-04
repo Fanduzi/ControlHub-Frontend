@@ -299,13 +299,17 @@ export function QueryCredentialSettings({
     () => visibleRows.map((row) => row.resourceId).join(","),
     [visibleRows],
   );
-  visibleTargetIdsKeyRef.current = visibleTargetIdsKey;
+  useEffect(() => {
+    visibleTargetIdsKeyRef.current = visibleTargetIdsKey;
+  }, [visibleTargetIdsKey]);
 
   const targetListIdsKey = useMemo(
     () => targetList.map((target) => target.resourceId).join(","),
     [targetList],
   );
-  targetListIdsKeyRef.current = targetListIdsKey;
+  useEffect(() => {
+    targetListIdsKeyRef.current = targetListIdsKey;
+  }, [targetListIdsKey]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -356,7 +360,7 @@ export function QueryCredentialSettings({
     };
 
     void loadTargets()
-      .catch((error: unknown) => {
+      .catch(() => {
         if (
           targetFetchGenerationRef.current !== generation ||
           controller.signal.aborted
@@ -495,7 +499,7 @@ export function QueryCredentialSettings({
           next.delete(resourceId);
           return next;
         });
-      } catch (error: unknown) {
+      } catch {
         if (
           targetFetchGenerationRef.current !== targetPageGeneration ||
           visibleTargetIdsKeyRef.current !== targetIdsKey ||
@@ -1174,7 +1178,7 @@ function BulkApplyDialog({
           error: null,
           runtimeStatusAfter: response.runtimeStatus,
         });
-      } catch (caught) {
+      } catch {
         results.push({
           resourceId: target.resourceId,
           displayName: target.displayName,
@@ -1376,7 +1380,7 @@ function BulkRemoveDialog({
           error: null,
           runtimeStatusAfter: null,
         });
-      } catch (caught) {
+      } catch {
         results.push({
           resourceId: target.resourceId,
           displayName: target.displayName,
@@ -2124,7 +2128,7 @@ function CredentialDetailPanel({
       setSuccess(t("detail.saved"));
       setIsDirty(false);
       onCredentialChanged();
-    } catch (caught) {
+    } catch {
       if (activeTargetIdRef.current !== targetId) return;
       setError(t("errors.saveFailed"));
     } finally {
@@ -2147,7 +2151,7 @@ function CredentialDetailPanel({
       setSuccess(t("detail.removed"));
       setShowRemoveConfirm(false);
       onCredentialChanged();
-    } catch (caught) {
+    } catch {
       if (activeTargetIdRef.current !== targetId) return;
       setError(t("errors.removeFailed"));
     } finally {
