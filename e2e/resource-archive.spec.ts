@@ -74,7 +74,7 @@ test.describe("Resource archive lifecycle", () => {
     // The active resource should be findable by search
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill(activeName);
 
     await expect(
@@ -84,7 +84,7 @@ test.describe("Resource archive lifecycle", () => {
     // Now search for the archived resource — it should NOT appear
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill(archivedName);
 
     // Wait for the table to settle (either empty state or non-matching rows)
@@ -172,7 +172,7 @@ test.describe("Resource archive lifecycle", () => {
     // Now search for the archived resource
     await page
       .locator("main")
-      .getByPlaceholder("Search resource, owner, or ID")
+      .getByPlaceholder("Search resource, owner, hostname, IP, or ID")
       .fill(archivedName);
 
     // The archived resource should now be visible
