@@ -20,6 +20,16 @@ audit list pages, the explicit All sentinel, and fail-closed unknown slugs.
 `messages-workspace-history-parity.test.ts` keeps the workspace conflict and
 history statement-recovery copy present in both English and zh-CN.
 
+`schema-catalog.test.ts` covers schema catalog through its interface (库身份
+isolation, page-size isolation, stale abort, detail TTL, concurrency).
+
+`worksheet-session.test.ts` covers 工作表 commands: template enter/exit, execute
+vs template routing, stale request rejection, template field errors.
+
+`operator-session-facade.test.ts` covers login/logout/readIdentity/authenticateCookie/gatePage.
+
+`query-result-envelope.test.ts` covers governed result disclosure checks.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |

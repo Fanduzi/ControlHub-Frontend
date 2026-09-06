@@ -1939,6 +1939,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         <>
           <QueryGovernancePanel target={worksheetTarget} />
           <QueryObjectQuickNavigator
+            catalog={schemaStore}
             targetId={activeWorksheet.targetResourceId}
             activeDatabase={activeWorksheet.activeDatabase}
             onDatabaseSelect={(activeDatabase) => {
@@ -2320,8 +2321,6 @@ function ReadyWorksheet({
   schemaStore,
   targetId,
   activeDatabase,
-  loadedDatabases,
-  loadedObjects,
   metadataError,
   onRetryMetadata,
   previewProvenance,
@@ -2388,8 +2387,6 @@ function ReadyWorksheet({
     schemaStore,
     targetId,
     activeDatabase ?? undefined,
-    loadedDatabases,
-    loadedObjects,
   );
 
   // Ref for the Related records trigger button, used for focus restoration

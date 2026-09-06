@@ -1,3 +1,7 @@
+// input: @/lib/query-sql-completion
+// output: Vitest tests for keyword/table/column completions and parsers
+// pos: completion builders; concurrency cap lives in schema catalog
+// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   APPROVED_KEYWORDS,
@@ -397,31 +401,6 @@ describe("normalizeQuotedIdentifier", () => {
 // ────────────────────────────────────────────────────────────
 // Concurrent detail fetch cap
 // ────────────────────────────────────────────────────────────
-
-describe("concurrent detail fetch cap", () => {
-  it("caps concurrent column fetches at five", async () => {
-    let activeCount = 0;
-    let maxActive = 0;
-
-    const slowFetcher: TableColumnFetcher = async () => {
-      activeCount++;
-      maxActive = Math.max(maxActive, activeCount);
-      await new Promise((r) => setTimeout(r, 10));
-      activeCount--;
-      return ["col"];
-    };
-
-    const ns: SchemaNamespace = { tables: [], loadedColumns: {} };
-
-    // Fire 10 concurrent fetches
-    const promises = Array.from({ length: 10 }, (_, i) =>
-      buildColumnCompletionsForDot(`table_${i}`, ns, slowFetcher),
-    );
-
-    await Promise.all(promises);
-    expect(maxActive).toBeLessThanOrEqual(5);
-  });
-});
 
 // ────────────────────────────────────────────────────────────
 // Completion failure falls back to keywords/loaded metadata

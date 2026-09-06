@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>ControlHub 架构评审</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif",
+          primaryColor: "#f5f0e8",
+          primaryTextColor: "#1c1917",
+          primaryBorderColor: "#44403c",
+          lineColor: "#57534e",
+          secondaryColor: "#e7e5e4",
+          tertiaryColor: "#fafaf9",
+        },
+      });
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #1c1917;
+        --paper: #f4efe6;
+        --card: #fbf7f0;
+        --rule: #d6d0c4;
+        --deep: #1f2933;
+        --leak: #b91c1c;
+        --ok: #047857;
+      }
+      html { background: var(--paper); }
+      body {
+        font-family: "IBM Plex Sans", ui-sans-serif, system-ui, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(1200px 600px at 10% -10%, #efe6d4 0%, transparent 55%),
+          var(--paper);
+      }
+      h1, h2, h3 { font-family: Fraunces, "Songti SC", "Noto Serif SC", ui-serif, Georgia, serif; }
+      .seam { stroke-dasharray: 5 4; }
+      .leak { stroke: var(--leak); }
+      .deep { background: linear-gradient(165deg, #111827 0%, #1f2937 60%, #0f172a 100%); }
+      .mass-iface { background: repeating-linear-gradient(-45deg, #fecaca, #fecaca 6px, #fee2e2 6px, #fee2e2 12px); }
+      .mass-impl { background: #e7e5e4; }
+      .mass-iface-deep { background: #a7f3d0; }
+      .mass-impl-deep { background: linear-gradient(180deg, #111827, #334155); }
+      pre.mermaid { margin: 0; background: transparent; }
+    </style>
+  </head>
+  <body class="text-stone-900">
+    <main class="max-w-5xl mx-auto px-6 py-14 space-y-14">
+      <header class="space-y-6">
+        <p class="text-xs uppercase tracking-[0.22em] text-stone-500">架构评审 · 2026-09-06</p>
+        <h1 class="text-4xl md:text-5xl font-semibold tracking-tight text-stone-900">ControlHub</h1>
+        <p class="text-stone-600 max-w-2xl">范围：近期提交热区——查询工作台，以及独立的 Operator Session seam。<span class="font-mono text-sm">docs/adr/</span> 中没有 ADR。</p>
+        <ul class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-stone-600 border-t border-b border-stone-300 py-3">
+          <li class="flex items-center gap-2"><span class="inline-block size-3 border border-stone-800 bg-stone-100"></span> module</li>
+          <li class="flex items-center gap-2"><span class="inline-block w-6 border-t border-dashed border-stone-700"></span> seam</li>
+          <li class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-red-700"></span> 泄漏</li>
+          <li class="flex items-center gap-2"><span class="inline-block size-3 bg-slate-900"></span> deep module</li>
+        </ul>
+      </header>
+
+      <section id="candidates" class="space-y-16">
+
+        <article id="schema-catalog" class="rounded-2xl border border-stone-300 bg-[#fbf7f0] p-6 md:p-8 shadow-[0_1px_0_rgba(28,25,23,0.04)] space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">把 Schema Metadata Identity 收成一个 module</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-700 text-white text-xs font-medium px-3 py-1 uppercase tracking-wider">强烈推荐</span>
+              <span class="rounded-full border border-stone-400 text-stone-700 text-xs font-medium px-3 py-1 uppercase tracking-wider">ports &amp; adapters</span>
+            </div>
+          </div>
+          <ul class="font-mono text-sm text-stone-600 space-y-0.5">
+            <li>lib/query-schema-store.ts</li>
+            <li>lib/use-worksheet-schema-adapter.ts</li>
+            <li>components/query/query-editor-shell.tsx</li>
+            <li>components/query/query-object-explorer.tsx</li>
+            <li>components/query/query-object-quick-navigator.tsx</li>
+            <li>services/query-schema.ts</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-stone-300 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之前</p>
+              <div class="rounded-lg border border-stone-200 bg-stone-50 p-3 overflow-x-auto">
+                <pre class="mermaid">
+flowchart LR
+  E[对象浏览器] -->|列表+详情| F[schema 拉取]
+  S[工作表 shell] -->|列表 pageSize 100| F
+  N[快速导航] -->|列表 pageSize 50| F
+  E -.leak.-> K[QuerySchemaStore]
+  A[schema adapter] -.leak.-> K
+  A -->|绕过 slot| F
+  classDef leak stroke:#b91c1c,stroke-width:2px,color:#7f1d1d;
+  class K,A leak
+                </pre>
+              </div>
+              <p class="text-xs text-stone-500">三处各自拉列表。Store 的 interface 就是 slot 协议。<code>loadDetail</code> 没有生产调用方。登出从不调用 <code>clear()</code>。</p>
+            </div>
+            <div class="rounded-xl border border-stone-800 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之后</p>
+              <div class="relative h-[320px] rounded-lg border-2 border-slate-900 overflow-hidden">
+                <div class="absolute inset-x-0 top-0 h-12 bg-emerald-100 border-b border-slate-900 flex items-center justify-center">
+                  <span class="text-xs uppercase tracking-wider">interface · 列表 / 详情 / namespace</span>
+                </div>
+                <div class="absolute inset-x-0 top-12 bottom-12 deep text-stone-200 p-4 space-y-2">
+                  <p class="text-xs uppercase tracking-wider text-stone-400">implementation</p>
+                  <p class="text-sm leading-snug">Schema Metadata Identity · TTL · 并发槽 · 在途去重 · 过期 generation · 默认库 · 补全 namespace</p>
+                  <div class="mt-3 grid grid-cols-3 gap-2 opacity-50">
+                    <div class="border border-dashed border-stone-500 rounded p-2 text-[10px] uppercase tracking-wider">maps</div>
+                    <div class="border border-dashed border-stone-500 rounded p-2 text-[10px] uppercase tracking-wider">fetch port</div>
+                    <div class="border border-dashed border-stone-500 rounded p-2 text-[10px] uppercase tracking-wider">SQL 补全</div>
+                  </div>
+                </div>
+                <div class="absolute inset-x-0 bottom-0 h-12 bg-stone-100 border-t border-dashed border-stone-500 flex items-center justify-center gap-4 text-[10px] uppercase tracking-wider text-stone-600">
+                  <span>对象浏览器</span><span>工作表</span><span>快速导航</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">问题</h3>
+              <p>Schema Metadata Identity 从三处拉取泄漏；<code>QuerySchemaStore</code> 是 shallow 的——它的 interface 就是 acquire-slot / set-loading / set-detail。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">做法</h3>
+              <p>一个按（查询目标, 数据库）键控的 deep catalog。列表、详情、补全 namespace 都坐在这个 interface 后面。Slot 协议变成内部 seam。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">收益</h3>
+              <ul class="space-y-1">
+                <li>locality：Identity 只活一处</li>
+                <li>leverage：3 个调用方，1 个 interface</li>
+                <li>两个 adapter 证明这条 seam</li>
+                <li>删掉 slot 协议</li>
+                <li>SQL 补全消费 catalog</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="worksheet-session" class="rounded-2xl border border-stone-300 bg-[#fbf7f0] p-6 md:p-8 space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">把工作表 session 收成一个 module</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-700 text-white text-xs font-medium px-3 py-1 uppercase tracking-wider">强烈推荐</span>
+              <span class="rounded-full border border-stone-400 text-stone-700 text-xs font-medium px-3 py-1 uppercase tracking-wider">in-process</span>
+            </div>
+          </div>
+          <ul class="font-mono text-sm text-stone-600 space-y-0.5">
+            <li>components/query/query-editor-shell.tsx <span class="text-stone-400">(3247 行)</span></li>
+            <li>components/query/query-workbench.tsx</li>
+            <li>tests/components/query-editor-shell.test.tsx <span class="text-stone-400">(2538 行，渲染 QueryWorkbench)</span></li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-stone-300 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之前 · 质量图</p>
+              <div class="h-[320px] flex gap-3 items-stretch">
+                <div class="flex-1 flex flex-col gap-1">
+                  <div class="mass-iface border border-red-800 h-[46%] rounded flex items-end p-2">
+                    <span class="text-[10px] uppercase tracking-wider text-red-900">interface · ReadyWorksheet 40 个字段 · 14 个 effect</span>
+                  </div>
+                  <div class="mass-impl border border-stone-400 h-[54%] rounded p-2 text-[10px] uppercase tracking-wider text-stone-600 leading-relaxed">
+                    LocalWorksheet 28 个字段<br/>run · page · explain · history<br/>模板进入/退出 · 关联记录<br/>Schema Metadata Identity 的 effect
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-stone-500">interface 几乎和 implementation 一样宽。测试穿过 seam 的方式是点击工作台。</p>
+            </div>
+            <div class="rounded-xl border border-stone-800 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之后 · 质量图</p>
+              <div class="h-[320px] flex gap-3 items-stretch">
+                <div class="flex-1 flex flex-col gap-1">
+                  <div class="mass-iface-deep border border-emerald-800 h-[14%] rounded flex items-center p-2">
+                    <span class="text-[10px] uppercase tracking-wider text-emerald-950">interface · run · load · page · retarget · explain</span>
+                  </div>
+                  <div class="mass-impl-deep h-[86%] rounded p-3 text-stone-200 text-[10px] uppercase tracking-wider leading-relaxed">
+                    requestId 过期守卫<br/>模板模式进入/退出<br/>history generation<br/>分页重置<br/>preview provenance<br/>explain / 关联记录 generation
+                    <p class="mt-4 normal-case tracking-normal text-stone-400 text-xs">React 文件变成 snapshot 上的 adapter。测试打同一个 interface。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">问题</h3>
+              <p>工作表没有 module。模板模式、受治理执行、分页、explain、history 共用一个状态团；bug 藏在调用顺序里，而不是某个 helper。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">做法</h3>
+              <p>加深一个工作表 session。小 interface：命令 + snapshot。过期响应身份留在里面。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">收益</h3>
+              <ul class="space-y-1">
+                <li>locality：工作表 bug 集中</li>
+                <li>leverage：一个 interface，N 个测试</li>
+                <li>interface 收缩；shell 做 adapter</li>
+                <li>模板路由不再泄漏</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="operator-session" class="rounded-2xl border border-stone-300 bg-[#fbf7f0] p-6 md:p-8 space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">一个 Operator Session facade</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-700 text-white text-xs font-medium px-3 py-1 uppercase tracking-wider">强烈推荐</span>
+              <span class="rounded-full border border-stone-400 text-stone-700 text-xs font-medium px-3 py-1 uppercase tracking-wider">ports &amp; adapters</span>
+            </div>
+          </div>
+          <ul class="font-mono text-sm text-stone-600 space-y-0.5">
+            <li>lib/operator-session/{config,seal,origin,session-cookie,response,backend}.ts</li>
+            <li>app/api/operator-session/route.ts</li>
+            <li>app/api/proxy/[...path]/route.ts</li>
+            <li>proxy.ts</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-stone-300 bg-white p-4 space-y-2">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之前 · 剖面</p>
+              <div class="space-y-1 h-[300px] flex flex-col justify-center">
+                <div class="h-10 border-l-4 border-red-700 bg-red-50 px-3 flex items-center text-xs">登录路由 · load · origin · seal · cookie</div>
+                <div class="h-10 border-l-4 border-red-700 bg-red-50 px-3 flex items-center text-xs">登出路由 · load · origin · clear</div>
+                <div class="h-10 border-l-4 border-red-700 bg-red-50 px-3 flex items-center text-xs">proxy · load · origin · unseal · bearer · 401 清 cookie</div>
+                <div class="h-10 border-l-4 border-red-700 bg-red-50 px-3 flex items-center text-xs">页面守卫 · load · unseal.ok · 重定向</div>
+                <p class="text-xs text-stone-500 pt-2">四个 adapter 各自重装同一套 fail-closed 协议。今天删 <code>origin.ts</code> / <code>response.ts</code> 只是搬家。</p>
+              </div>
+            </div>
+            <div class="rounded-xl border border-stone-800 bg-white p-4 space-y-2">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之后 · 剖面</p>
+              <div class="h-[300px] flex flex-col justify-center space-y-1">
+                <div class="h-10 border-l-4 border-stone-400 bg-stone-50 px-3 flex items-center text-xs text-stone-500">登录 adapter</div>
+                <div class="h-10 border-l-4 border-stone-400 bg-stone-50 px-3 flex items-center text-xs text-stone-500">登出 adapter</div>
+                <div class="h-24 border-l-4 border-slate-900 deep text-stone-100 px-3 flex flex-col justify-center">
+                  <span class="text-xs uppercase tracking-wider">Operator Session module</span>
+                  <span class="text-[10px] uppercase tracking-wider text-stone-400">login · logout · authenticatePage · forwardWithSession</span>
+                </div>
+                <div class="h-10 border-l-4 border-stone-400 bg-stone-50 px-3 flex items-center text-xs text-stone-500">proxy adapter</div>
+                <div class="h-10 border-l-4 border-stone-400 bg-stone-50 px-3 flex items-center text-xs text-stone-500">页面守卫 adapter</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">问题</h3>
+              <p>Operator Session 是七块 shallow 碎片。Fail-closed 策略（统一 401，从不区分原因）是复制粘贴，不是 module。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">做法</h3>
+              <p>加深一个 Operator Session module。HTTP 路由变成 adapter。加密、轮换、origin、cookie 属性留在里面。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">收益</h3>
+              <ul class="space-y-1">
+                <li>locality：fail-closed 只坐一处</li>
+                <li>leverage：4 个 adapter，1 个 interface</li>
+                <li>测试不再自己封 cookie</li>
+                <li>与查询工作独立</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="saved-statement" class="rounded-2xl border border-stone-300 bg-[#fbf7f0] p-6 md:p-8 space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">把已保存语句和模板模式收成一处</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-amber-500 text-stone-900 text-xs font-medium px-3 py-1 uppercase tracking-wider">值得探索</span>
+              <span class="rounded-full border border-stone-400 text-stone-700 text-xs font-medium px-3 py-1 uppercase tracking-wider">in-process</span>
+            </div>
+          </div>
+          <ul class="font-mono text-sm text-stone-600 space-y-0.5">
+            <li>components/query/query-saved-statements.tsx</li>
+            <li>components/query/query-editor-shell.tsx</li>
+            <li>services/query-saved-statements.ts</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-stone-300 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-stone-500 mb-3">之前 · 调用图</p>
+              <div class="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <pre class="mermaid">
+flowchart TB
+  L[已保存语句列表] -->|onStatementLoad 整条记录| W[工作表 shell]
+  L --> D[声明校验]
+  W --> T["params.length > 0 则进入模板"]
+  W --> E[buildTemplateValues]
+  W --> X[模板执行 port]
+  classDef leak stroke:#b91c1c,stroke-width:2px;
+  class W,T leak
+                </pre>
+              </div>
+            </div>
+            <div class="rounded-xl border border-stone-800 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-stone-500 mb-3">之后 · 调用图收拢</p>
+              <div class="h-[280px] rounded-lg border-2 border-slate-900 deep p-4 text-stone-200 flex flex-col justify-between">
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-emerald-300">interface</p>
+                  <p class="text-sm mt-1">加载已授权语句 · 列表 generation · 编码取值 · 执行/翻页</p>
+                </div>
+                <div class="border border-dashed border-stone-500 rounded p-3 text-[10px] uppercase tracking-wider text-stone-400 space-y-1">
+                  <p>声明规则</p>
+                  <p>模板进入/退出</p>
+                  <p>类型化线格式取值</p>
+                  <p>按参数的字段错误</p>
+                </div>
+                <p class="text-[10px] uppercase tracking-wider text-stone-500">和工作表 session 成对做——不要拆两次。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">问题</h3>
+              <p>模板模式靠 <code>parameters.length</code> 推断。声明规则在列表里，取值编码在 shell 里。整条记录穿过 seam 泄漏。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">做法</h3>
+              <p>一个已保存语句 module 拥有声明、进入/退出、编码，以及模板执行 port。列表只负责呈现；工作表请求加载。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">收益</h3>
+              <ul class="space-y-1">
+                <li>locality：模板规则集中</li>
+                <li>记录不再泄漏</li>
+                <li>列表测试丢掉路由断言</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="result-disclosure" class="rounded-2xl border border-stone-300 bg-[#fbf7f0] p-6 md:p-8 space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">抽出受治理结果信封</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-amber-500 text-stone-900 text-xs font-medium px-3 py-1 uppercase tracking-wider">值得探索</span>
+              <span class="rounded-full border border-stone-400 text-stone-700 text-xs font-medium px-3 py-1 uppercase tracking-wider">in-process</span>
+            </div>
+          </div>
+          <ul class="font-mono text-sm text-stone-600 space-y-0.5">
+            <li>components/query/query-editor-shell.tsx · normalizeExecuteResponse</li>
+            <li>services/query-executions.ts · disclosure_blocked 映射</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-stone-300 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之前 · 测试路径</p>
+              <div class="h-[300px] flex flex-col justify-center space-y-1">
+                <div class="h-9 border border-stone-300 rounded px-3 flex items-center text-xs">工作台渲染</div>
+                <div class="text-center text-red-700 text-xs">↓ 泄漏</div>
+                <div class="h-9 border border-stone-300 rounded px-3 flex items-center text-xs">editor shell</div>
+                <div class="text-center text-red-700 text-xs">↓ 泄漏</div>
+                <div class="h-9 border border-stone-300 rounded px-3 flex items-center text-xs">ExecuteResult</div>
+                <div class="text-center text-red-700 text-xs">↓ 泄漏</div>
+                <div class="h-9 border border-red-800 bg-red-50 rounded px-3 flex items-center text-xs">normalizeExecuteResponse</div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-stone-800 bg-white p-4 space-y-3">
+              <p class="text-xs uppercase tracking-wider text-stone-500">之后</p>
+              <div class="h-[300px] flex flex-col justify-center gap-3">
+                <div class="h-14 rounded border-2 border-emerald-800 bg-emerald-50 px-3 flex flex-col justify-center">
+                  <span class="text-xs uppercase tracking-wider">interface</span>
+                  <span class="text-[10px] text-stone-600">线格式载荷 → 表格信封 | 受控失败</span>
+                </div>
+                <div class="h-40 rounded deep p-4 text-[10px] uppercase tracking-wider text-stone-300 leading-relaxed">
+                  raw_copy_allowed · masked_no_copy · blocked<br/>[MASKED] 哨兵<br/>copyAllowed 一致性<br/>行列形状
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">问题</h3>
+              <p>结果披露是 deep 策略、天然小 interface，却困在私有函数里。测试打不到这条 interface，只能穿过整个工作台。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">做法</h3>
+              <p>一个受治理结果 module。复制策略、哨兵校验、畸形形状拒绝只活一处。不要并进工作表 session，免得那个 interface 再变宽。</p>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-stone-500 mb-2">收益</h3>
+              <ul class="space-y-1">
+                <li>interface 就是测试面</li>
+                <li>leverage：run、explain、关联记录</li>
+                <li>38Q 测试丢掉工作台</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl border-2 border-slate-900 bg-slate-900 text-stone-100 p-8 space-y-4">
+        <p class="text-xs uppercase tracking-[0.22em] text-emerald-300">首选</p>
+        <h2 class="text-3xl font-semibold tracking-tight">
+          <a href="#schema-catalog" class="underline decoration-emerald-400/60 underline-offset-4 hover:decoration-emerald-300">把 Schema Metadata Identity 收成一个 module</a>
+        </h2>
+        <p class="text-stone-300 max-w-3xl">
+          三个 adapter 已经在拉同一份列表。Store 的 interface 是 slot 协议；#44 的修复不断落到工作表 shell 里，因为 Identity 没有 module。先加深 catalog：工作表 session 之后消费它，而不是再长一个 effect；SQL 补全也不再自己带第二套并发上限。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

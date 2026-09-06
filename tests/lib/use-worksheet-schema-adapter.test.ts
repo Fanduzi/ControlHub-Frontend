@@ -1,21 +1,25 @@
+// input: @/lib/use-worksheet-schema-adapter, @/lib/schema-catalog
+// output: Vitest tests for the React adapter over schema catalog completion
+// pos: adapter reads catalog; catalog tests own fetch/TTL
+// note: if this file changes, update header and tests/lib/README.md
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { QuerySchemaStore } from "@/lib/query-schema-store";
+import { COMPLETION_PAGE_SIZE, SchemaCatalog, type SchemaCatalogFetch } from "@/lib/schema-catalog";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import type { ObjectDetailResponse } from "@/types/query-schema";
+import type { PageInfo } from "@/types/resource";
 
-vi.mock("@/services/query-schema", () => ({
-  getObjectDetails: vi.fn(),
-}));
-
-import { getObjectDetails } from "@/services/query-schema";
-
-const getObjectDetailsMock = vi.mocked(getObjectDetails);
-
-beforeEach(() => {
-  getObjectDetailsMock.mockReset();
-});
+function pageInfo(): PageInfo {
+  return {
+    page: 1,
+    pageSize: COMPLETION_PAGE_SIZE,
+    totalItems: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  };
+}
 
 function buildDetail(overrides: Partial<ObjectDetailResponse> = {}): ObjectDetailResponse {
   return {
@@ -34,206 +38,50 @@ function buildDetail(overrides: Partial<ObjectDetailResponse> = {}): ObjectDetai
   };
 }
 
+function createFetch(overrides: Partial<SchemaCatalogFetch> = {}): SchemaCatalogFetch {
+  return {
+    getDatabases: async () => ({
+      defaultDatabase: "mydb",
+      items: [{ name: "mydb" }, { name: "other" }],
+      pageInfo: pageInfo(),
+    }),
+    getObjects: async (_targetId, params) => ({
+      items: [{ database: params.database, name: "users", kind: "table" as const }],
+      pageInfo: pageInfo(),
+    }),
+    getObjectDetails: async () => buildDetail(),
+    ...overrides,
+  };
+}
+
 describe("useWorksheetSchemaAdapter", () => {
-  describe("namespace derivation", () => {
-    it("returns undefined when targetId is missing", () => {
-      const store = new QuerySchemaStore();
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, undefined, "mydb", ["mydb"], []),
-      );
-      expect(result.current.namespace).toBeUndefined();
-    });
-
-    it("offers only database-name completion when no database is selected", () => {
-      const store = new QuerySchemaStore();
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, undefined, ["mydb"], []),
-      );
-      expect(result.current.namespace).toBeDefined();
-      expect(result.current.namespace!.databases).toEqual(["mydb"]);
-      // Object and column suggestions wait for an explicit database selection.
-      expect(result.current.namespace!.tables).toEqual([]);
-      expect(result.current.namespace!.loadedColumns).toEqual({});
-    });
-
-    it("builds namespace from loaded objects", () => {
-      const store = new QuerySchemaStore();
-      const objects = [
-        { database: "mydb", name: "users", kind: "table" },
-        { database: "mydb", name: "orders", kind: "view" },
-      ];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb", "other"], objects),
-      );
-      expect(result.current.namespace).toBeDefined();
-      expect(result.current.namespace!.tables).toHaveLength(2);
-      expect(result.current.namespace!.tables[0].name).toBe("users");
-      expect(result.current.namespace!.tables[0].kind).toBe("table");
-      expect(result.current.namespace!.tables[1].name).toBe("orders");
-      expect(result.current.namespace!.tables[1].kind).toBe("view");
-      expect(result.current.namespace!.databases).toEqual(["mydb", "other"]);
-    });
-
-    it("includes loaded columns from store detail state", () => {
-      const store = new QuerySchemaStore();
-      const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
-      store.setDetail(key, buildDetail());
-
-      const objects = [{ database: "mydb", name: "users", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], objects),
-      );
-
-      expect(result.current.namespace!.loadedColumns!["users"]).toEqual(["id", "email"]);
-    });
-
-    it("adds database-qualified column key for non-active database objects", () => {
-      const store = new QuerySchemaStore();
-      const key = { targetId: 1, database: "other", kind: "table", name: "items" };
-      store.setDetail(key, buildDetail({ database: "other", name: "items" }));
-
-      const objects = [{ database: "other", name: "items", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb", "other"], objects),
-      );
-
-      expect(result.current.namespace!.loadedColumns!["items"]).toEqual(["id", "email"]);
-      expect(result.current.namespace!.loadedColumns!["other.items"]).toEqual(["id", "email"]);
-    });
+  it("returns undefined when targetId is missing", () => {
+    const catalog = new SchemaCatalog(createFetch());
+    const { result } = renderHook(() => useWorksheetSchemaAdapter(catalog, undefined, "mydb"));
+    expect(result.current.namespace).toBeUndefined();
   });
 
-  describe("columnFetcher", () => {
-    it("returns empty array when targetId is missing", async () => {
-      const store = new QuerySchemaStore();
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, undefined, "mydb", ["mydb"], []),
-      );
-      const columns = await result.current.columnFetcher!("users");
-      expect(columns).toEqual([]);
-    });
-
-    it("returns columns from store when detail is ready", async () => {
-      const store = new QuerySchemaStore();
-      const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
-      store.setDetail(key, buildDetail());
-
-      const objects = [{ database: "mydb", name: "users", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], objects),
-      );
-
-      const columns = await result.current.columnFetcher!("users");
-      expect(columns).toEqual(["id", "email"]);
-      expect(getObjectDetailsMock).not.toHaveBeenCalled();
-    });
-
-    it("fetches columns when not in store", async () => {
-      const store = new QuerySchemaStore();
-      getObjectDetailsMock.mockResolvedValueOnce(buildDetail());
-
-      const objects = [{ database: "mydb", name: "users", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], objects),
-      );
-
-      const columns = await result.current.columnFetcher!("users");
-      expect(columns).toEqual(["id", "email"]);
-      expect(getObjectDetailsMock).toHaveBeenCalledWith(1, {
-        database: "mydb",
-        name: "users",
-        kind: "table",
-      });
-    });
-
-    it("returns empty array when table not found in loaded objects", async () => {
-      const store = new QuerySchemaStore();
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], []),
-      );
-
-      const columns = await result.current.columnFetcher!("nonexistent");
-      expect(columns).toEqual([]);
-      expect(getObjectDetailsMock).not.toHaveBeenCalled();
-    });
-
-    it("returns empty array on fetch failure", async () => {
-      const store = new QuerySchemaStore();
-      getObjectDetailsMock.mockRejectedValueOnce(new Error("network error"));
-
-      const objects = [{ database: "mydb", name: "users", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], objects),
-      );
-
-      const columns = await result.current.columnFetcher!("users");
-      expect(columns).toEqual([]);
-    });
-
-    it("resolves database-qualified table name", async () => {
-      const store = new QuerySchemaStore();
-      const key = { targetId: 1, database: "other", kind: "table", name: "items" };
-      store.setDetail(key, buildDetail({ database: "other", name: "items" }));
-
-      const objects = [{ database: "other", name: "items", kind: "table" }];
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb", "other"], objects),
-      );
-
-      const columns = await result.current.columnFetcher!("other.items");
-      expect(columns).toEqual(["id", "email"]);
-    });
+  it("offers only database-name completion when no database is selected", async () => {
+    const catalog = new SchemaCatalog(createFetch());
+    await catalog.ensureDatabases(1, { page: 1, pageSize: COMPLETION_PAGE_SIZE });
+    const { result } = renderHook(() => useWorksheetSchemaAdapter(catalog, 1, undefined));
+    expect(result.current.namespace?.databases).toEqual(["mydb", "other"]);
+    expect(result.current.namespace?.tables).toEqual([]);
   });
 
-  describe("loadDetail", () => {
-    it("fetches and stores detail via the store", async () => {
-      const store = new QuerySchemaStore();
-      const detail = buildDetail();
-      getObjectDetailsMock.mockResolvedValueOnce(detail);
+  it("builds namespace from catalog objects and ready details", async () => {
+    const catalog = new SchemaCatalog(createFetch());
+    await catalog.ensureDatabases(1, { page: 1, pageSize: COMPLETION_PAGE_SIZE });
+    await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    const { result } = renderHook(() => useWorksheetSchemaAdapter(catalog, 1, "mydb"));
+    expect(result.current.namespace?.tables).toEqual([{ name: "users", kind: "table" }]);
+    expect(result.current.namespace?.loadedColumns?.users).toEqual(["id", "email"]);
+  });
 
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], []),
-      );
-
-      await result.current.loadDetail(1, "mydb", "users", "table");
-
-      const state = store.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "users" });
-      expect(state.status).toBe("ready");
-      if (state.status === "ready") {
-        expect(state.data.columns).toHaveLength(2);
-      }
-    });
-
-    it("sets empty detail on fetch failure", async () => {
-      const store = new QuerySchemaStore();
-      getObjectDetailsMock.mockRejectedValueOnce(new Error("network error"));
-
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], []),
-      );
-
-      await result.current.loadDetail(1, "mydb", "users", "table");
-
-      const state = store.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "users" });
-      expect(state.status).toBe("error");
-    });
-
-    it("skips when concurrency slot is unavailable", async () => {
-      const store = new QuerySchemaStore();
-
-      // Acquire all 5 slots
-      for (let i = 0; i < 5; i++) {
-        store.acquireDetailSlot({ targetId: 1, database: "mydb", kind: "table", name: `t${i}` });
-      }
-
-      const { result } = renderHook(() =>
-        useWorksheetSchemaAdapter(store, 1, "mydb", ["mydb"], []),
-      );
-
-      await result.current.loadDetail(1, "mydb", "users", "table");
-
-      expect(getObjectDetailsMock).not.toHaveBeenCalled();
-      const state = store.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "users" });
-      expect(state.status).toBe("idle");
-    });
+  it("columnFetcher returns empty when the table is unknown", async () => {
+    const catalog = new SchemaCatalog(createFetch());
+    const { result } = renderHook(() => useWorksheetSchemaAdapter(catalog, 1, "mydb"));
+    await expect(result.current.columnFetcher!("ghost")).resolves.toEqual([]);
   });
 });

@@ -17,7 +17,7 @@ export function QuerySchemaBrowser({ target, store, activeDatabase }: QuerySchem
   const t = useTranslations("queryWorkbench");
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const explorer = <QueryObjectExplorer targetId={target.resourceId} store={store} />;
+  const explorer = <QueryObjectExplorer key={target.resourceId} targetId={target.resourceId} store={store} />;
   const placeholder = placeholderText(target.capability.queryKind);
 
   return <>

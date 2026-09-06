@@ -21,9 +21,9 @@ Vitest component tests for React UI components.
 | query-connection-navigator.test.tsx | Connection navigator |
 | query-credential-settings.test.tsx | Query credential settings |
 | query-disclosure-settings.test.tsx | Query disclosure settings with scoped and All-environment target pagination |
-| query-object-explorer.test.tsx | Schema object explorer |
+| query-object-explorer.test.tsx | Schema object explorer, including database search, include-system, and refresh through the schema catalog |
 | query-object-inspector.test.tsx | Object inspector controlled error codes, retry behavior, localization, and raw-message isolation |
-| query-object-quick-navigator.test.tsx | Quick object navigator |
+| query-object-quick-navigator.test.tsx | Quick object navigator — schema catalog, bounded metadata requests |
 | command-palette.test.tsx | Command palette empty-query navigation/admin gating and server-authoritative all-type resource search with Provider context, keyboard selection, and stale/error recovery |
 | query-object-tree.test.tsx | Object tree |
 | query-relationship-map.test.tsx | Relationship map controlled error codes, retry behavior, localization, and raw-message isolation |

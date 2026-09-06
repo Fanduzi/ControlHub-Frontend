@@ -13,7 +13,8 @@ Guards:
   Console Origin; anything else is rejected with `403`.
 - Missing, malformed, tampered, expired, or unknown-key sessions all map to
   one generic `401 { error: "unauthorized", message: "unauthorized" }` and the
-  rejected cookie is cleared.
+  rejected cookie is cleared (`authenticateCookie` in
+  `lib/operator-session/facade.ts`).
 - Backend `401` maps to the same generic coded outcome; non-401 upstream
   bodies (including `error`) are forwarded unchanged and do not clear the
   session.

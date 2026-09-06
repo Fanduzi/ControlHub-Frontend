@@ -6,9 +6,11 @@ vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => ({ title: 
 vi.mock("@/services/query-schema", () => ({
   getSchemaDatabases: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),
+  getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
 
 import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
+import { SchemaCatalog } from "@/lib/schema-catalog";
 import { getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
@@ -17,7 +19,7 @@ const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 describe("QueryObjectQuickNavigator", () => {
   it("opens with Cmd+P and prevents browser print", () => {
     const preventDefault = vi.fn();
-    render(<QueryObjectQuickNavigator targetId={1} activeDatabase={null} onDatabaseSelect={vi.fn()} onInsertObject={vi.fn()} />);
+    render(<QueryObjectQuickNavigator catalog={new SchemaCatalog()} targetId={1} activeDatabase={null} onDatabaseSelect={vi.fn()} onInsertObject={vi.fn()} />);
     act(() => { fireEvent.keyDown(window, { key: "p", metaKey: true, preventDefault }); });
     expect(screen.getByRole("dialog", { name: "Quick navigator" })).toBeInTheDocument();
   });
@@ -37,7 +39,7 @@ describe("QueryObjectQuickNavigator", () => {
       items: [{ database: "app", name: "orders", kind: "table" }],
       pageInfo: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
     });
-    render(<QueryObjectQuickNavigator targetId={1} activeDatabase="app" onDatabaseSelect={vi.fn()} onRevealObject={onRevealObject} onInsertObject={onInsertObject} />);
+    render(<QueryObjectQuickNavigator catalog={new SchemaCatalog()} targetId={1} activeDatabase="app" onDatabaseSelect={vi.fn()} onRevealObject={onRevealObject} onInsertObject={onInsertObject} />);
 
     act(() => { fireEvent.keyDown(window, { key: "p", ctrlKey: true }); });
     const search = await screen.findByRole("textbox", { name: "Search databases and objects" });
@@ -57,7 +59,7 @@ describe("QueryObjectQuickNavigator", () => {
       items: [],
       pageInfo: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
     });
-    render(<QueryObjectQuickNavigator targetId={1} activeDatabase={null} onDatabaseSelect={vi.fn()} onInsertObject={vi.fn()} />);
+    render(<QueryObjectQuickNavigator catalog={new SchemaCatalog()} targetId={1} activeDatabase={null} onDatabaseSelect={vi.fn()} onInsertObject={vi.fn()} />);
 
     act(() => { fireEvent.keyDown(window, { key: "p", metaKey: true }); });
     await screen.findByRole("dialog", { name: "Quick navigator" });

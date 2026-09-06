@@ -1,4 +1,4 @@
-// input: next/server, @/lib/operator-session/config, @/lib/operator-session/seal, @/lib/operator-session/origin, @/lib/operator-session/constants, @/lib/operator-session/backend, @/lib/operator-session/session-cookie
+// input: next/server, @/lib/operator-session/config, @/lib/operator-session/facade, @/lib/operator-session/origin, @/lib/operator-session/backend, @/lib/operator-session/session-cookie
 // output: protected same-origin BFF proxy that forwards requests with the server-held Backend Bearer Credential
 // pos: sole console-browser entry to protected backend APIs; rejects client Authorization and unsafe cross-origin requests
 // note: if this file changes, update header and app/api/proxy/README.md
@@ -7,10 +7,9 @@ import type { NextRequest } from "next/server";
 
 import { resolveBffBackendBaseUrl } from "@/lib/operator-session/backend";
 import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
-import { SESSION_COOKIE_NAME } from "@/lib/operator-session/constants";
+import { authenticateCookie } from "@/lib/operator-session/facade";
 import { isUnsafeMethod, originAllowed } from "@/lib/operator-session/origin";
 import { bffJson } from "@/lib/operator-session/response";
-import { unsealSession } from "@/lib/operator-session/seal";
 import { clearSessionCookie } from "@/lib/operator-session/session-cookie";
 
 export const runtime = "nodejs";
@@ -133,19 +132,9 @@ async function handleProxy(
     return bffJson(403, "forbidden");
   }
 
-  const sealed = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!sealed) {
-    return bffJson(401, "unauthorized");
-  }
-
-  const unsealed = unsealSession(sealed, config.value, Date.now());
-  if (!unsealed.ok) {
-    // Missing, malformed, tampered, expired, and unknown-key sessions all
-    // produce the same controlled unauthenticated outcome; the rejected
-    // session cookie is cleared.
-    const response = bffJson(401, "unauthorized");
-    clearSessionCookie(response, config.value.secureCookies);
-    return response;
+  const session = authenticateCookie(request);
+  if (!session.ok) {
+    return session.response;
   }
 
   const incoming = new URL(request.url);
@@ -160,7 +149,7 @@ async function handleProxy(
     }
   }
   // The only credential forwarded is the server-held one from the session.
-  headers.set("authorization", `Bearer ${unsealed.payload.token}`);
+  headers.set("authorization", `Bearer ${session.payload.token}`);
 
   const bufferedBody = await readProxyBody(request);
   if (!bufferedBody.ok) {

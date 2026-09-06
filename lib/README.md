@@ -11,11 +11,27 @@ Shared frontend libraries.
 | `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
 | `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata |
+| `schema-catalog.ts` | Query workbench schema catalog: lists, table details, and SQL completion namespace keyed by 库身份 |
+| `worksheet-session.ts` | Query workbench 工作表 session: run, paging, template enter/exit, explain, related records, and history |
+| `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
 same-origin Operator Session endpoint. It does not trust browser storage or
 readable cookies, and never reads or decodes Backend Bearer Credentials.
 Operator Session BFF primitives live in `lib/operator-session/`.
+`lib/operator-session/facade.ts` is the login / logout / identity / cookie /
+page-gate surface; HTTP routes are adapters.
+
+`schema-catalog.ts` is the query workbench schema catalog: lists, table
+details, and SQL completion namespace keyed by 库身份. Object explorer,
+worksheet completion, and Cmd+P read it. `query-schema-store.ts` re-exports
+`SchemaCatalog` as `QuerySchemaStore`.
+
+`worksheet-session.ts` is the query workbench 工作表 session: run, paging,
+template enter/exit, explain, related records, and history.
+
+`query-result-envelope.ts` is the governed result envelope: wire execute
+payload in, grid-safe snapshot or controlled failure out.
 
 `navigation.ts` marks audits and machine-principal administration entries
 `adminOnly`; sidebar and command palette hide them for non-admin operators,

@@ -11,6 +11,7 @@ Server-side Operator Session boundary for the Console BFF (Phase 38X-1C).
 | `backend.ts` | Server-side backend login call with generic outcome mapping |
 | `session-cookie.ts` | Shared Operator Session cookie set/clear helpers (HttpOnly, SameSite=Strict, Path, Secure policy) |
 | `response.ts` | Controlled BFF JSON outcomes `{ error, message }` with `Cache-Control: no-store`; `error` is the snake_case Controlled Error Code |
+| `facade.ts` | login, logout, readIdentity, authenticateCookie, gatePage — HTTP routes are adapters |
 
 ## Configuration
 

@@ -1,10 +1,14 @@
+// input: @codemirror/autocomplete, schema namespace from catalog
+// output: keyword/table/column completions and statement parsers
+// pos: UX-only SQL completion; backend guard is authoritative
+// note: if this file changes, update header and lib/README.md
 /**
  * Read-only SQL completion source for CodeMirror.
  *
  * Provides a governed vocabulary matching the backend SQL guard:
  * - Approved read-only keywords and safe built-in functions
  * - Schema-aware completions from loaded metadata
- * - Async column fetching with concurrency cap (5)
+ * - Async column fetching (concurrency belongs to schema catalog)
  * - Conservative statement-boundary parser (UX-only, not security boundary)
  *
  * This module is NOT a security boundary. The backend guard is authoritative.
@@ -97,18 +101,11 @@ export function buildDatabaseQualifiedCompletions(ns: SchemaNamespace): Completi
   }));
 }
 
-// ────────────────────────────────────────────────────────────
-// Concurrency-limited column fetching
-// ────────────────────────────────────────────────────────────
-
-let activeFetchCount = 0;
-const MAX_CONCURRENT_FETCHES = 5;
-
 /**
  * Build column completions for a dot-triggered `table.` or `alias.` reference.
  *
  * If columns are already loaded in the namespace, returns them immediately.
- * Otherwise calls the fetcher with concurrency capped at 5.
+ * Otherwise calls the fetcher. Failure degrades to an empty list.
  */
 export async function buildColumnCompletionsForDot(
   prefix: string,
@@ -116,46 +113,16 @@ export async function buildColumnCompletionsForDot(
   fetcher: TableColumnFetcher,
   aliases?: Readonly<Record<string, string>>,
 ): Promise<readonly Completion[]> {
-  // Resolve alias → real table name
   const tableName = aliases?.[prefix] ?? prefix;
-
-  // Check loaded metadata first
   const loaded = ns.loadedColumns?.[tableName];
   if (loaded) {
     return loaded.map((col) => ({ label: col, type: "field" }));
   }
-
-  // Check if table exists in namespace (no fetch needed if not a known table)
-  const knownTable = ns.tables.some((t) => t.name === tableName);
-  if (!knownTable) {
-    // Try fetching anyway for alias-resolved names
-    return fetchColumnsWithCap(tableName, fetcher);
-  }
-
-  return fetchColumnsWithCap(tableName, fetcher);
-}
-
-/**
- * Fetch columns with a concurrency cap of MAX_CONCURRENT_FETCHES.
- * Returns empty array on failure (graceful degradation).
- */
-async function fetchColumnsWithCap(
-  table: string,
-  fetcher: TableColumnFetcher,
-): Promise<readonly Completion[]> {
-  if (activeFetchCount >= MAX_CONCURRENT_FETCHES) {
-    return [];
-  }
-
-  activeFetchCount++;
   try {
-    const columns = await fetcher(table);
+    const columns = await fetcher(tableName);
     return columns.map((col) => ({ label: col, type: "field" }));
   } catch {
-    // Graceful degradation — return empty, keywords/metadata still available
     return [];
-  } finally {
-    activeFetchCount--;
   }
 }
 

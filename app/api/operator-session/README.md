@@ -14,3 +14,6 @@ outcome; the Backend Bearer Credential never appears in a response body. Cookie
 set/clear attributes are shared with the proxy via
 `lib/operator-session/session-cookie.ts`. Synthesized BFF errors use
 `{ error, message }` with a snake_case Controlled Error Code.
+
+The route is a thin adapter over `lib/operator-session/facade.ts`
+(`login` / `readIdentity` / `logout`).

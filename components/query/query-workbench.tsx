@@ -568,6 +568,7 @@ export function QueryWorkbench({
                   <div className="p-2">
                     {canBrowseSchema(activeTarget) ? (
                       <QueryObjectExplorer
+                        key={activeTarget.resourceId}
                         targetId={activeTarget.resourceId}
                         store={schemaStore}
                         onPreviewRequest={handlePreviewRequest}
@@ -625,6 +626,7 @@ export function QueryWorkbench({
                 <div className="min-w-0 px-4 pb-4">
                   {canBrowseSchema(activeTarget) ? (
                     <QueryObjectExplorer
+                      key={activeTarget.resourceId}
                       targetId={activeTarget.resourceId}
                       store={schemaStore}
                       onPreviewRequest={handlePreviewRequest}
