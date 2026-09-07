@@ -500,12 +500,26 @@ test.describe("Query Workbench shell", () => {
 
     const expectedExecuteUrl = await exactExecuteUrlForActiveTarget(page);
 
+    // WHY: a workspace/metadata alert can already be on the page. Waiting for
+    // any role=alert lets the test leave the worksheet before execute returns,
+    // so afterEach never sees the 403 and history can show an older SHOW TABLES.
+    const executePromise = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        res.url() === expectedExecuteUrl &&
+        res.status() === 403,
+    );
+
     await clearAndType(page, "SHOW TABLES");
     await page.getByRole("button", { name: /^run$/i }).click();
 
-    // SHOW TABLES is blocked by disclosure policy. The blocked attempt
-    // should still be recorded in query history.
-    await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 15_000 });
+    const response = await executePromise;
+    expect(response.status()).toBe(403);
+
+    await expect(page.getByText(/blocked by result disclosure policy/i)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("grid")).not.toBeVisible();
 
     consumableHttpErrors = [
       { method: "POST", url: expectedExecuteUrl, status: 403, consumeConsoleStatusEcho: true },

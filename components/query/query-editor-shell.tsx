@@ -136,11 +136,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [editorHeight, setEditorHeight] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_QUERY_EDITOR_HEIGHT;
-    return parseStoredEditorHeight(window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY))
-      ?? DEFAULT_QUERY_EDITOR_HEIGHT;
-  });
+  const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
   const [metadataRetryKey, setMetadataRetryKey] = useState(0);
   const catalogVersion = useSchemaCatalogVersion(schemaStore);
   const [retargetDialog, setRetargetDialog] = useState<{
@@ -585,6 +581,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const editorThemePreference = normalizeEditorTheme(
     theme === "system" ? resolvedTheme ?? "system" : theme,
   );
+
+  // Hydration: read persisted editor height after mount (cannot read localStorage during SSR).
+  useEffect(() => {
+    const storedHeight = parseStoredEditorHeight(
+      window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY),
+    );
+    if (storedHeight !== null) {
+      setEditorHeight(storedHeight);
+    }
+  }, []);
 
   // Restore the persisted paging preferences after hydration, before any
   // execution can happen. Both are per-worksheet state seeded from storage.
