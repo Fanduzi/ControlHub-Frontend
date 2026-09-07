@@ -28,7 +28,7 @@ worksheet completion, and Cmd+P read it. `query-schema-store.ts` re-exports
 `SchemaCatalog` as `QuerySchemaStore`.
 
 `worksheet-session.ts` is the query workbench 工作表 session: run, paging,
-template enter/exit, explain, related records, and history.
+template enter/exit, explain, related records, history, and persisted drafts.
 
 `query-result-envelope.ts` is the governed result envelope: wire execute
 payload in, grid-safe snapshot or controlled failure out.

@@ -1,5 +1,5 @@
-// input: query execution ports, saved-statement execute port, worksheet snapshot types
-// output: WorksheetSession (commands + snapshot for the query workbench 工作表)
+// input: query execution ports, saved-statement execute port, worksheet snapshot types, query-workspace persist types
+// output: WorksheetSession (commands + persisted snapshot for the query workbench 工作表)
 // pos: in-process worksheet session; React only renders
 // note: if this file changes, update header and lib/README.md
 import { useSyncExternalStore } from "react";
@@ -32,9 +32,11 @@ import type {
   QuerySavedStatementParameterValue,
   QuerySavedStatementRecord,
 } from "@/types/query-saved-statement";
+import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
 
 export const DEFAULT_STATEMENT = "select 1";
 export const INITIAL_WORKSHEET_ID = "worksheet-1";
+export const MAX_WORKSHEETS = 32;
 
 export type HistoryState = {
   replaceStatus: "idle" | "loading" | "ready" | "error";
@@ -287,7 +289,8 @@ export class WorksheetSession {
     this.notify();
   }
 
-  add(targetResourceId: number): Worksheet {
+  add(targetResourceId: number): Worksheet | null {
+    if (this.worksheets.length >= MAX_WORKSHEETS) return null;
     this.nextIndex += 1;
     const unique = this.createId();
     const worksheet = createWorksheetRecord(
@@ -301,6 +304,70 @@ export class WorksheetSession {
     this.worksheets = [...this.worksheets, worksheet];
     this.activate(worksheet.id);
     return worksheet;
+  }
+
+  persistedSnapshot(): readonly QueryWorkspaceWorksheet[] {
+    return this.worksheets.map((worksheet) => ({
+      id: worksheet.id,
+      name: worksheet.name,
+      targetResourceId: worksheet.targetResourceId,
+      statement: worksheet.statement,
+      activeDatabase: worksheet.activeDatabase,
+    }));
+  }
+
+  hydrate(
+    items: readonly QueryWorkspaceWorksheet[],
+    fallbackTargetId: number,
+  ): void {
+    const maxRows = this.active.maxRows;
+    const pageSize = this.active.pageSize;
+    if (items.length === 0) {
+      this.worksheets = [
+        createWorksheetRecord(
+          INITIAL_WORKSHEET_ID,
+          "Worksheet 1",
+          fallbackTargetId,
+          "req-initial",
+          maxRows,
+          pageSize,
+        ),
+      ];
+      this.activeWorksheetId = INITIAL_WORKSHEET_ID;
+      this.nextIndex = 1;
+      this.notify();
+      return;
+    }
+    this.worksheets = items.map((item) => ({
+      ...createWorksheetRecord(
+        item.id,
+        item.name,
+        item.targetResourceId,
+        `req-${item.id}`,
+        maxRows,
+        pageSize,
+      ),
+      statement: item.statement,
+      activeDatabase: item.activeDatabase,
+    }));
+    this.activeWorksheetId = this.worksheets[0]!.id;
+    this.nextIndex = this.worksheets.length;
+    this.notify();
+  }
+
+  restoreDraft(input: {
+    readonly targetId: number;
+    readonly statement: string;
+    readonly activeDatabase: string | null;
+  }): Worksheet | null {
+    const worksheet = this.add(input.targetId);
+    if (!worksheet) return null;
+    this.patch(worksheet.id, {
+      statement: input.statement,
+      activeDatabase: input.activeDatabase,
+      isDirty: true,
+    });
+    return this.active;
   }
 
   close(id: string): void {
@@ -468,12 +535,12 @@ export class WorksheetSession {
     });
   }
 
-  openForTarget(targetId: number): void {
+  openForTarget(targetId: number): Worksheet | null {
     const previousActiveId = this.activeWorksheetId;
     this.worksheets = this.worksheets.map((ws) =>
       ws.id === previousActiveId ? { ...ws, explain: invalidateExplainState(ws.explain) } : ws,
     );
-    this.add(targetId);
+    return this.add(targetId);
   }
 
   openPreview(input: {
@@ -487,6 +554,7 @@ export class WorksheetSession {
     const quotedTable = `\`${input.table.replace(/`/g, "``")}\``;
     const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_QUERY_MAX_ROWS}`;
     const worksheet = this.add(input.targetId);
+    if (!worksheet) return;
     this.patch(worksheet.id, {
       name: `Preview: ${input.table}`,
       statement,

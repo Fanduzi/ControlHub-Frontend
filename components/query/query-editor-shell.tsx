@@ -1,6 +1,6 @@
-// input: query components, workspace/execution services, query transport types, shared libraries, UI dependencies
-// output: query editor shell with serialized workspace OCC persistence, unavailable-target retargeting, bounded worksheet creation across navigator actions, server-authorized statement restore, and execution/history/schema/result UI
-// pos: core query workbench editor shell managing worksheet state, template mode, and execution routing
+// input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
+// output: QueryEditorShell UI adapter over WorksheetSession + schema catalog
+// pos: paints worksheets; session owns run/template/explain, catalog owns 库身份 metadata
 // note: if this file changes, update header and components/query/README.md
 "use client";
 
@@ -13,7 +13,6 @@ import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
 import type {
-  ExplainResponse,
   QueryExecutePaginationResponse,
   QueryExecuteResponse,
   QueryExecutionFilter,
@@ -21,22 +20,12 @@ import type {
   QueryResultCellValue,
   QueryResultColumn,
   QueryExecutionStatus,
-  RelatedRecordNavigationResponse,
   TablePreviewRequest,
 } from "@/types/query-execution";
-import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
-import type { QuerySavedStatementParameterDefinition, QuerySavedStatementParameterValue, QuerySavedStatementRecord } from "@/types/query-saved-statement";
-import {
-  executeQueryTarget,
-  explainQueryTarget,
-  getQueryExecutionStatement,
-  isRetryableControlledErrorCode,
-  listQueryExecutions,
-  navigateRelatedRecords,
-  QueryExecuteError,
-} from "@/services/query-executions";
+import type { QuerySavedStatementParameterDefinition, QuerySavedStatementRecord } from "@/types/query-saved-statement";
+import { QueryExecuteError, getQueryExecutionStatement, isRetryableControlledErrorCode } from "@/services/query-executions";
 import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
-import { executeSavedStatementTemplate } from "@/services/query-saved-statements";
+import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +60,6 @@ import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
   clampEditorHeight,
   DEFAULT_QUERY_EDITOR_HEIGHT,
-  DEFAULT_QUERY_MAX_ROWS,
   normalizeEditorTheme,
   normalizeMaxRows,
   parseMaxRowsDraft,
@@ -85,15 +73,28 @@ import {
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
-import { getSchemaDatabases, getSchemaObjects } from "@/services/query-schema";
 import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
 import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
-import type { QuerySchemaStore } from "@/lib/query-schema-store";
-import type { ObjectSummary } from "@/types/query-schema";
+import {
+  COMPLETION_PAGE_SIZE,
+  useSchemaCatalogVersion,
+  type QuerySchemaStore,
+} from "@/lib/query-schema-store";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { serializeQueryResultCsv } from "@/lib/query-result-csv";
+import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
+import {
+  DEFAULT_STATEMENT,
+  INITIAL_WORKSHEET_ID,
+  MAX_WORKSHEETS,
+  WorksheetSession,
+  useWorksheetSessionVersion,
+  type ExplainState,
+  type PreviewProvenance,
+  type RelatedRecordsState,
+} from "@/lib/worksheet-session";
 
 type QueryEditorShellProps = {
   targets: QueryTarget[];
@@ -114,79 +115,12 @@ const WORKSHEET_TABS: { id: WorksheetTab; labelKey: string }[] = [
   { id: "savedStatements", labelKey: "editor.savedSheetsTab" },
 ];
 
-const DEFAULT_STATEMENT = "select 1";
-const MAX_WORKSHEETS = 32;
 const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "success",
   "rejected",
   "failed",
   "timeout",
 ];
-
-/** Fixed id for the SSR/client initial worksheet — must not use Date.now()/random. */
-const INITIAL_WORKSHEET_ID = "worksheet-1";
-
-/**
- * Convert a YYYY-MM-DD date string (from `<input type="date">`) to RFC3339
- * start-of-day UTC for the `from` query parameter.
- */
-function toRFC3339From(dateStr: string): string {
-  return `${dateStr}T00:00:00Z`;
-}
-
-/**
- * Convert a YYYY-MM-DD date string to RFC3339 start-of-next-day UTC (exclusive
- * upper bound) for the `to` query parameter.
- */
-function toRFC3339To(dateStr: string): string {
-  const date = new Date(`${dateStr}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-/**
- * History state machine for a single worksheet. Independent of the execution
- * requestId — history has its own generation counter for stale rejection.
- */
-type HistoryState = {
-  replaceStatus: "idle" | "loading" | "ready" | "error";
-  items: QueryExecutionRecord[];
-  replaceError?: string;
-  appendStatus: "idle" | "loading" | "error";
-  appendError?: string;
-  nextCursor: string | null;
-  filters: QueryExecutionFilter;
-  pendingFilters: QueryExecutionFilter;
-  selectedRecordId: number | null;
-  /** The targetId this history was fetched for. */
-  boundTargetId: number;
-  /** Monotonic generation counter for stale rejection. */
-  generation: number;
-};
-
-function createHistoryState(targetId: number): HistoryState {
-  return {
-    replaceStatus: "idle",
-    items: [],
-    appendStatus: "idle",
-    nextCursor: null,
-    filters: {},
-    pendingFilters: {},
-    selectedRecordId: null,
-    boundTargetId: targetId,
-    generation: 0,
-  };
-}
-
-type PreviewProvenance = {
-  readonly targetId: number;
-  readonly database: string;
-  readonly table: string;
-  readonly kind: "table";
-  readonly statement: string;
-  readonly foreignKeys: readonly ForeignKeyDetail[];
-  readonly foreignKeysTruncated: boolean;
-};
 
 type NavigationCapability = {
   readonly sourceDatabase: string;
@@ -196,184 +130,19 @@ type NavigationCapability = {
   readonly onNavigate: (foreignKey: string, localValues: readonly string[]) => void;
 };
 
-type RelatedRecordsState =
-  | { readonly status: "idle"; readonly generation: number }
-  | { readonly status: "loading"; readonly generation: number; readonly foreignKey: string }
-  | { readonly status: "ready"; readonly generation: number; readonly response: RelatedRecordNavigationResponse }
-  | { readonly status: "error"; readonly generation: number; readonly code: string };
-
-/**
- * Worksheet-local Explain state. Independent from Run results/history.
- * A response applies only when worksheet id, generation, target id, and
- * statement identity still match (stale-response guard).
- */
-type ExplainState = {
-  status: "idle" | "loading" | "ready" | "error";
-  requestGeneration: number;
-  statementIdentity: string | null;
-  targetId: number | null;
-  response: ExplainResponse | null;
-  errorCode: string | null;
-};
-
-function createExplainState(): ExplainState {
-  return {
-    status: "idle",
-    requestGeneration: 0,
-    statementIdentity: null,
-    targetId: null,
-    response: null,
-    errorCode: null,
-  };
-}
-
-function invalidateExplainState(explain: ExplainState): ExplainState {
-  return {
-    status: "idle",
-    requestGeneration: explain.requestGeneration + 1,
-    statementIdentity: null,
-    targetId: null,
-    response: null,
-    errorCode: null,
-  };
-}
-
-type LocalWorksheet = {
-  id: string;
-  name: string;
-  targetResourceId: number;
-  statement: string;
-  parameters: readonly QuerySavedStatementParameterDefinition[];
-  parameterValues: Record<string, string>;
-  /** Non-null while the worksheet is in template mode: Run and paging use the
-   * template-execution route for this saved statement ID. */
-  templateStatementId: number | null;
-  /** Controlled per-parameter field codes (missing/unknown/invalid/oversized)
-   * from the last template execution; cleared when values change. */
-  templateFieldErrors: Record<string, string>;
-  maxRows: number;
-  isExecuting: boolean;
-  result: QueryExecuteResponse | null;
-  error: QueryExecuteError | null;
-  formatError: string | null;
-  history: HistoryState;
-  requestId: string;
-  activeDatabase: string | null;
-  isDirty: boolean;
-  previewProvenance: PreviewProvenance | null;
-  relatedRecords: RelatedRecordsState;
-  explain: ExplainState;
-  currentPage: number;
-  pageSize: number;
-  resultPagination: QueryExecutePaginationResponse | null;
-};
-
-function createInitialWorksheet(targetResourceId: number): LocalWorksheet {
-  return {
-    id: INITIAL_WORKSHEET_ID,
-    name: "Worksheet 1",
-    targetResourceId,
-    statement: DEFAULT_STATEMENT,
-    parameters: [],
-    parameterValues: {},
-    templateStatementId: null,
-    templateFieldErrors: {},
-    maxRows: DEFAULT_QUERY_MAX_ROWS,
-    isExecuting: false,
-    result: null,
-    error: null,
-    formatError: null,
-    history: createHistoryState(targetResourceId),
-    requestId: "req-initial",
-    activeDatabase: null,
-    isDirty: false,
-    previewProvenance: null,
-    relatedRecords: { status: "idle", generation: 0 },
-    explain: createExplainState(),
-    currentPage: 1,
-    pageSize: QUERY_RESULT_PAGE_SIZES[0],
-    resultPagination: null,
-  };
-}
-
-/** Client-only worksheet factory (after hydration). Unique ids are fine here. */
-function createWorksheet(index: number, targetResourceId: number): LocalWorksheet {
-  const unique =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${index}`;
-  return {
-    id: `worksheet-${index}-${unique}`,
-    name: `Worksheet ${index}`,
-    targetResourceId,
-    statement: DEFAULT_STATEMENT,
-    parameters: [],
-    parameterValues: {},
-    templateStatementId: null,
-    templateFieldErrors: {},
-    maxRows: getMaxRows(),
-    isExecuting: false,
-    result: null,
-    error: null,
-    formatError: null,
-    history: createHistoryState(targetResourceId),
-    requestId: `req-${unique}`,
-    activeDatabase: null,
-    isDirty: false,
-    previewProvenance: null,
-    relatedRecords: { status: "idle", generation: 0 },
-    explain: createExplainState(),
-    currentPage: 1,
-    pageSize: getPageSize(),
-    resultPagination: null,
-  };
-}
-
-function persistedWorksheet(worksheet: LocalWorksheet): QueryWorkspaceWorksheet {
-  return {
-    id: worksheet.id,
-    name: worksheet.name,
-    targetResourceId: worksheet.targetResourceId,
-    statement: worksheet.statement,
-    activeDatabase: worksheet.activeDatabase,
-  };
-}
-
-/** Rebuild a saved draft through the normal factory so all transient state resets. */
-function hydrateWorksheet(
-  worksheet: QueryWorkspaceWorksheet,
-  index: number,
-): LocalWorksheet {
-  return { ...createWorksheet(index, worksheet.targetResourceId), ...worksheet };
-}
-
 export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
   const [renamingWorksheetId, setRenamingWorksheetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [editorHeight, setEditorHeight] = useState(DEFAULT_QUERY_EDITOR_HEIGHT);
-  const [loadedDatabases, setLoadedDatabases] = useState<readonly string[]>([]);
-  const [loadedObjects, setLoadedObjects] = useState<readonly ObjectSummary[]>([]);
-  // Schema completion metadata belongs to one active Schema Metadata Identity
-  // (targetResourceId, database). `metadataError` drives the non-blocking
-  // retry warning; Retry reloads databases and objects together.
-  const [metadataError, setMetadataError] = useState(false);
+  const [editorHeight, setEditorHeight] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_QUERY_EDITOR_HEIGHT;
+    return parseStoredEditorHeight(window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY))
+      ?? DEFAULT_QUERY_EDITOR_HEIGHT;
+  });
   const [metadataRetryKey, setMetadataRetryKey] = useState(0);
-  const metadataGenerationRef = useRef(0);
-  // The single active Schema Metadata Identity (targetResourceId, database)
-  // whose objects are currently loaded, so sibling worksheets on the same
-  // identity share metadata without duplicate ownership.
-  const loadedObjectsIdentityRef = useRef<{ targetId: number; database: string } | null>(null);
-  // Target whose database list is loaded (target-scoped, one request per load
-  // generation) and the server-selected default for that target. The list keeps
-  // its own controller so a database-only change while it is in flight neither
-  // drops the response (the list is valid for the whole target) nor re-issues a
-  // duplicate request.
-  const dbListLoadedTargetRef = useRef<number | null>(null);
-  const dbListControllerRef = useRef<AbortController | null>(null);
-  const defaultDatabaseRef = useRef<string | null>(null);
+  const catalogVersion = useSchemaCatalogVersion(schemaStore);
   const [retargetDialog, setRetargetDialog] = useState<{
     open: boolean;
     worksheetId: string;
@@ -384,10 +153,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     worksheetId: string;
   } | null>(null);
 
-  const [worksheets, setWorksheets] = useState<LocalWorksheet[]>(() => [
-    createInitialWorksheet(activeTarget.resourceId),
-  ]);
-  const [activeWorksheetId, setActiveWorksheetId] = useState(INITIAL_WORKSHEET_ID);
+  const [session] = useState(
+    () => new WorksheetSession({ initialTargetId: activeTarget.resourceId }),
+  );
+  useWorksheetSessionVersion(session);
+  const worksheets = session.list;
+  const activeWorksheetId = session.activeId;
+  const activeWorksheet = session.active;
   const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
   const [workspaceProblem, setWorkspaceProblem] = useState<"load" | "save" | null>(null);
   const [workspaceConflict, setWorkspaceConflict] = useState(false);
@@ -403,19 +175,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const localWorkspaceChangedRef = useRef(false);
   const activeTargetRef = useRef(activeTarget);
   activeTargetRef.current = activeTarget;
-  const activeMaxRowsDraftValidityRef = useRef({
-    worksheetId: INITIAL_WORKSHEET_ID,
-    valid: true,
-  });
-  const editorViewRef = useRef<EditorView | null>(null);
-  const editorHeightRef = useRef(editorHeight);
-  editorHeightRef.current = editorHeight;
-
-  const activeWorksheet = worksheets.find((ws) => ws.id === activeWorksheetId) ?? worksheets[0]!;
-  const workspaceWorksheets = useMemo(
-    () => worksheets.map(persistedWorksheet),
-    [worksheets],
-  );
+  const workspaceWorksheets = session.persistedSnapshot();
   const workspaceSignature = JSON.stringify(workspaceWorksheets);
 
   const loadWorkspace = useCallback(async (replaceEmpty = false) => {
@@ -427,15 +187,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         setWorkspaceConflict(true);
         return;
       }
-      const loaded = workspace.worksheets.length > 0
-        ? workspace.worksheets.map(hydrateWorksheet)
-        : replaceEmpty
-          ? [createWorksheet(1, activeTargetRef.current.resourceId)]
-          : null;
-      if (loaded) {
-        savedWorkspaceSignatureRef.current = JSON.stringify(loaded.map(persistedWorksheet));
-        setWorksheets(loaded);
-        setActiveWorksheetId(loaded[0]!.id);
+      if (workspace.worksheets.length > 0 || replaceEmpty) {
+        session.hydrate(workspace.worksheets, activeTargetRef.current.resourceId);
+        savedWorkspaceSignatureRef.current = JSON.stringify(session.persistedSnapshot());
       } else {
         savedWorkspaceSignatureRef.current = "[]";
       }
@@ -446,7 +200,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     } catch {
       setWorkspaceProblem("load");
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -501,6 +255,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }, 250);
     return () => window.clearTimeout(timer);
   }, [saveWorkspace, workspaceConflict, workspaceProblem, workspaceSignature, workspaceVersion, workspaceWorksheets]);
+  const activeMaxRowsDraftValidityRef = useRef({
+    worksheetId: INITIAL_WORKSHEET_ID,
+    valid: true,
+  });
+  const editorViewRef = useRef<EditorView | null>(null);
+  const editorHeightRef = useRef(editorHeight);
+  useEffect(() => {
+    editorHeightRef.current = editorHeight;
+  }, [editorHeight]);
 
   useEffect(() => {
     activeMaxRowsDraftValidityRef.current = {
@@ -526,137 +289,43 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     return tracked.worksheetId !== activeWorksheetId || tracked.valid;
   }
 
-  function updateWorksheetById(worksheetId: string, patch: Partial<LocalWorksheet>) {
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === worksheetId ? { ...ws, ...patch } : ws,
-      ),
-    );
-  }
-
-  function updateActiveWorksheet(patch: Partial<LocalWorksheet>) {
-    updateWorksheetById(activeWorksheetId, patch);
-  }
-
   const activateWorksheet = useCallback((worksheetId: string) => {
-    if (worksheetId === activeWorksheetId) return;
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === activeWorksheetId
-          ? { ...ws, parameterValues: {}, templateFieldErrors: {} }
-          : ws,
-      ),
-    );
-    setActiveWorksheetId(worksheetId);
-  }, [activeWorksheetId]);
+    session.activate(worksheetId);
+  }, [session]);
 
-  // Template mode is entered only by loading a parameterized saved statement.
-  // Editing, formatting, or retargeting the SQL exits it. Values stay in
-  // worksheet memory (never browser persistence) until switch/refresh/close.
   function replaceActiveStatement(
     statement: string,
     parameters: readonly QuerySavedStatementParameterDefinition[] = [],
     formatError: string | null = null,
   ) {
     localWorkspaceChangedRef.current = true;
-    updateActiveWorksheet({
-      statement,
-      parameters: [...parameters],
-      parameterValues: {},
-      templateStatementId: null,
-      templateFieldErrors: {},
-      formatError,
-      result: null,
-      error: null,
-      isDirty: true,
-      isExecuting: false,
-      requestId: crypto.randomUUID(),
-      previewProvenance: null,
-      relatedRecords: {
-        status: "idle",
-        generation: activeWorksheet.relatedRecords.generation + 1,
-      },
-      explain: invalidateExplainState(activeWorksheet.explain),
-      currentPage: 1,
-      resultPagination: null,
-    });
+    session.replaceStatement(statement, parameters, formatError);
   }
 
   function loadSavedStatement(item: QuerySavedStatementRecord) {
-    replaceActiveStatement(item.statement, item.parameters);
-    if (item.parameters.length > 0) {
-      updateActiveWorksheet({ templateStatementId: item.id });
-    }
-  }
-
-  function guardedUpdateWorksheet(
-    worksheetId: string,
-    requestId: string,
-    patch: Partial<LocalWorksheet>,
-  ) {
-    setWorksheets((previous) => {
-      const ws = previous.find((w) => w.id === worksheetId);
-      if (!ws || ws.requestId !== requestId) return previous;
-      return previous.map((w) =>
-        w.id === worksheetId ? { ...w, ...patch } : w,
-      );
-    });
+    localWorkspaceChangedRef.current = true;
+    session.loadSavedStatement(item);
   }
 
   function addWorksheet() {
-    if (worksheets.length >= MAX_WORKSHEETS) {
+    if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
     localWorkspaceChangedRef.current = true;
-    const newIndex = worksheets.length + 1;
-    const newWs = createWorksheet(newIndex, activeTarget.resourceId);
-    setWorksheets((previous) => [...previous, newWs]);
-    activateWorksheet(newWs.id);
+    session.add(activeTarget.resourceId);
   }
 
   function executeRetarget(worksheetId: string, newTargetId: number) {
     localWorkspaceChangedRef.current = true;
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === worksheetId
-          ? {
-              ...ws,
-              targetResourceId: newTargetId,
-              activeDatabase: null,
-              result: null,
-              error: null,
-              formatError: null,
-              history: createHistoryState(newTargetId),
-              isExecuting: false,
-              requestId: crypto.randomUUID(),
-              isDirty: false,
-              previewProvenance: null,
-              relatedRecords: { status: "idle", generation: ws.relatedRecords.generation + 1 },
-              explain: invalidateExplainState(ws.explain),
-              currentPage: 1,
-              resultPagination: null,
-              // Template declarations and the statement ID belong to the old
-              // target's library; retargeting must exit template mode.
-              parameters: [],
-              parameterValues: {},
-              templateStatementId: null,
-              templateFieldErrors: {},
-            }
-          : ws,
-      ),
-    );
+    session.retarget(worksheetId, newTargetId);
     setRetargetDialog(null);
   }
 
   function closeWorksheet(id: string) {
-    // Can't close last worksheet
     if (worksheets.length <= 1) return;
-
     const worksheet = worksheets.find((ws) => ws.id === id);
     if (!worksheet) return;
-
-    // If worksheet has SQL or is dirty, show confirmation
     if (worksheet.statement.trim() !== DEFAULT_STATEMENT.trim() || worksheet.isDirty) {
       setCloseConfirmDialog({ open: true, worksheetId: id });
     } else {
@@ -666,27 +335,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   function executeCloseWorksheet(id: string) {
     localWorkspaceChangedRef.current = true;
-    setWorksheets((previous) => {
-      const filtered = previous.filter((ws) => ws.id !== id);
-      if (activeWorksheetId === id) {
-        const closedIndex = previous.findIndex((ws) => ws.id === id);
-        const newActiveIndex = Math.min(closedIndex, filtered.length - 1);
-        setActiveWorksheetId(filtered[newActiveIndex]!.id);
-      }
-      return filtered;
-    });
+    session.close(id);
     setCloseConfirmDialog(null);
   }
 
   function renameWorksheet(id: string, newName: string) {
-    const trimmed = newName.trim();
-    if (trimmed.length === 0) return;
     localWorkspaceChangedRef.current = true;
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === id ? { ...ws, name: trimmed } : ws,
-      ),
-    );
+    session.rename(id, newName);
     setRenamingWorksheetId(null);
   }
 
@@ -695,252 +350,48 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     setRenameValue(currentName);
   }
 
-  const worksheetsRef = useRef(worksheets);
-  worksheetsRef.current = worksheets;
-
   const targetsByIdRef = useRef(targetsById);
-  targetsByIdRef.current = targetsById;
+  useEffect(() => {
+    targetsByIdRef.current = targetsById;
+  }, [targetsById]);
 
   const refreshHistory = useCallback(async (worksheetId?: string, requestedFilters?: QueryExecutionFilter) => {
-    const targetWorksheetId = worksheetId ?? activeWorksheetId;
-    const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+    const worksheet = session.list.find((ws) => ws.id === (worksheetId ?? session.activeId));
     if (!worksheet) return;
-
     const target = targetsByIdRef.current.get(worksheet.targetResourceId);
     if (!target?.availableActions.run) return;
-
-    const targetId = worksheet.targetResourceId;
-    const nextGeneration = worksheet.history.generation + 1;
-    const filters = requestedFilters ?? worksheet.history.filters;
-
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === targetWorksheetId
-          ? {
-              ...ws,
-              history: {
-                ...ws.history,
-                replaceStatus: "loading" as const,
-                replaceError: undefined,
-                appendStatus: "idle" as const,
-                appendError: undefined,
-                items: [],
-                nextCursor: null,
-                filters,
-                pendingFilters: requestedFilters === undefined ? ws.history.pendingFilters : filters,
-                selectedRecordId: null,
-                boundTargetId: targetId,
-                generation: nextGeneration,
-              },
-            }
-          : ws,
-      ),
-    );
-
-    try {
-      const response = await listQueryExecutions(targetId, {
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
-        ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
-        pageSize: 20,
-      });
-      setWorksheets((previous) => {
-        const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (
-          !current ||
-          current.targetResourceId !== targetId ||
-          current.history.generation !== nextGeneration ||
-          current.history.filters.status !== filters.status ||
-          current.history.filters.from !== filters.from ||
-          current.history.filters.to !== filters.to
-        ) return previous;
-        const seenIds = new Set<number>();
-        const items = response.items.filter((item) => {
-          if (seenIds.has(item.id)) return false;
-          seenIds.add(item.id);
-          return true;
-        });
-        return previous.map((ws) =>
-          ws.id === targetWorksheetId
-            ? {
-                ...ws,
-                history: {
-                  ...ws.history,
-                  replaceStatus: "ready" as const,
-                  replaceError: undefined,
-                  items,
-                  nextCursor: response.nextCursor,
-                  filters,
-                  appendStatus: "idle" as const,
-                  appendError: undefined,
-                  boundTargetId: targetId,
-                  generation: nextGeneration,
-                },
-              }
-            : ws,
-        );
-      });
-    } catch {
-      setWorksheets((previous) => {
-        const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (
-          !current ||
-          current.targetResourceId !== targetId ||
-          current.history.generation !== nextGeneration ||
-          current.history.filters.status !== filters.status ||
-          current.history.filters.from !== filters.from ||
-          current.history.filters.to !== filters.to
-        ) return previous;
-        return previous.map((ws) =>
-          ws.id === targetWorksheetId
-            ? {
-                ...ws,
-                history: {
-                  ...ws.history,
-                  replaceStatus: "error" as const,
-                  replaceError: "historyLoadFailed",
-                  appendStatus: "idle" as const,
-                  appendError: undefined,
-                  generation: nextGeneration,
-                },
-              }
-            : ws,
-        );
-      });
-    }
-  }, [activeWorksheetId]);
+    await session.refreshHistory(worksheet.id, requestedFilters);
+  }, [session]);
 
   const loadMoreHistory = useCallback(async (worksheetId?: string) => {
-    const targetWorksheetId = worksheetId ?? activeWorksheetId;
-    const worksheet = worksheetsRef.current.find((ws) => ws.id === targetWorksheetId);
+    const worksheet = session.list.find((ws) => ws.id === (worksheetId ?? session.activeId));
     if (!worksheet) return;
-
     const target = targetsByIdRef.current.get(worksheet.targetResourceId);
     if (!target?.availableActions.run) return;
-
-    const targetId = worksheet.targetResourceId;
-    const { nextCursor, filters, generation } = worksheet.history;
-    if (!nextCursor || worksheet.history.appendStatus === "loading") return;
-
-    setWorksheets((previous) =>
-      previous.map((ws) =>
-        ws.id === targetWorksheetId
-          ? {
-              ...ws,
-              history: {
-                ...ws.history,
-                appendStatus: "loading" as const,
-                appendError: undefined,
-              },
-            }
-          : ws,
-      ),
-    );
-
-    try {
-      const response = await listQueryExecutions(targetId, {
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
-        ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
-        cursor: nextCursor,
-        pageSize: 20,
-      });
-      setWorksheets((previous) => {
-        const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (
-          !current ||
-          current.targetResourceId !== targetId ||
-          current.history.boundTargetId !== targetId ||
-          current.history.generation !== generation ||
-          current.history.filters.status !== filters.status ||
-          current.history.filters.from !== filters.from ||
-          current.history.filters.to !== filters.to
-        ) {
-          return previous;
-        }
-        const seenIds = new Set(current.history.items.map((item) => item.id));
-        const newItems = response.items.filter((item) => {
-          if (seenIds.has(item.id)) return false;
-          seenIds.add(item.id);
-          return true;
-        });
-        return previous.map((ws) =>
-          ws.id === targetWorksheetId
-            ? {
-                ...ws,
-                history: {
-                  ...ws.history,
-                  items: [...ws.history.items, ...newItems],
-                  nextCursor: response.nextCursor,
-                  appendStatus: "idle" as const,
-                  appendError: undefined,
-                },
-              }
-            : ws,
-        );
-      });
-    } catch {
-      setWorksheets((previous) => {
-        const current = previous.find((ws) => ws.id === targetWorksheetId);
-        if (
-          !current ||
-          current.targetResourceId !== targetId ||
-          current.history.boundTargetId !== targetId ||
-          current.history.generation !== generation ||
-          current.history.filters.status !== filters.status ||
-          current.history.filters.from !== filters.from ||
-          current.history.filters.to !== filters.to
-        ) {
-          return previous;
-        }
-        return previous.map((ws) =>
-          ws.id === targetWorksheetId
-            ? {
-                ...ws,
-                history: {
-                  ...ws.history,
-                  appendStatus: "error" as const,
-                  appendError: "historyAppendFailed",
-                },
-              }
-            : ws,
-        );
-      });
-    }
-  }, [activeWorksheetId]);
+    await session.loadMoreHistory(worksheet.id);
+  }, [session]);
 
   function applyFilters(filters: QueryExecutionFilter) {
-    updateActiveWorksheet({
-      history: { ...activeWorksheet.history, pendingFilters: filters },
-    });
-    void refreshHistory(activeWorksheetId, filters);
+    session.applyFilters(filters);
   }
 
   function clearFilters() {
-    const filters: QueryExecutionFilter = {};
-    updateActiveWorksheet({
-      history: { ...activeWorksheet.history, pendingFilters: filters },
-    });
-    void refreshHistory(activeWorksheetId, filters);
+    session.applyFilters({});
   }
 
   function openHistoryDetail(record: QueryExecutionRecord) {
-    updateActiveWorksheet({
-      history: { ...activeWorksheet.history, selectedRecordId: record.id },
-    });
+    session.openHistoryDetail(record.id);
   }
 
   function closeHistoryDetail() {
     setHistoryRestoreError(null);
-    updateActiveWorksheet({
-      history: { ...activeWorksheet.history, selectedRecordId: null },
-    });
+    session.closeHistoryDetail();
   }
 
   async function restoreHistoryStatement(record: QueryExecutionRecord) {
     if (!record.canRestore || isRestoringHistoryStatement) return;
-    const sourceWorksheet = activeWorksheet;
-    if (worksheets.length >= MAX_WORKSHEETS) {
+    const sourceWorksheet = session.active;
+    if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
@@ -951,20 +402,20 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         record.targetResourceId,
         record.id,
       );
-      if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+      if (session.list.length >= MAX_WORKSHEETS) {
         setWorksheetLimitReached(true);
         return;
       }
       localWorkspaceChangedRef.current = true;
-      const next = createWorksheet(worksheetsRef.current.length + 1, sourceWorksheet.targetResourceId);
-      const restored = {
-        ...next,
+      const restored = session.restoreDraft({
+        targetId: sourceWorksheet.targetResourceId,
         statement: response.statement,
         activeDatabase: sourceWorksheet.activeDatabase,
-        isDirty: true,
-      };
-      setWorksheets((previous) => [...previous, restored]);
-      setActiveWorksheetId(restored.id);
+      });
+      if (!restored) {
+        setWorksheetLimitReached(true);
+        return;
+      }
       setActiveTab("worksheet");
     } catch (error) {
       setHistoryRestoreError(
@@ -978,8 +429,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   function selectWorksheetTab(tab: WorksheetTab) {
     setActiveTab(tab);
     if (tab !== "history") return;
-    const worksheet = worksheetsRef.current.find((ws) => ws.id === activeWorksheetId);
-    if (!worksheet) return;
+    const worksheet = session.active;
     const target = targetsByIdRef.current.get(worksheet.targetResourceId);
     if (!target?.availableActions.run) return;
     if (worksheet.history.replaceStatus === "idle" || worksheet.history.replaceStatus === "error") {
@@ -987,8 +437,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
   }
 
-  // Seed with the prop so initial mount (version 0) is not treated as a user
-  // target switch. Only navigator-driven version bumps create a new worksheet.
   const lastSeenVersionRef = useRef(targetSelectionVersion);
 
   useEffect(() => {
@@ -996,34 +444,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       return;
     }
     lastSeenVersionRef.current = targetSelectionVersion;
-    if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+    if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
     localWorkspaceChangedRef.current = true;
+    const opened = session.openForTarget(activeTarget.resourceId);
+    if (!opened) setWorksheetLimitReached(true);
+  }, [targetSelectionVersion, activeTarget.resourceId, session]);
 
-    // Create a new worksheet for the new target instead of retargeting the active one
-    // This preserves the original worksheet's SQL, result, and history.
-    // Invalidate Explain on the previously active worksheet so a pending
-    // response cannot reappear when the operator returns to it.
-    const previousActiveId = activeWorksheetId;
-    const newWs = createWorksheet(worksheetsRef.current.length + 1, activeTarget.resourceId);
-    const newWorksheets = worksheetsRef.current.map((ws) =>
-      ws.id === previousActiveId
-        ? { ...ws, explain: invalidateExplainState(ws.explain) }
-        : ws,
-    );
-    newWorksheets.push(newWs);
-    worksheetsRef.current = newWorksheets;
-    setWorksheets(newWorksheets);
-    activateWorksheet(newWs.id);
-
-    // Do not fetch history on target-switch worksheet creation. History loads
-    // on first History-tab open (or after a successful run for that worksheet).
-  }, [targetSelectionVersion, activeTarget.resourceId, activeTarget.availableActions.run, activeWorksheetId, activateWorksheet]);
-
-  // Consume preview events from Object Explorer. Creates a new worksheet with
-  // a generated qualified statement and stores provenance. Never auto-executes.
   const lastPreviewIdRef = useRef(0);
   useEffect(() => {
     if (!pendingPreviewEvent || pendingPreviewEvent.id === lastPreviewIdRef.current) {
@@ -1031,212 +460,108 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     }
     lastPreviewIdRef.current = pendingPreviewEvent.id;
     onPreviewConsumed?.();
-
     const { request } = pendingPreviewEvent;
     if (request.targetId !== activeTarget.resourceId) {
       return;
     }
-    if (worksheetsRef.current.length >= MAX_WORKSHEETS) {
+    if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
-
-    const quotedDb = `\`${request.database.replace(/`/g, "``")}\``;
-    const quotedTable = `\`${request.table.replace(/`/g, "``")}\``;
-    const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_QUERY_MAX_ROWS}`;
-
-    const newWs: LocalWorksheet = {
-      ...createWorksheet(worksheetsRef.current.length + 1, request.targetId),
-      name: `Preview: ${request.table}`,
-      targetResourceId: request.targetId,
-      statement,
-      previewProvenance: {
-        targetId: request.targetId,
-        database: request.database,
-        table: request.table,
-        kind: "table",
-        statement,
-        foreignKeys: request.foreignKeys,
-        foreignKeysTruncated: request.foreignKeysTruncated,
-      },
-    };
-    const newWorksheets = [...worksheetsRef.current, newWs];
-    worksheetsRef.current = newWorksheets;
-    setWorksheets(newWorksheets);
-    activateWorksheet(newWs.id);
-  }, [pendingPreviewEvent, onPreviewConsumed, activeTarget.resourceId, activateWorksheet]);
+    localWorkspaceChangedRef.current = true;
+    session.openPreview({
+      targetId: request.targetId,
+      database: request.database,
+      table: request.table,
+      foreignKeys: request.foreignKeys,
+      foreignKeysTruncated: request.foreignKeysTruncated,
+    });
+  }, [pendingPreviewEvent, onPreviewConsumed, activeTarget.resourceId, session]);
 
   useEffect(() => {
-    const worksheet = worksheets.find((ws) => ws.id === activeWorksheetId);
-    if (worksheet && worksheet.targetResourceId !== activeTarget.resourceId) {
-      onActiveTargetChange(worksheet.targetResourceId);
+    if (activeWorksheet.targetResourceId !== activeTarget.resourceId) {
+      onActiveTargetChange(activeWorksheet.targetResourceId);
     }
-  }, [activeWorksheetId, activeTarget.resourceId, onActiveTargetChange, worksheets]);
+  }, [activeWorksheet.targetResourceId, activeTarget.resourceId, onActiveTargetChange]);
 
-  // Apply the server-selected default to every current-identity worksheet that
-  // still awaits a database, without issuing another database-list request.
   const applyDefaultToNullWorksheets = useCallback((targetId: number, defaultDb: string | null): void => {
-    if (!defaultDb) return;
-    setWorksheets((previous) =>
-      previous.map((worksheet) =>
-        worksheet.targetResourceId === targetId && worksheet.activeDatabase === null
-          ? { ...worksheet, activeDatabase: defaultDb }
-          : worksheet,
-      ),
-    );
-  }, []);
+    session.applyDefaultDatabase(targetId, defaultDb);
+  }, [session]);
 
-  // Fetch the target-scoped database list at most once per target, surviving
-  // effect cleanups caused by database-only changes. One database-list request
-  // supplies both the server-selected default and the database-name
-  // completions; a null default leaves worksheets null so object completion
-  // waits for an explicit selection. The claim is released only on a real
-  // failure (not a superseded abort) so Retry can re-issue the list.
-  const ensureDbListForTarget = useCallback((targetId: number): void => {
-    if (
-      dbListLoadedTargetRef.current === targetId &&
-      dbListControllerRef.current &&
-      !dbListControllerRef.current.signal.aborted
-    ) {
-      return; // already claimed (loaded or in flight) for this target
-    }
+  const completionTargetId = activeWorksheet.targetResourceId;
+  const completionDatabase = activeWorksheet.activeDatabase;
+  const databaseListing = schemaStore.getDatabases(completionTargetId, COMPLETION_PAGE_SIZE);
+  const objectListing = completionDatabase
+    ? schemaStore.getObjects(completionTargetId, completionDatabase, COMPLETION_PAGE_SIZE, "")
+    : { items: [], pageInfo: null, status: "idle" as const };
+  const metadataError = databaseListing.status === "error" || objectListing.status === "error";
 
-    dbListControllerRef.current?.abort();
-    dbListLoadedTargetRef.current = targetId;
-    const controller = new AbortController();
-    dbListControllerRef.current = controller;
-
-    void getSchemaDatabases(targetId, { page: 1, pageSize: 100, signal: controller.signal }).then(
-      (response) => {
-        if (controller.signal.aborted || dbListLoadedTargetRef.current !== targetId) return;
-        setLoadedDatabases(response.items.map((db) => db.name));
-        defaultDatabaseRef.current = response.defaultDatabase;
-        if (response.defaultDatabase && dbListControllerRef.current === controller) {
-          applyDefaultToNullWorksheets(targetId, response.defaultDatabase);
-        }
-        // A null default leaves worksheets null: database-name completion
-        // stays available while object completion waits for an explicit
-        // selection.
-      },
-      () => {
-        // A real failure (not a superseded abort, which is the normal
-        // dedupe/cleanup path) releases the claim so Retry re-issues the list.
-        if (!controller.signal.aborted) {
-          dbListLoadedTargetRef.current = null;
-          if (dbListControllerRef.current === controller) {
-            dbListControllerRef.current = null;
-          }
-          setMetadataError(true);
-        }
-      },
-    );
-  }, [applyDefaultToNullWorksheets]);
-
-  // Own schema completion metadata by one active Schema Metadata Identity
-  // (targetResourceId, database). One database-list request supplies both the
-  // server-selected default and the available-database completions. Changing
-  // the target or database clears the previous identity's metadata before the
-  // new identity's requests settle; stale responses are rejected by generation.
   useEffect(() => {
     const targetId = activeWorksheet.targetResourceId;
-    const activeDb = activeWorksheet.activeDatabase;
-    const generation = ++metadataGenerationRef.current;
+    if (!worksheetTarget?.availableActions.run) return;
     const controller = new AbortController();
-
-    if (!worksheetTarget?.availableActions.run) {
-      dbListControllerRef.current?.abort();
-      dbListControllerRef.current = null;
-      setLoadedObjects([]);
-      setLoadedDatabases([]);
-      loadedObjectsIdentityRef.current = null;
-      dbListLoadedTargetRef.current = null;
-      defaultDatabaseRef.current = null;
-      return () => controller.abort();
+    const databases = schemaStore.getDatabases(targetId, COMPLETION_PAGE_SIZE);
+    if (databases.status === "idle" || databases.status === "error") {
+      void schemaStore.ensureDatabases(targetId, {
+        page: 1,
+        pageSize: COMPLETION_PAGE_SIZE,
+        replace: true,
+        signal: controller.signal,
+      });
     }
+    return () => controller.abort();
+  }, [activeWorksheet.targetResourceId, metadataRetryKey, schemaStore, worksheetTarget?.availableActions.run]);
 
-    const targetChanged = dbListLoadedTargetRef.current !== targetId;
-    // Before a database is selected, a null-db worksheet adopts the stored
-    // default, so the object identity it will use is the effective one.
-    const effectiveDb =
-      activeDb !== null
-        ? activeDb
-        : targetChanged
-          ? null
-          : defaultDatabaseRef.current;
-    const objectIdentityChanged =
-      loadedObjectsIdentityRef.current?.targetId !== targetId ||
-      loadedObjectsIdentityRef.current?.database !== effectiveDb;
-
-    // Identity transition: drop the prior identity's objects immediately so a
-    // slow response can never surface suggestions from the wrong context.
-    if (objectIdentityChanged) {
-      setLoadedObjects([]);
-      // Forget the cleared objects' identity so a later return to it reloads
-      // rather than wrongly reusing empty collections.
-      loadedObjectsIdentityRef.current = null;
-      setMetadataError(false);
+  useEffect(() => {
+    const targetId = activeWorksheet.targetResourceId;
+    const defaultDb = schemaStore.getDefaultDatabase(targetId);
+    if (activeWorksheet.activeDatabase === null && defaultDb) {
+      applyDefaultToNullWorksheets(targetId, defaultDb);
     }
-    if (targetChanged) {
-      setLoadedDatabases([]);
-      setMetadataError(false);
-      defaultDatabaseRef.current = null;
+  }, [
+    activeWorksheet.activeDatabase,
+    activeWorksheet.targetResourceId,
+    applyDefaultToNullWorksheets,
+    catalogVersion,
+    schemaStore,
+  ]);
+
+  const effectiveCompletionDatabase =
+    activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
+
+  useEffect(() => {
+    const targetId = activeWorksheet.targetResourceId;
+    if (!worksheetTarget?.availableActions.run || !effectiveCompletionDatabase) return;
+    const controller = new AbortController();
+    const objects = schemaStore.getObjects(
+      targetId,
+      effectiveCompletionDatabase,
+      COMPLETION_PAGE_SIZE,
+      "",
+    );
+    if (objects.status === "idle" || objects.status === "error") {
+      void schemaStore.ensureObjects(targetId, effectiveCompletionDatabase, {
+        page: 1,
+        pageSize: COMPLETION_PAGE_SIZE,
+        replace: true,
+        signal: controller.signal,
+      });
     }
-
-    const isStale = (): boolean =>
-      controller.signal.aborted || generation !== metadataGenerationRef.current;
-
-    const loadObjects = (database: string): void => {
-      void getSchemaObjects(targetId, { database, page: 1, pageSize: 100, signal: controller.signal }).then(
-        (response) => {
-          if (isStale()) return;
-          setLoadedObjects(response.items);
-          loadedObjectsIdentityRef.current = { targetId, database };
-        },
-        () => {
-          // A database- or object-list failure clears schema-derived
-          // completions for the identity and keeps only keyword completion,
-          // matching the warning shown to the operator.
-          if (!isStale()) {
-            setLoadedObjects([]);
-            setLoadedDatabases([]);
-            loadedObjectsIdentityRef.current = null;
-            setMetadataError(true);
-          }
-        },
-      );
-    };
-
-    ensureDbListForTarget(targetId);
-
-    if (effectiveDb !== null && objectIdentityChanged) {
-      // Database or worksheet switch within an already-loaded target: share the
-      // database list and reload only this identity's objects.
-      loadObjects(effectiveDb);
-    } else if (
-      activeDb === null &&
-      defaultDatabaseRef.current !== null &&
-      dbListLoadedTargetRef.current === targetId
-    ) {
-      applyDefaultToNullWorksheets(targetId, defaultDatabaseRef.current);
-    }
-
     return () => controller.abort();
   }, [
     activeWorksheet.targetResourceId,
-    activeWorksheet.activeDatabase,
-    ensureDbListForTarget,
-    applyDefaultToNullWorksheets,
+    effectiveCompletionDatabase,
     metadataRetryKey,
+    schemaStore,
     worksheetTarget?.availableActions.run,
   ]);
 
   function retryMetadata() {
-    // Retry reloads databases and objects together for the current identity.
-    dbListControllerRef.current?.abort();
-    dbListControllerRef.current = null;
-    dbListLoadedTargetRef.current = null;
-    loadedObjectsIdentityRef.current = null;
-    defaultDatabaseRef.current = null;
+    const targetId = activeWorksheet.targetResourceId;
+    schemaStore.invalidateDatabases(targetId, COMPLETION_PAGE_SIZE);
+    if (activeWorksheet.activeDatabase) {
+      schemaStore.invalidateObjects(targetId, activeWorksheet.activeDatabase, COMPLETION_PAGE_SIZE, "");
+    }
     setMetadataRetryKey((key) => key + 1);
   }
 
@@ -1254,139 +579,22 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "" && templateValuesReady;
 
   function handleParameterValueChange(name: string, value: string) {
-    setWorksheets((previous) =>
-      previous.map((ws) => {
-        if (ws.id !== activeWorksheetId) return ws;
-        const templateFieldErrors = { ...ws.templateFieldErrors };
-        delete templateFieldErrors[name];
-        if (ws.templateStatementId === null) {
-          return { ...ws, parameterValues: { ...ws.parameterValues, [name]: value }, templateFieldErrors };
-        }
-        // In template mode a value change invalidates any in-flight template
-        // run so a stale response bound to older values cannot render.
-        return {
-          ...ws,
-          parameterValues: { ...ws.parameterValues, [name]: value },
-          templateFieldErrors,
-          requestId: crypto.randomUUID(),
-          isExecuting: false,
-          error: null,
-        };
-      }),
-    );
-  }
-
-  // Template mode: Run and paging route through the saved-statement execution
-  // service. Values are converted to the typed wire encoding (strings and
-  // decimals stay strings, integers become numbers, booleans stay booleans).
-  function buildTemplateValues(): Readonly<Record<string, QuerySavedStatementParameterValue>> | null {
-    const values: Record<string, QuerySavedStatementParameterValue> = {};
-    for (const parameter of activeWorksheet.parameters) {
-      const raw = (activeWorksheet.parameterValues[parameter.name] ?? "").trim();
-      if (raw === "") return null;
-      switch (parameter.type) {
-        case "integer":
-          values[parameter.name] = Number(raw);
-          break;
-        case "boolean":
-          values[parameter.name] = raw === "true";
-          break;
-        case "string":
-        case "decimal":
-          values[parameter.name] = raw;
-          break;
-      }
-    }
-    return values;
-  }
-
-  /** Run one worksheet page: the template route in template mode, the ordinary
-   * execute route otherwise. Returns null when template values are incomplete. */
-  async function executeWorksheetPage(
-    targetId: number,
-    page: number,
-    pageSize: number,
-    maxRows: number,
-  ): Promise<QueryExecuteResponse | null> {
-    const templateStatementId = activeWorksheet.templateStatementId;
-    if (templateStatementId !== null) {
-      const values = buildTemplateValues();
-      if (!values) return null;
-      return executeSavedStatementTemplate(targetId, templateStatementId, {
-        values,
-        maxRows,
-        pagination: { page, pageSize },
-      });
-    }
-    return executeQueryTarget(targetId, {
-      statement: activeWorksheet.statement,
-      maxRows,
-      pagination: { page, pageSize },
-    });
-  }
-
-  /** Apply the outcome of one worksheet page under the requestId stale guard.
-   * Shared by Run and every paging action so template and ordinary errors are
-   * wired identically. */
-  async function applyWorksheetPage(
-    worksheetId: string,
-    requestId: string,
-    targetId: number,
-    page: number,
-    pageSize: number,
-    maxRows: number,
-    templateStatementId: number | null,
-  ): Promise<void> {
-    try {
-      const response = await executeWorksheetPage(targetId, page, pageSize, maxRows);
-      if (!response) return;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: response,
-        currentPage: response.pagination?.page ?? page,
-        resultPagination: response.pagination ?? null,
-      });
-    } catch (caught) {
-      const templateError = caught instanceof QueryExecuteError ? caught : null;
-      guardedUpdateWorksheet(worksheetId, requestId, {
-        result: null,
-        error: templateError,
-        ...(templateStatementId !== null
-          ? { templateFieldErrors: templateError?.details ?? {} }
-          : {}),
-      });
-    } finally {
-      guardedUpdateWorksheet(worksheetId, requestId, { isExecuting: false });
-    }
+    session.setParameterValue(name, value);
   }
 
   const editorThemePreference = normalizeEditorTheme(
     theme === "system" ? resolvedTheme ?? "system" : theme,
   );
 
-  useEffect(() => {
-    const storedHeight = parseStoredEditorHeight(
-      window.localStorage.getItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY),
-    );
-    if (storedHeight !== null) {
-      setEditorHeight(storedHeight);
-    }
-  }, []);
-
   // Restore the persisted paging preferences after hydration, before any
   // execution can happen. Both are per-worksheet state seeded from storage.
   useEffect(() => {
-    const storedPageSize = getPageSize();
-    setWorksheets((previous) =>
-      previous.map((ws) => ({ ...ws, pageSize: storedPageSize })),
-    );
-  }, []);
+    session.setPageSizeAll(getPageSize());
+  }, [session]);
 
   useEffect(() => {
-    const storedMaxRows = getMaxRows();
-    setWorksheets((previous) =>
-      previous.map((ws) => ({ ...ws, maxRows: storedMaxRows })),
-    );
-  }, []);
+    session.setMaxRowsAll(getMaxRows());
+  }, [session]);
 
   function handleEditorResizePointerDown(
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -1424,311 +632,59 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     window.localStorage.setItem(QUERY_EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
   }
 
-  const activeProvenanceRef = useRef(activeWorksheet.previewProvenance);
-  activeProvenanceRef.current = activeWorksheet.previewProvenance;
-
   function handleRelatedRecordsNavigate(foreignKey: string, localValues: readonly string[]) {
-    const provenance = activeProvenanceRef.current;
-    if (!provenance) return;
-
-    const targetId = activeWorksheet.targetResourceId;
-    const worksheetId = activeWorksheet.id;
-    const generation = activeWorksheet.relatedRecords.generation + 1;
-
-    updateActiveWorksheet({
-      relatedRecords: { status: "loading", generation, foreignKey },
-    });
-
-    void navigateRelatedRecords(targetId, {
-      source: {
-        database: provenance.database,
-        object: provenance.table,
-        kind: "table",
-        foreignKey,
-      },
-      localValues: [...localValues],
-    }).then(
-      (response) => {
-        setWorksheets((previous) => {
-          const ws = previous.find((w) => w.id === worksheetId);
-          if (
-            !ws ||
-            ws.targetResourceId !== targetId ||
-            ws.relatedRecords.generation !== generation ||
-            ws.previewProvenance?.statement !== provenance.statement
-          ) {
-            return previous;
-          }
-          return previous.map((w) =>
-            w.id === worksheetId
-              ? { ...w, relatedRecords: { status: "ready" as const, generation, response } }
-              : w,
-          );
-        });
-      },
-      (error: unknown) => {
-        setWorksheets((previous) => {
-          const ws = previous.find((w) => w.id === worksheetId);
-          if (
-            !ws ||
-            ws.targetResourceId !== targetId ||
-            ws.relatedRecords.generation !== generation
-          ) {
-            return previous;
-          }
-          const code = error instanceof QueryExecuteError
-            ? error.code
-            : "internal_error" as const;
-          return previous.map((w) =>
-            w.id === worksheetId
-              ? { ...w, relatedRecords: { status: "error" as const, generation, code } }
-              : w,
-          );
-        });
-      },
-    );
+    session.navigateRelated(foreignKey, localValues);
   }
 
   function handleCloseRelatedRecords() {
-    updateActiveWorksheet({
-      relatedRecords: { status: "idle", generation: activeWorksheet.relatedRecords.generation + 1 },
-    });
+    session.closeRelatedRecords();
   }
 
   async function handleRun() {
     if (!runEnabled || !activeMaxRowsDraftIsValid()) {
       return;
     }
-
-    const worksheetId = activeWorksheetId;
-    const targetId = activeWorksheet.targetResourceId;
-    const requestId = crypto.randomUUID();
-    const provenance = activeWorksheet.previewProvenance;
-    const statementChanged = provenance !== null && activeWorksheet.statement !== provenance.statement;
-
-    updateActiveWorksheet({
-      isExecuting: true,
-      error: null,
-      templateFieldErrors: {},
-      requestId,
-      isDirty: false,
-      relatedRecords: {
-        status: "idle",
-        generation: activeWorksheet.relatedRecords.generation + 1,
-      },
-      explain: invalidateExplainState(activeWorksheet.explain),
-      ...(statementChanged ? { previewProvenance: null } : {}),
-    });
-
-    const templateStatementId = activeWorksheet.templateStatementId;
-    await applyWorksheetPage(worksheetId, requestId, targetId, 1, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
-    void refreshHistory(worksheetId);
+    await session.run();
+    void refreshHistory(session.activeId);
   }
 
   async function handleNextPage() {
-    const result = activeWorksheet.result;
-    const pagination = activeWorksheet.resultPagination;
-    if (!activeMaxRowsDraftIsValid() || !result || !pagination?.hasNextPage || activeWorksheet.isExecuting) return;
-
-    const worksheetId = activeWorksheetId;
-    const targetId = activeWorksheet.targetResourceId;
-    const requestId = crypto.randomUUID();
-    const nextPage = activeWorksheet.currentPage + 1;
-
-    updateActiveWorksheet({
-      isExecuting: true,
-      error: null,
-      templateFieldErrors: {},
-      requestId,
-    });
-
-    const templateStatementId = activeWorksheet.templateStatementId;
-    await applyWorksheetPage(worksheetId, requestId, targetId, nextPage, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
+    if (!activeMaxRowsDraftIsValid()) return;
+    await session.nextPage();
   }
 
   async function handlePreviousPage() {
-    const pagination = activeWorksheet.resultPagination;
-    if (
-      !activeMaxRowsDraftIsValid() ||
-      !pagination ||
-      activeWorksheet.currentPage <= 1 ||
-      !pagination.hasPreviousPage ||
-      activeWorksheet.isExecuting
-    ) return;
-
-    const worksheetId = activeWorksheetId;
-    const targetId = activeWorksheet.targetResourceId;
-    const requestId = crypto.randomUUID();
-    const prevPage = activeWorksheet.currentPage - 1;
-
-    updateActiveWorksheet({
-      isExecuting: true,
-      error: null,
-      templateFieldErrors: {},
-      requestId,
-    });
-
-    const templateStatementId = activeWorksheet.templateStatementId;
-    await applyWorksheetPage(worksheetId, requestId, targetId, prevPage, activeWorksheet.pageSize, activeWorksheet.maxRows, templateStatementId);
+    if (!activeMaxRowsDraftIsValid()) return;
+    await session.previousPage();
   }
 
   async function handlePageSizeChange(newSize: number) {
-    if (!activeMaxRowsDraftIsValid() || activeWorksheet.isExecuting) return;
-
+    if (!activeMaxRowsDraftIsValid()) return;
     const validPageSize = QUERY_RESULT_PAGE_SIZES.find((value) => value === newSize);
     if (validPageSize === undefined) return;
-
     persistPageSize(validPageSize);
-
-    const worksheetId = activeWorksheetId;
-    const targetId = activeWorksheet.targetResourceId;
-    const requestId = crypto.randomUUID();
-
-    updateActiveWorksheet({
-      isExecuting: true,
-      error: null,
-      templateFieldErrors: {},
-      requestId,
-      currentPage: 1,
-      pageSize: validPageSize,
-      resultPagination: null,
-    });
-
-    const templateStatementId = activeWorksheet.templateStatementId;
-    await applyWorksheetPage(worksheetId, requestId, targetId, 1, validPageSize, activeWorksheet.maxRows, templateStatementId);
+    await session.changePageSize(validPageSize);
   }
 
   async function handleExplain() {
-    // Explain is disabled in template mode: the editor shows the placeholder
-    // SQL which must never reach the ordinary explain route.
-    const statement = activeWorksheet.statement.trim();
-    const canExplain =
-      actions?.explain === true &&
-      !templateMode &&
-      statement !== "";
-    if (!canExplain || activeWorksheet.isExecuting || activeWorksheet.explain.status === "loading") {
-      return;
-    }
-
-    const worksheetId = activeWorksheetId;
-    const targetId = activeWorksheet.targetResourceId;
-    const statementIdentity = statement;
-    const requestGeneration = activeWorksheet.explain.requestGeneration + 1;
-    // Invalidate any in-flight Run by bumping requestId synchronously.
-    const requestId = crypto.randomUUID();
-
-    updateActiveWorksheet({
-      requestId,
-      isExecuting: false,
-      explain: {
-        status: "loading",
-        requestGeneration,
-        statementIdentity,
-        targetId,
-        response: null,
-        errorCode: null,
-      },
-    });
-
-    try {
-      const response = await explainQueryTarget(targetId, { statement });
-      setWorksheets((previous) => {
-        const ws = previous.find((w) => w.id === worksheetId);
-        if (
-          !ws ||
-          ws.explain.requestGeneration !== requestGeneration ||
-          ws.targetResourceId !== targetId ||
-          ws.explain.statementIdentity !== statementIdentity
-        ) {
-          return previous;
-        }
-        return previous.map((w) =>
-          w.id === worksheetId
-            ? {
-                ...w,
-                explain: {
-                  status: "ready" as const,
-                  requestGeneration,
-                  statementIdentity,
-                  targetId,
-                  response,
-                  errorCode: null,
-                },
-              }
-            : w,
-        );
-      });
-    } catch (caught) {
-      const code =
-        caught instanceof QueryExecuteError ? caught.code : ("internal_error" as const);
-      setWorksheets((previous) => {
-        const ws = previous.find((w) => w.id === worksheetId);
-        if (
-          !ws ||
-          ws.explain.requestGeneration !== requestGeneration ||
-          ws.targetResourceId !== targetId ||
-          ws.explain.statementIdentity !== statementIdentity
-        ) {
-          return previous;
-        }
-        return previous.map((w) =>
-          w.id === worksheetId
-            ? {
-                ...w,
-                explain: {
-                  status: "error" as const,
-                  requestGeneration,
-                  statementIdentity,
-                  targetId,
-                  response: null,
-                  errorCode: code,
-                },
-              }
-            : w,
-        );
-      });
-    }
+    if (actions?.explain !== true) return;
+    await session.explain();
   }
 
   function handleCloseExplain() {
-    updateActiveWorksheet({
-      explain: invalidateExplainState(activeWorksheet.explain),
-    });
+    session.closeExplain();
   }
 
   function handleFormat() {
-    const worksheet = activeWorksheet;
+    localWorkspaceChangedRef.current = true;
+    const worksheet = session.active;
     const target = targetsById.get(worksheet.targetResourceId);
     const result = formatQueryStatement(
       target?.connectionContext.engine ?? "sql",
       worksheet.statement,
     );
-
     if (result.ok) {
-      const statementChanged = result.formatted !== worksheet.statement;
-      updateActiveWorksheet({
-        statement: result.formatted,
-        formatError: null,
-        isDirty: true,
-        ...(statementChanged
-          ? {
-              previewProvenance: null,
-              relatedRecords: {
-                status: "idle" as const,
-                generation: worksheet.relatedRecords.generation + 1,
-              },
-              explain: invalidateExplainState(worksheet.explain),
-              currentPage: 1,
-              resultPagination: null,
-              // Formatting rewrites the SQL text, so template mode (whose
-              // statement ID no longer matches the text) must exit.
-              parameters: [],
-              parameterValues: {},
-              templateStatementId: null,
-              templateFieldErrors: {},
-            }
-          : {}),
-      });
+      session.applyFormat(result.formatted, null);
       const view = editorViewRef.current;
       if (view) {
         view.dispatch({
@@ -1736,16 +692,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         });
       }
     } else {
-      updateActiveWorksheet({ formatError: result.error });
+      session.applyFormat(worksheet.statement, result.error);
     }
   }
 
-  const retargetWorksheet = retargetDialog
-    ? worksheets.find((worksheet) => worksheet.id === retargetDialog.worksheetId)
-    : undefined;
-  const retargetCurrentTarget = retargetWorksheet
-    ? targetsById.get(retargetWorksheet.targetResourceId)
-    : undefined;
 
   return (
     <section
@@ -1944,7 +894,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             activeDatabase={activeWorksheet.activeDatabase}
             onDatabaseSelect={(activeDatabase) => {
               localWorkspaceChangedRef.current = true;
-              updateActiveWorksheet({ activeDatabase });
+              session.setActiveDatabase(activeDatabase);
             }}
             onInsertObject={({ database, name }) => {
               const view = editorViewRef.current;
@@ -1990,15 +940,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onMaxRowsChange={(value) => {
                 const next = normalizeMaxRows(value, activeWorksheet.maxRows);
                 persistMaxRows(next);
-                // Invalidate any in-flight Run: a response produced under the
-                // old maxRows must not render under the new setting.
-                updateActiveWorksheet({
-                  maxRows: next,
-                  requestId: crypto.randomUUID(),
-                  isExecuting: false,
-                  currentPage: 1,
-                  resultPagination: null,
-                });
+                session.setMaxRows(activeWorksheet.id, next);
               }}
               onMaxRowsDraftValidityChange={(valid) => {
                 activeMaxRowsDraftValidityRef.current = {
@@ -2014,6 +956,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 actions?.explain === true &&
                 activeWorksheet.statement.trim() !== ""
               }
+              exportEnabled={actions?.export === true}
               explainState={activeWorksheet.explain}
               onExplain={handleExplain}
               onCloseExplain={handleCloseExplain}
@@ -2030,8 +973,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               schemaStore={schemaStore}
               targetId={activeWorksheet.targetResourceId}
               activeDatabase={activeWorksheet.activeDatabase}
-              loadedDatabases={loadedDatabases}
-              loadedObjects={loadedObjects}
               metadataError={metadataError}
               onRetryMetadata={retryMetadata}
               previewProvenance={activeWorksheet.previewProvenance}
@@ -2044,7 +985,6 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onNextPage={handleNextPage}
               onPreviousPage={handlePreviousPage}
               onPageSizeChange={handlePageSizeChange}
-              exportEnabled={actions?.export === true}
             />
           </div>
         ) : (
@@ -2129,15 +1069,24 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               <div className="rounded-lg border border-border p-3">
                 <p className="font-medium">{t("retarget.currentTarget")}</p>
                 <p className="text-muted-foreground">
-                  {retargetCurrentTarget?.displayName ?? t("workspace.unavailableTargetLabel", {
-                    id: String(retargetWorksheet?.targetResourceId ?? ""),
-                  })}
+                  {(() => {
+                    const retargetWorksheet = worksheets.find((ws) => ws.id === retargetDialog.worksheetId);
+                    const retargetCurrentTarget = targetsById.get(retargetWorksheet?.targetResourceId ?? 0);
+                    return retargetCurrentTarget?.displayName ?? t("workspace.unavailableTargetLabel", {
+                      id: String(retargetWorksheet?.targetResourceId ?? ""),
+                    });
+                  })()}
                 </p>
-                {retargetCurrentTarget ? (
-                  <p className="text-xs text-muted-foreground">
-                    {retargetCurrentTarget.connectionContext.environment} • {retargetCurrentTarget.connectionContext.engine} • {retargetCurrentTarget.connectionContext.host}
-                  </p>
-                ) : null}
+                {(() => {
+                  const retargetCurrentTarget = targetsById.get(
+                    worksheets.find((ws) => ws.id === retargetDialog.worksheetId)?.targetResourceId ?? 0,
+                  );
+                  return retargetCurrentTarget ? (
+                    <p className="text-xs text-muted-foreground">
+                      {retargetCurrentTarget.connectionContext.environment} • {retargetCurrentTarget.connectionContext.engine} • {retargetCurrentTarget.connectionContext.host}
+                    </p>
+                  ) : null;
+                })()}
               </div>
               <div className="rounded-lg border border-border p-3">
                 <p className="font-medium">{t("retarget.newTarget")}</p>
@@ -2366,8 +1315,6 @@ function ReadyWorksheet({
   schemaStore: QuerySchemaStore;
   targetId: number;
   activeDatabase: string | null;
-  loadedDatabases: readonly string[];
-  loadedObjects: readonly ObjectSummary[];
   metadataError: boolean;
   onRetryMetadata: () => void;
   previewProvenance: PreviewProvenance | null;
@@ -2586,6 +1533,7 @@ function ReadyWorksheet({
           <>
             <ExecuteResult
               result={result}
+              exportEnabled={exportEnabled}
               navigationCapability={
                 previewProvenance && !isExecuting
                   ? {
@@ -2600,7 +1548,6 @@ function ReadyWorksheet({
               }
               relatedRecordsTriggerRef={relatedRecordsTriggerRef}
               onRelatedRecordsIneligible={onCloseRelatedRecords}
-              exportEnabled={exportEnabled}
             />
             {resultPagination && (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3" data-testid="result-paging">
@@ -2668,95 +1615,6 @@ function ReadyWorksheet({
       </div>
     </div>
   );
-}
-
-/**
- * Normalize a QueryExecuteResponse for safe rendering.
- *
- * The backend may send `rows: null` for zero-row results (legacy mixed-version
- * behavior). This normalizes that specific proven shape to an empty array so
- * ResultTable never receives null rows.
- *
- * For malformed responses (non-array rows/columns, inconsistent rowCount),
- * returns a controlled error message instead of allowing a TypeError crash.
- */
-const VALID_DISCLOSURE_MODES = new Set(["raw_copy_allowed", "masked_no_copy", "blocked"]);
-const MASKED_SENTINEL = "[MASKED]";
-
-function normalizeExecuteResponse(
-  raw: QueryExecuteResponse,
-): { ok: true; response: QueryExecuteResponse } | { ok: false; error: string } {
-  if (!Array.isArray(raw.columns)) {
-    return { ok: false, error: "Invalid response: columns is not an array" };
-  }
-  for (const col of raw.columns) {
-    if (typeof col?.name !== "string" || col.name.length === 0) {
-      return { ok: false, error: "Invalid response: column missing name" };
-    }
-    if (!VALID_DISCLOSURE_MODES.has(col.displayMode)) {
-      return { ok: false, error: "Invalid response: column has unknown disclosure mode" };
-    }
-    if (typeof col.copyAllowed !== "boolean") {
-      return { ok: false, error: "Invalid response: copyAllowed must be a boolean" };
-    }
-    if (col.displayMode === "raw_copy_allowed" && col.copyAllowed !== true) {
-      return { ok: false, error: "Invalid response: raw_copy_allowed column must have copyAllowed=true" };
-    }
-    if (col.displayMode === "masked_no_copy" && col.copyAllowed !== false) {
-      return { ok: false, error: "Invalid response: masked_no_copy column must have copyAllowed=false" };
-    }
-    if (col.displayMode === "blocked" && col.copyAllowed !== false) {
-      return { ok: false, error: "Invalid response: blocked column must have copyAllowed=false" };
-    }
-  }
-
-  if (raw.rows === null || raw.rows === undefined) {
-    if (raw.status === "success" && raw.rowCount === 0) {
-      return { ok: true, response: { ...raw, rows: [] } };
-    }
-    return { ok: false, error: "Invalid response: rows is null with non-zero rowCount" };
-  }
-
-  if (!Array.isArray(raw.rows)) {
-    return { ok: false, error: "Invalid response: rows is not an array" };
-  }
-
-  if (raw.rows.length !== raw.rowCount) {
-    return { ok: false, error: "Invalid response: row count mismatch" };
-  }
-
-  for (const row of raw.rows) {
-    if (!Array.isArray(row)) {
-      return { ok: false, error: "Invalid response: row is not an array" };
-    }
-    if (row.length !== raw.columns.length) {
-      return { ok: false, error: "Invalid response: row width does not match column count" };
-    }
-  }
-
-  // Validate masked_no_copy columns: non-null cells must equal [MASKED] sentinel
-  for (let colIdx = 0; colIdx < raw.columns.length; colIdx++) {
-    const col = raw.columns[colIdx];
-    if (col.displayMode === "masked_no_copy") {
-      for (let rowIdx = 0; rowIdx < raw.rows.length; rowIdx++) {
-        const cell = raw.rows[rowIdx][colIdx];
-        if (cell !== null && cell !== MASKED_SENTINEL) {
-          return { ok: false, error: "Invalid response: masked_no_copy column contains non-masked value" };
-        }
-      }
-    }
-  }
-
-  return {
-    ok: true,
-    response: {
-      ...raw,
-      // Blocked cells must never reach the result grid or CSV serializer as raw values.
-      rows: raw.rows.map((row) => row.map((cell, index) =>
-        raw.columns[index]?.displayMode === "blocked" ? "[blocked]" : cell,
-      )),
-    },
-  };
 }
 
 function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef, onRelatedRecordsIneligible, exportEnabled }: { result: QueryExecuteResponse; navigationCapability?: NavigationCapability; relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>; onRelatedRecordsIneligible?: () => void; exportEnabled: boolean }) {
@@ -3260,6 +2118,23 @@ function ResultTable({
     }
   }
 
+  function handleExportCsv() {
+    if (!exportEnabled) return;
+    const url = URL.createObjectURL(
+      new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "query-results.csv";
+    document.body.append(anchor);
+    try {
+      anchor.click();
+    } finally {
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+  }
+
   async function handleCopy() {
     let text: string;
     if (selectedCell) {
@@ -3278,23 +2153,6 @@ function ResultTable({
       success ? t("result.copySuccess") : t("result.copyFailed"),
       success ? "success" : "error",
     );
-  }
-
-  function handleExportCsv() {
-    if (!exportEnabled) return;
-    const url = URL.createObjectURL(
-      new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "query-results.csv";
-    document.body.append(anchor);
-    try {
-      anchor.click();
-    } finally {
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    }
   }
 
   function copyButtonLabel(): string {

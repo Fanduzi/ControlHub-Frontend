@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { QueryExecuteError } from "@/services/query-executions";
-import { WorksheetSession } from "@/lib/worksheet-session";
+import { MAX_WORKSHEETS, WorksheetSession } from "@/lib/worksheet-session";
 import type { QueryExecuteResponse } from "@/types/query-execution";
 import type { QuerySavedStatementRecord } from "@/types/query-saved-statement";
 
@@ -153,5 +153,49 @@ describe("WorksheetSession run routing", () => {
     await session.run();
     expect(session.active.templateFieldErrors).toEqual({ status: "invalid" });
     expect(session.active.result).toBeNull();
+  });
+});
+
+describe("WorksheetSession persisted drafts", () => {
+  it("hydrates saved drafts without carrying result or template state", () => {
+    const session = createSession();
+    session.replaceStatement("select 9");
+    session.hydrate(
+      [
+        {
+          id: "saved-orders",
+          name: "Orders draft",
+          targetResourceId: 30,
+          statement: "select * from orders",
+          activeDatabase: "orders",
+        },
+      ],
+      1,
+    );
+    expect(session.active.id).toBe("saved-orders");
+    expect(session.active.statement).toBe("select * from orders");
+    expect(session.active.activeDatabase).toBe("orders");
+    expect(session.active.result).toBeNull();
+    expect(session.active.templateStatementId).toBeNull();
+    expect(session.persistedSnapshot()).toEqual([
+      {
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select * from orders",
+        activeDatabase: "orders",
+      },
+    ]);
+  });
+
+  it("refuses a thirty-third worksheet so persist and restore stay inside the cap", () => {
+    const session = createSession();
+    for (let index = 0; index < MAX_WORKSHEETS - 1; index += 1) {
+      expect(session.add(1)).not.toBeNull();
+    }
+    expect(session.list).toHaveLength(MAX_WORKSHEETS);
+    expect(session.add(1)).toBeNull();
+    expect(session.restoreDraft({ targetId: 1, statement: "select 3", activeDatabase: null })).toBeNull();
+    expect(session.list).toHaveLength(MAX_WORKSHEETS);
   });
 });

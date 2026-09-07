@@ -26,9 +26,6 @@ export function normalizeExecuteResponse(raw: QueryExecuteResponse): ResultEnvel
     if (!VALID_DISCLOSURE_MODES.has(col.displayMode)) {
       return { ok: false, error: "Invalid response: column has unknown disclosure mode" };
     }
-    if (col.displayMode === "blocked") {
-      return { ok: false, error: "Invalid response: successful result contains blocked column" };
-    }
     if (typeof col.copyAllowed !== "boolean") {
       return { ok: false, error: "Invalid response: copyAllowed must be a boolean" };
     }
@@ -37,6 +34,9 @@ export function normalizeExecuteResponse(raw: QueryExecuteResponse): ResultEnvel
     }
     if (col.displayMode === "masked_no_copy" && col.copyAllowed !== false) {
       return { ok: false, error: "Invalid response: masked_no_copy column must have copyAllowed=false" };
+    }
+    if (col.displayMode === "blocked" && col.copyAllowed !== false) {
+      return { ok: false, error: "Invalid response: blocked column must have copyAllowed=false" };
     }
   }
 
@@ -76,5 +76,15 @@ export function normalizeExecuteResponse(raw: QueryExecuteResponse): ResultEnvel
     }
   }
 
-  return { ok: true, response: raw };
+  return {
+    ok: true,
+    response: {
+      ...raw,
+      rows: raw.rows.map((row) =>
+        row.map((cell, index) =>
+          raw.columns[index]?.displayMode === "blocked" ? "[blocked]" : cell,
+        ),
+      ),
+    },
+  };
 }

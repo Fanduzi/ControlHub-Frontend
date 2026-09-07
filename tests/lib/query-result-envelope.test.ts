@@ -49,13 +49,15 @@ describe("normalizeExecuteResponse", () => {
     if (envelope.ok) expect(envelope.response.rows).toEqual([]);
   });
 
-  it("rejects a blocked column on a successful result", () => {
+  it("redacts blocked cells before they reach the grid", () => {
     const envelope = normalizeExecuteResponse(
       result({
         columns: [column({ displayMode: "blocked", copyAllowed: false })],
+        rows: [["secret"]],
       }),
     );
-    expect(envelope.ok).toBe(false);
+    expect(envelope.ok).toBe(true);
+    if (envelope.ok) expect(envelope.response.rows).toEqual([["[blocked]"]]);
   });
 
   it("rejects masked_no_copy cells that are not the sentinel", () => {
