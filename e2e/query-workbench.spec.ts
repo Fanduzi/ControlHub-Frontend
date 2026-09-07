@@ -5322,6 +5322,11 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await page.locator('[data-slot="dropdown-menu-trigger"]').click();
     await page.getByRole("menuitem", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
+    // Logout clears the Operator Session cookie before navigation finishes.
+    // In-flight schema-catalog / identity BFF reads then fail closed 401;
+    // Chromium echoes that as a console error. Consume one echo so the
+    // logout race is not treated as an unexpected console failure.
+    consoleMessages = takeExpectedConsoleStatusError(consoleMessages, 401);
 
     await loginViaUI(page);
 
