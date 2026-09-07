@@ -418,6 +418,46 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     ]);
   });
 
+  it("does not send a queued workspace save after the shell unmounts", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      }],
+    });
+    const firstSave = Promise.withResolvers<Awaited<ReturnType<typeof putQueryWorkspace>>>();
+    mockPutQueryWorkspace.mockReturnValueOnce(firstSave.promise);
+    const user = userEvent.setup();
+    const view = renderReady();
+
+    await screen.findByRole("tab", { name: "Orders draft" });
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select first_draft");
+    await waitFor(() => expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1));
+
+    await user.clear(statement);
+    await user.type(statement, "select latest_draft");
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    await act(async () => {
+      firstSave.resolve({
+        version: 4,
+        updatedAt: "2026-08-30T00:01:00Z",
+        worksheets: [],
+      });
+    });
+
+    expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses to add a thirty-third worksheet", async () => {
     mockGetQueryWorkspace.mockResolvedValueOnce({
       version: 3,

@@ -202,19 +202,41 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     void loadWorkspace();
   }, [loadWorkspace]);
 
+  const persistAliveRef = useRef(true);
+  const persistAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    persistAliveRef.current = true;
+    const controller = new AbortController();
+    persistAbortRef.current = controller;
+    return () => {
+      persistAliveRef.current = false;
+      queuedWorkspaceSaveRef.current = null;
+      controller.abort();
+      persistAbortRef.current = null;
+      workspaceSaveInFlightRef.current = false;
+    };
+  }, []);
+
   const saveWorkspace = useCallback(function persistWorkspace(
     version: number,
     signature: string,
     snapshot: readonly QueryWorkspaceWorksheet[],
   ): void {
+    if (!persistAliveRef.current) return;
     if (workspaceSaveInFlightRef.current) {
       queuedWorkspaceSaveRef.current = { signature, worksheets: snapshot };
       return;
     }
 
     workspaceSaveInFlightRef.current = true;
-    void putQueryWorkspace(version, snapshot).then(
+    void putQueryWorkspace(version, snapshot, persistAbortRef.current?.signal).then(
       (workspace) => {
+        if (!persistAliveRef.current) {
+          workspaceSaveInFlightRef.current = false;
+          queuedWorkspaceSaveRef.current = null;
+          return;
+        }
         savedWorkspaceSignatureRef.current = signature;
         setWorkspaceVersion(workspace.version);
         setWorkspaceProblem(null);
@@ -229,6 +251,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       (error: unknown) => {
         queuedWorkspaceSaveRef.current = null;
         workspaceSaveInFlightRef.current = false;
+        if (!persistAliveRef.current) return;
         if (error instanceof QueryExecuteError && error.code === "query_workspace_conflict") {
           setWorkspaceConflict(true);
           return;

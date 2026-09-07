@@ -19,6 +19,7 @@ import {
   collectNetworkErrors,
   takeExpectedConsoleStatusError,
   takeExpectedNetworkError,
+  takeOptionalNetworkError,
   type ConsoleMessage,
   type ExpectedHttpError,
 } from "./harness/console-guards";
@@ -5337,10 +5338,15 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await page.getByRole("menuitem", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
     // Logout clears the Operator Session cookie before navigation finishes.
-    // In-flight schema-catalog / identity BFF reads then fail closed 401;
-    // Chromium echoes that as a console error. Consume one echo so the
-    // logout race is not treated as an unexpected console failure.
+    // In-flight schema-catalog / identity / workspace-persist BFF calls then
+    // fail closed 401. Consume one console echo and at most one workspace PUT
+    // so the logout race is not treated as an unexpected failure.
     consoleMessages = takeExpectedConsoleStatusError(consoleMessages, 401);
+    networkErrors = takeOptionalNetworkError(networkErrors, {
+      method: "PUT",
+      url: new URL("/api/proxy/query-workspace", page.url()).href,
+      status: 401,
+    });
 
     await loginViaUI(page);
 

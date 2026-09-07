@@ -32,7 +32,8 @@ Authorization Error and is not wrapped as a workbench feature error.
 
 `query-workspace.ts` transports only the server-owned worksheet aggregate;
 callers provide `expectedVersion` and handle `query_workspace_conflict`
-explicitly rather than merging or overwriting drafts.
+explicitly rather than merging or overwriting drafts. PUT accepts an optional
+abort signal so a leaving page can cancel an in-flight persist.
 
 `audits.ts` maps a 403 from resource audit reads to an empty timeline for
 non-admin operators (the server stays authoritative); global audit list search

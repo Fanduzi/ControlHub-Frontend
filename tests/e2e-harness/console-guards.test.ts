@@ -6,8 +6,10 @@ import {
   parseNetworkErrorMessage,
   takeExpectedConsoleStatusError,
   takeExpectedNetworkError,
+  takeOptionalNetworkError,
   type ConsoleGuardOptions,
   type ConsoleMessage,
+  type ExpectedHttpError,
 } from "../../e2e/harness/console-guards";
 
 describe("isAllowedConsoleMessage", () => {
@@ -221,6 +223,41 @@ describe("takeExpectedNetworkError (one-shot exact full-URL match)", () => {
 
   it("throws when the expected error is absent", () => {
     expect(() => takeExpectedNetworkError([], exact42)).toThrow(/none matched/);
+  });
+});
+
+describe("takeOptionalNetworkError", () => {
+  const workspace401: ExpectedHttpError = {
+    method: "PUT",
+    url: "http://localhost:3100/api/proxy/query-workspace",
+    status: 401,
+  };
+
+  it("consumes one matching error when present", () => {
+    const remaining = takeOptionalNetworkError(
+      ["PUT http://localhost:3100/api/proxy/query-workspace → 401"],
+      workspace401,
+    );
+    expect(remaining).toEqual([]);
+  });
+
+  it("returns the list unchanged when the error is absent", () => {
+    const remaining = takeOptionalNetworkError(
+      ["POST http://localhost:3100/api/proxy/query-targets/42/execute → 403"],
+      workspace401,
+    );
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("leaves a second matching 401 for assertClean", () => {
+    const remaining = takeOptionalNetworkError(
+      [
+        "PUT http://localhost:3100/api/proxy/query-workspace → 401",
+        "PUT http://localhost:3100/api/proxy/query-workspace → 401",
+      ],
+      workspace401,
+    );
+    expect(remaining).toEqual(["PUT http://localhost:3100/api/proxy/query-workspace → 401"]);
   });
 });
 

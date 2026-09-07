@@ -126,6 +126,30 @@ export function takeExpectedNetworkError(
 }
 
 /**
+ * Remove one matching network error if present. Missing is acceptable for
+ * logout races where an in-flight BFF call may or may not complete as 401
+ * before abort. A second match is still left for assertClean.
+ */
+export function takeOptionalNetworkError(
+  errors: string[],
+  expected: ExpectedHttpError,
+): string[] {
+  const expectedUrl = normalizeRequestUrl(expected.url);
+  const idx = errors.findIndex((message) => {
+    const match = message.match(NETWORK_ERROR_RE);
+    if (!match) return false;
+    const [, method, url, statusText] = match;
+    return (
+      method === expected.method &&
+      normalizeRequestUrl(url!) === expectedUrl &&
+      Number(statusText) === expected.status
+    );
+  });
+  if (idx === -1) return errors;
+  return errors.filter((_, i) => i !== idx);
+}
+
+/**
  * Remove exactly one browser console error that echoes an HTTP status code
  * (Chromium: "Failed to load resource: the server responded with a status of 400").
  * One-shot only — a second console error with the same status still fails assertClean.

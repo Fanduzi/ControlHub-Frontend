@@ -38,6 +38,7 @@ describe("query workspace service", () => {
     const [path, init] = mockApiClient.mock.calls[0]!;
     expect(path).toBe("/query-workspace");
     expect((init as RequestInit).method).toBe("PUT");
+    expect((init as RequestInit).signal).toBeUndefined();
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       expectedVersion: 0,
       worksheets: [{
@@ -48,5 +49,15 @@ describe("query workspace service", () => {
         activeDatabase: "orders",
       }],
     });
+  });
+
+  it("forwards an abort signal on PUT so a leaving page can cancel persist", async () => {
+    mockApiClient.mockResolvedValueOnce({ worksheets: [], version: 1, updatedAt: "2026-08-30T00:00:00Z" });
+    const controller = new AbortController();
+
+    await putQueryWorkspace(0, [], controller.signal);
+
+    const init = mockApiClient.mock.calls[0]![1] as RequestInit;
+    expect(init.signal).toBe(controller.signal);
   });
 });

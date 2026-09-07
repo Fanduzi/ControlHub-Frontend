@@ -28,7 +28,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | harness/backend-health.ts | Backend health check |
 | harness/auth.ts | UI login helper (provisioned fixture identities) |
 | harness/fixtures.ts | Fail-loud fixture credential resolver (no seed fallback) |
-| harness/console-guards.ts | Console/network error guards |
+| harness/console-guards.ts | Console/network error guards, including one-shot expected errors and optional consume for logout-race 401s |
 | harness/dev-server-wrapper.sh | Dev server wrapper for E2E |
 | harness/interaction-stability.ts | Interaction stability helpers |
 | harness/saved-statement-teardown.ts | Query Workbench Saved Statement teardown: record create ids, `afterEach` DELETE (404 is success; any other failure fails the test) |

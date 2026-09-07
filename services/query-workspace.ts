@@ -21,12 +21,14 @@ export async function getQueryWorkspace(): Promise<QueryWorkspace> {
 export async function putQueryWorkspace(
   expectedVersion: number,
   worksheets: readonly QueryWorkspaceWorksheet[],
+  signal?: AbortSignal,
 ): Promise<QueryWorkspace> {
   const body: QueryWorkspacePutRequest = { expectedVersion, worksheets };
   try {
     return await apiClient<QueryWorkspace>("/query-workspace", {
       method: "PUT",
       body: JSON.stringify(body),
+      ...(signal ? { signal } : {}),
     });
   } catch (error) {
     throw toQueryExecuteError(error);
