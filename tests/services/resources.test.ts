@@ -11,6 +11,7 @@ import {
   getOverviewMetrics,
   getResourceRelationRules,
   listAllResources,
+  listResourcesByIds,
   listAttentionResources,
   listClusterMembers,
   listDatabaseResources,
@@ -149,6 +150,38 @@ describe("listResources", () => {
     ]);
     expect(apiClientMock).toHaveBeenNthCalledWith(1, "/resources?pageSize=1&environmentId=101");
     expect(apiClientMock).toHaveBeenNthCalledWith(2, "/resources?page=2&pageSize=1&environmentId=101");
+  });
+
+  it("loads requested resource ids once and skips empty lookups", async () => {
+    const first = {
+      id: 2,
+      resourceType: "database_instance" as const,
+      resourceSubtype: "mysql",
+      name: "orders-db-primary",
+      displayName: "Orders DB Primary",
+      environmentId: 101,
+      ownerId: 201,
+      lifecycleStatus: "running",
+      healthStatus: "healthy",
+      source: "manual",
+      externalId: "mysql:prod:orders-primary",
+      labels: {},
+      createdAt: "2026-04-14T00:00:00Z",
+      updatedAt: "2026-04-14T00:00:00Z",
+      archivedAt: null,
+      archivedBy: null,
+      archiveReason: null,
+    };
+    const second = { ...first, id: 14, displayName: "Orders DB Cluster", resourceType: "database_cluster" as const };
+    apiClientMock
+      .mockResolvedValueOnce({ resource: first })
+      .mockResolvedValueOnce({ resource: second });
+
+    await expect(listResourcesByIds([])).resolves.toEqual([]);
+    await expect(listResourcesByIds([first.id, second.id, first.id])).resolves.toEqual([first, second]);
+    expect(apiClientMock).toHaveBeenCalledTimes(2);
+    expect(apiClientMock).toHaveBeenNthCalledWith(1, "/resources/2");
+    expect(apiClientMock).toHaveBeenNthCalledWith(2, "/resources/14");
   });
 
   it("sends resourceType filter for database resources", async () => {

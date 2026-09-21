@@ -80,12 +80,6 @@ export const consoleNavigation: readonly ConsoleNavigationItem[] = [
   },
 ] as const;
 
-export const environmentOptions = [
-  { value: "production" },
-  { value: "staging" },
-  { value: "development" },
-] as const;
-
 export type ConsoleSectionId = ConsoleNavigationItem["id"];
 
 export function getConsoleSectionId(pathname: string) {

@@ -78,8 +78,8 @@ import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-ident
 import {
   COMPLETION_PAGE_SIZE,
   useSchemaCatalogVersion,
-  type QuerySchemaStore,
-} from "@/lib/query-schema-store";
+  type SchemaCatalog,
+} from "@/lib/schema-catalog";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -102,7 +102,7 @@ type QueryEditorShellProps = {
   targetSelectionVersion: number;
   onActiveTargetChange: (resourceId: number) => void;
   onActiveDatabaseChange?: (database: string | null) => void;
-  schemaStore: QuerySchemaStore;
+  schemaStore: SchemaCatalog;
   pendingPreviewEvent?: { id: number; request: TablePreviewRequest } | null;
   onPreviewConsumed?: () => void;
 };
@@ -312,13 +312,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     session.activate(worksheetId);
   }, [session]);
 
-  function replaceActiveStatement(
-    statement: string,
-    parameters: readonly QuerySavedStatementParameterDefinition[] = [],
-    formatError: string | null = null,
-  ) {
+  function editActiveStatement(statement: string) {
     localWorkspaceChangedRef.current = true;
-    session.replaceStatement(statement, parameters, formatError);
+    session.editStatement(statement);
   }
 
   function loadSavedStatement(item: QuerySavedStatementRecord) {
@@ -958,7 +954,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
               onStatementChange={(value) => {
-                replaceActiveStatement(value);
+                editActiveStatement(value);
               }}
               parameters={activeWorksheet.parameters}
               parameterValues={activeWorksheet.parameterValues}
@@ -1341,7 +1337,7 @@ function ReadyWorksheet({
   onEditorResizeCommit: (height: number) => void;
   result: QueryExecuteResponse | null;
   error: QueryExecuteError | null;
-  schemaStore: QuerySchemaStore;
+  schemaStore: SchemaCatalog;
   targetId: number;
   activeDatabase: string | null;
   metadataError: boolean;

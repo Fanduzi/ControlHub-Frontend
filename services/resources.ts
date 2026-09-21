@@ -162,6 +162,19 @@ export async function listResources(
   return apiClient<ResourceListResponse>(buildResourceListPath(params));
 }
 
+export async function listResourcesByIds(ids: readonly number[]): Promise<Resource[]> {
+  const unique = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  if (unique.length === 0) return [];
+
+  const rows = await Promise.all(unique.map((id) => getResourceById(id)));
+  const resources: Resource[] = [];
+  for (const row of rows) {
+    if (!row) continue;
+    resources.push("resource" in row ? row.resource : (row as unknown as Resource));
+  }
+  return resources;
+}
+
 export async function listAllResources(params: ResourceListParams = {}): Promise<Resource[]> {
   const filters = { ...params };
   delete filters.page;

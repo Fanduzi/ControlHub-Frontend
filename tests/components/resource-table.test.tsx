@@ -94,7 +94,6 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       archivedBy: null,
       archiveReason: null,
       isArchived: false,
-      summary: "Orders API summary",
     },
     {
       id: 102,
@@ -126,7 +125,6 @@ function renderTable(availableSubtypes = ["api", "mysql"]) {
       archivedBy: null,
       archiveReason: null,
       isArchived: false,
-      summary: "Orders database summary",
     },
   ];
 
@@ -698,7 +696,6 @@ describe("ResourceTable", () => {
       archivedBy: 1,
       archiveReason: "Retired",
       isArchived: true,
-      summary: "Old API summary",
     };
 
     render(

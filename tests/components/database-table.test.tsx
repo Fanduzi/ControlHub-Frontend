@@ -68,7 +68,6 @@ function makeCluster(
     archivedBy: null,
     archiveReason: null,
     isArchived: false,
-    summary: "Cluster",
     profileSummary: nodeCount != null ? { nodeCount } : undefined,
     ...overrides,
   };
@@ -102,7 +101,6 @@ function makeInstance(
     archivedBy: null,
     archiveReason: null,
     isArchived: false,
-    summary: "Instance",
     clusterId,
     profileSummary: profile,
     ...overrides,
@@ -123,7 +121,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -151,7 +149,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -169,7 +167,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={2} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -186,7 +184,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -217,7 +215,6 @@ describe("DatabaseTable", () => {
         archivedBy: null,
         archiveReason: null,
         isArchived: false,
-        summary: "Orders primary database",
       },
     ];
 
@@ -225,8 +222,6 @@ describe("DatabaseTable", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <DatabaseTable
           resources={resources}
-          totalClusters={0}
-          totalInstances={1}
         />
       </NextIntlClientProvider>,
     );
@@ -244,8 +239,6 @@ describe("DatabaseTable", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <DatabaseTable
           resources={[makeInstance(1, "Orders Primary", undefined)]}
-          totalClusters={0}
-          totalInstances={1}
         />
       </NextIntlClientProvider>,
     );
@@ -260,7 +253,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -274,7 +267,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -289,7 +282,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -330,7 +323,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={2} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -357,7 +350,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -384,7 +377,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -404,7 +397,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -425,7 +418,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -444,7 +437,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -467,7 +460,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={2} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -487,7 +480,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -507,7 +500,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -522,7 +515,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -541,7 +534,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -558,7 +551,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={1} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -574,7 +567,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -590,7 +583,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -606,7 +599,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -620,7 +613,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -636,7 +629,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={1} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -666,7 +659,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} totalClusters={2} totalInstances={0} />
+        <DatabaseTable resources={resources} />
       </NextIntlClientProvider>,
     );
 
@@ -681,7 +674,7 @@ describe("DatabaseTable", () => {
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={[]} totalClusters={0} totalInstances={0} />
+        <DatabaseTable resources={[]} />
       </NextIntlClientProvider>,
     );
 
@@ -710,7 +703,7 @@ describe("DatabaseTable", () => {
 
     const view = render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} pageInfo={pageInfo} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} pageInfo={pageInfo} />
       </NextIntlClientProvider>,
     );
 
@@ -722,7 +715,7 @@ describe("DatabaseTable", () => {
     currentSearch = "environment=prod&q=orders&page=1&pageSize=10";
     view.rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <DatabaseTable resources={resources} pageInfo={pageInfo} totalClusters={0} totalInstances={1} />
+        <DatabaseTable resources={resources} pageInfo={pageInfo} />
       </NextIntlClientProvider>,
     );
 
@@ -737,8 +730,6 @@ describe("DatabaseTable", () => {
         <DatabaseTable
           resources={[]}
           pageInfo={{ page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }}
-          totalClusters={0}
-          totalInstances={0}
         />
       </NextIntlClientProvider>,
     );

@@ -4,6 +4,7 @@
 // note: if this file changes, update this header and tests/lib/README.md
 import {
   getResourceViewModel,
+  listOverviewResourceViewModels,
   listAuditEventViewModels,
   listDatabaseResourceViewModels,
   listResourceViewModels,
@@ -13,6 +14,7 @@ import {
   getResourceProfileById,
   getOverviewMetrics,
   listAllResources,
+  listResourcesByIds,
   listAttentionResources,
   listClusterMembers,
   listDatabaseResources,
@@ -29,6 +31,7 @@ import { listEnvironments, listOwners } from "@/services/settings";
 vi.mock("@/services/resources", () => ({
   listResources: vi.fn(),
   listAllResources: vi.fn(),
+  listResourcesByIds: vi.fn(),
   getResourceById: vi.fn(),
   getResourceProfileById: vi.fn(),
   listResourceRelations: vi.fn(),
@@ -54,6 +57,7 @@ const mockedGetResourceProfileById = vi.mocked(getResourceProfileById);
 const mockedListResourceRelations = vi.mocked(listResourceRelations);
 const mockedListResources = vi.mocked(listResources);
 const mockedListAllResources = vi.mocked(listAllResources);
+const mockedListResourcesByIds = vi.mocked(listResourcesByIds);
 const mockedListEnvironments = vi.mocked(listEnvironments);
 const mockedListOwners = vi.mocked(listOwners);
 const mockedListResourceAuditEvents = vi.mocked(listResourceAuditEvents);
@@ -88,6 +92,7 @@ describe("getResourceViewModel", () => {
     mockedGetResourceById.mockResolvedValue({ resource });
     mockedListResources.mockResolvedValue([resource] as never);
     mockedListAllResources.mockResolvedValue([resource] as never);
+    mockedListResourcesByIds.mockResolvedValue([resource] as never);
     mockedListEnvironments.mockResolvedValue([
       {
         id: 1,
@@ -139,7 +144,7 @@ describe("getResourceViewModel", () => {
     const viewModel = await getResourceViewModel(resource.id);
 
     expect(mockedGetResourceProfileById).toHaveBeenCalledWith(resource.id);
-    expect(viewModel?.summary).toBe("database_instance · mysql · running");
+    expect(mockedListAllResources).not.toHaveBeenCalled();
     expect(viewModel?.profile).toEqual({
       engine: "postgres",
       version: "16",
@@ -149,7 +154,7 @@ describe("getResourceViewModel", () => {
     });
   });
 
-  it("does not generate title-cased English fallback summaries for resources without curated copy", async () => {
+  it("keeps empty members on a database cluster without a members payload", async () => {
     const uncopiedResource = {
       ...resource,
       id: 99,
@@ -163,10 +168,7 @@ describe("getResourceViewModel", () => {
 
     const viewModel = await getResourceViewModel(uncopiedResource.id);
 
-    expect(viewModel?.summary).toBe("database_cluster · mysql · running");
     expect(viewModel?.members).toEqual([]);
-    expect(viewModel?.summary).not.toContain("Database Cluster");
-    expect(viewModel?.summary).not.toContain("Running");
   });
 
   it("keeps the profile empty when the backend projection has no populated fields", async () => {
@@ -193,6 +195,7 @@ describe("getResourceViewModel", () => {
     };
     mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: null } });
     mockedListAllResources.mockResolvedValue([resource, cluster] as never);
+    mockedListResourcesByIds.mockResolvedValue([resource, cluster] as never);
     mockedListResourceRelations.mockResolvedValue([{
       id: 1,
       fromResourceId: resource.id,
@@ -223,6 +226,7 @@ describe("getResourceViewModel", () => {
     };
     mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: explicitCluster.id } });
     mockedListAllResources.mockResolvedValue([resource, explicitCluster, relatedCluster] as never);
+    mockedListResourcesByIds.mockResolvedValue([resource, explicitCluster, relatedCluster] as never);
     mockedListResourceRelations.mockResolvedValue([{
       id: 1,
       fromResourceId: resource.id,
@@ -259,6 +263,7 @@ describe("getResourceViewModel", () => {
     );
     mockedGetResourceById.mockResolvedValue({ resource: { ...resource, clusterId: null } });
     mockedListAllResources.mockResolvedValue([resource, cluster, host, secondCluster] as never);
+    mockedListResourcesByIds.mockResolvedValue([resource, cluster, host, secondCluster] as never);
     mockedListResourceRelations.mockResolvedValue(relations);
 
     const viewModel = await getResourceViewModel(resource.id);
@@ -622,6 +627,8 @@ describe("getResourceViewModel", () => {
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].targetResourceName).toBe("Orders DB Primary");
+    expect(mockedListAllResources).not.toHaveBeenCalled();
+    expect(mockedListResourcesByIds).toHaveBeenCalledWith([resource.id]);
   });
 
   it("labels resource-less login audits with the actor identity and empty placeholders", async () => {
@@ -657,5 +664,42 @@ describe("getResourceViewModel", () => {
       targetResourceName: "—",
       environmentLabel: "—",
     });
+    expect(mockedListResourcesByIds).toHaveBeenCalledWith([]);
+    expect(mockedListAllResources).not.toHaveBeenCalled();
+  });
+});
+
+describe("listOverviewResourceViewModels", () => {
+  it("counts posture from page totals and does not walk the unfiltered fleet", async () => {
+    const countPage = (totalItems: number) => ({
+      items: [],
+      pageInfo: {
+        page: 1,
+        pageSize: 1,
+        totalItems,
+        totalPages: Math.max(1, totalItems),
+        hasNextPage: totalItems > 1,
+        hasPreviousPage: false,
+      },
+    });
+    mockedListResources
+      .mockResolvedValueOnce(countPage(40) as never)
+      .mockResolvedValueOnce(countPage(3) as never)
+      .mockResolvedValueOnce(countPage(5) as never);
+    mockedListAllResources.mockResolvedValue([]);
+
+    const result = await listOverviewResourceViewModels({ environmentId: 1 });
+
+    expect(result.metrics).toEqual({
+      total: 40,
+      critical: 3,
+      warning: 5,
+      pending: 0,
+    });
+    expect(mockedListAllResources).toHaveBeenCalledWith(
+      expect.objectContaining({ healthStatus: ["critical", "warning", "unknown"] }),
+    );
+    expect(mockedListAllResources).not.toHaveBeenCalledWith({ environmentId: 1 });
+    expect(mockedListAllResources).not.toHaveBeenCalledWith({});
   });
 });

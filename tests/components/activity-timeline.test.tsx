@@ -71,7 +71,6 @@ describe("ActivityTimeline", () => {
             actorLabel: "admin",
             targetResourceName: "Test",
             environmentLabel: "Prod",
-            summary: "Update.",
           },
         ]}
       />,

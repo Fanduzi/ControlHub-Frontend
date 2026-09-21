@@ -70,6 +70,21 @@ describe("WorksheetSession template mode", () => {
     expect(session.active.parameters).toEqual([]);
   });
 
+  it("exits template mode on a typed SQL edit and drops the template result", async () => {
+    const executeTemplate = vi.fn().mockResolvedValue(emptyResult({ rowCount: 2 }));
+    const session = createSession({ executeTemplate });
+    session.loadSavedStatement(savedStatement());
+    session.setParameterValue("status", "open");
+    await session.run();
+    expect(session.active.result?.rowCount).toBe(2);
+
+    session.editStatement(`${session.active.statement} AND 1 = 1`);
+    expect(session.active.templateStatementId).toBeNull();
+    expect(session.active.parameters).toEqual([]);
+    expect(session.active.parameterValues).toEqual({});
+    expect(session.active.result).toBeNull();
+  });
+
   it("exits template mode on retarget", () => {
     const session = createSession();
     session.loadSavedStatement(savedStatement());
@@ -127,6 +142,31 @@ describe("WorksheetSession run routing", () => {
     expect(session.active.isExecuting).toBe(false);
   });
 
+  it("keeps an ordinary result while typing and skips notify when the text is unchanged", async () => {
+    const execute = vi.fn().mockResolvedValue(emptyResult({ rowCount: 4 }));
+    const session = createSession({ execute });
+    session.replaceStatement("select 1");
+    await session.run();
+    const generation = session.active.relatedRecords.generation;
+    const version = session.getSnapshot();
+
+    session.editStatement("select 1");
+    expect(session.getSnapshot()).toBe(version);
+    expect(session.active.result?.rowCount).toBe(4);
+
+    session.editStatement("select 1 from dual");
+    expect(session.active.statement).toBe("select 1 from dual");
+    expect(session.active.isDirty).toBe(true);
+    expect(session.active.result?.rowCount).toBe(4);
+    expect(session.active.relatedRecords.generation).toBe(generation);
+
+    const afterFirstEdit = session.getSnapshot();
+    session.editStatement("select 1 from dual where 1 = 1");
+    expect(session.active.result?.rowCount).toBe(4);
+    expect(session.active.relatedRecords.generation).toBe(generation);
+    expect(session.getSnapshot()).toBeGreaterThan(afterFirstEdit);
+  });
+
   it("ignores a stale page response after SQL is replaced", async () => {
     let resolveFirst: (value: QueryExecuteResponse) => void = () => {};
     const first = new Promise<QueryExecuteResponse>((resolve) => {
@@ -137,6 +177,22 @@ describe("WorksheetSession run routing", () => {
     session.replaceStatement("select 1");
     const pending = session.run();
     session.replaceStatement("select 2");
+    resolveFirst(emptyResult({ rowCount: 1 }));
+    await pending;
+    expect(session.active.result).toBeNull();
+    expect(session.active.statement).toBe("select 2");
+  });
+
+  it("ignores a stale page response after a typed SQL edit", async () => {
+    let resolveFirst: (value: QueryExecuteResponse) => void = () => {};
+    const first = new Promise<QueryExecuteResponse>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const execute = vi.fn().mockImplementation(() => first);
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    const pending = session.run();
+    session.editStatement("select 2");
     resolveFirst(emptyResult({ rowCount: 1 }));
     await pending;
     expect(session.active.result).toBeNull();

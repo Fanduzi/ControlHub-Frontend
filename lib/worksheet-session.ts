@@ -1,5 +1,5 @@
 // input: query execution ports, saved-statement execute port, worksheet snapshot types, query-workspace persist types
-// output: WorksheetSession (commands + persisted snapshot for the query workbench 工作表)
+// output: WorksheetSession (edit/replace/run/template commands + persisted snapshot for the query workbench 工作表)
 // pos: in-process worksheet session; React only renders
 // note: if this file changes, update header and lib/README.md
 import { useSyncExternalStore } from "react";
@@ -385,6 +385,54 @@ export class WorksheetSession {
     const trimmed = newName.trim();
     if (trimmed.length === 0) return;
     this.patch(id, { name: trimmed });
+  }
+
+  editStatement(statement: string): void {
+    const worksheet = this.active;
+    if (statement === worksheet.statement) return;
+
+    const exitingTemplate =
+      worksheet.templateStatementId !== null || worksheet.parameters.length > 0;
+    const dropInFlight = worksheet.isExecuting;
+    const invalidateDerived =
+      exitingTemplate ||
+      dropInFlight ||
+      worksheet.previewProvenance !== null ||
+      worksheet.relatedRecords.status !== "idle" ||
+      worksheet.explain.status !== "idle" ||
+      worksheet.formatError !== null;
+
+    this.patch(worksheet.id, {
+      statement,
+      isDirty: true,
+      formatError: null,
+      ...(exitingTemplate
+        ? {
+            parameters: [],
+            parameterValues: {},
+            templateStatementId: null,
+            templateFieldErrors: {},
+            result: null,
+            error: null,
+          }
+        : {}),
+      ...(dropInFlight || exitingTemplate
+        ? {
+            requestId: this.createId(),
+            isExecuting: false,
+          }
+        : {}),
+      ...(invalidateDerived
+        ? {
+            previewProvenance: null,
+            relatedRecords: {
+              status: "idle" as const,
+              generation: worksheet.relatedRecords.generation + 1,
+            },
+            explain: invalidateExplainState(worksheet.explain),
+          }
+        : {}),
+    });
   }
 
   replaceStatement(
@@ -1024,6 +1072,3 @@ export function useWorksheetSessionVersion(session: WorksheetSession): number {
     () => session.getSnapshot(),
   );
 }
-
-/** @deprecated Name kept for call sites that still say LocalWorksheet. */
-export type LocalWorksheet = Worksheet;

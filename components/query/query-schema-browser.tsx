@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
-import { QuerySchemaStore } from "@/lib/query-schema-store";
+import { SchemaCatalog } from "@/lib/schema-catalog";
 import type { QueryKind, QueryTarget } from "@/types/query-target";
 
-type QuerySchemaBrowserProps = { readonly target: QueryTarget; readonly store: QuerySchemaStore; readonly activeDatabase?: string | null };
+type QuerySchemaBrowserProps = { readonly target: QueryTarget; readonly store: SchemaCatalog; readonly activeDatabase?: string | null };
 
 export function QuerySchemaBrowser({ target, store, activeDatabase }: QuerySchemaBrowserProps) {
   const t = useTranslations("queryWorkbench");

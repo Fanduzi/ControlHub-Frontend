@@ -12,7 +12,7 @@ vi.mock("@/services/query-schema", () => ({
 
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { QuerySchemaBrowser } from "@/components/query/query-schema-browser";
-import { QuerySchemaStore } from "@/lib/query-schema-store";
+import { SchemaCatalog } from "@/lib/schema-catalog";
 import { getObjectDetails, getSchemaDatabases, getSchemaObjects, getTableDefinition } from "@/services/query-schema";
 import { buildQueryTarget } from "@/tests/fixtures/query-targets";
 import type { ObjectSummary } from "@/types/query-schema";
@@ -28,7 +28,7 @@ function renderBrowser() {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <QuerySchemaBrowser
-        store={new QuerySchemaStore()}
+        store={new SchemaCatalog()}
         target={buildQueryTarget({
           resourceId: 12,
           capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
@@ -124,7 +124,7 @@ function renderExplorer(targetId = 1) {
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <QueryObjectExplorer
         targetId={targetId}
-        store={new QuerySchemaStore()}
+        store={new SchemaCatalog()}
         onPreviewRequest={onPreviewRequest}
       />
     </NextIntlClientProvider>,
@@ -621,7 +621,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Switch target before page 2 resolves
     rerender(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryObjectExplorer targetId={2} store={new QuerySchemaStore()} onPreviewRequest={vi.fn()} />
+        <QueryObjectExplorer targetId={2} store={new SchemaCatalog()} onPreviewRequest={vi.fn()} />
       </NextIntlClientProvider>,
     );
 
@@ -1205,7 +1205,7 @@ describe("QueryObjectExplorer search and pagination", () => {
 
     rerender(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryObjectExplorer targetId={2} store={new QuerySchemaStore()} onPreviewRequest={vi.fn()} />
+        <QueryObjectExplorer targetId={2} store={new SchemaCatalog()} onPreviewRequest={vi.fn()} />
       </NextIntlClientProvider>,
     );
 
@@ -1600,7 +1600,7 @@ describe("Phase 38S: search abort and stale rejection in QueryObjectExplorer", (
 
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
-        <QueryObjectExplorer targetId={1} store={new QuerySchemaStore()} onPreviewRequest={vi.fn()} />
+        <QueryObjectExplorer targetId={1} store={new SchemaCatalog()} onPreviewRequest={vi.fn()} />
       </NextIntlClientProvider>,
     );
     await screen.findByRole("button", { name: "mydb" });
@@ -1759,7 +1759,7 @@ describe("database tree search and system visibility", () => {
 
     render(
       <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
-        <QueryObjectExplorer targetId={1} store={new QuerySchemaStore()} />
+        <QueryObjectExplorer targetId={1} store={new SchemaCatalog()} />
       </NextIntlClientProvider>,
     );
 

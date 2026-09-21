@@ -170,6 +170,11 @@ export class SchemaCatalog {
   private detailGeneration = 0;
   private readonly listeners = new Set<() => void>();
   private version = 0;
+  private completionMemo: {
+    readonly key: string;
+    readonly catalogVersion: number;
+    readonly value: SchemaNamespace | undefined;
+  } | null = null;
 
   constructor(private readonly fetch: SchemaCatalogFetch = defaultFetch) {}
 
@@ -430,6 +435,23 @@ export class SchemaCatalog {
     targetId: number | undefined,
     activeDatabase: string | undefined,
   ): SchemaNamespace | undefined {
+    const key = `${targetId ?? ""}:${activeDatabase ?? ""}`;
+    if (
+      this.completionMemo &&
+      this.completionMemo.key === key &&
+      this.completionMemo.catalogVersion === this.version
+    ) {
+      return this.completionMemo.value;
+    }
+    const value = this.buildCompletionNamespace(targetId, activeDatabase);
+    this.completionMemo = { key, catalogVersion: this.version, value };
+    return value;
+  }
+
+  private buildCompletionNamespace(
+    targetId: number | undefined,
+    activeDatabase: string | undefined,
+  ): SchemaNamespace | undefined {
     if (!targetId) return undefined;
     const databases = this.getDatabases(targetId, COMPLETION_PAGE_SIZE).items;
     if (!activeDatabase) {
@@ -570,6 +592,3 @@ export function useSchemaCatalogVersion(catalog: SchemaCatalog): number {
     () => catalog.getSnapshot(),
   );
 }
-
-/** @deprecated Use SchemaCatalog. Kept so existing call sites type-check during the rewire. */
-export { SchemaCatalog as QuerySchemaStore };

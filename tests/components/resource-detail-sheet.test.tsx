@@ -82,7 +82,6 @@ const resource: ResourceDetailViewModel = {
     status: "partial",
     missingRequirements: ["minimumIdentity", "structuralRelationship"],
   },
-  summary: "Primary transactional database handling checkout and order writes.",
   archivedAt: null,
   archivedBy: null,
   archiveReason: null,
@@ -115,7 +114,6 @@ const resource: ResourceDetailViewModel = {
       actorLabel: "Admin User",
       targetResourceName: "Orders DB Primary",
       environmentLabel: "Production",
-      summary: "Updated lifecycle status and owner mapping.",
     },
   ],
 };
@@ -370,8 +368,6 @@ describe("ResourceDetailSheet", () => {
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       lifecycleStatus: "running",
-      // English fallback from buildFallbackSummary — should NOT appear
-      summary: "Database Cluster · Mysql · Running",
     };
 
     expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);
@@ -408,7 +404,6 @@ describe("ResourceDetailSheet", () => {
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
       lifecycleStatus: "degraded",
-      summary: "Database Cluster · Mysql · Degraded",
     };
 
     expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);
@@ -440,7 +435,6 @@ describe("ResourceDetailSheet", () => {
       id: 4100001,
       resourceType: "database_cluster",
       resourceSubtype: "mysql",
-      summary: "Database Cluster · Mysql · Running",
     };
 
     expect(Number.isSafeInteger(fallbackResource.id)).toBe(true);

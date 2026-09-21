@@ -10,13 +10,13 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { type QuerySchemaStore, useSchemaCatalogVersion } from "@/lib/query-schema-store";
+import { type SchemaCatalog, useSchemaCatalogVersion } from "@/lib/schema-catalog";
 import type { ObjectSummary } from "@/types/query-schema";
 
 const PAGE_SIZE = 50;
 
 type QueryObjectQuickNavigatorProps = {
-  readonly catalog: QuerySchemaStore;
+  readonly catalog: SchemaCatalog;
   readonly targetId: number;
   readonly activeDatabase: string | null;
   readonly onDatabaseSelect: (database: string) => void;

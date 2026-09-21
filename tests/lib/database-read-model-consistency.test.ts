@@ -32,7 +32,6 @@ function clusterResource(): ResourceDetailViewModel {
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "",
     isArchived: false,
     profile: {},
     profileSummary: { engine: "mysql", nodeCount: 2 },

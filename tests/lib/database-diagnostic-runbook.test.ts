@@ -31,7 +31,6 @@ function resource(
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "",
     isArchived: false,
     profile: {},
     relations: [],
@@ -71,7 +70,6 @@ function audit(eventType: string): AuditEventViewModel {
     actorLabel: "admin",
     targetResourceName: "Payment MySQL Cluster Production",
     environmentLabel: "Production",
-    summary: eventType,
   };
 }
 

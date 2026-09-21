@@ -109,7 +109,6 @@ function resource(
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "",
     isArchived: false,
     profile: {},
     relations: [],
@@ -355,7 +354,6 @@ describe("DatabaseDecisionDeck", () => {
               actorLabel: "admin",
               targetResourceName: "Test",
               environmentLabel: "Prod",
-              summary: "Logout.",
             },
             {
               id: 2,
@@ -367,7 +365,6 @@ describe("DatabaseDecisionDeck", () => {
               actorLabel: "admin",
               targetResourceName: "Test",
               environmentLabel: "Prod",
-              summary: "Login 2.",
             },
             {
               id: 3,
@@ -379,7 +376,6 @@ describe("DatabaseDecisionDeck", () => {
               actorLabel: "admin",
               targetResourceName: "Test",
               environmentLabel: "Prod",
-              summary: "Login 3.",
             },
           ]}
         />,
@@ -446,7 +442,6 @@ describe("DatabaseDecisionDeck", () => {
               actorLabel: "admin",
               targetResourceName: "Test",
               environmentLabel: "Prod",
-              summary: "Update.",
             },
             {
               id: 2,
@@ -458,7 +453,6 @@ describe("DatabaseDecisionDeck", () => {
               actorLabel: "admin",
               targetResourceName: "Test",
               environmentLabel: "Prod",
-              summary: "Created.",
             },
           ]}
         />,

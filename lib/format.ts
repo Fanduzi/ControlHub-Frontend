@@ -37,13 +37,6 @@ export function formatDateTime(value: string, locale?: AppLocale) {
   }).format(new Date(value));
 }
 
-export function formatShortDate(value: string, locale?: AppLocale) {
-  return new Intl.DateTimeFormat(resolveLocale(locale), {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(value));
-}
-
 export function formatRelativeDateTime(value: string | Date, locale?: AppLocale): string {
   const now = new Date();
   const d = typeof value === "string" ? new Date(value) : value;

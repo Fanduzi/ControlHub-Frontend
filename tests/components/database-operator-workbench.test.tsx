@@ -152,7 +152,6 @@ const healthyClusterResource: ResourceDetailViewModel = {
   archiveReason: null,
   environmentName: "Production",
   ownerName: "DBA Team",
-  summary: "",
   isArchived: false,
   profile: {},
   relations: [],
@@ -225,7 +224,6 @@ const instanceResource: ResourceDetailViewModel = {
   archiveReason: null,
   environmentName: "Production",
   ownerName: "DBA Team",
-  summary: "",
   isArchived: false,
   profile: {},
   relations: [],
@@ -388,7 +386,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Update completed.",
         },
         {
           id: 2,
@@ -400,7 +397,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Relation created.",
         },
         {
           id: 3,
@@ -412,7 +408,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Login.",
         },
       ],
     };
@@ -449,7 +444,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Update completed.",
         },
       ],
     };
@@ -483,7 +477,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Login completed.",
         },
       ],
     };
@@ -534,7 +527,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Update completed.",
         },
         {
           id: 2,
@@ -546,7 +538,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Relation created.",
         },
         {
           id: 3,
@@ -558,7 +549,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Login.",
         },
       ],
     };
@@ -597,7 +587,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Update completed.",
         },
       ],
     };
@@ -635,7 +624,6 @@ describe("DatabaseOperatorWorkbench", () => {
           actorLabel: "admin",
           targetResourceName: "Orders Cluster",
           environmentLabel: "Production",
-          summary: "Login.",
         },
       ],
     };

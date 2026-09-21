@@ -5,6 +5,10 @@ Overview posture and attention queue.
 `computeMetrics` pending count reuses `isActionableAttention`, the same
 predicate as the attention queue.
 
+The server route may pass `metrics` so posture totals come from count queries
+instead of `resources.length`. Without `metrics`, the client still derives
+counts from `resources` for component tests.
+
 Props are already environment-scoped by the server route, so this client
 component does not filter them again.
 

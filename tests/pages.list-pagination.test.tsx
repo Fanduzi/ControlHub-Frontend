@@ -110,7 +110,6 @@ function buildResource(page = 1): ResourceListViewModelResponse {
       archivedBy: null,
       archiveReason: null,
       isArchived: false,
-      summary: "Orders API summary",
     },
   ];
 
@@ -139,7 +138,6 @@ function buildAuditResponse(page = 1): AuditEventViewModelListResponse {
       actorLabel: "ControlHub Admin",
       targetResourceName: "Orders API",
       environmentLabel: "Production",
-      summary: "Updated successfully.",
     },
   ];
 
@@ -268,8 +266,6 @@ describe("list pages pagination contracts", () => {
 
     expect(databaseTableMock).toHaveBeenCalledWith({
       resources: [],
-      totalClusters: 0,
-      totalInstances: 0,
     });
     expect(listDatabaseResourceViewModelsMock).not.toHaveBeenCalled();
     expect(getDatabasePostureCountsMock).not.toHaveBeenCalled();
@@ -498,8 +494,6 @@ describe("list pages pagination contracts", () => {
       expect.objectContaining({
         resources: response.items,
         pageInfo: response.pageInfo,
-        totalClusters: 2,
-        totalInstances: 2,
       }),
     );
   });

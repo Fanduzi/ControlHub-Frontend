@@ -73,7 +73,6 @@ const resource: ResourceDetailViewModel = {
   createdAt: "2026-04-11T12:00:00Z",
   updatedAt: "2026-04-11T13:00:00Z",
   labels: { team: "order" },
-  summary: "Primary transactional database.",
   archivedAt: null,
   archivedBy: null,
   archiveReason: null,
@@ -100,7 +99,6 @@ const proxyResource: ResourceDetailViewModel = {
   createdAt: "2026-04-11T12:00:00Z",
   updatedAt: "2026-04-11T13:00:00Z",
   labels: {},
-  summary: "Orders ProxySQL.",
   archivedAt: null,
   archivedBy: null,
   archiveReason: null,
@@ -127,7 +125,6 @@ const hostResource: ResourceDetailViewModel = {
   createdAt: "2026-04-11T12:00:00Z",
   updatedAt: "2026-04-11T13:00:00Z",
   labels: {},
-  summary: "Production host.",
   archivedAt: null,
   archivedBy: null,
   archiveReason: null,
@@ -144,7 +141,6 @@ const domainNameResource: ResourceDetailViewModel = {
   resourceSubtype: "dns",
   name: "orders-domain",
   displayName: "Orders Domain",
-  summary: "Orders DNS name.",
 };
 
 const virtualIPResource: ResourceDetailViewModel = {
@@ -154,7 +150,6 @@ const virtualIPResource: ResourceDetailViewModel = {
   resourceSubtype: "floating",
   name: "orders-vip",
   displayName: "Orders VIP",
-  summary: "Orders floating IP.",
 };
 
 describe("EditResourceSheet", () => {

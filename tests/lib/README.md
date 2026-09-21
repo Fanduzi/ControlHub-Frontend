@@ -21,10 +21,12 @@ audit list pages, the explicit All sentinel, and fail-closed unknown slugs.
 history statement-recovery copy present in both English and zh-CN.
 
 `schema-catalog.test.ts` covers schema catalog through its interface (库身份
-isolation, page-size isolation, stale abort, detail TTL, concurrency).
+isolation, page-size isolation, stale abort, detail TTL, concurrency, stable
+completion namespace identity).
 
-`worksheet-session.test.ts` covers 工作表 commands: template enter/exit, execute
-vs template routing, stale request rejection, template field errors.
+`worksheet-session.test.ts` covers 工作表 commands: template enter/exit, typed
+SQL edits, execute vs template routing, stale request rejection, template field
+errors.
 
 `operator-session-facade.test.ts` covers login/logout/readIdentity/authenticateCookie/gatePage.
 

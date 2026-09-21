@@ -52,8 +52,6 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 type DatabaseTableProps = {
   resources: ResourceListViewModel[];
   pageInfo?: PageInfo;
-  totalClusters: number;
-  totalInstances: number;
 };
 
 type TreeRow = ResourceListViewModel & {
@@ -156,8 +154,6 @@ function updateMultiSelectParams(
 export function DatabaseTable({
   resources,
   pageInfo,
-  totalClusters: _totalClusters, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
-  totalInstances: _totalInstances, // eslint-disable-line @typescript-eslint/no-unused-vars -- required by interface
 }: DatabaseTableProps) {
   const t = useTranslations();
 

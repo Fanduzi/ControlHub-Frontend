@@ -39,6 +39,7 @@ describe("/overview page", () => {
     listOverviewResourceViewModelsMock.mockResolvedValue({
       resources: [],
       attentionResources: [],
+      metrics: { total: 0, critical: 0, warning: 0, pending: 0 },
     });
 
     render(await OverviewPage());
@@ -54,6 +55,7 @@ describe("/overview page", () => {
     listOverviewResourceViewModelsMock.mockResolvedValue({
       resources: [],
       attentionResources: [],
+      metrics: { total: 0, critical: 0, warning: 0, pending: 0 },
     });
     const pageWithSearchParams = OverviewPage as unknown as (props: {
       searchParams: Promise<Record<string, string | string[] | undefined>>;

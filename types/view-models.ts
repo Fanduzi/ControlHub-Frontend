@@ -11,7 +11,6 @@ export type AuditEventViewModel = AuditEvent & {
   actorLabel: string;
   targetResourceName: string;
   environmentLabel: string;
-  summary: string;
 };
 
 export type AuditEventViewModelListResponse = {
@@ -29,7 +28,6 @@ export type ResourceRelationViewModel = ResourceRelation & {
 export type ResourceListViewModel = Resource & {
   environmentName: string;
   ownerName: string;
-  summary: string;
   isArchived: boolean;
   databaseOperationalSummary?: DatabaseOperationalSummary | null;
 };

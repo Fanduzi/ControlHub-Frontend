@@ -25,8 +25,12 @@ export default async function OverviewPage({
   const resolvedScope = environmentSlug
     ? await resolveEnvironmentSlugToId({ environmentSlug })
     : persistedEnvironmentId === null ? {} : { environmentId: persistedEnvironmentId };
-  const { attentionResources, resources } = resolvedScope === null
-    ? { attentionResources: [], resources: [] }
+  const { attentionResources, resources, metrics } = resolvedScope === null
+    ? {
+      attentionResources: [],
+      resources: [],
+      metrics: { total: 0, critical: 0, warning: 0, pending: 0 },
+    }
     : await listOverviewResourceViewModels(resolvedScope);
 
   return (
@@ -39,6 +43,7 @@ export default async function OverviewPage({
       <OverviewContent
         resources={resources}
         attentionResources={attentionResources}
+        metrics={metrics}
       />
     </div>
   );

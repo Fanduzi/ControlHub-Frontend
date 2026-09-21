@@ -2,7 +2,6 @@
 // output: localized resource/detail/database/overview/audit view models with server actor labels, empty audit placeholders, unambiguous parent clusters, and empty members
 // pos: server-side adapter between transport records and console presentation consumers
 // note: if this file changes, update this header and lib/README.md.
-import { formatLabel } from "@/lib/format";
 import {
   listRecentAuditEvents,
   listAuditEvents,
@@ -11,7 +10,6 @@ import {
 import { listEnvironments, listOwners } from "@/services/settings";
 import {
   getOverviewMetrics,
-  filterAttentionResources,
   getResourceById,
   getResourceProfileById,
   listAttentionResources,
@@ -20,7 +18,9 @@ import {
   listResourceRelations,
   listAllResources,
   listResources,
+  listResourcesByIds,
 } from "@/services/resources";
+import { isActionableAttention } from "@/lib/overview-attention";
 import type {
   AuditEvent,
   AuditEventListParams,
@@ -45,27 +45,9 @@ import type {
   ResourceListViewModelResponse,
 } from "@/types/view-models";
 
-function buildFallbackSummary(resource: Resource): string {
-  const parts: string[] = [];
-  if (resource.resourceType) {
-    parts.push(resource.resourceType);
-  }
-  if (resource.resourceSubtype) {
-    parts.push(resource.resourceSubtype);
-  }
-  if (resource.lifecycleStatus) {
-    parts.push(resource.lifecycleStatus);
-  }
-  return parts.length > 0 ? parts.join(" · ") : resource.displayName;
-}
-
-function buildAuditSummary(event: AuditEvent) {
-  return `${formatLabel(event.eventType)} completed with ${formatLabel(event.result)} result.`;
-}
-
-async function buildLookupMaps() {
+async function buildLookupMaps(resourceIds: readonly number[] = []) {
   const [resources, environments, owners] = await Promise.all([
-    listAllResources({ includeArchived: true }),
+    listResourcesByIds(resourceIds),
     listEnvironments(),
     listOwners(),
   ]);
@@ -77,6 +59,10 @@ async function buildLookupMaps() {
     ),
     ownerMap: new Map<number, string>(owners.map((owner) => [owner.id, owner.name])),
   };
+}
+
+function uniqueResourceIds(ids: readonly (number | null | undefined)[]): number[] {
+  return [...new Set(ids.filter((id): id is number => typeof id === "number" && id > 0))];
 }
 
 async function buildListLookupMaps() {
@@ -134,7 +120,6 @@ function toAuditEventViewModel(
     environmentLabel: target
       ? (environmentMap.get(target.environmentId) ?? String(target.environmentId))
       : "—",
-    summary: buildAuditSummary(event),
   };
 }
 
@@ -312,7 +297,6 @@ function toResourceListViewModel(
     environmentName:
       environmentMap.get(resource.environmentId) ?? String(resource.environmentId),
     ownerName: ownerMap.get(resource.ownerId) ?? String(resource.ownerId),
-    summary: buildFallbackSummary(resource),
     isArchived: resource.archivedAt !== null && resource.archivedAt !== undefined,
   };
 }
@@ -324,14 +308,8 @@ async function toResourceDetailViewModel(
   const isDatabase = resource.resourceType === "database_cluster" ||
     resource.resourceType === "database_instance";
 
-  const [
-    { resourceMap, environmentMap, ownerMap },
-    relations,
-    auditEvents,
-    profileResponse,
-    fetchedMembers,
-  ] = await Promise.all([
-    buildLookupMaps(),
+  const [listLookups, relations, auditEvents, profileResponse, fetchedMembers] = await Promise.all([
+    buildListLookupMaps(),
     listResourceRelations(resource.id),
     listResourceAuditEvents(resource.id),
     getResourceProfileById(resource.id),
@@ -339,6 +317,24 @@ async function toResourceDetailViewModel(
       ? listClusterMembers(resource.id)
       : Promise.resolve(undefined),
   ]);
+
+  const relatedIds = relations.flatMap((relation) => {
+    if (relation.relatedResource) return [];
+    return relation.fromResourceId === resource.id
+      ? [relation.toResourceId]
+      : [relation.fromResourceId];
+  });
+  const lookupIds = uniqueResourceIds([
+    resource.clusterId,
+    ...relatedIds,
+    ...auditEvents.map((event) => event.targetResourceId),
+  ]).filter((id) => id !== resource.id);
+  const lookupResources = await listResourcesByIds(lookupIds);
+  const resourceMap = new Map<number, Resource>([
+    [resource.id, resource],
+    ...lookupResources.map((item) => [item.id, item] as const),
+  ]);
+  const { environmentMap, ownerMap } = listLookups;
 
   const members = fetchedMembers ?? inlineMembers;
   const inferredClusterIds = resource.resourceType === "database_instance" && resource.clusterId == null
@@ -408,19 +404,70 @@ export async function listAllResourceViewModels(
   return listResourceListViewModels(await listAllResources(params));
 }
 
+const OVERVIEW_ATTENTION_LIFECYCLES = [
+  "stopped",
+  "failed",
+  "provisioning",
+  "decommissioning",
+  "degraded",
+] as const;
+
+const OVERVIEW_LIST_PAGE_SIZE = 500;
+
 export async function listOverviewResourceViewModels(
   params: ResourceListParams = {},
 ): Promise<{
   resources: ResourceListViewModel[];
   attentionResources: ResourceListViewModel[];
+  metrics: {
+    total: number;
+    critical: number;
+    warning: number;
+    pending: number;
+  };
 }> {
-  const resources = await listAllResources(params);
-  const attentionIds = new Set(filterAttentionResources(resources).map(({ id }) => id));
-  const viewModels = await listResourceListViewModels(resources);
+  const scoped = { ...params, pageSize: OVERVIEW_LIST_PAGE_SIZE };
+  const [
+    totalPage,
+    criticalPage,
+    warningPage,
+    unhealthy,
+    lifecycleOdd,
+    clusters,
+  ] = await Promise.all([
+    listResources({ ...params, page: 1, pageSize: 1 }),
+    listResources({ ...params, page: 1, pageSize: 1, healthStatus: "critical" }),
+    listResources({ ...params, page: 1, pageSize: 1, healthStatus: "warning" }),
+    listAllResources({
+      ...scoped,
+      healthStatus: ["critical", "warning", "unknown"],
+    }),
+    listAllResources({
+      ...scoped,
+      lifecycleStatus: [...OVERVIEW_ATTENTION_LIFECYCLES],
+    }),
+    listAllResources({
+      ...scoped,
+      resourceType: "database_cluster",
+    }),
+  ]);
+
+  const byId = new Map<number, Resource>();
+  for (const item of [...unhealthy, ...lifecycleOdd, ...clusters]) {
+    byId.set(item.id, item);
+  }
+  const viewModels = await listResourceListViewModels([...byId.values()]);
+  const attentionResources = viewModels.filter(isActionableAttention);
 
   return {
     resources: viewModels,
-    attentionResources: viewModels.filter(({ id }) => attentionIds.has(id)),
+    attentionResources,
+    metrics: {
+      total: totalPage.pageInfo.totalItems,
+      critical: criticalPage.pageInfo.totalItems,
+      warning: warningPage.pageInfo.totalItems,
+      pending: attentionResources.length,
+    },
   };
 }
 
@@ -485,33 +532,26 @@ export async function listAuditEventViewModels(
 export async function listAuditEventViewModels(
   params?: AuditEventListParams,
 ): Promise<AuditEventViewModel[] | AuditEventViewModelListResponse> {
-  const [{ resourceMap, environmentMap }, response] = await Promise.all([
-    buildLookupMaps(),
-    listAuditEvents(params ?? {}) as Promise<AuditEventListResult>,
-  ]);
+  const response = (await listAuditEvents(params ?? {})) as AuditEventListResult;
+  const events = toAuditEventItems(response);
+  const { resourceMap, environmentMap } = await buildLookupMaps(
+    uniqueResourceIds(events.map((event) => event.targetResourceId)),
+  );
 
   if (params === undefined) {
-    return toAuditEventViewModels(
-      toAuditEventItems(response),
-      resourceMap,
-      environmentMap,
-    );
+    return toAuditEventViewModels(events, resourceMap, environmentMap);
   }
 
-  return toAuditEventViewModelListResponse(
-    response,
-    resourceMap,
-    environmentMap,
-  );
+  return toAuditEventViewModelListResponse(response, resourceMap, environmentMap);
 }
 
 export async function listRecentAuditEventViewModels(
   limit = 5,
 ): Promise<AuditEventViewModel[]> {
-  const [{ resourceMap, environmentMap }, events] = await Promise.all([
-    buildLookupMaps(),
-    listRecentAuditEvents(limit),
-  ]);
+  const events = await listRecentAuditEvents(limit);
+  const { resourceMap, environmentMap } = await buildLookupMaps(
+    uniqueResourceIds(events.map((event) => event.targetResourceId)),
+  );
 
   return toAuditEventViewModels(events, resourceMap, environmentMap);
 }

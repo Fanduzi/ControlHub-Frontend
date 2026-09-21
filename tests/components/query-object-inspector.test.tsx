@@ -58,7 +58,7 @@ vi.mock("@/services/query-schema", () => ({
 }));
 
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
-import { QuerySchemaStore } from "@/lib/query-schema-store";
+import { SchemaCatalog } from "@/lib/schema-catalog";
 import { getObjectDetails, getSchemaDatabases, getSchemaObjects, getTableDefinition } from "@/services/query-schema";
 import { ApiError } from "@/services/api-client";
 import type { ObjectDetailResponse } from "@/types/query-schema";
@@ -107,7 +107,7 @@ function renderExplorer(targetId = 1, locale = "en") {
     <NextIntlClientProvider locale={locale} messages={messages}>
       <QueryObjectExplorer
         targetId={targetId}
-        store={new QuerySchemaStore()}
+        store={new SchemaCatalog()}
         onPreviewRequest={onPreviewRequest}
       />
     </NextIntlClientProvider>,
@@ -120,7 +120,7 @@ function renderExplorer(targetId = 1, locale = "en") {
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryObjectExplorer
             targetId={newTargetId}
-            store={new QuerySchemaStore()}
+            store={new SchemaCatalog()}
             onPreviewRequest={onPreviewRequest}
           />
         </NextIntlClientProvider>,

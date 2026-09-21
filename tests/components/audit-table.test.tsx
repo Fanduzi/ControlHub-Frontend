@@ -44,7 +44,6 @@ const defaultEvents: AuditEventViewModel[] = [
       },
     ],
     createdAt: "2026-04-14T10:00:00Z",
-    summary: "Resource updated",
   },
 ];
 
@@ -135,7 +134,6 @@ describe("AuditTable", () => {
         eventType: "auth.login",
         result: "succeeded",
         createdAt: "2026-04-14T10:00:00Z",
-        summary: "Login succeeded",
       },
     ]);
 

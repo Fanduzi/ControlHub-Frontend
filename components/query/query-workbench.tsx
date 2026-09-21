@@ -28,7 +28,7 @@ import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
 import { getQueryTargets } from "@/services/query-targets";
-import { QuerySchemaStore } from "@/lib/query-schema-store";
+import { SchemaCatalog } from "@/lib/schema-catalog";
 
 /** Schema introspection requires a ready target with run permission. */
 function canBrowseSchema(target: QueryTarget): boolean {
@@ -107,7 +107,7 @@ export function QueryWorkbench({
     readonly environmentId: number | undefined;
     readonly resourceId: number;
   } | null>(null);
-  const schemaStore = useMemo(() => new QuerySchemaStore(), []);
+  const schemaStore = useMemo(() => new SchemaCatalog(), []);
   const previewGeneration = useRef(0);
   const [pendingPreviewEvent, setPendingPreviewEvent] = useState<{
     id: number;

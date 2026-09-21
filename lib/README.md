@@ -24,11 +24,11 @@ page-gate surface; HTTP routes are adapters.
 
 `schema-catalog.ts` is the query workbench schema catalog: lists, table
 details, and SQL completion namespace keyed by 库身份. Object explorer,
-worksheet completion, and Cmd+P read it. `query-schema-store.ts` re-exports
-`SchemaCatalog` as `QuerySchemaStore`.
+worksheet completion, and Cmd+P read it.
 
 `worksheet-session.ts` is the query workbench 工作表 session: run, paging,
 template enter/exit, explain, related records, history, and persisted drafts.
+Typing uses `editStatement`; load/replace still use `replaceStatement`.
 
 `query-result-envelope.ts` is the governed result envelope: wire execute
 payload in, grid-safe snapshot or controlled failure out.
@@ -59,6 +59,8 @@ labels; relative labels use date-time formatting after 24 hours.
 
 `health-observation-guidance.ts` tells inventory and overview when unknown
 health is missing collector observation rather than a console setting.
+`overview-attention.ts` is the shared attention-queue predicate used by
+Overview posture pending and the attention table.
 
 `controlled-error-codes.ts` is the closed console union of Controlled Error
 Codes. It must match OpenAPI `ErrorResponse.error` and is not generated.
@@ -90,8 +92,10 @@ use `ha_monitor`.
 database cluster fills a missing parent, so conflicting relation records remain
 visible without inventing a parent.
 
-Overview view models use the paginating resource helper and derive attention
-from the same scoped complete list, retaining an optional environment filter.
+Overview view models count posture with page-size-1 list queries and load only
+attention-candidate slices (unhealthy, non-running lifecycle, database
+clusters), not the complete fleet. Audit and resource-detail lookups resolve
+names by id instead of listing every resource.
 
 Resource name, alias, and external-identifier conflicts each have a distinct code.
 

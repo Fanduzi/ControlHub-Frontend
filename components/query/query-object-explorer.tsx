@@ -11,7 +11,7 @@ import { QueryObjectInspector } from "@/components/query/query-object-inspector"
 import { QueryObjectTree, type ObjectListingState } from "@/components/query/query-object-tree";
 import { Button } from "@/components/ui/button";
 import { objectIdentityKey, objectKeyBelongsToDatabase } from "@/lib/query-object-identity";
-import { QuerySchemaStore, useSchemaCatalogVersion } from "@/lib/query-schema-store";
+import { SchemaCatalog, useSchemaCatalogVersion } from "@/lib/schema-catalog";
 import type { ObjectDetailResponse, ObjectSummary } from "@/types/query-schema";
 import type { TablePreviewRequest } from "@/types/query-execution";
 
@@ -24,7 +24,7 @@ type QueryState = {
 
 type QueryObjectExplorerProps = {
   readonly targetId: number;
-  readonly store: QuerySchemaStore;
+  readonly store: SchemaCatalog;
   readonly onPreviewRequest?: (request: TablePreviewRequest) => void;
 };
 

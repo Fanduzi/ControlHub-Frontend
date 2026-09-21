@@ -31,7 +31,6 @@ function cluster(
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "Cluster",
     isArchived: false,
     profileSummary: { nodeCount: 2, engine: "clickhouse" },
     ...overrides,
@@ -61,7 +60,6 @@ function instance(
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "Instance",
     isArchived: false,
     clusterId: 14,
     profileSummary: {

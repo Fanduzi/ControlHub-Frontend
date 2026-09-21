@@ -43,7 +43,6 @@ function makeResource(
     archiveReason: null,
     environmentName: "Production",
     ownerName: "DBA Team",
-    summary: "",
     isArchived: false,
     ...overrides,
   };

@@ -109,10 +109,6 @@ vi.mock("@/lib/format", () => ({
     value === "primary" ? "Primary" : value === "replica" ? "Replica" : value,
 }));
 
-vi.mock("@/lib/resource-copy", () => ({
-  getResourceSummaryKey: () => null,
-}));
-
 vi.mock("@/components/resources/database-operator-workbench", () => ({
   DatabaseOperatorWorkbench: ({ resource: r }: { resource: { id: number; resourceType: string } }) => (
     <div data-testid="database-operator-workbench" data-resource-type={r.resourceType}>
@@ -192,7 +188,6 @@ const resource: ResourceDetailViewModel = {
     status: "partial",
     missingRequirements: ["minimumIdentity", "structuralRelationship"],
   },
-  summary: "Primary transactional database handling checkout and order writes.",
   archivedAt: null,
   archivedBy: null,
   archiveReason: null,

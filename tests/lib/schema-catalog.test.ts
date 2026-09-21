@@ -396,6 +396,19 @@ describe("SchemaCatalog completion namespace", () => {
     expect(catalog.completionNamespace(undefined, "mydb")).toBeUndefined();
   });
 
+  it("returns the same namespace object until the catalog notifies", async () => {
+    const catalog = new SchemaCatalog(createFetch());
+    await catalog.ensureDatabases(1, { page: 1, pageSize: COMPLETION_PAGE_SIZE });
+    const first = catalog.completionNamespace(1, undefined);
+    const second = catalog.completionNamespace(1, undefined);
+    expect(second).toBe(first);
+
+    await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });
+    const afterNotify = catalog.completionNamespace(1, undefined);
+    expect(afterNotify).not.toBe(first);
+    expect(afterNotify).toBe(catalog.completionNamespace(1, undefined));
+  });
+
   it("fills loaded columns from ready details", async () => {
     const catalog = new SchemaCatalog(createFetch());
     await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });

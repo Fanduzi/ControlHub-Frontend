@@ -31,11 +31,7 @@ export default async function DatabasesPage({
           description={t("pages.databases.description")}
         />
 
-        <DatabaseTable
-          resources={[]}
-          totalClusters={0}
-          totalInstances={0}
-        />
+        <DatabaseTable resources={[]} />
       </div>
     );
   }
@@ -75,8 +71,6 @@ export default async function DatabasesPage({
       <DatabaseTable
         resources={databaseResources}
         pageInfo={pageInfo}
-        totalClusters={clusters}
-        totalInstances={instances}
       />
     </div>
   );

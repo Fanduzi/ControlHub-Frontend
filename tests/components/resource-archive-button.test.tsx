@@ -53,7 +53,6 @@ const activeResource: ResourceListViewModel = {
   archivedBy: null,
   archiveReason: null,
   isArchived: false,
-  summary: "Orders API summary",
 };
 
 const archivedResource: ResourceListViewModel = {

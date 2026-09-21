@@ -14,20 +14,22 @@ import { formatLabel } from "@/lib/format";
 import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import { buildStatusReasonKey } from "@/lib/diagnostic-copy";
 import { hasMissingCollectorHealthObservation } from "@/lib/health-observation-guidance";
+import { isActionableAttention } from "@/lib/overview-attention";
 import { localizeResourceType } from "@/lib/resource-summary";
 import { HEALTH_BORDER, HEALTH_METRIC_TEXT, POSTURE_BAR_COLORS } from "@/lib/severity-colors";
 import type { ResourceListViewModel } from "@/types/view-models";
 
-type OverviewContentProps = {
-  resources: ResourceListViewModel[];
-  attentionResources: ResourceListViewModel[];
-};
-
-type Metrics = {
+export type OverviewMetrics = {
   total: number;
   critical: number;
   warning: number;
   pending: number;
+};
+
+type OverviewContentProps = {
+  resources: ResourceListViewModel[];
+  attentionResources: ResourceListViewModel[];
+  metrics?: OverviewMetrics;
 };
 
 const SEVERITY_ORDER: Record<string, number> = {
@@ -55,25 +57,7 @@ function severityRank(resource: ResourceListViewModel): number {
   return healthRank * 100 + lifecycleBonus;
 }
 
-function isActionableAttention(resource: ResourceListViewModel): boolean {
-  const actionableHealth = ["critical", "warning"].includes(
-    resource.healthStatus,
-  );
-  const actionableLifecycle = resource.lifecycleStatus !== "running";
-  if (actionableHealth || actionableLifecycle) return true;
-
-  if (
-    resource.resourceType === "database_cluster" ||
-    resource.resourceType === "database_instance"
-  ) {
-    const signal = buildDatabaseOperationalSignal(resource);
-    return signal.level === "needs_attention" || signal.level === "critical";
-  }
-
-  return false;
-}
-
-function computeMetrics(resources: ResourceListViewModel[]): Metrics {
+function computeMetrics(resources: ResourceListViewModel[]): OverviewMetrics {
   return {
     total: resources.length,
     critical: resources.filter(
@@ -145,13 +129,14 @@ const ATTENTION_PAGE_SIZE = 10;
 export function OverviewContent({
   resources,
   attentionResources,
+  metrics: metricsOverride,
 }: OverviewContentProps) {
   const t = useTranslations();
   const [isAttentionExpanded, setIsAttentionExpanded] = useState(false);
 
   const metrics = useMemo(
-    () => computeMetrics(resources),
-    [resources],
+    () => metricsOverride ?? computeMetrics(resources),
+    [metricsOverride, resources],
   );
 
   const actionableAttention = useMemo(
