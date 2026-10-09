@@ -10,10 +10,10 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs and the explicit `all` sentinel to unscoped params |
 | `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
-| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata |
+| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata and the validated per-cell truncation matrix |
 | `schema-catalog.ts` | Query workbench schema catalog: lists, table details, and SQL completion namespace keyed by 库身份 |
 | `worksheet-session.ts` | Query workbench 工作表 session: run, paging, template enter/exit, explain, related records, and history |
-| `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out |
+| `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
 same-origin Operator Session endpoint. It does not trust browser storage or
@@ -31,7 +31,10 @@ template enter/exit, explain, related records, history, and persisted drafts.
 Typing uses `editStatement`; load/replace still use `replaceStatement`.
 
 `query-result-envelope.ts` is the governed result envelope: wire execute
-payload in, grid-safe snapshot or controlled failure out.
+payload in, grid-safe snapshot or controlled failure out. Non-empty results
+must carry a `cellTruncated` boolean matrix whose row count matches `rows`
+and whose row width matches `columns`; missing, misaligned, or non-boolean
+matrices are controlled failures, never repaired or guessed.
 
 `navigation.ts` marks audits and machine-principal administration entries
 `adminOnly`; sidebar and command palette hide them for non-admin operators,
@@ -52,7 +55,10 @@ shared strict parser for URL IDs.
 `query-result-csv.ts` emits the current visible result page only. Raw values
 need both `raw_copy_allowed` and `copyAllowed`; masked and malformed disclosure
 metadata become stable placeholders, and values/headers beginning with a
-spreadsheet formula prefix are emitted as literal text.
+spreadsheet formula prefix are emitted as literal text. The validated
+`cellTruncated` matrix is a required argument: any `true` flag or dimension
+mismatch refuses serialization instead of exporting truncated prefixes as
+complete values.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

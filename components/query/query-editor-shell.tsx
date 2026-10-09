@@ -1678,7 +1678,16 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef,
         </dd>
       </dl>
 
-      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
+      {safeResult.cellTruncated.some((row) => row.some((flag) => flag)) ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-300"
+          data-testid="truncated-page-notice"
+        >
+          {t("result.truncatedPageNotice")}
+        </p>
+      ) : null}
+
+      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} cellTruncated={safeResult.cellTruncated} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
     </div>
   );
 }
@@ -1742,7 +1751,7 @@ function RelatedRecordsPanel({
               <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
               {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
             </dl>
-            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} exportEnabled={false} />
+            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} cellTruncated={safeResponse.cellTruncated} exportEnabled={false} />
           </>
         );
       })()}
@@ -1932,6 +1941,7 @@ function ExplainPanel({
 function ResultTable({
   columns,
   rows,
+  cellTruncated,
   navigationCapability,
   relatedRecordsTriggerRef,
   onRelatedRecordsIneligible,
@@ -1939,6 +1949,7 @@ function ResultTable({
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
+  cellTruncated: readonly (readonly boolean[])[];
   navigationCapability?: NavigationCapability;
   relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
   onRelatedRecordsIneligible?: () => void;
@@ -1993,6 +2004,14 @@ function ResultTable({
 
   const colCount = columns.length;
   const rowCount = rows.length;
+
+  // Per-cell truncation flags follow the validated matrix positionally — the
+  // grid never re-derives them from value length or column names.
+  function isCellTruncated(rowIndex: number, colIndex: number): boolean {
+    return cellTruncated[rowIndex]?.[colIndex] === true;
+  }
+
+  const hasTruncatedCells = cellTruncated.some((row) => row.some((flag) => flag === true));
 
   // Compute eligible FKs for the current selected data row.
   const eligibleFKs = useMemo(() => {
@@ -2144,9 +2163,16 @@ function ResultTable({
   }
 
   function handleExportCsv() {
-    if (!exportEnabled) return;
+    if (!exportEnabled || hasTruncatedCells) return;
+    let csv: string;
+    try {
+      csv = serializeQueryResultCsv(columns, rows, cellTruncated);
+    } catch {
+      showFeedback(t("result.exportCsvBlocked"), "error");
+      return;
+    }
     const url = URL.createObjectURL(
-      new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
     );
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -2165,6 +2191,12 @@ function ResultTable({
     if (selectedCell) {
       const column = columns[selectedCell.colIndex];
       if (column && !isColumnCopyable(column)) {
+        return;
+      }
+      // A truncated cell only holds the safe backend prefix — never copy it as
+      // if it were the complete value.
+      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
+        showFeedback(t("result.copyTruncatedBlocked"), "error");
         return;
       }
       text = getCellCopyText(selectedCell.value);
@@ -2186,6 +2218,9 @@ function ResultTable({
       if (column && !isColumnCopyable(column)) {
         return t("result.copyNotAllowed");
       }
+      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
+        return t("result.copyTruncatedBlocked");
+      }
       return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
     }
     if (selectedHeader) {
@@ -2205,7 +2240,7 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) : false)}
+          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) || isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex) : false)}
           onClick={() => void handleCopy()}
           aria-label={copyButtonLabel()}
           data-testid="copy-selection"
@@ -2218,6 +2253,10 @@ function ResultTable({
           size="sm"
           variant="outline"
           onClick={handleExportCsv}
+          disabled={hasTruncatedCells}
+          title={hasTruncatedCells ? t("result.exportCsvBlocked") : undefined}
+          aria-label={hasTruncatedCells ? t("result.exportCsvBlocked") : undefined}
+          data-testid="export-csv"
         >
           <Download className="size-3.5" aria-hidden />
           {t("result.exportCsv")}
@@ -2323,7 +2362,7 @@ function ResultTable({
                         isSelected && "ring-2 ring-inset ring-ring",
                       )}
                     >
-                      <ResultCell value={cell} />
+                      <ResultCell value={cell} truncated={isCellTruncated(rowIndex, cellIndex)} />
                     </td>
                   );
                 })}
@@ -2338,20 +2377,38 @@ function ResultTable({
 
 /**
  * Render one JSON-safe cell. SQL NULL is preserved as an explicit, localized
- * marker — never coerced to 0, empty string, or "undefined".
+ * marker — never coerced to 0, empty string, or "undefined". A truncated cell
+ * keeps the backend's safe prefix value unchanged and gains a separate
+ * accessible badge; the flag never becomes part of the rendered value.
  */
-function ResultCell({ value }: { value: QueryResultCellValue }) {
+function ResultCell({ value, truncated }: { value: QueryResultCellValue; truncated?: boolean }) {
   const t = useTranslations("queryWorkbench");
 
-  if (value === null) {
-    return (
+  const rendered =
+    value === null ? (
       <span className="font-mono text-xs italic text-muted-foreground">{t("result.nullMarker")}</span>
+    ) : typeof value === "boolean" ? (
+      <span className="font-mono text-xs text-foreground">{value ? "true" : "false"}</span>
+    ) : (
+      <span className="font-mono text-xs text-foreground">{String(value)}</span>
     );
-  }
-  if (typeof value === "boolean") {
-    return <span className="font-mono text-xs text-foreground">{value ? "true" : "false"}</span>;
-  }
-  return <span className="font-mono text-xs text-foreground">{String(value)}</span>;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {rendered}
+      {truncated ? (
+        <Badge
+          variant="outline"
+          className="border-amber-500/50 px-1 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+          title={t("result.cellTruncated")}
+          aria-label={t("result.cellTruncated")}
+          data-testid="cell-truncated-badge"
+        >
+          {t("result.cellTruncated")}
+        </Badge>
+      ) : null}
+    </span>
+  );
 }
 
 const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
@@ -2360,6 +2417,7 @@ const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
   "query_target_not_found",
   "query_explain_not_supported",
   "query_result_disclosure_blocked",
+  "result_contract_upgrade_required",
   "query_timeout",
   "query_backend_error",
   "internal_error",

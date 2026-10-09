@@ -36,9 +36,10 @@ export type QueryExecutePaginationResponse = {
 
 /**
  * Request body for `POST /query-targets/{id}/execute`. Only `statement`, an
- * optional `maxRows` cap, and an optional structured `pagination` object are
- * ever sent. The actor is derived from the verified Bearer token on the
- * server — it must never appear here.
+ * optional `maxRows` cap, an optional structured `pagination` object, and the
+ * fixed result-contract `capabilities` declaration are ever sent. The actor
+ * is derived from the verified Bearer token on the server — it must never
+ * appear here.
  *
  * Phase 38S adds the optional `pagination` object for page-number paging.
  * `maxRows` remains the overall row-release cap across all pages; it is
@@ -48,6 +49,8 @@ export type QueryExecuteRequest = {
   statement: string;
   maxRows?: number;
   pagination?: QueryExecutePaginationRequest;
+  /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
+  capabilities?: readonly string[];
 };
 
 /** One column descriptor in a result set. */
@@ -81,6 +84,12 @@ export type QueryExecuteResponse = {
   columns: QueryResultColumn[];
   rows: QueryResultCellValue[][];
   rowCount: number;
+  /**
+   * Per-cell truncation flags aligned with `rows`/`columns`. Present on every
+   * non-empty success page; may be absent or empty on zero-row pages.
+   * Validated by `normalizeExecuteResponse` before rendering.
+   */
+  cellTruncated?: boolean[][];
   truncated: boolean;
   durationMs: number;
   limitApplied: number;
@@ -169,6 +178,8 @@ export type RelatedRecordNavigationRequest = {
   readonly source: RelatedRecordNavigationSource;
   readonly localValues: readonly string[];
   readonly maxRows?: number;
+  /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
+  readonly capabilities?: readonly string[];
 };
 
 /**

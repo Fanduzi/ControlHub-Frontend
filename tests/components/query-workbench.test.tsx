@@ -662,7 +662,7 @@ describe("QueryWorkbench execution (ready target)", () => {
   function buildExecuteResponse(
     overrides: Partial<QueryExecuteResponse> = {},
   ): QueryExecuteResponse {
-    return {
+    const response: QueryExecuteResponse = {
       executionId: 1001,
       status: "success",
       targetResourceId: 30,
@@ -682,6 +682,14 @@ describe("QueryWorkbench execution (ready target)", () => {
       executedAt: "2026-06-22T08:30:00Z",
       ...overrides,
     };
+    // Derived default: an aligned all-false matrix unless the test overrides
+    // cellTruncated explicitly (including `undefined` for missing-matrix cases).
+    if (!("cellTruncated" in overrides)) {
+      response.cellTruncated = (Array.isArray(response.rows) ? response.rows : []).map(
+        (row) => (Array.isArray(row) ? row : []).map(() => false),
+      );
+    }
+    return response;
   }
 
   it("keeps Run disabled for a locked target even though the workbench renders", () => {
@@ -1066,6 +1074,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
       durationMs: 12,
       limitApplied: 100,
       executedAt: "2026-06-22T08:30:00Z",
+      cellTruncated: [[false,false]],
     };
   }
 
@@ -2510,6 +2519,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-08T10:00:00Z",
+      cellTruncated: [[false]],
     });
 
     render(
@@ -2631,6 +2641,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       durationMs: 12,
       limitApplied: 100,
       executedAt: "2026-07-11T10:00:00Z",
+      cellTruncated: [[false]],
     });
 
     render(
@@ -2682,6 +2693,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       durationMs: 8,
       limitApplied: 100,
       executedAt: "2026-07-11T10:00:00Z",
+      cellTruncated: [[false]],
     });
 
     render(
@@ -2969,6 +2981,7 @@ describe("QueryWorkbench history target-race guard", () => {
       durationMs: 5,
       limitApplied: 100,
       executedAt: "2026-06-22T08:30:00Z",
+      cellTruncated: [[false]],
     });
 
     const targets = [
@@ -3084,6 +3097,7 @@ describe("QueryWorkbench SQL completion integration", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-11T10:00:00Z",
+      cellTruncated: [[false]],
     });
 
     render(
@@ -3211,7 +3225,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
   function buildExecuteResponse(
     overrides: Partial<QueryExecuteResponse> = {},
   ): QueryExecuteResponse {
-    return {
+    const response: QueryExecuteResponse = {
       executionId: 1001,
       status: "success",
       targetResourceId: 30,
@@ -3232,6 +3246,14 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       executedAt: "2026-06-22T08:30:00Z",
       ...overrides,
     };
+    // Derived default: an aligned all-false matrix unless the test overrides
+    // cellTruncated explicitly (including `undefined` for missing-matrix cases).
+    if (!("cellTruncated" in overrides)) {
+      response.cellTruncated = (Array.isArray(response.rows) ? response.rows : []).map(
+        (row) => (Array.isArray(row) ? row : []).map(() => false),
+      );
+    }
+    return response;
   }
 
   it("serializes current rows as RFC-4180 CSV without leaking protected disclosure values", () => {
@@ -3245,6 +3267,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
         col("nullable", "VARCHAR", true),
       ],
       [[7, "a,b \"quote\"\r\nnext", "TOP SECRET", "also secret", "still secret", null]],
+      [[false, false, false, false, false, false]],
     );
 
     expect(csv).toBe(
@@ -3265,6 +3288,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
         col("ordinary", "VARCHAR", true),
       ],
       [["=SUM(A1:A2)", "+1+1", "-1+1", "@cmd", "plain text"]],
+      [[false, false, false, false, false]],
     );
 
     // WHY: CSV opens in spreadsheet programs, where these prefixes become
@@ -3278,6 +3302,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const csv = serializeQueryResultCsv(
       [col("amount", "BIGINT", false), col("expression", "VARCHAR", true)],
       [[-42, "-1+1"]],
+      [[false, false]],
     );
 
     // WHY: a number is data, not a spreadsheet formula; string formulas still
@@ -3844,6 +3869,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       durationMs: 5,
       limitApplied: 100,
       executedAt: "2026-07-13T10:00:00Z",
+      cellTruncated: [[false]],
     });
     await user.click(screen.getByRole("button", { name: /^run$/i }));
 
@@ -3916,6 +3942,237 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
 
 });
 
+describe("QueryWorkbench result contract (cellTruncated)", () => {
+  function buildReadyTarget(overrides: DeepPartial<QueryTarget> = {}) {
+    return buildQueryTarget({
+      resourceId: 30,
+      displayName: "Local MySQL Dev",
+      resourceName: "local-mysql-dev",
+      connectionContext: {
+        engine: "mysql",
+        host: "127.0.0.1",
+        port: 3306,
+        environment: "Development",
+        owner: "Platform",
+        clusterName: "",
+      },
+      capability: { queryKind: "sql", editorMode: "sql", languageLabel: "SQL" },
+      readiness: "ready",
+      governance: {
+        executionEnabled: true,
+        credentialState: "configured_readonly_credential",
+        auditRequired: true,
+        safetyState: "readonly_sandbox_enabled",
+        safetyNote: "Read-only sandbox is enabled.",
+        policyNotes: [],
+      },
+      availableActions: {
+        run: true,
+        explain: false,
+        export: true,
+        saveSheet: false,
+        requestAccess: false,
+      },
+      missingFields: [],
+      ...overrides,
+    });
+  }
+
+  function col(
+    name: string,
+    databaseType: string,
+    nullable: boolean,
+  ): { name: string; databaseType: string; nullable: boolean; displayMode: "raw_copy_allowed"; copyAllowed: true } {
+    return { name, databaseType, nullable, displayMode: "raw_copy_allowed", copyAllowed: true };
+  }
+
+  function buildExecuteResponse(
+    overrides: Partial<QueryExecuteResponse> = {},
+  ): QueryExecuteResponse {
+    const response: QueryExecuteResponse = {
+      executionId: 1001,
+      status: "success",
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        col("id", "BIGINT", false),
+        col("name", "VARCHAR", true),
+      ],
+      rows: [
+        [1, "orders-api"],
+        [2, null],
+      ],
+      rowCount: 2,
+      truncated: false,
+      durationMs: 18,
+      limitApplied: 100,
+      executedAt: "2026-06-22T08:30:00Z",
+      ...overrides,
+    };
+    if (!("cellTruncated" in overrides)) {
+      response.cellTruncated = (Array.isArray(response.rows) ? response.rows : []).map(
+        (row) => (Array.isArray(row) ? row : []).map(() => false),
+      );
+    }
+    return response;
+  }
+
+  async function renderWithResult(
+    resultOverride?: Partial<QueryExecuteResponse>,
+    target = buildReadyTarget(),
+  ) {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(buildExecuteResponse(resultOverride));
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QueryWorkbench
+          targets={[target]}
+          pageInfo={pageInfoFor([target])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+    return { user };
+  }
+
+  it("renders a truncation badge only on the flagged cell, keeping the safe prefix", async () => {
+    await renderWithResult({ cellTruncated: [[false, true], [false, false]] });
+
+    // The flagged (row 0, name) cell shows its backend prefix plus a badge.
+    const flagged = screen.getByRole("cell", { name: /orders-api/ });
+    expect(flagged).toHaveTextContent("orders-api");
+    expect(flagged.querySelector('[data-testid="cell-truncated-badge"]')).not.toBeNull();
+
+    // Neither the neighboring id cell nor the second row's name cell is flagged.
+    const idCell = screen.getByRole("cell", { name: "1" });
+    expect(idCell.querySelector('[data-testid="cell-truncated-badge"]')).toBeNull();
+    const secondRowName = screen.getAllByRole("cell").filter(
+      (el) => el.textContent === "NULL",
+    )[0];
+    expect(secondRowName?.querySelector('[data-testid="cell-truncated-badge"]')).toBeNull();
+
+    expect(screen.getByTestId("truncated-page-notice")).toBeInTheDocument();
+  });
+
+  it("blocks copying a truncated cell but keeps clean cells copyable", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({ cellTruncated: [[false, true], [false, false]] });
+
+    const truncatedCell = screen.getByRole("cell", { name: /orders-api/ });
+    await user.click(truncatedCell);
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+
+    const cleanCell = screen.getByRole("cell", { name: "1" });
+    await user.click(cleanCell);
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).not.toBeDisabled();
+    await user.click(copyButton);
+    expect(mockCopyToClipboard).toHaveBeenCalledWith("1");
+  });
+
+  it("disables CSV export on a page containing any truncated cell", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({
+      cellTruncated: [[false, true], [false, false]],
+    });
+
+    const exportButton = screen.getByTestId("export-csv");
+    expect(exportButton).toBeDisabled();
+
+    const createObjectURL = vi.fn(() => "blob:should-not-exist");
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL: vi.fn() });
+    try {
+      await user.click(exportButton);
+      expect(createObjectURL).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps CSV export available on a clean page with a complete false matrix", async () => {
+    await renderWithResult();
+    expect(screen.getByTestId("export-csv")).not.toBeDisabled();
+    expect(screen.queryByTestId("truncated-page-notice")).toBeNull();
+  });
+
+  it("shows the contract-upgrade copy for a 409 result_contract_upgrade_required without a retry affordance", async () => {
+    const user = userEvent.setup();
+    // First run succeeds so a stale result exists that must be cleared.
+    await renderWithResult();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(409, "result_contract_upgrade_required", "raw server message must not surface"),
+    );
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/result contract/i)).toBeInTheDocument();
+    expect(screen.queryByText(/raw server message/)).toBeNull();
+    // No automatic retry affordance and no stale downloadable result.
+    expect(screen.queryByRole("button", { name: /^retry$/i })).toBeNull();
+    expect(screen.queryByRole("grid")).toBeNull();
+    expect(screen.queryByTestId("export-csv")).toBeNull();
+  });
+});
+
+describe("serializeQueryResultCsv result-contract gate", () => {
+  function col(
+    name: string,
+    databaseType: string,
+    nullable: boolean,
+  ): { name: string; databaseType: string; nullable: boolean; displayMode: "raw_copy_allowed"; copyAllowed: true } {
+    return { name, databaseType, nullable, displayMode: "raw_copy_allowed", copyAllowed: true };
+  }
+
+  it("refuses serialization when any delivered cell is truncated", () => {
+    expect(() =>
+      serializeQueryResultCsv(
+        [col("id", "BIGINT", false), col("name", "VARCHAR", true)],
+        [[1, "prefix-only"]],
+        [[false, true]],
+      ),
+    ).toThrow(/truncated/i);
+  });
+
+  it("refuses serialization when the matrix does not match the page shape", () => {
+    expect(() =>
+      serializeQueryResultCsv([col("id", "BIGINT", false)], [[1]], []),
+    ).toThrow();
+    expect(() =>
+      serializeQueryResultCsv([col("id", "BIGINT", false), col("n", "VARCHAR", true)], [[1, "x"]], [[false]]),
+    ).toThrow();
+    // WHY: a missing matrix must fail closed — it is not equivalent to an
+    // explicit all-false page. (Compile-time types also require the argument.)
+    expect(() =>
+      serializeQueryResultCsv(
+        [col("id", "BIGINT", false)],
+        [[1]],
+        undefined as unknown as boolean[][],
+      ),
+    ).toThrow();
+  });
+
+  it("still serializes a clean page with masked/blocked placeholders", () => {
+    const csv = serializeQueryResultCsv(
+      [
+        col("id", "BIGINT", false),
+        { name: "m", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
+        { name: "b", databaseType: "VARCHAR", nullable: false, displayMode: "blocked", copyAllowed: false },
+      ],
+      [[1, "[MASKED]", "hidden"]],
+      [[false, false, false]],
+    );
+    expect(csv).toBe("id,m,b\r\n1,[masked],[blocked]\r\n");
+  });
+});
+
 describe("FK record navigation", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -3951,6 +4208,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     renderWorkbench([buildReadyWorkbenchTarget()]);
@@ -3985,6 +4243,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     renderWorkbench([buildReadyWorkbenchTarget()]);
@@ -4019,6 +4278,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     renderWorkbench([buildReadyWorkbenchTarget()]);
@@ -4064,6 +4324,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     renderWorkbench([buildReadyWorkbenchTarget()]);
@@ -4102,6 +4363,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
 
@@ -4173,6 +4435,7 @@ describe("FK record navigation", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-14T08:00:00Z",
+      cellTruncated: [[false,false]],
     });
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
     renderWorkbench([buildReadyWorkbenchTarget()]);
@@ -5168,6 +5431,7 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-06-22T08:30:00Z",
+      cellTruncated: [[false]],
     });
     renderExplainable();
 
@@ -5609,6 +5873,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 12,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false,false,false],[false,false,false]],
     });
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
@@ -5644,6 +5909,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
@@ -5674,6 +5940,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
@@ -5738,6 +6005,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false,false]],
     });
 
     renderWorkbench([buildReadyWorkbenchTarget()]);

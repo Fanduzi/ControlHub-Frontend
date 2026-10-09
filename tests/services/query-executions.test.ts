@@ -48,6 +48,7 @@ function buildExecuteResponse() {
     durationMs: 18,
     limitApplied: 100,
     executedAt: "2026-06-22T08:30:00Z",
+    cellTruncated: [[false]],
   };
 }
 
@@ -91,6 +92,7 @@ function buildRelatedRecordResponse() {
     durationMs: 12,
     limitApplied: 100,
     executedAt: "2026-07-14T08:00:00Z",
+    cellTruncated: [[false,false]],
     sourceDatabase: "orders",
     sourceObject: "order_items",
     foreignKey: "fk_order_items_order",
@@ -128,7 +130,11 @@ describe("executeQueryTarget", () => {
     await executeQueryTarget(22, { statement: "select 1", maxRows: 100 });
 
     const [, init] = mockApiClient.mock.calls[0]!;
-    expect(requestBody(init)).toEqual({ statement: "select 1", maxRows: 100 });
+    expect(requestBody(init)).toEqual({
+      statement: "select 1",
+      maxRows: 100,
+      capabilities: ["cellTruncated"],
+    });
   });
 
   it("never sends actorUserId in the request body", async () => {
@@ -148,7 +154,10 @@ describe("executeQueryTarget", () => {
     await executeQueryTarget(22, { statement: "select 1" });
 
     const [, init] = mockApiClient.mock.calls[0]!;
-    expect(requestBody(init)).toEqual({ statement: "select 1" });
+    expect(requestBody(init)).toEqual({
+      statement: "select 1",
+      capabilities: ["cellTruncated"],
+    });
   });
 
   it("returns the backend execution response unchanged", async () => {
@@ -387,6 +396,7 @@ describe("navigateRelatedRecords", () => {
       source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
       localValues: ["42"],
       maxRows: 100,
+      capabilities: ["cellTruncated"],
     });
 
     const [, init] = mockApiClient.mock.calls[0]!;
@@ -394,6 +404,7 @@ describe("navigateRelatedRecords", () => {
       source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
       localValues: ["42"],
       maxRows: 100,
+      capabilities: ["cellTruncated"],
     });
   });
 
@@ -587,6 +598,7 @@ describe("query-executions module surface", () => {
         "isRetryableControlledErrorCode",
         "listQueryExecutions",
         "navigateRelatedRecords",
+        "RESULT_CONTRACT_CAPABILITIES",
         "toQueryExecuteError",
       ].sort(),
     );
@@ -637,6 +649,7 @@ describe("Phase 38S: governed result paging request shape", () => {
       statement: "select * from orders",
       maxRows: 100,
       pagination: { page: 2, pageSize: 25 },
+      capabilities: ["cellTruncated"],
     });
   });
 
@@ -653,7 +666,7 @@ describe("Phase 38S: governed result paging request shape", () => {
 
     const [, init] = mockApiClient.mock.calls[0]!;
     const body = requestBody(init);
-    expect(Object.keys(body).sort()).toEqual(["maxRows", "pagination", "statement"]);
+    expect(Object.keys(body).sort()).toEqual(["capabilities", "maxRows", "pagination", "statement"]);
     expect(body).not.toHaveProperty("cursor");
     expect(body).not.toHaveProperty("pageSize");
   });
@@ -666,7 +679,10 @@ describe("Phase 38S: governed result paging request shape", () => {
 
     const [, init] = mockApiClient.mock.calls[0]!;
     const body = requestBody(init);
-    expect(body).toEqual({ statement: "select 1" });
+    expect(body).toEqual({
+      statement: "select 1",
+      capabilities: ["cellTruncated"],
+    });
     expect(body).not.toHaveProperty("cursor");
     expect(body).not.toHaveProperty("pageSize");
     expect(body).not.toHaveProperty("pageToken");

@@ -1,5 +1,5 @@
 import { apiClient, ApiError } from "@/services/api-client";
-import { toQueryExecuteError } from "@/services/query-executions";
+import { RESULT_CONTRACT_CAPABILITIES, toQueryExecuteError } from "@/services/query-executions";
 import type { QueryExecuteResponse } from "@/types/query-execution";
 import type {
   QuerySavedStatementCreateRequest,
@@ -158,6 +158,7 @@ export async function executeSavedStatementTemplate(
 ): Promise<QueryExecuteResponse> {
   const body: QuerySavedStatementExecuteRequest = {
     values: input.values,
+    capabilities: RESULT_CONTRACT_CAPABILITIES,
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
     ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };

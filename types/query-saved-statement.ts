@@ -99,4 +99,6 @@ export type QuerySavedStatementExecuteRequest = {
   readonly values: Readonly<Record<string, QuerySavedStatementParameterValue>>;
   readonly maxRows?: number;
   readonly pagination?: QueryExecutePaginationRequest;
+  /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
+  readonly capabilities?: readonly string[];
 };

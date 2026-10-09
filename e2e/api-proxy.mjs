@@ -3,6 +3,17 @@ import http from "node:http";
 const TARGET_ORIGIN = process.env.PLAYWRIGHT_PROXY_TARGET ?? "http://localhost:8080";
 const PORT = Number(process.env.PLAYWRIGHT_PROXY_PORT ?? "8081");
 
+// T13-A E2E fixture affordance: the backend contract keeps
+// availableActions.export=false on every target (OpenAPI: "all false"), so the
+// CSV export control never renders against the real backend. The dedicated
+// Query E2E fixture target (QUERY_DEV_TARGET_NAME, default
+// "local-mysql-query-dev") gets export=true injected on GET /query-targets so
+// the real download path can be exercised. This flips only the UI affordance
+// flag on the disposable fixture identity — execution, matrices, and
+// disclosure are untouched and remain server-produced.
+const EXPORT_FLAG_RESOURCE_NAME =
+  process.env.E2E_EXPORT_FLAG_RESOURCE_NAME ?? "local-mysql-query-dev";
+
 const recordedRequests = new Map();
 
 export function getAllowedOrigins() {
@@ -115,8 +126,38 @@ const server = http.createServer(async (request, response) => {
     delete headers["access-control-allow-headers"];
     delete headers["access-control-allow-methods"];
     setCorsHeaders(request, response);
+    let upstreamBody = Buffer.from(await upstreamResponse.arrayBuffer());
+
+    // Fixture-only export-flag injection (see EXPORT_FLAG_RESOURCE_NAME).
+    if (
+      request.method === "GET" &&
+      incomingUrl.pathname === "/query-targets" &&
+      upstreamResponse.status === 200
+    ) {
+      try {
+        const body = JSON.parse(upstreamBody.toString("utf8"));
+        let touched = false;
+        for (const item of body.items ?? []) {
+          if (
+            item &&
+            item.resourceName === EXPORT_FLAG_RESOURCE_NAME &&
+            item.availableActions
+          ) {
+            item.availableActions.export = true;
+            touched = true;
+          }
+        }
+        if (touched) {
+          upstreamBody = Buffer.from(JSON.stringify(body), "utf8");
+          delete headers["content-length"];
+          delete headers["content-encoding"];
+        }
+      } catch {
+        // Non-JSON list payload: pass through unchanged.
+      }
+    }
+
     response.writeHead(upstreamResponse.status, headers);
-    const upstreamBody = Buffer.from(await upstreamResponse.arrayBuffer());
     response.end(upstreamBody);
   } catch (error) {
     response.writeHead(502, { "Content-Type": "application/json" });

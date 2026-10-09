@@ -998,7 +998,7 @@ function renderReady(
 function buildExecuteResponse(
   overrides: Partial<QueryExecuteResponse> = {},
 ): QueryExecuteResponse {
-  return {
+  const response: QueryExecuteResponse = {
     executionId: 1001,
     status: "success",
     targetResourceId: 30,
@@ -1018,6 +1018,14 @@ function buildExecuteResponse(
     executedAt: "2026-06-22T08:30:00Z",
     ...overrides,
   };
+  // Derived default: an aligned all-false matrix unless the test overrides
+  // cellTruncated explicitly (including `undefined` for missing-matrix cases).
+  if (!("cellTruncated" in overrides)) {
+    response.cellTruncated = (Array.isArray(response.rows) ? response.rows : []).map(
+      (row) => (Array.isArray(row) ? row : []).map(() => false),
+    );
+  }
+  return response;
 }
 
 describe("ExecuteResult mixed-version response boundary", () => {
@@ -1262,6 +1270,7 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
       durationMs: 5,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [],
       sourceDatabase: "testdb",
       sourceObject: "orders",
       foreignKey: "fk_user_id",
@@ -1351,6 +1360,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1385,6 +1395,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false,false]],
     });
     renderReady();
 
@@ -1415,6 +1426,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1449,6 +1461,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1484,6 +1497,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false,false],[false,false]],
     });
     renderReady();
 
@@ -1527,6 +1541,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false,false]],
     });
     renderReady();
 
@@ -1561,6 +1576,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1589,6 +1605,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1621,6 +1638,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1649,6 +1667,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1677,6 +1696,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1707,6 +1727,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -1735,6 +1756,7 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       durationMs: 10,
       limitApplied: 100,
       executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 
@@ -2043,6 +2065,7 @@ describe("Phase 38S: paging controls in result panel", () => {
       durationMs: 5,
       limitApplied: 100,
       executedAt: "2026-07-29T10:00:00Z",
+      cellTruncated: [[false]],
     });
     renderReady();
 

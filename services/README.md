@@ -13,7 +13,7 @@ Frontend API service modules.
 | `resources.ts` | Inventory list/detail and mutation requests |
 | `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
 | `machine-principals.ts` | Admin machine-principal list, issue, rotate, and revoke calls |
-| `query-executions.ts` | Governed execution/history calls, fail-closed server restore eligibility parsing, and owner-only full-statement retrieval |
+| `query-executions.ts` | Governed execution/history calls declaring `capabilities:["cellTruncated"]` on the three governed result POSTs, fail-closed server restore eligibility parsing, and owner-only full-statement retrieval |
 | `query-workspace.ts` | Owner workspace aggregate GET/PUT with optimistic-concurrency version |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the
@@ -28,7 +28,11 @@ envelope carries it.
 `query-executions.ts` and `query-saved-statements.ts` classify feature
 failures only by `ApiError.code`. Missing codes, non-JSON, and transport
 failures become retryable `service_unavailable`. HTTP 401 stays a Controlled
-Authorization Error and is not wrapped as a workbench feature error.
+Authorization Error and is not wrapped as a workbench feature error. The three
+governed result POSTs (execute, saved-statement execute, related-records)
+declare the fixed `capabilities:["cellTruncated"]` contract so the server can
+deliver truncation matrices, and `result_contract_upgrade_required` maps to a
+non-retryable controlled delivery refusal — never retried automatically.
 
 `query-workspace.ts` transports only the server-owned worksheet aggregate;
 callers provide `expectedVersion` and handle `query_workspace_conflict`

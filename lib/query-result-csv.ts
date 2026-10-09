@@ -1,4 +1,4 @@
-// input: Query result columns, visible result rows, and server-owned disclosure metadata
+// input: Query result columns, visible result rows, server-owned disclosure metadata, and the validated per-cell truncation matrix
 // output: RFC-4180 CSV with disclosure-safe field values and spreadsheet-formula neutralization
 // pos: pure current-result CSV serialization boundary
 // note: if this file changes, update this header and lib/README.md
@@ -23,11 +23,29 @@ function csvValue(
     : "[blocked]";
 }
 
-/** Serializes only the current visible result page under its disclosure policy. */
+/**
+ * Serializes only the current visible result page under its disclosure policy.
+ * The validated `cellTruncated` matrix is a required input — export is refused
+ * when any delivered cell is a truncated prefix, and a missing or misaligned
+ * matrix fails closed rather than silently exporting unchecked data.
+ */
 export function serializeQueryResultCsv(
   columns: readonly QueryResultColumn[],
   rows: readonly QueryResultCellValue[][],
+  cellTruncated: readonly (readonly boolean[])[],
 ): string {
+  if (cellTruncated.length !== rows.length) {
+    throw new Error("Cannot export result: truncation matrix does not match the current page");
+  }
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const matrixRow = cellTruncated[rowIndex];
+    if (!Array.isArray(matrixRow) || matrixRow.length !== columns.length) {
+      throw new Error("Cannot export result: truncation matrix does not match the current page");
+    }
+    if (matrixRow.some((flag) => flag === true)) {
+      throw new Error("Cannot export result: the current page contains truncated cell values");
+    }
+  }
   return [
     columns.map((column) => escapeCsvField(column.name)).join(","),
     ...rows.map((row) =>

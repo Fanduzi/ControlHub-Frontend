@@ -255,3 +255,147 @@ describe("WorksheetSession persisted drafts", () => {
     expect(session.list).toHaveLength(MAX_WORKSHEETS);
   });
 });
+
+describe("WorksheetSession cellTruncated result-contract propagation", () => {
+  function truncatedResult(flags: boolean[][]): QueryExecuteResponse {
+    const columns = flags[0]?.map((_, index) => ({
+      name: `c${index}`,
+      databaseType: "VARCHAR",
+      nullable: true,
+      displayMode: "raw_copy_allowed" as const,
+      copyAllowed: true,
+    })) ?? [];
+    return emptyResult({
+      columns,
+      rows: flags.map((row) => row.map(() => "v")),
+      rowCount: flags.length,
+      cellTruncated: flags,
+    });
+  }
+
+  it("stores the delivered matrix on the worksheet result after run()", async () => {
+    const execute = vi.fn().mockResolvedValue(truncatedResult([[false, true], [false, false]]));
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    await session.run();
+
+    expect(session.active.result?.cellTruncated).toEqual([[false, true], [false, false]]);
+    // WHY: the flag must stay bound to its (row, column) position so the grid
+    // and CSV gate never misattribute truncation to a neighboring cell.
+    expect(session.active.result?.cellTruncated?.[0]?.[1]).toBe(true);
+  });
+
+  it("clears the prior result and matrix when a rerun fails (409 contract refusal)", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(truncatedResult([[true]]))
+      .mockRejectedValueOnce(
+        new QueryExecuteError(409, "result_contract_upgrade_required", "upgrade required"),
+      );
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    await session.run();
+    expect(session.active.result?.cellTruncated).toEqual([[true]]);
+
+    await session.run();
+    // WHY: a delivery refusal is terminal for the visible page — the stale
+    // truncated result must not remain exportable under the failed request.
+    expect(session.active.result).toBeNull();
+    expect(session.active.error?.code).toBe("result_contract_upgrade_required");
+  });
+
+  it("isolates result matrices between worksheets when switching tabs", async () => {
+    const execute = vi.fn().mockResolvedValue(truncatedResult([[true]]));
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    await session.run();
+    const firstId = session.active.id;
+
+    const second = session.add(1);
+    expect(second).not.toBeNull();
+    expect(session.active.id).not.toBe(firstId);
+    expect(session.active.result).toBeNull();
+
+    session.activate(firstId);
+    expect(session.active.result?.cellTruncated).toEqual([[true]]);
+  });
+
+  it("replaces the page matrix on nextPage rather than merging pages", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(
+        truncatedResult([[true]]),
+      )
+      .mockResolvedValueOnce(
+        {
+          ...truncatedResult([[false]]),
+          pagination: { page: 2, pageSize: 10, hasPreviousPage: true, hasNextPage: false },
+        },
+      );
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    // Seed pagination metadata so nextPage() is legal.
+    await session.run();
+    session.patchActive({
+      resultPagination: { page: 1, pageSize: 10, hasPreviousPage: false, hasNextPage: true },
+    });
+    await session.nextPage();
+
+    // WHY: page 2's matrix replaces page 1's — concatenating the old page's
+    // rows with the new page's matrix would misalign every flag.
+    expect(session.active.result?.cellTruncated).toEqual([[false]]);
+    expect(session.active.currentPage).toBe(2);
+  });
+
+  it("keeps the related-records matrix inside the navigation state", async () => {
+    const navigateRelated = vi.fn().mockResolvedValue(
+      Object.assign(truncatedResult([[false, true]]), {
+        sourceDatabase: "db",
+        sourceObject: "orders",
+        foreignKey: "fk",
+        referencedDatabase: "db",
+        referencedObject: "users",
+        referencedColumns: ["id"],
+      }),
+    );
+    const session = createSession({ navigateRelated });
+    session.openPreview({
+      targetId: 1,
+      database: "db",
+      table: "orders",
+      foreignKeys: [{
+        name: "fk",
+        columns: ["user_id"],
+        referencedDatabase: "db",
+        referencedObject: "users",
+        referencedColumns: ["id"],
+        onUpdate: "cascade",
+        onDelete: "restrict",
+      }],
+      foreignKeysTruncated: false,
+    });
+    session.navigateRelated("fk", ["7"]);
+
+    await vi.waitFor(() => {
+      expect(session.active.relatedRecords.status).toBe("ready");
+    });
+    if (session.active.relatedRecords.status === "ready") {
+      expect(session.active.relatedRecords.response.cellTruncated).toEqual([[false, true]]);
+    }
+  });
+
+  it("never persists result rows, matrices, or parameter values into the workspace snapshot", async () => {
+    const execute = vi.fn().mockResolvedValue(truncatedResult([[true]]));
+    const session = createSession({ execute });
+    session.editStatement("select 1");
+    await session.run();
+    session.setParameterValue("p", "secret-value");
+
+    const snapshot = session.persistedSnapshot();
+    const serialized = JSON.stringify(snapshot);
+    expect(serialized).not.toContain("cellTruncated");
+    expect(serialized).not.toContain("result");
+    expect(serialized).not.toContain("parameterValues");
+    expect(serialized).not.toContain("secret-value");
+  });
+});

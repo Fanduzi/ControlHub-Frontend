@@ -73,6 +73,7 @@ export type QueryExecuteErrorCode =
   | "query_target_not_found"
   | "query_explain_not_supported"
   | "query_result_disclosure_blocked"
+  | "result_contract_upgrade_required"
   | "query_timeout"
   | "query_backend_error"
   | "internal_error"
@@ -80,6 +81,14 @@ export type QueryExecuteErrorCode =
   | "forbidden"
   | "not_found"
   | "saved_statement_not_found";
+
+/**
+ * Fixed result-contract capabilities this client implements. Declared on every
+ * governed result route so the backend may deliver rows annotated with the
+ * per-cell `cellTruncated` matrix. Not operator-selectable — it is a property
+ * of this client version, never a security toggle.
+ */
+export const RESULT_CONTRACT_CAPABILITIES = ["cellTruncated"] as const;
 
 const RETRYABLE_CONTROLLED_ERROR_CODES = new Set<string>([
   "internal_error",
@@ -135,6 +144,7 @@ export async function executeQueryTarget(
 ): Promise<QueryExecuteResponse> {
   const body: QueryExecuteRequest = {
     statement: input.statement,
+    capabilities: RESULT_CONTRACT_CAPABILITIES,
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
     ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };
@@ -210,6 +220,7 @@ export async function navigateRelatedRecords(
   const body: RelatedRecordNavigationRequest = {
     source: input.source,
     localValues: input.localValues,
+    capabilities: RESULT_CONTRACT_CAPABILITIES,
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
   };
 
