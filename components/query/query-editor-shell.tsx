@@ -312,7 +312,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           persistWorkspace(queued.signature, queued.worksheets);
         }
       },
-      (error: unknown) => {
+      () => {
         queuedWorkspaceSaveRef.current = null;
         workspaceSaveInFlightRef.current = false;
         if (!persistAliveRef.current) return;
