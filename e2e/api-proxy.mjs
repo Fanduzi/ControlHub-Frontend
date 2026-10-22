@@ -10,7 +10,15 @@ const PORT = Number(process.env.PLAYWRIGHT_PROXY_PORT ?? "8081");
 // "local-mysql-query-dev") gets export=true injected on GET /query-targets so
 // the real download path can be exercised. This flips only the UI affordance
 // flag on the disposable fixture identity — execution, matrices, and
-// disclosure are untouched and remain server-produced.
+// disclosure are untouched and remain server-produced. PG targets need no
+// injection: the fixture backend already supplies run/export from its own
+// resolver-verified read model.
+//
+// Diagnostics (sanitized): /__health exposes the run identity for the spec's
+// fail-loud fixture check, and /__recorded-requests keeps bounded per-path
+// metadata (method, timestamp, expectedVersion, worksheet count, credential
+// hash, browser/node hop) for OCC forensics — never bodies, SQL, pins, or
+// secrets. __reset-recorded-requests clears a path's records between runs.
 const EXPORT_FLAG_RESOURCE_NAME =
   process.env.E2E_EXPORT_FLAG_RESOURCE_NAME ?? "local-mysql-query-dev";
 

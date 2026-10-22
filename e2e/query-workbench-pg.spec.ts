@@ -1,5 +1,5 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real fixture backend at localhost:8080 + disposable PostgreSQL at localhost:55432
-// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, cancellation state read-back, disclosure/truncation/CSV safety, persistence/restore)
+// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, cancellation state read-back, disclosure/truncation/CSV safety, governed paging, keyed-attempt lifecycle, labeled fault injection, invalid-context reselection, persistence/restore)
 // pos: PostgreSQL counterpart of query-workbench.spec.ts — every assertion goes through the real UI against real backend services; no route mocks
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page } from "@playwright/test";
