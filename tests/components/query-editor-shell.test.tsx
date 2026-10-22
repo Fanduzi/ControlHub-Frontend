@@ -637,6 +637,17 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           statement: "select * from remote_orders",
           activeDatabase: "orders",
         }],
+      })
+      .mockResolvedValueOnce({
+        version: 4,
+        updatedAt: "2026-08-30T00:01:00Z",
+        worksheets: [{
+          id: "remote-orders",
+          name: "Remote draft",
+          targetResourceId: 30,
+          statement: "select * from remote_orders",
+          activeDatabase: "orders",
+        }],
       });
     mockPutQueryWorkspace.mockRejectedValueOnce(
       new QueryExecuteError(409, "query_workspace_conflict", "workspace changed"),
@@ -651,7 +662,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/workspace changed elsewhere/i);
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select * from local_draft");
-    expect(mockGetQueryWorkspace).toHaveBeenCalledTimes(1);
+    expect(mockGetQueryWorkspace).toHaveBeenCalledTimes(2);
 
     await user.click(screen.getByRole("button", { name: /reload workspace/i }));
     expect(await screen.findByRole("tab", { name: "Remote draft" })).toBeInTheDocument();
