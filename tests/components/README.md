@@ -5,6 +5,7 @@ Vitest component tests for React UI components.
 ## Interfaces
 
 - Tests exercise components through rendered accessible controls and public callbacks.
+- Query components cover the PostgreSQL three-level explorer (connection → schema → object), connection/schema selectors, claim-row history rendering, and saved-statement database scoping.
 
 ## Dependencies
 

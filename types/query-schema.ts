@@ -1,3 +1,7 @@
+// input: backend query schema OpenAPI schemas (databases/schemas/objects/details)
+// output: schema explorer transport contracts incl. PostgreSQL namespace fields
+// pos: type-only boundary for schema catalog and explorer payloads
+// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 
 /**
@@ -19,6 +23,8 @@ export type DatabaseSummary = {
 /** Summary of a schema object (table or view) within a database. */
 export type ObjectSummary = {
   readonly database: string;
+  /** PostgreSQL namespace; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly kind: ObjectKind;
 };
@@ -46,6 +52,8 @@ export type ForeignKeyDetail = {
   readonly name: string;
   readonly columns: readonly string[];
   readonly referencedDatabase: string;
+  /** PostgreSQL namespace of the referenced object; omitted for MySQL/TiDB. */
+  readonly referencedSchema?: string;
   readonly referencedObject: string;
   readonly referencedColumns: readonly string[];
   readonly onUpdate: string;
@@ -67,10 +75,26 @@ export type DatabaseListResponse = {
   readonly pageInfo: PageInfo;
 };
 
+/** Summary of one PostgreSQL namespace visible to the connection role. */
+export type SchemaSummary = {
+  readonly name: string;
+};
+
+/** Response envelope for `GET /query-targets/{id}/schema/schemas`. */
+export type SchemaListResponse = {
+  readonly targetResourceId: number;
+  /** Fixed database of the selected PostgreSQL connection. */
+  readonly database: string;
+  readonly items: readonly SchemaSummary[];
+  readonly pageInfo: PageInfo;
+};
+
 /** Response envelope for `GET /query-targets/{id}/schema/objects`. */
 export type ObjectListResponse = {
   readonly targetResourceId: number;
   readonly database: string;
+  /** Resolved PostgreSQL namespace when the request pinned/defaulted one. */
+  readonly schema?: string;
   readonly items: readonly ObjectSummary[];
   readonly pageInfo: PageInfo;
 };
@@ -79,6 +103,8 @@ export type ObjectListResponse = {
 export type ObjectDetailResponse = {
   readonly targetResourceId: number;
   readonly database: string;
+  /** PostgreSQL namespace of the object; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly kind: ObjectKind;
   readonly columns: readonly ColumnDetail[];
@@ -97,9 +123,21 @@ export type SchemaDatabaseListParams = {
   readonly signal?: AbortSignal;
 };
 
+/** Query parameters for PostgreSQL schema list (per connection database). */
+export type SchemaListParams = {
+  readonly database: string;
+  readonly q?: string;
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly refresh?: boolean;
+  readonly signal?: AbortSignal;
+};
+
 /** Query parameters for schema object list. */
 export type SchemaObjectListParams = {
   readonly database: string;
+  /** PostgreSQL namespace pin; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly kind?: ObjectKind;
   readonly q?: string;
   readonly page?: number;
@@ -111,6 +149,8 @@ export type SchemaObjectListParams = {
 /** Query parameters for schema object details. */
 export type SchemaObjectDetailParams = {
   readonly database: string;
+  /** PostgreSQL namespace pin; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly kind?: ObjectKind;
   readonly refresh?: boolean;
@@ -131,6 +171,8 @@ export type TableDefinitionResponse = {
 /** Query parameters for table definition. */
 export type TableDefinitionParams = {
   readonly database: string;
+  /** PostgreSQL namespace pin; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly signal?: AbortSignal;
 };
@@ -145,6 +187,8 @@ export const RELATIONSHIP_MAP_MAX_EDGES = 80
 export type RelationshipMapNode = {
   readonly id: string;
   readonly database: string;
+  /** PostgreSQL namespace; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly kind: "table";
   readonly role: "root" | "related";
@@ -174,6 +218,8 @@ export type RelationshipMapResponse = {
 /** Query parameters for relationship map. */
 export type RelationshipMapParams = {
   readonly database: string;
+  /** PostgreSQL namespace of the root object; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly refresh?: boolean;
   readonly signal?: AbortSignal;

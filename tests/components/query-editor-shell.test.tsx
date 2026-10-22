@@ -127,7 +127,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
 
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(30, expect.objectContaining({
       statement: "select * from production_orders",
-    }));
+    }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it("resolves and caches a hydrated worksheet target outside the initial page before Run", async () => {
@@ -183,7 +183,7 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
 
     expect(mockExecuteQueryTarget).toHaveBeenCalledWith(81, expect.objectContaining({
       statement: "select * from page_two_orders",
-    }));
+    }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
     await user.click(screen.getByRole("tab", { name: "Initial target" }));
     await user.click(screen.getByRole("tab", { name: "Page two target" }));
     expect(mockGetQueryTargets).toHaveBeenCalledTimes(1);
@@ -498,6 +498,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         targetResourceId: 30,
         actor: { kind: "user", displayName: "Chen Hao" },
         engine: "mysql",
+        kind: "execution",
+        clientExecutionId: null,
+        database: "",
+        schema: "",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
         canRestore: true,
@@ -661,6 +665,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         targetResourceId: 30,
         actor: { kind: "user", displayName: "Chen Hao" },
         engine: "mysql",
+        kind: "execution",
+        clientExecutionId: null,
+        database: "",
+        schema: "",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
         canRestore: true,
@@ -694,6 +702,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
         targetResourceId: 30,
         actor: { kind: "user", displayName: "Chen Hao" },
         engine: "mysql",
+        kind: "execution",
+        clientExecutionId: null,
+        database: "",
+        schema: "",
         statementDigest: "select * from orders",
         statementPreview: "select * from orders",
         canRestore: true,
@@ -734,6 +746,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           targetResourceId: 30,
           actor: { kind: "user", displayName: "Other user" },
           engine: "mysql",
+          kind: "execution",
+          clientExecutionId: null,
+          database: "",
+          schema: "",
           statementDigest: "other-user digest",
           statementPreview: "select other user",
           canRestore: false,
@@ -749,6 +765,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           targetResourceId: 30,
           actor: { kind: "machine", displayName: "CI bot" },
           engine: "mysql",
+          kind: "execution",
+          clientExecutionId: null,
+          database: "",
+          schema: "",
           statementDigest: "machine digest",
           statementPreview: "select machine",
           canRestore: false,
@@ -764,6 +784,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           targetResourceId: 30,
           actor: { kind: "user", displayName: "Chen Hao" },
           engine: "mysql",
+          kind: "execution",
+          clientExecutionId: null,
+          database: "",
+          schema: "",
           statementDigest: "failed digest",
           statementPreview: "select failed",
           canRestore: false,
@@ -779,6 +803,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
           targetResourceId: 30,
           actor: { displayName: "Legacy user" },
           engine: "mysql",
+          kind: "execution",
+          clientExecutionId: null,
+          database: "",
+          schema: "",
           statementDigest: "legacy digest",
           statementPreview: "select legacy",
           canRestore: false,
@@ -824,6 +852,7 @@ vi.mock("@/services/query-workspace", () => ({
 
 vi.mock("@/services/query-schema", () => ({
   getSchemaDatabases: vi.fn().mockResolvedValue({ items: [], defaultDatabase: null }),
+  getSchemaSchemas: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
@@ -895,7 +924,7 @@ import {
 } from "@/services/query-executions";
 import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
 import { getQueryTargets } from "@/services/query-targets";
-import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
+import { getSchemaDatabases, getSchemaObjects, getSchemaSchemas, getObjectDetails } from "@/services/query-schema";
 import { listSavedStatements, executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
@@ -912,6 +941,7 @@ const mockListQueryExecutions = vi.mocked(listQueryExecutions);
 const mockGetQueryTargets = vi.mocked(getQueryTargets);
 const mockNavigateRelatedRecords = vi.mocked(navigateRelatedRecords);
 const mockGetSchemaDatabases = vi.mocked(getSchemaDatabases);
+const mockGetSchemaSchemas = vi.mocked(getSchemaSchemas);
 const mockGetSchemaObjects = vi.mocked(getSchemaObjects);
 const mockGetObjectDetails = vi.mocked(getObjectDetails);
 const mockListSavedStatements = vi.mocked(listSavedStatements);
@@ -2091,6 +2121,8 @@ describe("Phase 38S: paging controls in result panel", () => {
         targetResourceId: 30,
         name: "Fresh statement",
         statement: "select fresh_data",
+        database: "",
+        schema: "",
         scope: "personal",
         parameters: [],
         createdAt: "2026-07-29T00:00:00Z",
@@ -2128,6 +2160,8 @@ describe("Phase 38S: paging controls in result panel", () => {
         targetResourceId: 30,
         name: "Parameterized statement",
         statement: "select :status",
+        database: "",
+        schema: "",
         scope: "personal",
         parameters: [{ name: "status", type: "string" }],
         createdAt: "2026-07-29T00:00:00Z",
@@ -2158,6 +2192,8 @@ describe("Phase 38S: paging controls in result panel", () => {
         targetResourceId: 30,
         name: "Parameterized statement",
         statement: "select :status",
+        database: "",
+        schema: "",
         scope: "personal",
         parameters: [{ name: "status", type: "string" }],
         createdAt: "2026-07-29T00:00:00Z",
@@ -2689,6 +2725,8 @@ describe("Phase P1: loaded template parameter form rendering", () => {
         targetResourceId: 30,
         name: "Param template",
         statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        database: "",
+        schema: "",
         scope: "personal" as const,
         parameters: [
           { name: "status", type: "string" as const },
@@ -2728,6 +2766,8 @@ describe("Phase P1: loaded template parameter form rendering", () => {
         targetResourceId: 30,
         name: "Static query",
         statement: "SELECT 1",
+        database: "",
+        schema: "",
         scope: "personal" as const,
         parameters: [],
         createdAt: "2026-08-01T00:00:00Z",
@@ -2802,6 +2842,8 @@ describe("Phase 38W-3: template execution through the governed route", () => {
         targetResourceId: 30,
         name: "Param template",
         statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        database: "",
+        schema: "",
         scope: "personal" as const,
         parameters: [
           { name: "status", type: "string" as const },
@@ -2845,6 +2887,7 @@ describe("Phase 38W-3: template execution through the governed route", () => {
         values: { status: "paid", min_id: 5 },
         pagination: { page: 1, pageSize: 10 },
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
   });
@@ -2924,6 +2967,7 @@ describe("Phase 38W-3: template execution through the governed route", () => {
         values: { status: "paid", min_id: 5 },
         pagination: { page: 2, pageSize: 10 },
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
   });
@@ -3169,6 +3213,8 @@ describe("Phase 38W-3: template execution through the governed route", () => {
         targetResourceId: 30,
         name: "Param template",
         statement: "SELECT * FROM orders WHERE status = :status AND id > :min_id",
+        database: "",
+        schema: "",
         scope: "personal" as const,
         parameters: [
           { name: "status", type: "string" as const },
@@ -3419,5 +3465,145 @@ describe("Phase 38W-3: template execution through the governed route", () => {
       });
       expect(shellDbListCalls()).toBe(1);
     });
+  });
+});
+
+describe("QueryEditorShell PostgreSQL composite context", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 0,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockPutQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 1,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockGetQueryTargets.mockResolvedValue({ items: [], pageInfo: pageInfoFor([]) });
+    mockGetSchemaSchemas.mockResolvedValue({
+      targetResourceId: 40,
+      database: "orders",
+      items: [{ name: "sales" }, { name: "ops" }],
+      pageInfo: pageInfoFor([]),
+    });
+  });
+
+  function buildPgTarget(overrides: DeepPartial<QueryTarget> = {}): QueryTarget {
+    return {
+      ...buildReadyTarget({
+        resourceId: 40,
+        displayName: "PG Orders",
+        resourceName: "pg-orders",
+        connectionContext: {
+          engine: "postgresql",
+          host: "127.0.0.1",
+          port: 5432,
+          environment: "Development",
+          owner: "Platform",
+          clusterName: "",
+        },
+        ...overrides,
+      }),
+      connections: [
+        { database: "orders", defaultSchema: "sales", enabled: true, environmentPolicy: "all_environments" },
+        { database: "billing", defaultSchema: "public", enabled: true, environmentPolicy: "all_environments" },
+        { database: "archive", defaultSchema: "public", enabled: false, environmentPolicy: "all_environments" },
+      ],
+    };
+  }
+
+  function pgExecuteResponse(): QueryExecuteResponse {
+    return buildExecuteResponse({
+      targetResourceId: 40,
+      engine: "postgresql",
+      context: { database: "orders", schema: "sales" },
+    });
+  }
+
+  it("gates Run until a connection is selected, then posts database/schema/key", async () => {
+    mockExecuteQueryTarget.mockResolvedValueOnce(pgExecuteResponse());
+    const user = userEvent.setup();
+    renderReady(buildPgTarget());
+
+    const connectionSelect = await screen.findByTestId("pg-connection-select");
+    const runButton = screen.getByRole("button", { name: /^run$/i });
+    expect(runButton).toBeDisabled();
+
+    await user.selectOptions(connectionSelect, "orders");
+    await waitFor(() => expect(mockGetSchemaSchemas).toHaveBeenCalledWith(40, expect.objectContaining({ database: "orders" })));
+
+    const schemaSelect = await screen.findByTestId("pg-schema-select");
+    await user.selectOptions(schemaSelect, "sales");
+    await waitFor(() => expect(runButton).toBeEnabled());
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select 1");
+    await user.click(runButton);
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledWith(40, expect.objectContaining({
+        statement: "select 1",
+        database: "orders",
+        schema: "sales",
+        clientExecutionId: expect.any(String),
+      }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    });
+  });
+
+  it("marks disabled connections unselectable in the picker", async () => {
+    renderReady(buildPgTarget());
+    const connectionSelect = await screen.findByTestId("pg-connection-select");
+    const archiveOption = within(connectionSelect).getByRole("option", { name: /archive/ });
+    expect(archiveOption).toBeDisabled();
+  });
+
+  it("uses the connection default schema as the effective context when none is pinned", async () => {
+    mockExecuteQueryTarget.mockResolvedValueOnce(pgExecuteResponse());
+    const user = userEvent.setup();
+    renderReady(buildPgTarget());
+
+    await user.selectOptions(await screen.findByTestId("pg-connection-select"), "orders");
+    await waitFor(() => expect(mockGetSchemaSchemas).toHaveBeenCalled());
+
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select 1");
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(mockExecuteQueryTarget).toHaveBeenCalledWith(40, expect.objectContaining({
+        database: "orders",
+      }), expect.anything());
+    });
+    const request = mockExecuteQueryTarget.mock.calls[0]![1] as Record<string, unknown>;
+    expect(request).not.toHaveProperty("schema");
+    expect(request).toHaveProperty("database", "orders");
+  });
+
+  it("drops a restored connection that no longer exists in the live enumeration", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "pg-draft",
+        name: "PG draft",
+        targetResourceId: 40,
+        statement: "select * from gone_table",
+        activeDatabase: "deleted_db",
+        activeSchema: "sales",
+      }],
+    });
+    renderReady(buildPgTarget());
+
+    expect(await screen.findByRole("tab", { name: "PG draft" })).toBeInTheDocument();
+    await waitFor(() => {
+      const connectionSelect = screen.getByTestId("pg-connection-select") as HTMLSelectElement;
+      expect(connectionSelect.value).toBe("");
+    });
+    expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
   });
 });

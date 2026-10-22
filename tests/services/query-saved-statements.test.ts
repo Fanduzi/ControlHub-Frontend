@@ -1,3 +1,7 @@
+// input: @/services/query-saved-statements
+// output: saved statement request-contract tests incl. ?database scoping + keyed execute
+// pos: service test
+// note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {
@@ -10,6 +14,7 @@ import {
   SavedStatementError,
   createSavedStatement,
   deleteSavedStatement,
+  executeSavedStatementTemplate,
   listSavedStatements,
   updateSavedStatement,
 } from "@/services/query-saved-statements";
@@ -145,6 +150,8 @@ describe("createSavedStatement", () => {
     await createSavedStatement(22, {
       name: "test",
       statement: "SELECT 1",
+      database: "",
+      schema: "",
       scope: "personal",
       parameters: [],
     });
@@ -162,6 +169,8 @@ describe("createSavedStatement", () => {
     await createSavedStatement(22, {
       name: "test",
       statement: "SELECT 1",
+      database: "",
+      schema: "",
       scope: "personal",
       parameters: [],
     });
@@ -179,6 +188,8 @@ describe("createSavedStatement", () => {
     await createSavedStatement(22, {
       name: "template",
       statement: "SELECT * FROM orders WHERE status = :status",
+      database: "",
+      schema: "",
       scope: "shared_template",
       parameters: [
         { name: "status", type: "string" },
@@ -197,6 +208,8 @@ describe("createSavedStatement", () => {
     await createSavedStatement(22, {
       name: "template",
       statement: "SELECT :status",
+      database: "",
+      schema: "",
       scope: "personal",
       parameters: [{ name: "status", type: "string", value: "secret" } as never],
     });
@@ -274,6 +287,8 @@ describe("createSavedStatement error mapping", () => {
       createSavedStatement(22, {
         name: "test",
         statement: "SELECT 1",
+        database: "",
+        schema: "",
         scope: "personal",
         parameters: [],
       }),
@@ -305,5 +320,59 @@ describe("deleteSavedStatement error mapping", () => {
     expect(error).toBeInstanceOf(SavedStatementError);
     expect((error as SavedStatementError).code).toBe("service_unavailable");
     expect((error as SavedStatementError).code).not.toBe("forbidden");
+  });
+});
+
+describe("executeSavedStatementTemplate PostgreSQL scope", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("pins the bound database on the query string and the key in the body", async () => {
+    mockApiClient.mockResolvedValueOnce({ executionId: 1, status: "success" });
+
+    await executeSavedStatementTemplate(
+      22,
+      42,
+      { values: { status: "open" }, clientExecutionId: "key-tpl", maxRows: 100 },
+      { database: "orders" },
+    );
+
+    const [path] = mockApiClient.mock.calls[0]!;
+    expect(path).toBe("/query-targets/22/saved-statements/42/execute?database=orders");
+    expect(requestBody()).toEqual({
+      values: { status: "open" },
+      clientExecutionId: "key-tpl",
+      maxRows: 100,
+      capabilities: ["cellTruncated"],
+    });
+    expect(requestBody()).not.toHaveProperty("statement");
+    expect(requestBody()).not.toHaveProperty("database");
+  });
+});
+
+describe("createSavedStatement PostgreSQL scope", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("persists the bound database and schema when provided", async () => {
+    mockApiClient.mockResolvedValueOnce({ id: 1 });
+    await createSavedStatement(22, {
+      name: "pg tpl",
+      statement: "SELECT 1",
+      database: "orders",
+      schema: "sales",
+      scope: "personal",
+      parameters: [],
+    });
+    const body = requestBody() as Record<string, unknown>;
+    expect(body).toMatchObject({ database: "orders", schema: "sales" });
+  });
+});
+
+describe("listSavedStatements PostgreSQL scope", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("forwards the database filter", async () => {
+    mockApiClient.mockResolvedValueOnce({ items: [], pageInfo: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+    await listSavedStatements(22, { database: "orders" });
+    expect(mockApiClient.mock.calls[0]![0]).toContain("database=orders");
   });
 });

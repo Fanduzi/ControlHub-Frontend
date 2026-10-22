@@ -74,6 +74,13 @@ export function normalizeExecuteResponse(raw: QueryExecuteResponse): ResultEnvel
     if (row.length !== raw.columns.length) {
       return { ok: false, error: "Invalid response: row width does not match column count" };
     }
+    if (raw.engine === "postgresql") {
+      for (const cell of row) {
+        if (cell !== null && typeof cell !== "string") {
+          return { ok: false, error: "Invalid response: postgresql cell is not a string or null" };
+        }
+      }
+    }
   }
 
   // cellTruncated contract: every non-empty success page carries a boolean

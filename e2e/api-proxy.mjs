@@ -58,8 +58,19 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (incomingUrl.pathname === "/__health") {
+    // Run-identity document: lets a spec prove this listener is THIS run's E2E
+    // proxy (started by playwright with E2E_RUN_ID in env) and that it forwards
+    // to the expected backend — not a stale or developer instance that happens
+    // to hold the port (issue #121/#122 real-assembly requirement).
     response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ ok: true }));
+    response.end(
+      JSON.stringify({
+        ok: true,
+        kind: "controlhub-e2e-api-proxy",
+        runId: process.env.E2E_RUN_ID ?? null,
+        target: TARGET_ORIGIN,
+      }),
+    );
     return;
   }
 
@@ -95,6 +106,7 @@ const server = http.createServer(async (request, response) => {
   const recordKey =
     incomingUrl.pathname === "/resources" ? "/resources" :
     incomingUrl.pathname === "/audit-events" ? "/audit-events" :
+    incomingUrl.pathname === "/query-workspace" ? "/query-workspace" :
     isTopology ? "/resources/*/topology" : null;
 
   if (recordKey) {
@@ -103,6 +115,38 @@ const server = http.createServer(async (request, response) => {
       search: incomingUrl.search,
       searchParams: Object.fromEntries(incomingUrl.searchParams.entries()),
       method: request.method,
+      at: Date.now(),
+      // Sender discriminator for cross-page forensics: stable hash of the
+      // Authorization credential (never the credential itself).
+      ...(recordKey === "/query-workspace"
+        ? (() => {
+            const auth = request.headers.authorization ?? "";
+            let hash = 0;
+            for (const ch of auth) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+            const referer = request.headers.referer ?? "";
+            return {
+              sender: `s${(hash >>> 0).toString(36)}`,
+              via: referer.includes(":3100") ? "browser" : "node",
+            };
+          })()
+        : {}),
+      // Workspace OCC forensics: expectedVersion + worksheet count only — the
+      // full snapshot (SQL, pins) is intentionally not captured.
+      ...(recordKey === "/query-workspace" && body
+        ? (() => {
+            try {
+              const parsed = JSON.parse(body.toString("utf8"));
+              return {
+                expectedVersion: parsed.expectedVersion,
+                worksheetCount: Array.isArray(parsed.worksheets)
+                  ? parsed.worksheets.length
+                  : null,
+              };
+            } catch {
+              return {};
+            }
+          })()
+        : {}),
     };
     const currentRequests = recordedRequests.get(recordKey) ?? [];
     recordedRequests.set(recordKey, [...currentRequests, nextRequest]);
@@ -119,6 +163,12 @@ const server = http.createServer(async (request, response) => {
       body,
       duplex: body ? "half" : undefined,
     });
+
+    if (recordKey === "/query-workspace") {
+      const log = recordedRequests.get(recordKey) ?? [];
+      const last = log[log.length - 1];
+      if (last && last.status === undefined) last.status = upstreamResponse.status;
+    }
 
     const headers = Object.fromEntries(upstreamResponse.headers.entries());
     delete headers["access-control-allow-origin"];

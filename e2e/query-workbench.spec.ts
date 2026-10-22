@@ -488,7 +488,7 @@ test.describe("Query Workbench shell", () => {
     // After the run settles, the history tab refreshes and records the attempt
     // (metadata only — the statement preview surfaces, never result rows).
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("select 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("query history records SHOW TABLES blocked attempt", async ({ page }) => {
@@ -526,9 +526,11 @@ test.describe("Query Workbench shell", () => {
       { method: "POST", url: expectedExecuteUrl, status: 403, consumeConsoleStatusEcho: true },
     ];
 
-    // Switch to history tab and verify the SHOW TABLES attempt is recorded.
+    // Switch to history tab: the blocked attempt is recorded with the
+    // literal-free withheld preview and the disclosure error code.
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SHOW TABLES").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("[statement withheld]").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/query_result_disclosure_blocked/).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("Format button visibly formats messy SQL", async ({ page }) => {
@@ -2680,9 +2682,9 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await runMultipleQueries(page, 3);
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("SELECT 2").first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText("SELECT 3").first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("select ? from dual").nth(0)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").nth(1)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("select ? from dual").nth(2)).toBeVisible({ timeout: 5_000 });
 
     const loadMoreButton = page.getByRole("button", { name: /load more/i });
     const hasLoadMore = await loadMoreButton.count();
@@ -2696,7 +2698,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await runMultipleQueries(page, 2);
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
     const statusFilter = page.locator("#history-filter-status");
     await expect(statusFilter).toBeVisible();
@@ -2704,7 +2706,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await page.getByRole("option", { name: /success/i }).click();
 
     await page.getByRole("button", { name: /apply/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("desktop EN: clicking a history row opens execution detail sheet", async ({ page }) => {
@@ -2712,9 +2714,9 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await runMultipleQueries(page, 1);
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
-    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "select ? from dual" }).first();
     await expect(historyRow).toBeVisible();
     await historyRow.click();
 
@@ -2732,7 +2734,7 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await runMultipleQueries(page, 1);
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
     await expect(page.getByText(/actorUserId/i)).toHaveCount(0);
 
@@ -2753,12 +2755,12 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
     const statusFilter = page.locator("#history-filter-status");
     await expect(statusFilter).toBeVisible();
 
-    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "select ? from dual" }).first();
     await expect(historyRow).toBeVisible();
     await historyRow.click();
 
@@ -2784,13 +2786,13 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole("tab", { name: /查询历史/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
     const statusFilter = page.locator("#history-filter-status");
     await expect(statusFilter).toBeVisible();
     await expect(page.getByRole("button", { name: /应用/i })).toBeVisible();
 
-    const historyRow = page.locator("tr[role='button']").filter({ hasText: "SELECT 1" }).first();
+    const historyRow = page.locator("tr[role='button']").filter({ hasText: "select ? from dual" }).first();
     await expect(historyRow).toBeVisible();
     await historyRow.click();
 
@@ -2809,12 +2811,12 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     await runMultipleQueries(page, 1);
 
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("SELECT 1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("select ? from dual").first()).toBeVisible({ timeout: 15_000 });
 
     // History rows must render role="button" (keyboard-accessible, real click).
     // A regression to a data-slot-only selector would make this assertion fail
     // before the click-based detail tests time out with a misleading 30s wait.
-    const historyRowByRole = page.getByRole("button", { name: "SELECT 1" }).first();
+    const historyRowByRole = page.getByRole("button", { name: "select ? from dual" }).first();
     await expect(historyRowByRole).toBeVisible({ timeout: 10_000 });
 
     // data-slot is NOT present on history rows (the table primitive is not used);
@@ -2900,11 +2902,14 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
   test("desktop EN: Explain shows normalized risk, no history growth, focus restores", async ({ page }) => {
     await openExplainableTarget(page);
 
-    // Run a normal query first to establish a known history baseline
-    const preExplainMarker = `select 'pre-explain-38o-marker-${Date.now()}'`;
+    // Run a normal query first to establish a known history baseline. The
+    // marker rides in a column alias: history previews mask literals to '?'
+    // but preserve identifiers, so the marker still surfaces in the preview.
+    const markerAlias = `pre_explain_38o_marker_${Date.now()}`;
+    const preExplainMarker = `select '${markerAlias}' as ${markerAlias}`;
     await clearAndType(page, preExplainMarker);
     await page.getByRole("button", { name: /^run$/i }).click();
-    await expect(page.locator("td").filter({ hasText: /pre-explain-38o-marker/ })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("td").filter({ hasText: /pre_explain_38o_marker/ })).toBeVisible({ timeout: 30_000 });
 
     // Record history count and verify the marker is the most recent item
     await page.getByRole("tab", { name: /query history/i }).click();
@@ -2912,7 +2917,7 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     const historyRows = page.locator("tr[role='button']");
     const beforeCount = await historyRows.count();
     const mostRecentBefore = await historyRows.first().textContent() ?? "";
-    expect(mostRecentBefore).toContain("pre-explain-38o-marker");
+    expect(mostRecentBefore).toContain(markerAlias);
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
     // Run Explain with a distinct statement
@@ -2941,7 +2946,7 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
 
     // Most recent item is still the pre-explain marker (Explain didn't add anything)
-    expect(mostRecentAfter).toContain("pre-explain-38o-marker");
+    expect(mostRecentAfter).toContain(markerAlias);
     // No new history items were added
     expect(afterCount).toBe(beforeCount);
 

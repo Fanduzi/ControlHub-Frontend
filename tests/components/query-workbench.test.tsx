@@ -53,6 +53,7 @@ vi.mock("@/services/query-workspace", () => ({
 
 vi.mock("@/services/query-schema", () => ({
   getSchemaDatabases: vi.fn().mockResolvedValue({ items: [], defaultDatabase: null }),
+  getSchemaSchemas: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));
@@ -136,6 +137,7 @@ import type {
   ExplainResponse,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
+  QueryExecutionHistoryExecution,
   QueryExecutionRecord,
   QueryResultColumn,
 } from "@/types/query-execution";
@@ -747,7 +749,7 @@ describe("QueryWorkbench execution (ready target)", () => {
       statement: "select 1",
       maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
-    });
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     // The actor must never appear in the request arguments.
     const callArgs = mockExecuteQueryTarget.mock.calls[0]![1] as Record<string, unknown>;
     expect(callArgs).not.toHaveProperty("actorUserId");
@@ -1086,6 +1088,10 @@ describe("QueryWorkbench target switching (ready targets)", () => {
           targetResourceId: TARGET_A_ID,
           actor: { displayName: "Chen Hao" },
           engine: "mysql",
+          kind: "execution",
+          clientExecutionId: null,
+          database: "",
+          schema: "",
           statementDigest: "digest-analytics",
           statementPreview: "select * from analytics_log",
           canRestore: false,
@@ -2541,7 +2547,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       statement: "select 1",
       maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
-    });
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it("formats query with Cmd/Ctrl+Shift+F shortcut", async () => {
@@ -2667,6 +2673,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       expect(mockExecuteQueryTarget).toHaveBeenCalledWith(
         30,
         expect.objectContaining({ statement: "select 2" }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
     await waitFor(() => {
@@ -2846,7 +2853,7 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       statement: "select 1",
       maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
-    });
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 });
 
@@ -3024,6 +3031,10 @@ describe("QueryWorkbench history target-race guard", () => {
         targetResourceId: 30,
         actor: { displayName: "Chen Hao" },
         engine: "mysql",
+        kind: "execution",
+        clientExecutionId: null,
+        database: "",
+        schema: "",
         statementDigest: "digest-a",
         statementPreview: "select * from target_a_table",
         canRestore: false,
@@ -4503,12 +4514,16 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
     });
   }
 
-  function buildHistoryRecord(overrides: Partial<QueryExecutionRecord> = {}): QueryExecutionRecord {
+  function buildHistoryRecord(overrides: Partial<QueryExecutionHistoryExecution> = {}): QueryExecutionHistoryExecution {
     return {
       id: 9001,
       targetResourceId: 30,
       actor: { displayName: "Chen Hao" },
       engine: "mysql",
+      kind: "execution" as const,
+      clientExecutionId: null,
+      database: "",
+      schema: "",
       statementDigest: "digest-1",
       statementPreview: "select * from users",
       canRestore: false,
@@ -5081,8 +5096,8 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
           onApplyFilter={() => undefined}
           onClearFilter={() => undefined}
           onLoadMore={() => undefined}
-          detailExecution={items.find((item) => item.id === selectedRecordId) ?? null}
-          onOpenDetail={(record) => setSelectedRecordId(record.id)}
+          detailExecution={items.find((item): item is QueryExecutionHistoryExecution => item.kind === "execution" && item.id === selectedRecordId) ?? null}
+          onOpenDetail={(record) => { if (record.kind === "execution") setSelectedRecordId(record.id); }}
           onCloseDetail={() => setSelectedRecordId(null)}
         />
       );

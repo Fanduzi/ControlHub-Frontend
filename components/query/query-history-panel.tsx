@@ -23,9 +23,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import type {
-  QueryExecutionRecord,
-  QueryExecutionStatus,
+import {
+  queryExecutionRecordKey,
+  type QueryExecutionClaimStatus,
+  type QueryExecutionHistoryExecution,
+  type QueryExecutionRecord,
+  type QueryExecutionStatus,
 } from "@/types/query-execution";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +52,7 @@ type QueryHistoryPanelProps = {
   onApplyFilter: (filter: HistoryFilter) => void;
   onClearFilter: () => void;
   onLoadMore: () => void;
-  detailExecution: QueryExecutionRecord | null;
+  detailExecution: QueryExecutionHistoryExecution | null;
   onOpenDetail: (execution: QueryExecutionRecord) => void;
   onCloseDetail: () => void;
   onRestoreStatement?: (execution: QueryExecutionRecord) => void;
@@ -58,14 +61,17 @@ type QueryHistoryPanelProps = {
   restoreBlocked?: boolean;
 };
 
-const STATUS_TONE: Record<QueryExecutionStatus, string> = {
+const STATUS_TONE: Record<QueryExecutionStatus | QueryExecutionClaimStatus, string> = {
   success: "text-emerald-600 dark:text-emerald-400",
   rejected: "text-amber-600 dark:text-amber-400",
   failed: "text-rose-600 dark:text-rose-400",
   timeout: "text-amber-600 dark:text-amber-400",
+  cancelled: "text-muted-foreground",
+  running: "text-sky-600 dark:text-sky-400",
+  unknown: "text-muted-foreground",
 };
 
-const STATUS_FILTER_VALUES = ["success", "rejected", "failed", "timeout"] as const;
+const STATUS_FILTER_VALUES = ["success", "rejected", "failed", "timeout", "cancelled"] as const;
 
 function formatDuration(ms: number, locale: string): string {
   if (!Number.isFinite(ms) || ms < 0) return "\u2014";
@@ -106,7 +112,8 @@ function HistoryDetailSheet({
   isRestoringStatement = false,
   restoreBlocked = false,
 }: {
-  execution: QueryExecutionRecord;
+  /** Detail sheets exist only for persisted terminal rows (kind=execution). */
+  execution: QueryExecutionHistoryExecution;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLElement | null>;
   onRestoreStatement?: (execution: QueryExecutionRecord) => void;
@@ -312,26 +319,49 @@ export function QueryHistoryPanel({
             </thead>
             <tbody>
               {items.map((record) => {
-                const absolute = formatAbsoluteTime(record.createdAt, locale);
+                // Claim rows project occupancy, not terminal history: no id,
+                // no detail sheet, no restore. They render claimedAt + a
+                // derived running/unknown status and stay non-interactive.
+                const isClaim = record.kind === "claim";
+                const timestamp = record.createdAt ?? (isClaim ? record.claimedAt : undefined);
+                const absolute = timestamp ? formatAbsoluteTime(timestamp, locale) : "";
                 return (
                   <tr
-                    key={record.id}
-                    className="cursor-pointer border-b border-border/60 align-top hover:bg-muted/50"
-                    onClick={(e) => openDetailFromEvent(record, e)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetailFromEvent(record, e); } }}
-                    tabIndex={0}
-                    role="button"
-                    aria-haspopup="dialog"
-                    aria-label={record.statementPreview || t("history.emptyStatus")}
+                    key={queryExecutionRecordKey(record)}
+                    className={cn(
+                      "border-b border-border/60 align-top",
+                      isClaim ? "opacity-70" : "cursor-pointer hover:bg-muted/50",
+                    )}
+                    {...(isClaim
+                      ? {}
+                      : {
+                          onClick: (e: React.SyntheticEvent) => openDetailFromEvent(record, e),
+                          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetailFromEvent(record, e); } },
+                          tabIndex: 0,
+                          role: "button",
+                          "aria-haspopup": "dialog" as const,
+                          "aria-label": record.statementPreview || t("history.emptyStatus"),
+                        })}
                   >
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      <time dateTime={record.createdAt} title={absolute} aria-label={absolute}>{formatRelativeTime(record.createdAt, locale)}</time>
+                      {timestamp ? (
+                        <time dateTime={timestamp} title={absolute} aria-label={absolute}>{formatRelativeTime(timestamp, locale)}</time>
+                      ) : (
+                        t("history.emptyStatus")
+                      )}
                     </td>
                     <td className="px-3 py-2 text-sm text-foreground">{record.actor?.displayName || t("history.unknownActor")}</td>
-                    <td className="px-3 py-2"><span className={cn("font-medium", STATUS_TONE[record.status])}>{t(`history.status.${record.status}`)}</span></td>
+                    <td className="px-3 py-2">
+                      <span className={cn("font-medium", STATUS_TONE[record.status])}>{t(`history.status.${record.status}`)}</span>
+                      {isClaim ? (
+                        <span className="ml-1 rounded border border-border px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {t("history.claimBadge")}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="max-w-[280px] px-3 py-2 sm:max-w-[360px]"><code className="break-all font-mono text-xs text-foreground line-clamp-2">{record.statementPreview || t("history.emptyStatus")}</code></td>
-                    <td className="px-3 py-2 text-muted-foreground">{formatRowCount(record.rowCount, locale)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{formatDuration(record.durationMs, locale)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{isClaim ? "—" : formatRowCount(record.rowCount, locale)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{isClaim ? "—" : formatDuration(record.durationMs, locale)}</td>
                     <td className="px-3 py-2">
                       {record.errorCode || record.errorMessage ? (
                         <span className="text-xs text-rose-600 dark:text-rose-400">{[record.errorCode, record.errorMessage].filter(Boolean).join(": ")}</span>

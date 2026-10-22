@@ -1,8 +1,13 @@
+// input: @/components/query/query-object-tree
+// output: Vitest tests for explorer tree a11y ownership incl. the PostgreSQL schema level
+// pos: tree component interface is the test surface
+// note: if this file changes, update header and tests/components/README.md
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import { QueryObjectTree, type ObjectListingState } from "@/components/query/query-object-tree";
+import { schemaScopeKey } from "@/lib/query-object-identity";
 import enMessages from "@/messages/en.json";
 import zhMessages from "@/messages/zh-CN.json";
 import type { ObjectSummary } from "@/types/query-schema";
@@ -129,6 +134,43 @@ describe("QueryObjectTree accessibility structure", () => {
     expect(ownedGroup!.contains(search)).toBe(false);
     expect(ownedGroup!.contains(loadMore)).toBe(false);
     expect(ownedGroup!.contains(retry)).toBe(false);
+  });
+
+  it("P2-3: PostgreSQL connection treeitem owns the schema group, which expands to objects", () => {
+    const scope = schemaScopeKey("labdb", "e2e");
+    renderTree({
+      databases: ["labdb"],
+      expandedDatabases: new Set(["labdb"]),
+      schemaLevel: {
+        listings: new Map([["labdb", { items: ["e2e", "e2e_alt"], status: "ready" as const }]]),
+        expanded: new Set([scope]),
+        disabled: new Set(),
+        onToggle: vi.fn(),
+        onRetry: vi.fn(),
+      },
+      objectListings: new Map([
+        [
+          scope,
+          listing({
+            items: [{ database: "labdb", schema: "e2e", name: "items_tbl", kind: "table" }],
+          }),
+        ],
+      ]),
+    });
+
+    // The connection treeitem's aria-owns must resolve to the rendered schema
+    // group — a dangling reference would silently drop the level from ATs.
+    const connItem = databaseTreeitem("labdb");
+    const ownedId = connItem.getAttribute("aria-owns");
+    expect(ownedId).toBeTruthy();
+    const ownedGroup = document.getElementById(ownedId!);
+    expect(ownedGroup).not.toBeNull();
+    expect(ownedGroup).toHaveAttribute("role", "group");
+    expect(within(ownedGroup!).getByRole("treeitem", { name: "e2e" })).toBeVisible();
+    expect(within(ownedGroup!).getByRole("treeitem", { name: "e2e_alt" })).toBeVisible();
+
+    // The expanded schema lists its objects in the same tree.
+    expect(within(screen.getByRole("tree")).getByRole("treeitem", { name: "items_tbl" })).toBeVisible();
   });
 
   it("P2-3: multi-database expansion keeps separate ownership without cross-containment", () => {

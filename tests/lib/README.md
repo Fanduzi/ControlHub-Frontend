@@ -5,6 +5,7 @@ Vitest unit tests for frontend library modules.
 ## Interfaces
 
 - Tests exercise exported library functions with literal input/output contracts.
+- `worksheet-session`/`schema-catalog` tests cover the PostgreSQL composite context: connection/schema pinning, keyed execution, abort-then-reconcile cancellation, and the terminal+claim history union.
 
 ## Dependencies
 

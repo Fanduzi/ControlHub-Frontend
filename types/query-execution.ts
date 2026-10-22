@@ -16,7 +16,22 @@ import type { ResultDisclosureMode } from "@/types/query-disclosure";
  */
 
 /** Terminal status of an execution attempt. Matches the backend enum. */
-export type QueryExecutionStatus = "success" | "rejected" | "failed" | "timeout";
+export type QueryExecutionStatus =
+  | "success"
+  | "rejected"
+  | "failed"
+  | "timeout"
+  | "cancelled";
+
+/**
+ * Derived status of an unlinked claim occupancy row in history. `running`
+ * means the claim is still held; `unknown` means the claim's outcome was not
+ * recorded before the owner exited. Neither is a persisted terminal state.
+ */
+export type QueryExecutionClaimStatus = "running" | "unknown";
+
+/** Backend remote-cancel evidence reported on terminal history rows. */
+export type QueryExecutionRemoteState = "completed" | "stopped" | "unknown";
 
 // ─── Phase 38S: Governed query-result paging ────────────────────────────────
 
@@ -47,6 +62,18 @@ export type QueryExecutePaginationResponse = {
  */
 export type QueryExecuteRequest = {
   statement: string;
+  /**
+   * PostgreSQL connection database. Required non-empty for postgresql targets;
+   * omitted for MySQL/TiDB (their browse database is not a connection identity).
+   */
+  database?: string;
+  /** PostgreSQL namespace pin. Omitted for MySQL/TiDB and for default-schema requests. */
+  schema?: string;
+  /**
+   * Idempotency key binding this attempt. Required non-empty (≤64) for
+   * PostgreSQL; omitted for keyless MySQL/TiDB execution.
+   */
+  clientExecutionId?: string;
   maxRows?: number;
   pagination?: QueryExecutePaginationRequest;
   /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
@@ -95,6 +122,13 @@ export type QueryExecuteResponse = {
   limitApplied: number;
   executedAt: string;
   pagination?: QueryExecutePaginationResponse;
+  /**
+   * Echoed PostgreSQL execution binding. Present on postgresql responses;
+   * `schema` is the resolved namespace (connection default when the request
+   * omitted it). Consumers must compare it against the request context before
+   * trusting `rows`.
+   */
+  context?: { database: string; schema: string };
 };
 
 /**
@@ -105,22 +139,65 @@ export type QueryExecuteResponse = {
  * The actor is derived from the verified Bearer token on the server; the
  * frontend never sends or receives `actorUserId`.
  */
-export type QueryExecutionRecord = {
-  id: number;
-  targetResourceId: number;
-  actor: { displayName: string; kind?: "user" | "machine" };
-  engine: string;
-  statementDigest: string;
-  statementPreview: string;
-  /** Server-owned statement availability for the authenticated user. */
+/** Fields shared by both history row kinds. */
+type QueryExecutionRecordBase = {
+  readonly kind: "execution" | "claim";
+  readonly targetResourceId: number;
+  readonly clientExecutionId: string | null;
+  readonly actor: { displayName: string; kind?: "user" | "machine" } | null;
+  readonly engine: string;
+  /** PostgreSQL connection database; empty for MySQL/TiDB. */
+  readonly database: string;
+  /** PostgreSQL namespace; empty for MySQL/TiDB. */
+  readonly schema: string;
+  readonly statementDigest: string;
+  readonly statementPreview: string;
   readonly canRestore: boolean;
-  status: QueryExecutionStatus;
-  rowCount: number;
-  durationMs: number;
-  errorCode: string;
-  errorMessage: string;
-  createdAt: string;
+  readonly rowCount: number;
+  readonly durationMs: number;
+  readonly errorCode: string;
+  readonly errorMessage: string;
 };
+
+/** Persisted terminal execution row. `id` is the real history record id. */
+export type QueryExecutionHistoryExecution = QueryExecutionRecordBase & {
+  readonly kind: "execution";
+  readonly id: number;
+  readonly status: QueryExecutionStatus;
+  readonly claimedAt?: string;
+  readonly createdAt: string;
+  readonly remoteState?: QueryExecutionRemoteState | null;
+};
+
+/**
+ * Unlinked claim occupancy row. `id` is always null, status is a derived
+ * `running`/`unknown` projection, and `createdAt` may be absent — claims are
+ * not terminal evidence and must never be rendered as synthetic executions.
+ */
+export type QueryExecutionHistoryClaim = QueryExecutionRecordBase & {
+  readonly kind: "claim";
+  readonly id: null;
+  readonly status: QueryExecutionClaimStatus;
+  readonly claimedAt: string;
+  readonly createdAt?: string;
+  readonly canRestore: false;
+};
+
+/**
+ * One execution history row — a discriminated union over `kind`.
+ * Metadata only — digest/preview, status, row count, duration, and controlled
+ * error fields. Never includes full result rows, credentials, or DSNs.
+ */
+export type QueryExecutionRecord =
+  | QueryExecutionHistoryExecution
+  | QueryExecutionHistoryClaim;
+
+/** Stable per-row UI key that distinguishes real ids from claim occupancy. */
+export function queryExecutionRecordKey(record: QueryExecutionRecord): string {
+  return record.kind === "execution"
+    ? `exec:${record.id}`
+    : `claim:${record.clientExecutionId ?? record.claimedAt}`;
+}
 
 /** Response body for `GET /query-targets/{id}/executions`. */
 export type QueryExecutionListResponse = {
@@ -151,6 +228,10 @@ export type QueryExecutionFilter = {
   readonly status?: QueryExecutionStatus;
   readonly from?: string;
   readonly to?: string;
+  /** PostgreSQL connection scope; absent filters keep MySQL/TiDB semantics. */
+  readonly database?: string;
+  /** Point read-back for one keyed attempt (post-cancel state reconciliation). */
+  readonly clientExecutionId?: string;
 };
 
 /**
@@ -160,6 +241,8 @@ export type QueryExecutionFilter = {
  */
 export type RelatedRecordNavigationSource = {
   readonly database: string;
+  /** PostgreSQL namespace of the source object; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly object: string;
   readonly kind: "table";
   readonly foreignKey: string;
@@ -177,6 +260,8 @@ export type RelatedRecordNavigationSource = {
 export type RelatedRecordNavigationRequest = {
   readonly source: RelatedRecordNavigationSource;
   readonly localValues: readonly string[];
+  /** Idempotency key; required non-empty for PostgreSQL navigation. */
+  readonly clientExecutionId?: string;
   readonly maxRows?: number;
   /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
   readonly capabilities?: readonly string[];
@@ -205,6 +290,8 @@ export type RelatedRecordNavigationResponse = QueryExecuteResponse & {
 export type TablePreviewRequest = {
   readonly targetId: number;
   readonly database: string;
+  /** PostgreSQL namespace of the previewed object; omitted for MySQL/TiDB. */
+  readonly schema?: string;
   readonly table: string;
   readonly kind: "table";
   readonly foreignKeys: readonly ForeignKeyDetail[];

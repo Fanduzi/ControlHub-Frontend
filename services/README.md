@@ -13,7 +13,9 @@ Frontend API service modules.
 | `resources.ts` | Inventory list/detail and mutation requests |
 | `named-inventory-views.ts` | Personal/shared named-view CRUD requests |
 | `machine-principals.ts` | Admin machine-principal list, issue, rotate, and revoke calls |
-| `query-executions.ts` | Governed execution/history calls declaring `capabilities:["cellTruncated"]` on the three governed result POSTs, fail-closed server restore eligibility parsing, and owner-only full-statement retrieval |
+| `query-executions.ts` | Governed execution/history calls declaring `capabilities:["cellTruncated"]` on the three governed result POSTs, fail-closed server restore eligibility parsing, owner-only full-statement retrieval, PostgreSQL `database`/`schema` context on the three POSTs, `clientExecutionId` keys for keyed PG execution, abort signals, and `?database`/`?clientExecutionId` history filters |
+| `query-schema.ts` | Schema catalog calls (databases, schemas, objects, details, table definition, relationship map) carrying the PostgreSQL `schema` parameter and caller-owned abort signals |
+| `query-saved-statements.ts` | Saved statement list/create/update/delete/execute with `?database` scoping and the PostgreSQL `database`/`schema`/`clientExecutionId` fields on create/execute |
 | `query-workspace.ts` | Owner workspace aggregate GET/PUT with optimistic-concurrency version |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the
@@ -26,7 +28,11 @@ clear presentation state and redirect to login, and they keep `code` when the
 envelope carries it.
 
 `query-executions.ts` and `query-saved-statements.ts` classify feature
-failures only by `ApiError.code`. Missing codes, non-JSON, and transport
+failures only by `ApiError.code`. For PostgreSQL targets they also carry the
+composite context: `database`+`schema` on execution requests and a
+`clientExecutionId` idempotency key; MySQL/TiDB requests stay keyless and
+schema-less. Caller-owned abort signals propagate fetch AbortError verbatim
+so cancellation stays distinguishable from failures. Missing codes, non-JSON, and transport
 failures become retryable `service_unavailable`. HTTP 401 stays a Controlled
 Authorization Error and is not wrapped as a workbench feature error. The three
 governed result POSTs (execute, saved-statement execute, related-records)

@@ -9,7 +9,8 @@ import type {
   QueryExecuteRequest,
   QueryExecuteResponse,
   QueryExecutionCursorPage,
-  QueryExecutionRecord,
+  QueryExecutionHistoryClaim,
+  QueryExecutionHistoryExecution,
   QueryExecutionStatementResponse,
   QueryExecutionStatus,
   RelatedRecordNavigationRequest,
@@ -18,7 +19,8 @@ import type {
 
 type QueryExecutionCursorPagePayload = Omit<QueryExecutionCursorPage, "items"> & {
   items: Array<
-    Omit<QueryExecutionRecord, "canRestore"> & { canRestore?: unknown }
+    | (Omit<QueryExecutionHistoryExecution, "canRestore"> & { canRestore?: unknown })
+    | (Omit<QueryExecutionHistoryClaim, "canRestore"> & { canRestore?: unknown })
   >;
 };
 
@@ -27,10 +29,11 @@ function parseQueryExecutionCursorPage(
 ): QueryExecutionCursorPage {
   return {
     ...payload,
-    items: payload.items.map((item) => ({
-      ...item,
-      canRestore: item.canRestore === true,
-    })),
+    items: payload.items.map((item) =>
+      item.kind === "claim"
+        ? { ...item, canRestore: false as const }
+        : { ...item, canRestore: item.canRestore === true },
+    ),
   };
 }
 
@@ -76,6 +79,17 @@ export type QueryExecuteErrorCode =
   | "result_contract_upgrade_required"
   | "query_timeout"
   | "query_backend_error"
+  | "query_connection_disabled"
+  | "query_connection_not_found"
+  | "query_execution_not_found"
+  | "execution_already_exists"
+  | "client_execution_id_conflict"
+  | "dsn_binding_mismatch"
+  | "schema_not_allowed"
+  | "schema_backend_error"
+  | "schema_timeout"
+  | "page_out_of_range"
+  | "unsupported_limit_offset_form"
   | "internal_error"
   | "service_unavailable"
   | "forbidden"
@@ -132,19 +146,37 @@ export function toQueryExecuteError(error: unknown): QueryExecuteError {
   );
 }
 
+/** True when `error` is a fetch AbortError produced by a caller-owned signal. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 /**
  * Execute a single guarded SELECT against a ready query target. Posts only
- * `statement`, an optional `maxRows` release cap, and an optional structured
- * `pagination` object — never `actorUserId` or credentials. Resolves with the
- * backend execution response, or rejects with a controlled `QueryExecuteError`.
+ * `statement`, optional PostgreSQL context (`database`/`schema`), an optional
+ * `clientExecutionId` idempotency key, an optional `maxRows` release cap, and
+ * an optional structured `pagination` object — never `actorUserId` or
+ * credentials. Resolves with the backend execution response, or rejects with
+ * a controlled `QueryExecuteError`. An abort on `options.signal` propagates
+ * the raw AbortError (the caller distinguishes user cancel from failures).
  */
 export async function executeQueryTarget(
   targetResourceId: number,
   input: QueryExecuteRequest,
+  options?: { readonly signal?: AbortSignal },
 ): Promise<QueryExecuteResponse> {
   const body: QueryExecuteRequest = {
     statement: input.statement,
     capabilities: RESULT_CONTRACT_CAPABILITIES,
+    ...(input.database !== undefined && input.database !== ""
+      ? { database: input.database }
+      : {}),
+    ...(input.schema !== undefined && input.schema !== ""
+      ? { schema: input.schema }
+      : {}),
+    ...(input.clientExecutionId !== undefined && input.clientExecutionId !== ""
+      ? { clientExecutionId: input.clientExecutionId }
+      : {}),
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
     ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };
@@ -155,9 +187,11 @@ export async function executeQueryTarget(
       {
         method: "POST",
         body: JSON.stringify(body),
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       },
     );
   } catch (error) {
+    if (isAbortError(error)) throw error;
     throw toQueryExecuteError(error);
   }
 }
@@ -173,20 +207,31 @@ export async function listQueryExecutions(
     status?: QueryExecutionStatus;
     from?: string;
     to?: string;
+    /** PostgreSQL connection scope filter. */
+    database?: string;
+    /** Point read-back of one keyed attempt (post-cancel reconciliation). */
+    clientExecutionId?: string;
     cursor?: string;
     pageSize?: number;
+    signal?: AbortSignal;
   } = {},
 ): Promise<QueryExecutionCursorPage> {
   const searchParams = new URLSearchParams();
   if (params.status) searchParams.set("status", params.status);
   if (params.from) searchParams.set("from", params.from);
   if (params.to) searchParams.set("to", params.to);
+  if (params.database) searchParams.set("database", params.database);
+  if (params.clientExecutionId) {
+    searchParams.set("clientExecutionId", params.clientExecutionId);
+  }
   if (params.cursor) searchParams.set("cursor", params.cursor);
   searchParams.set("pageSize", String(params.pageSize ?? 20));
 
-  const payload = await apiClient<QueryExecutionCursorPagePayload>(
-    `/query-targets/${targetResourceId}/executions?${searchParams.toString()}`,
-  );
+  const url = `/query-targets/${targetResourceId}/executions?${searchParams.toString()}`;
+  const payload =
+    params.signal !== undefined
+      ? await apiClient<QueryExecutionCursorPagePayload>(url, { signal: params.signal })
+      : await apiClient<QueryExecutionCursorPagePayload>(url);
   return parseQueryExecutionCursorPage(payload);
 }
 
@@ -216,11 +261,15 @@ export async function getQueryExecutionStatement(
 export async function navigateRelatedRecords(
   targetResourceId: number,
   input: RelatedRecordNavigationRequest,
+  options?: { readonly signal?: AbortSignal },
 ): Promise<RelatedRecordNavigationResponse> {
   const body: RelatedRecordNavigationRequest = {
     source: input.source,
     localValues: input.localValues,
     capabilities: RESULT_CONTRACT_CAPABILITIES,
+    ...(input.clientExecutionId !== undefined && input.clientExecutionId !== ""
+      ? { clientExecutionId: input.clientExecutionId }
+      : {}),
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
   };
 
@@ -230,9 +279,11 @@ export async function navigateRelatedRecords(
       {
         method: "POST",
         body: JSON.stringify(body),
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       },
     );
   } catch (error) {
+    if (isAbortError(error)) throw error;
     throw toQueryExecuteError(error);
   }
 }

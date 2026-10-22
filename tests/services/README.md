@@ -8,6 +8,7 @@ relationship-rule discovery at the frontend API boundary.
 ## Interfaces
 
 - Tests lock observable API paths, methods, JSON bodies, responses, and controlled errors.
+- Query services additionally pin the PostgreSQL composite context: `database`/`schema` request fields, `clientExecutionId` keys on keyed PG calls, `?database`/`?clientExecutionId` history filters, and caller-owned abort signals.
 
 ## Dependencies
 

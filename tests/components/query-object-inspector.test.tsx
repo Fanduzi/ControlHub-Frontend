@@ -53,6 +53,7 @@ vi.mock("@uiw/react-codemirror", async () => {
 vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn(),
   getSchemaDatabases: vi.fn(),
+  getSchemaSchemas: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn(),
   getTableDefinition: vi.fn(),
 }));

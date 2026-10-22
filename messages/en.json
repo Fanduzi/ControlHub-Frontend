@@ -356,8 +356,10 @@
       "pg_version_unsupported": "This PostgreSQL server version is not supported.",
       "profile_not_supported": "This resource type does not support that profile field.",
       "query_backend_error": "The query backend could not complete this request.",
+      "query_binding_mismatch": "The bound database object changed. Reload and try again.",
       "query_connection_disabled": "This query connection is disabled.",
       "query_connection_not_found": "The query connection was not found.",
+      "query_dependency_not_approved": "This query depends on an object that is not approved.",
       "query_execution_not_found": "That query execution was not found.",
       "query_explain_not_supported": "Explain is not supported for this target.",
       "query_not_allowed": "This query is not allowed.",
@@ -1449,7 +1451,18 @@
       "relationshipErrorBackend": "The schema backend could not load relationships.",
       "relationshipErrorUnsupported": "Relationship maps are not supported for this object or target.",
       "relationshipRetry": "Retry",
-      "refreshRelationships": "Refresh relationships"
+      "refreshRelationships": "Refresh relationships",
+      "connectionDisabled": "This connection is disabled; its schemas cannot be browsed.",
+      "connectionDisabledBadge": "disabled",
+      "schemasLabel": "Schemas in {database}",
+      "schemasLoadError": "Unable to load schemas.",
+      "noSchemas": "No schemas found.",
+      "missingSchema": "(missing) {schema}",
+      "connectionLabel": "Connection",
+      "connectionPlaceholder": "Select a connection database",
+      "schemaLabel": "Schema",
+      "schemaDefault": "Default ({schema})",
+      "schemaMissingOption": "{schema} (missing)"
     },
     "navigator": {
       "title": "Quick navigator",
@@ -1458,7 +1471,8 @@
       "reveal": "Reveal",
       "empty": "No databases or objects found.",
       "error": "Unable to load schema metadata.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "searchPg": "Search connections, schemas, and objects"
     },
     "editor": {
       "worksheetTab": "Worksheet",
@@ -1485,7 +1499,13 @@
       "resizeEditor": "Resize SQL editor",
       "explainReady": "Explain",
       "metadataWarning": "Schema metadata is unavailable. Completion is limited to keywords.",
-      "metadataRetry": "Retry metadata"
+      "metadataRetry": "Retry metadata",
+      "cancel": "Cancel",
+      "cancelling": "Cancelling…",
+      "cancelOutcomeStopped": "Server confirmed the execution stopped.",
+      "cancelOutcomeTerminal": "Server outcome: {status}.",
+      "cancelOutcomeRunning": "Still running on the server.",
+      "cancelOutcomeUnknown": "Server outcome not confirmed yet."
     },
     "workspace": {
       "reload": "Reload workspace",
@@ -1570,6 +1590,8 @@
       "detailLabel": "Detail",
       "query_explain_not_supported": "Explain is not supported for this target",
       "query_result_disclosure_blocked": "Query blocked by result disclosure policy",
+      "query_binding_mismatch": "The bound database object changed. Reload and run again.",
+      "query_dependency_not_approved": "This query depends on an object that is not approved.",
       "query_workspace_conflict": "Workspace changed elsewhere. Your local drafts are still here.",
       "result_contract_upgrade_required": "The query ran, but results were not delivered because this client lacks the required result contract. Update the console client and run the query again.",
       "query_execution_not_found": "This statement is no longer available."
@@ -1597,7 +1619,10 @@
         "success": "Success",
         "rejected": "Rejected",
         "failed": "Failed",
-        "timeout": "Timed out"
+        "timeout": "Timed out",
+        "cancelled": "Cancelled",
+        "running": "Running",
+        "unknown": "Unknown"
       },
       "emptyStatus": "—",
       "loadError": "Could not load execution history",
@@ -1610,7 +1635,8 @@
           "success": "Success",
           "rejected": "Rejected",
           "failed": "Failed",
-          "timeout": "Timeout"
+          "timeout": "Timeout",
+          "cancelled": "Cancelled"
         },
         "from": {
           "label": "From"
@@ -1637,7 +1663,8 @@
         "error": "Error"
       },
       "restore": "Open in new worksheet",
-      "restoreFailed": "Could not restore this statement."
+      "restoreFailed": "Could not restore this statement.",
+      "claimBadge": "claim"
     },
     "governance": {
       "title": "Governance & access",

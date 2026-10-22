@@ -181,3 +181,24 @@ describe("normalizeExecuteResponse cellTruncated matrix", () => {
     expect(envelope.ok).toBe(false);
   });
 });
+
+describe("normalizeExecuteResponse postgresql cell contract", () => {
+  it("accepts string and null cells on a postgresql page", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ engine: "postgresql", rows: [["7", null]], columns: [column(), column({ name: "note", nullable: true })], rowCount: 1 }),
+    );
+    expect(envelope.ok).toBe(true);
+  });
+
+  it.each([7, true])("rejects a non-string non-null postgresql cell (%s)", (cell) => {
+    const envelope = normalizeExecuteResponse(
+      result({ engine: "postgresql", rows: [[cell]], rowCount: 1 }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("keeps numeric cells valid for mysql", () => {
+    const envelope = normalizeExecuteResponse(result({ rows: [[7]] }));
+    expect(envelope.ok).toBe(true);
+  });
+});

@@ -1,3 +1,7 @@
+// input: @/components/query/query-object-quick-navigator
+// output: quick navigator tests incl. PostgreSQL schema scope
+// pos: component test for the object quick navigator
+// note: if this file changes, update this header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -5,6 +9,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/query" }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => ({ title: "Quick navigator", search: "Search databases and objects", retry: "Retry", insert: "Insert" })[key] ?? key }));
 vi.mock("@/services/query-schema", () => ({
   getSchemaDatabases: vi.fn().mockResolvedValue({ items: [] }),
+  getSchemaSchemas: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn().mockResolvedValue({ items: [] }),
   getObjectDetails: vi.fn().mockResolvedValue(null),
 }));

@@ -8,12 +8,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { QueryObjectInspector } from "@/components/query/query-object-inspector";
-import { QueryObjectTree, type ObjectListingState } from "@/components/query/query-object-tree";
+import {
+  QueryObjectTree,
+  type ObjectListingState,
+  type SchemaListingState,
+} from "@/components/query/query-object-tree";
 import { Button } from "@/components/ui/button";
-import { objectIdentityKey, objectKeyBelongsToDatabase } from "@/lib/query-object-identity";
+import {
+  objectIdentityKey,
+  objectKeyBelongsToScope,
+  parseSchemaScope,
+  schemaScopeKey,
+} from "@/lib/query-object-identity";
 import { SchemaCatalog, useSchemaCatalogVersion } from "@/lib/schema-catalog";
 import type { ObjectDetailResponse, ObjectSummary } from "@/types/query-schema";
 import type { TablePreviewRequest } from "@/types/query-execution";
+import type { QueryTargetConnection } from "@/types/query-target";
 
 const PAGE_SIZE = 25;
 
@@ -26,13 +36,21 @@ type QueryObjectExplorerProps = {
   readonly targetId: number;
   readonly store: SchemaCatalog;
   readonly onPreviewRequest?: (request: TablePreviewRequest) => void;
+  /**
+   * PostgreSQL composite connections. When non-empty the explorer renders
+   * connection → schema → object; otherwise the MySQL/TiDB database → object
+   * layout is unchanged.
+   */
+  readonly connections?: readonly QueryTargetConnection[];
 };
 
-export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: QueryObjectExplorerProps) {
+export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connections }: QueryObjectExplorerProps) {
   const t = useTranslations("queryWorkbench");
-  useSchemaCatalogVersion(store);
+  const catalogVersion = useSchemaCatalogVersion(store);
 
+  const isPostgres = (connections?.length ?? 0) > 0;
   const [expandedDatabases, setExpandedDatabases] = useState<ReadonlySet<string>>(new Set());
+  const [expandedSchemas, setExpandedSchemas] = useState<ReadonlySet<string>>(new Set());
   const [expandedObjects, setExpandedObjects] = useState<ReadonlySet<string>>(new Set());
   const [queries, setQueries] = useState<ReadonlyMap<string, QueryState>>(new Map());
   const [inspectorKey, setInspectorKey] = useState<string | null>(null);
@@ -45,6 +63,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
   if (seenTargetId !== targetId) {
     setSeenTargetId(targetId);
     setExpandedDatabases(new Set());
+    setExpandedSchemas(new Set());
     setExpandedObjects(new Set());
     setQueries(new Map());
     setInspectorKey(null);
@@ -118,29 +137,31 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   useEffect(() => {
     abortAllRequests();
-    startDatabaseRequest({ page: 1, replace: true, query: "", includeSystem: false });
+    if (!isPostgres) {
+      startDatabaseRequest({ page: 1, replace: true, query: "", includeSystem: false });
+    }
     return abortAllRequests;
-  }, [abortAllRequests, startDatabaseRequest, targetId]);
+  }, [abortAllRequests, isPostgres, startDatabaseRequest, targetId]);
 
-  const cancelObjectWork = useCallback((database: string) => {
-    const timer = objectSearchTimers.current.get(database);
+  const cancelObjectWork = useCallback((scope: string) => {
+    const timer = objectSearchTimers.current.get(scope);
     if (timer) {
       clearTimeout(timer);
-      objectSearchTimers.current.delete(database);
+      objectSearchTimers.current.delete(scope);
     }
-    objectControllers.current.get(database)?.abort();
-    objectControllers.current.delete(database);
+    objectControllers.current.get(scope)?.abort();
+    objectControllers.current.delete(scope);
   }, []);
 
-  const invalidateDatabaseObjectUi = useCallback((database: string) => {
+  const invalidateScopeObjectUi = useCallback((scope: string, database: string, schema: string) => {
     setExpandedObjects((previous) => {
       const next = new Set(previous);
       for (const key of previous) {
-        if (objectKeyBelongsToDatabase(key, database)) next.delete(key);
+        if (objectKeyBelongsToScope(key, database, schema)) next.delete(key);
       }
       return next;
     });
-    if (inspectorKeyRef.current && objectKeyBelongsToDatabase(inspectorKeyRef.current, database)) {
+    if (inspectorKeyRef.current && objectKeyBelongsToScope(inspectorKeyRef.current, database, schema)) {
       setInspectorKey(null);
       setInspectorDetail(null);
       setInspectTriggerElement(null);
@@ -149,17 +170,21 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const startObjectRequest = useCallback(
     (
-      database: string,
+      scope: string,
       submittedQuery: string,
       page: number,
       replace: boolean,
       refresh = false,
     ) => {
-      objectControllers.current.get(database)?.abort();
+      const parsed = parseSchemaScope(scope);
+      const database = parsed?.database ?? scope;
+      const schema = parsed?.schema ?? "";
+      objectControllers.current.get(scope)?.abort();
       const controller = new AbortController();
-      objectControllers.current.set(database, controller);
-      if (replace) invalidateDatabaseObjectUi(database);
+      objectControllers.current.set(scope, controller);
+      if (replace) invalidateScopeObjectUi(scope, database, schema);
       void store.ensureObjects(targetId, database, {
+        ...(schema ? { schema } : {}),
         q: submittedQuery || undefined,
         page,
         pageSize: PAGE_SIZE,
@@ -168,7 +193,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         signal: controller.signal,
       });
     },
-    [invalidateDatabaseObjectUi, store, targetId],
+    [invalidateScopeObjectUi, store, targetId],
   );
 
   const loadObjectDetail = useCallback(
@@ -184,7 +209,13 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       const controller = new AbortController();
       detailControllers.current.set(key, controller);
       void store.ensureDetail(
-        { targetId, database: object.database, kind: object.kind, name: object.name },
+        {
+          targetId,
+          database: object.database,
+          schema: object.schema ?? "",
+          kind: object.kind,
+          name: object.name,
+        },
         controller.signal,
         refresh,
       );
@@ -196,19 +227,70 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     (database: string) => {
       const next = new Set(expandedDatabases);
       if (next.has(database)) {
-        cancelObjectWork(database);
+        if (isPostgres) {
+          // Collapse: clear schema expansion for this connection and abort
+          // schema-scoped object work.
+          setExpandedSchemas((prev) => {
+            const keep = new Set<string>();
+            for (const scope of prev) {
+              if (parseSchemaScope(scope)?.database !== database) keep.add(scope);
+            }
+            return keep;
+          });
+          for (const scope of [...objectControllers.current.keys(), ...queries.keys()]) {
+            if (parseSchemaScope(scope)?.database === database) cancelObjectWork(scope);
+          }
+        } else {
+          cancelObjectWork(database);
+        }
         next.delete(database);
       } else {
         next.add(database);
-        const submitted = queries.get(database)?.submitted ?? "";
-        const listing = store.getObjects(targetId, database, PAGE_SIZE, submitted);
-        if (listing.status === "idle") {
-          startObjectRequest(database, submitted, 1, true);
+        if (isPostgres) {
+          const connection = connections?.find((row) => row.database === database);
+          if (connection?.enabled !== false) {
+            void store.ensureSchemas(targetId, database);
+          }
+        } else {
+          const submitted = queries.get(database)?.submitted ?? "";
+          const listing = store.getObjects(targetId, database, PAGE_SIZE, submitted);
+          if (listing.status === "idle") {
+            startObjectRequest(database, submitted, 1, true);
+          }
         }
       }
       setExpandedDatabases(next);
     },
-    [cancelObjectWork, expandedDatabases, queries, startObjectRequest, store, targetId],
+    [
+      cancelObjectWork,
+      connections,
+      expandedDatabases,
+      isPostgres,
+      queries,
+      startObjectRequest,
+      store,
+      targetId,
+    ],
+  );
+
+  const toggleSchema = useCallback(
+    (database: string, schema: string) => {
+      const scope = schemaScopeKey(database, schema);
+      const next = new Set(expandedSchemas);
+      if (next.has(scope)) {
+        cancelObjectWork(scope);
+        next.delete(scope);
+      } else {
+        next.add(scope);
+        const submitted = queries.get(scope)?.submitted ?? "";
+        const listing = store.getObjects(targetId, database, PAGE_SIZE, submitted, schema);
+        if (listing.status === "idle") {
+          startObjectRequest(scope, submitted, 1, true);
+        }
+      }
+      setExpandedSchemas(next);
+    },
+    [cancelObjectWork, expandedSchemas, queries, startObjectRequest, store, targetId],
   );
 
   const toggleObject = useCallback(
@@ -228,6 +310,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         const state = store.getDetailState({
           targetId,
           database: object.database,
+          schema: object.schema ?? "",
           kind: object.kind,
           name: object.name,
         });
@@ -247,43 +330,43 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     });
   }, [inspectTriggerElement]);
 
-  const updateDraftQuery = useCallback((database: string, draft: string) => {
-    cancelObjectWork(database);
+  const updateDraftQuery = useCallback((scope: string, draft: string) => {
+    cancelObjectWork(scope);
     setQueries((previous) => {
       const next = new Map(previous);
-      const current = next.get(database) ?? { draft: "", submitted: "" };
-      next.set(database, { ...current, draft });
+      const current = next.get(scope) ?? { draft: "", submitted: "" };
+      next.set(scope, { ...current, draft });
       return next;
     });
   }, [cancelObjectWork]);
 
   const searchObjects = useCallback(
-    (database: string, query: string) => {
+    (scope: string, query: string) => {
       const submitted = query.trim();
-      cancelObjectWork(database);
+      cancelObjectWork(scope);
       const timer = setTimeout(() => {
-        objectSearchTimers.current.delete(database);
+        objectSearchTimers.current.delete(scope);
         setQueries((previous) => {
           const next = new Map(previous);
-          next.set(database, { draft: query, submitted });
+          next.set(scope, { draft: query, submitted });
           return next;
         });
-        startObjectRequest(database, submitted, 1, true);
+        startObjectRequest(scope, submitted, 1, true);
       }, 250);
-      objectSearchTimers.current.set(database, timer);
+      objectSearchTimers.current.set(scope, timer);
     },
     [cancelObjectWork, startObjectRequest],
   );
 
   const clearSearch = useCallback(
-    (database: string) => {
-      cancelObjectWork(database);
+    (scope: string) => {
+      cancelObjectWork(scope);
       setQueries((previous) => {
         const next = new Map(previous);
-        next.set(database, { draft: "", submitted: "" });
+        next.set(scope, { draft: "", submitted: "" });
         return next;
       });
-      startObjectRequest(database, "", 1, true);
+      startObjectRequest(scope, "", 1, true);
     },
     [cancelObjectWork, startObjectRequest],
   );
@@ -314,14 +397,47 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     startDatabaseRequest({ page: 1, replace: true, query, includeSystem: nextIncludeSystem });
   }, [cancelDatabaseWork, databaseDraftQuery, startDatabaseRequest]);
 
-  const databaseListing = store.getDatabases(targetId, PAGE_SIZE, databaseQuery, includeSystem);
+  // PostgreSQL composite targets enumerate connections client-side — the
+  // /query-targets list already carries them; no schema-databases request.
+  const pgDatabases = useMemo(() => {
+    if (!isPostgres) return [] as readonly string[];
+    const needle = databaseQuery.toLowerCase();
+    return (connections ?? [])
+      .map((row) => row.database)
+      .filter((name) => (needle ? name.toLowerCase().includes(needle) : true));
+  }, [connections, databaseQuery, isPostgres]);
+
+  const databaseListing = useMemo(
+    () =>
+      isPostgres
+        ? {
+            items: pgDatabases,
+            defaultDatabase: null as string | null,
+            pageInfo: null,
+            status: "ready" as const,
+          }
+        : store.getDatabases(targetId, PAGE_SIZE, databaseQuery, includeSystem),
+    // store.getDatabases is a pure read over catalog state — version bump re-derives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion invalidates the read.
+    [isPostgres, pgDatabases, store, targetId, databaseQuery, includeSystem, catalogVersion],
+  );
+
+  const schemaListings = useMemo(() => {
+    const next = new Map<string, SchemaListingState>();
+    if (!isPostgres) return next;
+    for (const database of pgDatabases) {
+      const listing = store.getSchemas(targetId, database);
+      next.set(database, { items: listing.items, status: listing.status });
+    }
+    return next;
+  }, [isPostgres, pgDatabases, store, targetId]);
 
   const objectListings = useMemo(() => {
     const next = new Map<string, ObjectListingState>();
-    for (const database of databaseListing.items) {
-      const query = queries.get(database) ?? { draft: "", submitted: "" };
-      const objects = store.getObjects(targetId, database, PAGE_SIZE, query.submitted);
-      next.set(database, {
+    const addScope = (scope: string, database: string, schema: string) => {
+      const query = queries.get(scope) ?? { draft: "", submitted: "" };
+      const objects = store.getObjects(targetId, database, PAGE_SIZE, query.submitted, schema);
+      next.set(scope, {
         draftQuery: query.draft,
         submittedQuery: query.submitted,
         items: objects.items,
@@ -329,32 +445,50 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
         status: objects.status === "idle" ? "idle" : objects.status,
         generation: 0,
       });
+    };
+    if (isPostgres) {
+      for (const scope of expandedSchemas) {
+        const parsed = parseSchemaScope(scope);
+        if (parsed) addScope(scope, parsed.database, parsed.schema);
+      }
+    } else {
+      for (const database of databaseListing.items) {
+        addScope(database, database, "");
+      }
     }
     return next;
-  }, [databaseListing, queries, store, targetId]);
+  }, [databaseListing, expandedSchemas, isPostgres, queries, store, targetId]);
 
   const loadMoreObjects = useCallback(
-    (database: string) => {
-      const listing = objectListings.get(database);
+    (scope: string) => {
+      const listing = objectListings.get(scope);
       if (!listing?.pageInfo?.hasNextPage || listing.status === "loading") return;
-      startObjectRequest(database, listing.submittedQuery, listing.pageInfo.page + 1, false);
+      startObjectRequest(scope, listing.submittedQuery, listing.pageInfo.page + 1, false);
     },
     [objectListings, startObjectRequest],
   );
 
   const retryObjects = useCallback(
-    (database: string) => {
-      const listing = objectListings.get(database);
+    (scope: string) => {
+      const listing = objectListings.get(scope);
       if (!listing) return;
       const retryFailedLoadMore = Boolean(listing.pageInfo?.hasNextPage && listing.items.length > 0);
       startObjectRequest(
-        database,
+        scope,
         listing.submittedQuery,
         retryFailedLoadMore ? listing.pageInfo!.page + 1 : 1,
         !retryFailedLoadMore,
       );
     },
     [objectListings, startObjectRequest],
+  );
+
+  const retrySchemas = useCallback(
+    (database: string) => {
+      store.invalidateSchemas(targetId, database);
+      void store.ensureSchemas(targetId, database, { refresh: true });
+    },
+    [store, targetId],
   );
 
   const loadMoreDatabases = useCallback(() => {
@@ -379,20 +513,26 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
 
   const refreshSchema = useCallback(() => {
     cancelDatabaseWork();
-    startDatabaseRequest({
-      page: 1,
-      replace: true,
-      query: databaseQuery,
-      includeSystem,
-      refresh: true,
-    });
-    for (const [database, listing] of objectListings) {
-      if (!expandedDatabases.has(database)) continue;
-      startObjectRequest(database, listing.submittedQuery, 1, true, true);
+    if (isPostgres) {
+      for (const database of expandedDatabases) {
+        retrySchemas(database);
+      }
+    } else {
+      startDatabaseRequest({
+        page: 1,
+        replace: true,
+        query: databaseQuery,
+        includeSystem,
+        refresh: true,
+      });
+    }
+    for (const [scope, listing] of objectListings) {
+      startObjectRequest(scope, listing.submittedQuery, 1, true, true);
       for (const object of listing.items) {
         const state = store.getDetailState({
           targetId,
           database: object.database,
+          schema: object.schema ?? "",
           kind: object.kind,
           name: object.name,
         });
@@ -404,8 +544,10 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
     databaseQuery,
     expandedDatabases,
     includeSystem,
+    isPostgres,
     loadObjectDetail,
     objectListings,
+    retrySchemas,
     startDatabaseRequest,
     startObjectRequest,
     store,
@@ -418,6 +560,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       const state = store.getDetailState({
         targetId,
         database: object.database,
+        schema: object.schema ?? "",
         kind: object.kind,
         name: object.name,
       });
@@ -431,6 +574,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
       const state = store.getDetailState({
         targetId,
         database: object.database,
+        schema: object.schema ?? "",
         kind: object.kind,
         name: object.name,
       });
@@ -481,6 +625,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
                   onPreviewRequest({
                     targetId,
                     database: object.database,
+                    ...(object.schema ? { schema: object.schema } : {}),
                     table: object.name,
                     kind: "table",
                     foreignKeys,
@@ -531,14 +676,16 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             {t("schema.refresh")}
           </Button>
         </div>
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={includeSystem}
-            onChange={(event) => toggleIncludeSystem(event.target.checked)}
-          />
-          {t("schema.includeSystemDatabases")}
-        </label>
+        {isPostgres ? null : (
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={includeSystem}
+              onChange={(event) => toggleIncludeSystem(event.target.checked)}
+            />
+            {t("schema.includeSystemDatabases")}
+          </label>
+        )}
       </div>
       {databaseLoading && databaseListing.items.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">{t("schema.loading")}</p>
@@ -564,8 +711,8 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             databases={databaseListing.items}
             expandedDatabases={expandedDatabases}
             expandedObjects={expandedObjects}
-            objectsByDatabase={new Map([...objectListings].map(([database, listing]) => [database, listing.items]))}
-            loadingDatabases={new Set([...objectListings].filter(([, listing]) => listing.status === "loading").map(([database]) => database))}
+            objectsByDatabase={new Map([...objectListings].map(([scope, listing]) => [scope, listing.items]))}
+            loadingDatabases={new Set([...objectListings].filter(([, listing]) => listing.status === "loading").map(([scope]) => scope))}
             loadingObjects={loadingDetails}
             onDatabaseToggle={toggleDatabase}
             onObjectToggle={toggleObject}
@@ -573,7 +720,22 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest }: Query
             databasePageInfo={databaseListing.pageInfo}
             databaseLoading={databaseListing.status === "loading"}
             databaseError={databaseError}
-            onLoadMoreDatabases={loadMoreDatabases}
+            onLoadMoreDatabases={isPostgres ? undefined : loadMoreDatabases}
+            schemaLevel={
+              isPostgres
+                ? {
+                    listings: schemaListings,
+                    expanded: expandedSchemas,
+                    disabled: new Set(
+                      (connections ?? [])
+                        .filter((row) => row.enabled === false)
+                        .map((row) => row.database),
+                    ),
+                    onToggle: toggleSchema,
+                    onRetry: retrySchemas,
+                  }
+                : undefined
+            }
             objectListings={objectListings}
             onSearch={searchObjects}
             onClearSearch={clearSearch}

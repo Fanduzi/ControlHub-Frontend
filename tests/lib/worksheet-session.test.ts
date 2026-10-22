@@ -34,6 +34,8 @@ function savedStatement(
     targetResourceId: 1,
     name: "orders by status",
     statement: "SELECT * FROM orders WHERE status = :status",
+    database: "",
+    schema: "",
     scope: "personal",
     parameters: [{ name: "status", type: "string" }],
     createdAt: "2026-08-01T00:00:00Z",
@@ -129,6 +131,7 @@ describe("WorksheetSession run routing", () => {
       expect.objectContaining({
         values: { status: "open" },
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(execute).not.toHaveBeenCalled();
   });
@@ -228,6 +231,7 @@ describe("WorksheetSession persisted drafts", () => {
       ],
       1,
     );
+
     expect(session.active.id).toBe("saved-orders");
     expect(session.active.statement).toBe("select * from orders");
     expect(session.active.activeDatabase).toBe("orders");
@@ -240,6 +244,7 @@ describe("WorksheetSession persisted drafts", () => {
         targetResourceId: 30,
         statement: "select * from orders",
         activeDatabase: "orders",
+        activeSchema: null,
       },
     ]);
   });
@@ -397,5 +402,321 @@ describe("WorksheetSession cellTruncated result-contract propagation", () => {
     expect(serialized).not.toContain("result");
     expect(serialized).not.toContain("parameterValues");
     expect(serialized).not.toContain("secret-value");
+  });
+});
+
+describe("WorksheetSession PostgreSQL context", () => {
+  function createPgSession(
+    ports: ConstructorParameters<typeof WorksheetSession>[0]["ports"] = {},
+  ) {
+    let n = 0;
+    return new WorksheetSession({
+      initialTargetId: 7,
+      createId: () => `key-${++n}`,
+      ports,
+      engineFor: () => "postgresql",
+    });
+  }
+
+  function pgResult(overrides: Partial<QueryExecuteResponse> = {}): QueryExecuteResponse {
+    return emptyResult({
+      engine: "postgresql",
+      context: { database: "orders", schema: "sales" },
+      ...overrides,
+    });
+  }
+
+  function historyExecution(
+    overrides: Partial<import("@/types/query-execution").QueryExecutionHistoryExecution> = {},
+  ): import("@/types/query-execution").QueryExecutionHistoryExecution {
+    return {
+      kind: "execution",
+      id: 5,
+      targetResourceId: 7,
+      clientExecutionId: "key-1",
+      actor: null,
+      engine: "postgresql",
+      database: "orders",
+      schema: "sales",
+      statementDigest: "d",
+      statementPreview: "select 1",
+      canRestore: false,
+      status: "cancelled",
+      rowCount: 0,
+      durationMs: 3,
+      errorCode: "",
+      errorMessage: "",
+      createdAt: "2026-08-01T00:00:00Z",
+      remoteState: "stopped",
+      ...overrides,
+    };
+  }
+
+  it("refuses to run before a composite connection database is selected", async () => {
+    const execute = vi.fn();
+    const session = createPgSession({ execute });
+    session.editStatement("select 1");
+    await session.run();
+    expect(execute).not.toHaveBeenCalled();
+    expect(session.active.isExecuting).toBe(false);
+  });
+
+  it("sends database/schema and the pinned key, then trusts only a matching context echo", async () => {
+    const execute = vi.fn().mockResolvedValue(pgResult());
+    const session = createPgSession({ execute });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+    await session.run();
+    expect(execute).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        statement: "select 1",
+        database: "orders",
+        schema: "sales",
+        clientExecutionId: expect.any(String),
+      }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(session.active.result?.rowCount).toBe(0);
+  });
+
+  it("fails closed when the echoed context does not match the request binding", async () => {
+    const execute = vi.fn().mockResolvedValue(
+      pgResult({ context: { database: "other", schema: "sales" } }),
+    );
+    const session = createPgSession({ execute });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+    await session.run();
+    expect(session.active.result).toBeNull();
+    expect(session.active.error?.code).toBe("internal_error");
+  });
+
+  it("selectConnection clears result/schema and rebinds history scope to the new database", async () => {
+    const execute = vi.fn().mockResolvedValue(pgResult());
+    const listExecutions = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const session = createPgSession({ execute, listExecutions });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+    await session.run();
+    expect(session.active.result).not.toBeNull();
+
+    session.selectConnection(session.active.id, "billing");
+    expect(session.active.activeDatabase).toBe("billing");
+    expect(session.active.activeSchema).toBeNull();
+    expect(session.active.result).toBeNull();
+    expect(session.active.statement).toBe("select 1");
+    expect(session.active.history.boundDatabase).toBe("billing");
+
+    await session.refreshHistory();
+    expect(listExecutions).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ database: "billing" }),
+    );
+  });
+
+  it("selectSchema clears result and navigation state but keeps the draft statement", async () => {
+    const execute = vi.fn().mockResolvedValue(pgResult());
+    const session = createPgSession({ execute });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+    await session.run();
+    expect(session.active.result).not.toBeNull();
+
+    session.selectSchema(session.active.id, "ops");
+    expect(session.active.activeSchema).toBe("ops");
+    expect(session.active.activeDatabase).toBe("orders");
+    expect(session.active.result).toBeNull();
+    expect(session.active.statement).toBe("select 1");
+  });
+
+  it("reconcileConnection stops a worksheet whose connection vanished — no silent fallback", () => {
+    const session = createPgSession();
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+
+    session.reconcileConnection(session.active.id, ["billing"]);
+    expect(session.active.activeDatabase).toBeNull();
+    expect(session.active.activeSchema).toBeNull();
+    expect(session.active.result).toBeNull();
+
+    // still listed → untouched
+    session.selectConnection(session.active.id, "orders");
+    session.reconcileConnection(session.active.id, ["orders", "billing"]);
+    expect(session.active.activeDatabase).toBe("orders");
+  });
+
+  it("persists and restores the schema pin alongside the database", () => {
+    const session = createPgSession();
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    const snapshot = session.persistedSnapshot();
+    expect(snapshot[0]).toMatchObject({ activeDatabase: "orders", activeSchema: "sales" });
+
+    const restored = createPgSession();
+    restored.hydrate(snapshot, 0);
+    expect(restored.active.activeDatabase).toBe("orders");
+    expect(restored.active.activeSchema).toBe("sales");
+  });
+
+  it("cancel aborts the request and resolves through a keyed history probe", async () => {
+    let abortSignal: AbortSignal | undefined;
+    const execute = vi.fn().mockImplementation(
+      (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+        new Promise<QueryExecuteResponse>((_resolve, reject) => {
+          abortSignal = opts?.signal;
+          abortSignal?.addEventListener("abort", () =>
+            reject(new DOMException("The operation was aborted.", "AbortError")),
+          );
+        }),
+    );
+    const listExecutions = vi.fn().mockImplementation(
+      (_id: number, params?: { clientExecutionId?: string }) =>
+        Promise.resolve({
+          items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+          nextCursor: null,
+        }),
+    );
+    const session = createPgSession({ execute, listExecutions });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+
+    const running = session.run();
+    await vi.waitFor(() => expect(execute).toHaveBeenCalled());
+    const sentKey = (execute.mock.calls[0]![1] as { clientExecutionId?: string }).clientExecutionId;
+    expect(sentKey).toBeTruthy();
+    session.cancel();
+    expect(abortSignal?.aborted).toBe(true);
+    await running;
+
+    await vi.waitFor(() => {
+      expect(session.active.cancellation.phase).toBe("resolved");
+    });
+    expect(listExecutions).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        database: "orders",
+        clientExecutionId: sentKey,
+        // The read-back poll runs on its own fresh signal — never the aborted
+        // request's, which is already aborted by the time the probe starts.
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    if (session.active.cancellation.phase === "resolved") {
+      expect(session.active.cancellation.outcome).toEqual({
+        kind: "terminal",
+        status: "cancelled",
+        remoteState: "stopped",
+      });
+    }
+    // No synthesized failure row on the worksheet.
+    expect(session.active.error).toBeNull();
+  });
+
+  it("navigateRelated sends the composite source scope and a fresh key", async () => {
+    const navigateRelated = vi.fn().mockResolvedValue({ rows: [], columns: [] });
+    const session = createPgSession({ navigateRelated });
+    session.openPreview({
+      targetId: 7,
+      database: "orders",
+      schema: "sales",
+      table: "orders",
+      foreignKeys: [{
+        name: "fk_tenant",
+        columns: ["tenant_id"],
+        referencedDatabase: "orders",
+        referencedSchema: "core",
+        referencedObject: "tenants",
+        referencedColumns: ["id"],
+        onUpdate: "cascade",
+        onDelete: "restrict",
+      }],
+      foreignKeysTruncated: false,
+    });
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalled());
+    const [targetId, request] = navigateRelated.mock.calls[0]!;
+    expect(targetId).toBe(7);
+    expect(request).toMatchObject({
+      source: { database: "orders", schema: "sales", object: "orders" },
+      localValues: ["7"],
+      clientExecutionId: expect.any(String),
+    });
+  });
+
+  it("fails closed when the related-records context echo mismatches the bound scope", async () => {
+    const navigateRelated = vi.fn().mockResolvedValue(
+      pgResult({ context: { database: "other_db", schema: "sales" } }),
+    );
+    const session = createPgSession({ navigateRelated });
+    session.openPreview({
+      targetId: 7,
+      database: "orders",
+      schema: "sales",
+      table: "orders",
+      foreignKeys: [{
+        name: "fk_tenant",
+        columns: ["tenant_id"],
+        referencedDatabase: "orders",
+        referencedSchema: "core",
+        referencedObject: "tenants",
+        referencedColumns: ["id"],
+        onUpdate: "cascade",
+        onDelete: "restrict",
+      }],
+      foreignKeysTruncated: false,
+    });
+    session.navigateRelated("fk_tenant", ["7"]);
+
+    await vi.waitFor(() => {
+      expect(session.active.relatedRecords.status).toBe("error");
+    });
+    if (session.active.relatedRecords.status === "error") {
+      expect(session.active.relatedRecords.code).toBe("internal_error");
+    }
+  });
+
+  it("restores history scoped to the persisted connection on hydrate", () => {
+    const session = createPgSession();
+    session.selectConnection(session.active.id, "orders");
+    const snapshot = session.persistedSnapshot();
+
+    const restored = createPgSession();
+    restored.hydrate(snapshot, 0);
+    expect(restored.active.activeDatabase).toBe("orders");
+    expect(restored.active.history.boundDatabase).toBe("orders");
+  });
+
+  it("re-binds restored history when the engine map was empty at hydrate time", () => {
+    const engines = new Map<number, string>();
+    let n = 0;
+    const session = new WorksheetSession({
+      initialTargetId: 7,
+      createId: () => `key-${++n}`,
+      engineFor: (id) => engines.get(id),
+    });
+    session.hydrate(
+      [{
+        id: "w1",
+        name: "W1",
+        targetResourceId: 7,
+        statement: "select 1",
+        activeDatabase: "orders",
+        activeSchema: "sales",
+      }],
+      7,
+    );
+    // Engine unknown at hydrate → history stays unscoped for now.
+    expect(session.active.history.boundDatabase).toBeNull();
+
+    engines.set(7, "postgresql");
+    session.reconcileConnection(session.active.id, ["orders"]);
+    expect(session.active.history.boundDatabase).toBe("orders");
   });
 });

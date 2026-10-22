@@ -571,6 +571,7 @@ export function QueryWorkbench({
                         key={activeTarget.resourceId}
                         targetId={activeTarget.resourceId}
                         store={schemaStore}
+                        connections={activeTarget.connectionContext.engine === "postgresql" ? activeTarget.connections : undefined}
                         onPreviewRequest={handlePreviewRequest}
                       />
                     ) : (
@@ -629,6 +630,7 @@ export function QueryWorkbench({
                       key={activeTarget.resourceId}
                       targetId={activeTarget.resourceId}
                       store={schemaStore}
+                      connections={activeTarget.connectionContext.engine === "postgresql" ? activeTarget.connections : undefined}
                       onPreviewRequest={handlePreviewRequest}
                     />
                   ) : (

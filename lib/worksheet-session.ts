@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 import {
   executeQueryTarget,
   explainQueryTarget,
+  isAbortError,
   listQueryExecutions,
   navigateRelatedRecords,
   QueryExecuteError,
@@ -23,9 +24,12 @@ import type {
   QueryExecutionCursorPage,
   QueryExecutionFilter,
   QueryExecutionRecord,
+  QueryExecutionRemoteState,
+  QueryExecutionStatus,
   RelatedRecordNavigationRequest,
   RelatedRecordNavigationResponse,
 } from "@/types/query-execution";
+import { queryExecutionRecordKey as recordKey } from "@/types/query-execution";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import type {
   QuerySavedStatementParameterDefinition,
@@ -49,12 +53,50 @@ export type HistoryState = {
   pendingFilters: QueryExecutionFilter;
   selectedRecordId: number | null;
   boundTargetId: number;
+  /** PostgreSQL connection scope; null keeps unscoped MySQL/TiDB history. */
+  boundDatabase: string | null;
   generation: number;
 };
+
+/**
+ * Post-cancel evidence about one keyed attempt, obtained by reading execution
+ * history back with the attempt's `clientExecutionId`. `terminal` carries the
+ * persisted status and remote-cancel evidence; `running` means a claim is
+ * still occupied; `unknown` means no claim/record was observed inside the
+ * bounded probe window. Never means "database stopped" by itself.
+ */
+export type CancellationOutcome =
+  | {
+      readonly kind: "terminal";
+      readonly status: QueryExecutionStatus;
+      readonly remoteState: QueryExecutionRemoteState | null;
+    }
+  | { readonly kind: "running" }
+  | { readonly kind: "unknown" };
+
+/**
+ * Cancellation lifecycle of the in-flight keyed attempt. `idle` when nothing
+ * was cancelled; `requested` from the user's cancel intent until the bounded
+ * history probe resolves; `resolved` carries the observed outcome.
+ */
+export type CancellationState =
+  | { readonly phase: "idle" }
+  | {
+      readonly phase: "requested";
+      readonly key: string;
+      readonly database: string | null;
+    }
+  | {
+      readonly phase: "resolved";
+      readonly key: string;
+      readonly outcome: CancellationOutcome;
+    };
 
 export type PreviewProvenance = {
   readonly targetId: number;
   readonly database: string;
+  /** PostgreSQL namespace of the previewed table; absent for MySQL/TiDB. */
+  readonly schema?: string;
   readonly table: string;
   readonly kind: "table";
   readonly statement: string;
@@ -93,7 +135,14 @@ export type Worksheet = {
   formatError: string | null;
   history: HistoryState;
   requestId: string;
+  /**
+   * Browse database for MySQL/TiDB; the selected composite connection
+   * database for PostgreSQL (required before any PG execution).
+   */
   activeDatabase: string | null;
+  /** PostgreSQL namespace pin; null defers to the connection defaultSchema. */
+  activeSchema: string | null;
+  cancellation: CancellationState;
   isDirty: boolean;
   previewProvenance: PreviewProvenance | null;
   relatedRecords: RelatedRecordsState;
@@ -119,7 +168,7 @@ const defaultPorts: WorksheetSessionPorts = {
   listExecutions: listQueryExecutions,
 };
 
-function createHistoryState(targetId: number): HistoryState {
+function createHistoryState(targetId: number, boundDatabase: string | null = null): HistoryState {
   return {
     replaceStatus: "idle",
     items: [],
@@ -129,6 +178,7 @@ function createHistoryState(targetId: number): HistoryState {
     pendingFilters: {},
     selectedRecordId: null,
     boundTargetId: targetId,
+    boundDatabase,
     generation: 0,
   };
 }
@@ -180,6 +230,8 @@ function createWorksheetRecord(
     history: createHistoryState(targetResourceId),
     requestId,
     activeDatabase: null,
+    activeSchema: null,
+    cancellation: { phase: "idle" },
     isDirty: false,
     previewProvenance: null,
     relatedRecords: { status: "idle", generation: 0 },
@@ -223,6 +275,17 @@ function buildTemplateValues(
   return values;
 }
 
+/** In-flight keyed attempt control state — never persisted or rendered. */
+type InflightAttempt = {
+  readonly worksheetId: string;
+  readonly requestId: string;
+  /** clientExecutionId for keyed engines (PostgreSQL); null for keyless. */
+  readonly key: string | null;
+  readonly targetId: number;
+  readonly database: string | null;
+  readonly controller: AbortController;
+};
+
 export class WorksheetSession {
   private worksheets: Worksheet[];
   private activeWorksheetId: string;
@@ -230,17 +293,25 @@ export class WorksheetSession {
   private version = 0;
   private readonly ports: WorksheetSessionPorts;
   private readonly createId: () => string;
+  private readonly engineFor: (targetId: number) => string | undefined;
+  private readonly inflight = new Map<string, InflightAttempt>();
   private nextIndex: number;
 
   constructor(options: {
     readonly initialTargetId: number;
     readonly ports?: Partial<WorksheetSessionPorts>;
     readonly createId?: () => string;
+    /**
+     * Resolves a worksheet's target engine. Unknown/absent resolves to the
+     * non-PostgreSQL path: no connection fields, no idempotency key.
+     */
+    readonly engineFor?: (targetId: number) => string | undefined;
     readonly initialMaxRows?: number;
     readonly initialPageSize?: number;
   }) {
     this.ports = { ...defaultPorts, ...options.ports };
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    this.engineFor = options.engineFor ?? (() => undefined);
     this.nextIndex = 1;
     this.activeWorksheetId = INITIAL_WORKSHEET_ID;
     this.worksheets = [
@@ -313,6 +384,7 @@ export class WorksheetSession {
       targetResourceId: worksheet.targetResourceId,
       statement: worksheet.statement,
       activeDatabase: worksheet.activeDatabase,
+      activeSchema: worksheet.activeSchema,
     }));
   }
 
@@ -347,8 +419,15 @@ export class WorksheetSession {
         maxRows,
         pageSize,
       ),
+      // Restored PostgreSQL worksheets keep history scoped to their persisted
+      // connection; reconcileConnection re-binds when the engine map was not
+      // populated yet at hydrate time.
+      ...(this.isPostgres(item.targetResourceId) && item.activeDatabase !== null
+        ? { history: createHistoryState(item.targetResourceId, item.activeDatabase) }
+        : {}),
       statement: item.statement,
       activeDatabase: item.activeDatabase,
+      activeSchema: item.activeSchema ?? null,
     }));
     this.activeWorksheetId = this.worksheets[0]!.id;
     this.nextIndex = this.worksheets.length;
@@ -359,12 +438,17 @@ export class WorksheetSession {
     readonly targetId: number;
     readonly statement: string;
     readonly activeDatabase: string | null;
+    readonly activeSchema?: string | null;
   }): Worksheet | null {
     const worksheet = this.add(input.targetId);
     if (!worksheet) return null;
     this.patch(worksheet.id, {
       statement: input.statement,
       activeDatabase: input.activeDatabase,
+      activeSchema: input.activeSchema ?? null,
+      ...(this.isPostgres(input.targetId) && input.activeDatabase !== null
+        ? { history: createHistoryState(input.targetId, input.activeDatabase) }
+        : {}),
       isDirty: true,
     });
     return this.active;
@@ -372,6 +456,7 @@ export class WorksheetSession {
 
   close(id: string): void {
     if (this.worksheets.length <= 1) return;
+    this.abortInflight(id);
     const closedIndex = this.worksheets.findIndex((ws) => ws.id === id);
     const filtered = this.worksheets.filter((ws) => ws.id !== id);
     if (this.activeWorksheetId === id) {
@@ -394,6 +479,7 @@ export class WorksheetSession {
     const exitingTemplate =
       worksheet.templateStatementId !== null || worksheet.parameters.length > 0;
     const dropInFlight = worksheet.isExecuting;
+    if (dropInFlight) this.abortInflight(worksheet.id);
     const invalidateDerived =
       exitingTemplate ||
       dropInFlight ||
@@ -465,9 +551,19 @@ export class WorksheetSession {
   }
 
   loadSavedStatement(item: QuerySavedStatementRecord): void {
+    const worksheet = this.active;
+    // PostgreSQL-bound statements carry their authorized (database, schema)
+    // scope; adopt it first so execution posts under the same connection pin.
+    // The scope is revalidated against the live connection list by the shell.
+    if (item.database && item.database !== worksheet.activeDatabase) {
+      this.selectConnection(worksheet.id, item.database);
+      if (item.schema) this.selectSchema(worksheet.id, item.schema);
+    } else if (item.schema && item.schema !== worksheet.activeSchema) {
+      this.selectSchema(worksheet.id, item.schema);
+    }
     this.replaceStatement(item.statement, item.parameters);
     if (item.parameters.length > 0) {
-      this.patch(this.active.id, { templateStatementId: item.id });
+      this.patch(worksheet.id, { templateStatementId: item.id });
     }
   }
 
@@ -494,30 +590,88 @@ export class WorksheetSession {
   retarget(worksheetId: string, newTargetId: number): void {
     const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
     if (!worksheet) return;
+    this.abortInflight(worksheetId);
     this.patch(worksheetId, {
+      ...this.contextResetPatch(worksheet),
       targetResourceId: newTargetId,
       activeDatabase: null,
-      result: null,
-      error: null,
+      activeSchema: null,
       formatError: null,
       history: createHistoryState(newTargetId),
-      isExecuting: false,
-      requestId: this.createId(),
       isDirty: false,
-      previewProvenance: null,
-      relatedRecords: { status: "idle", generation: worksheet.relatedRecords.generation + 1 },
-      explain: invalidateExplainState(worksheet.explain),
-      currentPage: 1,
-      resultPagination: null,
-      parameters: [],
-      parameterValues: {},
-      templateStatementId: null,
-      templateFieldErrors: {},
     });
   }
 
   setActiveDatabase(database: string | null): void {
     this.patch(this.active.id, { activeDatabase: database });
+  }
+
+  /**
+   * Select a PostgreSQL composite connection (targetId, database). This is an
+   * execution-context change: it aborts any in-flight request, clears the
+   * schema pin, results, navigation provenance, completion plan, and template
+   * binding (saved statements are bound to a specific database), and re-binds
+   * history to the new connection scope. The draft statement text is kept.
+   */
+  selectConnection(worksheetId: string, database: string): void {
+    const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
+    if (!worksheet) return;
+    this.abortInflight(worksheetId);
+    this.patch(worksheetId, {
+      ...this.contextResetPatch(worksheet),
+      activeDatabase: database,
+      activeSchema: null,
+      history: createHistoryState(worksheet.targetResourceId, database),
+    });
+  }
+
+  /**
+   * Pin a PostgreSQL namespace for the selected connection. Clears context-
+   * derived state (results, provenance, navigation, completion, template
+   * binding) without touching history scope or the draft statement.
+   */
+  selectSchema(worksheetId: string, schema: string | null): void {
+    const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
+    if (!worksheet || worksheet.activeSchema === schema) return;
+    this.abortInflight(worksheetId);
+    this.patch(worksheetId, {
+      ...this.contextResetPatch(worksheet),
+      activeSchema: schema,
+    });
+  }
+
+  /**
+   * Revalidate a persisted/restored PostgreSQL context against the live
+   * connection enumeration. When the bound database is no longer visible the
+   * worksheet stops: connection and schema are cleared and all context-derived
+   * state is dropped — never silently falls back to another connection. When
+   * the connection is still valid but history was restored unscoped (engine
+   * unknown at hydrate time), re-bind history to the validated connection.
+   */
+  reconcileConnection(worksheetId: string, databases: readonly string[]): void {
+    const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
+    if (!worksheet || worksheet.activeDatabase === null) return;
+    if (!databases.includes(worksheet.activeDatabase)) {
+      this.selectConnectionClear(worksheet);
+      return;
+    }
+    // A worksheet restored before the engine map was populated may still carry
+    // an unscoped history binding; pin it to the validated connection now.
+    if (worksheet.history.boundDatabase !== worksheet.activeDatabase) {
+      this.patch(worksheetId, {
+        history: createHistoryState(worksheet.targetResourceId, worksheet.activeDatabase),
+      });
+    }
+  }
+
+  private selectConnectionClear(worksheet: Worksheet): void {
+    this.abortInflight(worksheet.id);
+    this.patch(worksheet.id, {
+      ...this.contextResetPatch(worksheet),
+      activeDatabase: null,
+      activeSchema: null,
+      history: createHistoryState(worksheet.targetResourceId),
+    });
   }
 
   applyDefaultDatabase(targetId: number, defaultDb: string | null): void {
@@ -594,21 +748,31 @@ export class WorksheetSession {
   openPreview(input: {
     readonly targetId: number;
     readonly database: string;
+    readonly schema?: string;
     readonly table: string;
     readonly foreignKeys: readonly ForeignKeyDetail[];
     readonly foreignKeysTruncated: boolean;
   }): void {
-    const quotedDb = `\`${input.database.replace(/`/g, "``")}\``;
-    const quotedTable = `\`${input.table.replace(/`/g, "``")}\``;
-    const statement = `SELECT * FROM ${quotedDb}.${quotedTable} LIMIT ${DEFAULT_QUERY_MAX_ROWS}`;
+    const pg = this.engineFor(input.targetId) === "postgresql";
+    const statement = pg
+      ? `SELECT * FROM ${input.schema ? `"${input.schema.replace(/"/g, '""')}".` : ""}"${input.table.replace(/"/g, '""')}" LIMIT ${DEFAULT_QUERY_MAX_ROWS}`
+      : `SELECT * FROM \`${input.database.replace(/`/g, "``")}\`.\`${input.table.replace(/`/g, "``")}\` LIMIT ${DEFAULT_QUERY_MAX_ROWS}`;
     const worksheet = this.add(input.targetId);
     if (!worksheet) return;
     this.patch(worksheet.id, {
       name: `Preview: ${input.table}`,
       statement,
+      ...(pg
+        ? {
+            activeDatabase: input.database,
+            activeSchema: input.schema ?? null,
+            history: createHistoryState(input.targetId, input.database),
+          }
+        : {}),
       previewProvenance: {
         targetId: input.targetId,
         database: input.database,
+        ...(input.schema !== undefined ? { schema: input.schema } : {}),
         table: input.table,
         kind: "table",
         statement,
@@ -622,6 +786,9 @@ export class WorksheetSession {
     const worksheet = this.active;
     if (worksheet.isExecuting || worksheet.statement.trim() === "") return;
     if (worksheet.templateStatementId !== null && !buildTemplateValues(worksheet)) return;
+    // PostgreSQL requires a selected composite connection; refuse to send a
+    // contextless request (the UI gates the same condition on the Run button).
+    if (this.isPostgres(worksheet.targetResourceId) && !worksheet.activeDatabase) return;
 
     const requestId = this.createId();
     const provenance = worksheet.previewProvenance;
@@ -629,6 +796,7 @@ export class WorksheetSession {
     this.patch(worksheet.id, {
       isExecuting: true,
       error: null,
+      cancellation: { phase: "idle" },
       templateFieldErrors: {},
       requestId,
       isDirty: false,
@@ -650,6 +818,7 @@ export class WorksheetSession {
     this.patch(worksheet.id, {
       isExecuting: true,
       error: null,
+      cancellation: { phase: "idle" },
       templateFieldErrors: {},
       requestId,
     });
@@ -672,6 +841,7 @@ export class WorksheetSession {
     this.patch(worksheet.id, {
       isExecuting: true,
       error: null,
+      cancellation: { phase: "idle" },
       templateFieldErrors: {},
       requestId,
     });
@@ -694,6 +864,7 @@ export class WorksheetSession {
     this.patch(worksheet.id, {
       isExecuting: true,
       error: null,
+      cancellation: { phase: "idle" },
       templateFieldErrors: {},
       requestId,
       currentPage: 1,
@@ -789,14 +960,17 @@ export class WorksheetSession {
     const targetId = worksheet.targetResourceId;
     const worksheetId = worksheet.id;
     this.patch(worksheetId, { relatedRecords: { status: "loading", generation, foreignKey } });
+    const pg = this.isPostgres(targetId);
     const request: RelatedRecordNavigationRequest = {
       source: {
         database: provenance.database,
+        ...(provenance.schema !== undefined ? { schema: provenance.schema } : {}),
         object: provenance.table,
         kind: "table",
         foreignKey,
       },
       localValues: [...localValues],
+      ...(pg ? { clientExecutionId: this.createId() } : {}),
     };
     void this.ports.navigateRelated(targetId, request).then(
       (response) => {
@@ -807,6 +981,22 @@ export class WorksheetSession {
           ws.relatedRecords.generation !== generation ||
           ws.previewProvenance?.statement !== provenance.statement
         ) {
+          return;
+        }
+        // Fail closed on a context echo that mismatches the request binding —
+        // the same guard applyPage applies to ordinary executions. PostgreSQL
+        // related-record responses always echo context; its absence is a
+        // mismatch.
+        if (
+          pg &&
+          (!response.context ||
+            response.context.database !== provenance.database ||
+            (provenance.schema !== undefined &&
+              response.context.schema !== provenance.schema))
+        ) {
+          this.patch(worksheetId, {
+            relatedRecords: { status: "error", generation, code: "internal_error" },
+          });
           return;
         }
         this.patch(worksheetId, { relatedRecords: { status: "ready", generation, response } });
@@ -855,6 +1045,9 @@ export class WorksheetSession {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
         ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
+        ...(worksheet.history.boundDatabase
+          ? { database: worksheet.history.boundDatabase }
+          : {}),
         pageSize: 20,
       });
       this.applyHistoryReplace(targetWorksheetId, targetId, nextGeneration, filters, response, "ready");
@@ -878,6 +1071,9 @@ export class WorksheetSession {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.from ? { from: toRFC3339From(filters.from) } : {}),
         ...(filters.to ? { to: toRFC3339To(filters.to) } : {}),
+        ...(worksheet.history.boundDatabase
+          ? { database: worksheet.history.boundDatabase }
+          : {}),
         cursor: nextCursor,
         pageSize: 20,
       });
@@ -893,10 +1089,11 @@ export class WorksheetSession {
       ) {
         return;
       }
-      const seenIds = new Set(current.history.items.map((item) => item.id));
+      const seenIds = new Set(current.history.items.map((item) => recordKey(item)));
       const newItems = response.items.filter((item) => {
-        if (seenIds.has(item.id)) return false;
-        seenIds.add(item.id);
+        const key = recordKey(item);
+        if (seenIds.has(key)) return false;
+        seenIds.add(key);
         return true;
       });
       this.patch(targetWorksheetId, {
@@ -972,10 +1169,11 @@ export class WorksheetSession {
       });
       return;
     }
-    const seenIds = new Set<number>();
+    const seenIds = new Set<string>();
     const items = (response?.items ?? []).filter((item) => {
-      if (seenIds.has(item.id)) return false;
-      seenIds.add(item.id);
+      const key = recordKey(item);
+      if (seenIds.has(key)) return false;
+      seenIds.add(key);
       return true;
     });
     this.patch(worksheetId, {
@@ -994,27 +1192,195 @@ export class WorksheetSession {
     });
   }
 
+  /**
+   * User cancel: abort the in-flight HTTP request, then read the attempt's
+   * server-side state back through history using the same clientExecutionId.
+   * Local abort alone never produces a "stopped" claim — only the bounded
+   * probe's outcome is rendered.
+   */
+  cancel(): void {
+    const worksheet = this.active;
+    if (!worksheet.isExecuting) return;
+    const inflight = this.inflight.get(worksheet.id);
+    if (!inflight || worksheet.cancellation.phase !== "idle") return;
+    if (inflight.key === null) {
+      // Keyless engines (MySQL/TiDB): the local abort ends the request; the
+      // backend records its own terminal status and no keyed read-back exists.
+      inflight.controller.abort();
+      return;
+    }
+    this.patch(worksheet.id, {
+      cancellation: {
+        phase: "requested",
+        key: inflight.key,
+        database: inflight.database,
+      },
+    });
+    inflight.controller.abort();
+    void this.probeExecutionState(
+      worksheet.id,
+      inflight.requestId,
+      inflight.targetId,
+      inflight.database,
+      inflight.key,
+    );
+  }
+
+  /**
+   * Bounded backoff read-back of one keyed attempt. Polls the history point
+   * read until a terminal execution row appears or the window closes. Late
+   * results patch only the owning attempt; a retargeted/closed worksheet or a
+   * superseded requestId silently drops the resolution.
+   */
+  private async probeExecutionState(
+    worksheetId: string,
+    requestId: string,
+    targetId: number,
+    database: string | null,
+    key: string,
+  ): Promise<void> {
+    const delays = [0, 400, 800, 1600, 3200, 5000];
+    // The probe polls on its own controller — a fresh signal that is never the
+    // aborted request's. Bailing out mid-poll aborts any in-flight read.
+    const probe = new AbortController();
+    let outcome: CancellationOutcome = { kind: "unknown" };
+    try {
+      for (const delay of delays) {
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        const ws = this.worksheets.find((item) => item.id === worksheetId);
+        if (
+          !ws ||
+          ws.requestId !== requestId ||
+          ws.cancellation.phase !== "requested" ||
+          ws.cancellation.key !== key
+        ) {
+          return;
+        }
+        try {
+          const page = await this.ports.listExecutions(targetId, {
+            ...(database ? { database } : {}),
+            clientExecutionId: key,
+            pageSize: 5,
+            signal: probe.signal,
+          });
+          const record = page.items.find((item) => item.clientExecutionId === key);
+          if (record?.kind === "execution") {
+            outcome = {
+              kind: "terminal",
+              status: record.status,
+              remoteState: record.remoteState ?? null,
+            };
+            break;
+          }
+          if (record?.kind === "claim" && record.status === "running") {
+            outcome = { kind: "running" };
+            continue;
+          }
+          // claim "unknown" or not yet visible: keep polling inside the window.
+          outcome = { kind: "unknown" };
+        } catch {
+          // Transport/read failure: keep polling inside the bounded window.
+          outcome = { kind: "unknown" };
+        }
+      }
+      const ws = this.worksheets.find((item) => item.id === worksheetId);
+      if (
+        !ws ||
+        ws.requestId !== requestId ||
+        ws.cancellation.phase !== "requested" ||
+        ws.cancellation.key !== key
+      ) {
+        return;
+      }
+      this.patch(worksheetId, {
+        cancellation: { phase: "resolved", key, outcome },
+      });
+    } finally {
+      probe.abort();
+    }
+  }
+
+  /**
+   * Fields every execution-context change resets: in-flight outputs, error
+   * state, navigation provenance, template binding, and pagination. Callers
+   * layer their scope-specific fields (connection/schema/history/target) on
+   * top. The draft statement text is never touched here.
+   */
+  private contextResetPatch(worksheet: Worksheet): Partial<Worksheet> {
+    return {
+      cancellation: { phase: "idle" },
+      result: null,
+      error: null,
+      isExecuting: false,
+      requestId: this.createId(),
+      previewProvenance: null,
+      relatedRecords: {
+        status: "idle",
+        generation: worksheet.relatedRecords.generation + 1,
+      },
+      explain: invalidateExplainState(worksheet.explain),
+      currentPage: 1,
+      resultPagination: null,
+      parameters: [],
+      parameterValues: {},
+      templateStatementId: null,
+      templateFieldErrors: {},
+    };
+  }
+
+  /** Abort and forget the in-flight request of a worksheet, if any. */
+  private abortInflight(worksheetId: string): void {
+    const inflight = this.inflight.get(worksheetId);
+    if (!inflight) return;
+    this.inflight.delete(worksheetId);
+    inflight.controller.abort();
+  }
+
+  private isPostgres(targetId: number): boolean {
+    return this.engineFor(targetId) === "postgresql";
+  }
+
   private async executePage(
     worksheet: Worksheet,
     targetId: number,
     page: number,
     pageSize: number,
     maxRows: number,
+    signal: AbortSignal,
+    clientExecutionId: string | undefined,
   ): Promise<QueryExecuteResponse | null> {
+    const pg = this.isPostgres(targetId);
+    const database = pg ? (worksheet.activeDatabase ?? undefined) : undefined;
+    const schema = pg ? (worksheet.activeSchema ?? undefined) : undefined;
     if (worksheet.templateStatementId !== null) {
       const values = buildTemplateValues(worksheet);
       if (!values) return null;
-      return this.ports.executeTemplate(targetId, worksheet.templateStatementId, {
-        values,
+      return this.ports.executeTemplate(
+        targetId,
+        worksheet.templateStatementId,
+        {
+          values,
+          ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
+          maxRows,
+          pagination: { page, pageSize },
+        },
+        { ...(database !== undefined ? { database } : {}), signal },
+      );
+    }
+    return this.ports.execute(
+      targetId,
+      {
+        statement: worksheet.statement,
+        ...(database !== undefined ? { database } : {}),
+        ...(schema !== undefined ? { schema } : {}),
+        ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
         maxRows,
         pagination: { page, pageSize },
-      });
-    }
-    return this.ports.execute(targetId, {
-      statement: worksheet.statement,
-      maxRows,
-      pagination: { page, pageSize },
-    });
+      },
+      { signal },
+    );
   }
 
   private async applyPage(
@@ -1028,15 +1394,59 @@ export class WorksheetSession {
   ): Promise<void> {
     const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
     if (!worksheet || worksheet.requestId !== requestId) return;
+    const pg = this.isPostgres(targetId);
+    const clientExecutionId = pg ? this.createId() : undefined;
+    const controller = new AbortController();
+    this.inflight.set(worksheetId, {
+      worksheetId,
+      requestId,
+      key: clientExecutionId ?? null,
+      targetId,
+      database: pg ? worksheet.activeDatabase : null,
+      controller,
+    });
     try {
-      const response = await this.executePage(worksheet, targetId, page, pageSize, maxRows);
+      const response = await this.executePage(
+        worksheet,
+        targetId,
+        page,
+        pageSize,
+        maxRows,
+        controller.signal,
+        clientExecutionId,
+      );
       if (!response) return;
+      // Fail closed on a context echo that mismatches the request binding —
+      // rows from another database/schema are never rendered. PostgreSQL
+      // executions always echo context; its absence is itself a mismatch.
+      if (
+        pg &&
+        (!response.context ||
+          response.context.database !== (worksheet.activeDatabase ?? "") ||
+          (worksheet.activeSchema !== null &&
+            response.context.schema !== worksheet.activeSchema))
+      ) {
+        this.guardedPatch(worksheetId, requestId, {
+          result: null,
+          error: new QueryExecuteError(
+            0,
+            "internal_error",
+            "Execution context echo did not match the requested database/schema",
+          ),
+        });
+        return;
+      }
       this.guardedPatch(worksheetId, requestId, {
         result: response,
         currentPage: response.pagination?.page ?? page,
         resultPagination: response.pagination ?? null,
       });
     } catch (caught) {
+      if (isAbortError(caught) || controller.signal.aborted) {
+        // User/context-switch abort: cancellation state already tracks the
+        // outcome via the bounded probe; do not synthesize an error row.
+        return;
+      }
       const templateError = caught instanceof QueryExecuteError ? caught : null;
       this.guardedPatch(worksheetId, requestId, {
         result: null,
@@ -1044,6 +1454,9 @@ export class WorksheetSession {
         ...(templateStatementId !== null ? { templateFieldErrors: templateError?.details ?? {} } : {}),
       });
     } finally {
+      if (this.inflight.get(worksheetId)?.requestId === requestId) {
+        this.inflight.delete(worksheetId);
+      }
       this.guardedPatch(worksheetId, requestId, { isExecuting: false });
     }
   }

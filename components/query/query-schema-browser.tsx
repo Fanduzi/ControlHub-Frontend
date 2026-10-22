@@ -1,3 +1,7 @@
+// input: @/components/query/query-object-explorer, @/lib/schema-catalog, @/types/query-target, next-intl
+// output: QuerySchemaBrowser objects pane/sheet entry point wiring engine-gated composite connections
+// pos: UI boundary between the workbench target and the object explorer
+// note: connections reach the explorer only for postgresql engines; if this file changes, update header and components/query/README.md
 "use client";
 
 import { useState } from "react";
@@ -17,7 +21,7 @@ export function QuerySchemaBrowser({ target, store, activeDatabase }: QuerySchem
   const t = useTranslations("queryWorkbench");
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const explorer = <QueryObjectExplorer key={target.resourceId} targetId={target.resourceId} store={store} />;
+  const explorer = <QueryObjectExplorer key={target.resourceId} targetId={target.resourceId} store={store} connections={target.connectionContext.engine === "postgresql" ? target.connections : undefined} />;
   const placeholder = placeholderText(target.capability.queryKind);
 
   return <>

@@ -1,3 +1,7 @@
+// input: @/services/query-schema
+// output: schema service contract tests incl. getSchemaSchemas + schema params
+// pos: service test
+// note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {
@@ -11,6 +15,7 @@ vi.mock("@/services/api-client", async () => {
 import { apiClient } from "@/services/api-client";
 import {
   getSchemaDatabases,
+  getSchemaSchemas,
   getSchemaObjects,
   getObjectDetails,
   normalizeObjectDetail,
@@ -542,5 +547,67 @@ describe("getRelationshipMap", () => {
       expect(options).not.toHaveProperty("credential");
       expect(options).not.toHaveProperty("actorUserId");
     }
+  });
+});
+
+describe("getSchemaSchemas", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("calls GET /query-targets/{id}/schema/schemas scoped to the connection database", async () => {
+    mockApiClient.mockResolvedValueOnce({ items: [], pageInfo: { page: 1, pageSize: 200, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+
+    await getSchemaSchemas(9, { database: "orders" });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/9/schema/schemas?database=orders",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
+  it("encodes the database byte-exactly and forwards pagination", async () => {
+    mockApiClient.mockResolvedValueOnce({ items: [], pageInfo: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+
+    await getSchemaSchemas(9, { database: "DB With Space", page: 2, pageSize: 50 });
+
+    expect(mockApiClient.mock.calls[0]![0]).toBe(
+      "/query-targets/9/schema/schemas?database=DB+With+Space&page=2&pageSize=50",
+    );
+  });
+});
+
+describe("PostgreSQL schema scoping on object routes", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("forwards schema on schema/objects", async () => {
+    mockApiClient.mockResolvedValueOnce({ items: [], pageInfo: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
+
+    await getSchemaObjects(9, { database: "orders", schema: "Sales NS", page: 1, pageSize: 25 });
+
+    expect(mockApiClient.mock.calls[0]![0]).toContain("database=orders");
+    expect(mockApiClient.mock.calls[0]![0]).toContain("schema=Sales+NS");
+  });
+
+  it("forwards schema on object-details", async () => {
+    mockApiClient.mockResolvedValueOnce({ columns: [], indexes: [], foreignKeys: [], truncated: { columns: false, indexes: false, foreignKeys: false } });
+
+    await getObjectDetails(9, { database: "orders", schema: "sales", name: "order_items" });
+
+    expect(mockApiClient.mock.calls[0]![0]).toContain("schema=sales");
+  });
+
+  it("forwards schema on table-definition", async () => {
+    mockApiClient.mockResolvedValueOnce({ definition: "CREATE TABLE t ()" });
+
+    await getTableDefinition(9, { database: "orders", schema: "sales", name: "t" });
+
+    expect(mockApiClient.mock.calls[0]![0]).toContain("schema=sales");
+  });
+
+  it("forwards schema on relationship-map", async () => {
+    mockApiClient.mockResolvedValueOnce({ nodes: [], edges: [] });
+
+    await getRelationshipMap(9, { database: "orders", schema: "sales", name: "t" });
+
+    expect(mockApiClient.mock.calls[0]![0]).toContain("schema=sales");
   });
 });

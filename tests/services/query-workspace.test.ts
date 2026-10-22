@@ -51,6 +51,32 @@ describe("query workspace service", () => {
     });
   });
 
+  it("PUTs the PostgreSQL schema pin alongside the database", async () => {
+    mockApiClient.mockResolvedValueOnce({ worksheets: [], version: 1, updatedAt: "2026-08-30T00:00:00Z" });
+
+    await putQueryWorkspace(0, [{
+      id: "worksheet-1",
+      name: "Pg draft",
+      targetResourceId: 22,
+      statement: "select 1",
+      activeDatabase: "labdb",
+      activeSchema: "e2e",
+    }]);
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      expectedVersion: 0,
+      worksheets: [{
+        id: "worksheet-1",
+        name: "Pg draft",
+        targetResourceId: 22,
+        statement: "select 1",
+        activeDatabase: "labdb",
+        activeSchema: "e2e",
+      }],
+    });
+  });
+
   it("forwards an abort signal on PUT so a leaving page can cancel persist", async () => {
     mockApiClient.mockResolvedValueOnce({ worksheets: [], version: 1, updatedAt: "2026-08-30T00:00:00Z" });
     const controller = new AbortController();
