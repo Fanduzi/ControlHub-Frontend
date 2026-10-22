@@ -2,6 +2,9 @@
 // output: Vitest tests for the protected BFF proxy boundary (server-held credential, origin and header rejection, coded synthesized errors, forwarded upstream error)
 // pos: unit-level contract tests for server-side forwarding of the session-held Backend Bearer Credential
 // note: if this file changes, update header and tests/app/api/README.md
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -95,6 +98,7 @@ function stubUpstream(status: number, body?: unknown) {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("BFF proxy boundary", () => {
@@ -539,5 +543,188 @@ describe("BFF proxy boundary", () => {
       error: "service_unavailable",
       message: "service-unavailable",
     });
+  });
+});
+
+// A real local HTTP upstream whose handler writes the response head plus a
+// partial body and then stalls — this is the only faithful way to exercise
+// "headers received, body still streaming" (a fetch stub that rejects cannot
+// reach the response-body phase at all).
+type StreamingUpstream = {
+  url: string;
+  handlerSawRequest: () => boolean;
+  drop: () => void;
+  close: () => Promise<void>;
+};
+
+function listenStreamingUpstream(
+  behavior: "hang" | "drop-after-partial",
+): Promise<StreamingUpstream> {
+  let sawRequest = false;
+  let liveResponse: http.ServerResponse | undefined;
+  const server = http.createServer((_req, res) => {
+    sawRequest = true;
+    liveResponse = res;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.write('{"partial":');
+    if (behavior === "drop-after-partial") {
+      setImmediate(() => res.socket?.destroy());
+    }
+  });
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        handlerSawRequest: () => sawRequest,
+        drop: () => liveResponse?.socket?.destroy(),
+        close: () =>
+          new Promise((done) => {
+            server.closeAllConnections?.();
+            server.close(() => done());
+          }),
+      });
+    });
+  });
+}
+
+describe("BFF proxy full-exchange error boundary", () => {
+  it("returns 499 when the client cancels while the upstream response body is still streaming", async () => {
+    stubBffEnv();
+    const upstream = await listenStreamingUpstream("hang");
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", upstream.url);
+    const controller = new AbortController();
+    try {
+      const responsePromise = GET(
+        new NextRequest("http://localhost:3100/api/proxy/resources", {
+          method: "GET",
+          headers: { cookie: `${SESSION_COOKIE_NAME}=${sealedCookieValue()}` },
+          signal: controller.signal,
+        }),
+        routeContext(["resources"]),
+      );
+      await vi.waitFor(() => expect(upstream.handlerSawRequest()).toBe(true));
+      // The response head is already in flight; only the body read remains —
+      // the same abort boundary must classify this leg, not leak it to the
+      // framework as an unhandled 500.
+      controller.abort();
+      const response = await responsePromise;
+      expect(response.status).toBe(499);
+      expect(await response.text()).not.toContain(TOKEN);
+    } finally {
+      await upstream.close();
+    }
+  });
+
+  it("maps an upstream socket drop mid response-body to the coded 503 envelope", async () => {
+    stubBffEnv();
+    const upstream = await listenStreamingUpstream("drop-after-partial");
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", upstream.url);
+    try {
+      const response = await GET(
+        proxyRequest("GET", ["resources"], {
+          cookie: sealedCookieValue(),
+          origin: null,
+        }),
+        routeContext(["resources"]),
+      );
+      expect(upstream.handlerSawRequest()).toBe(true);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: "service_unavailable",
+        message: "service-unavailable",
+      });
+    } finally {
+      await upstream.close();
+    }
+  });
+
+  it("maps the server-side timeout firing during the response-body read to 503", async () => {
+    stubBffEnv();
+    const upstream = await listenStreamingUpstream("hang");
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", upstream.url);
+    // Shorten ONLY the backstop leg the route composes; the mechanism is the
+    // production AbortSignal.timeout, not a second cancellation channel.
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => realTimeout(80));
+    try {
+      const response = await GET(
+        proxyRequest("GET", ["resources"], {
+          cookie: sealedCookieValue(),
+          origin: null,
+        }),
+        routeContext(["resources"]),
+      );
+      // Inbound was never cancelled — a body-read timeout is a backend-side
+      // failure and keeps the coded envelope (a client cancel would be 499).
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: "service_unavailable",
+        message: "service-unavailable",
+      });
+    } finally {
+      await upstream.close();
+    }
+  });
+
+  function streamingBodyRequest(
+    signal?: AbortSignal,
+  ): { request: NextRequest; stream: ReadableStreamDefaultController<Uint8Array> } {
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    const request = new NextRequest(
+      "http://localhost:3100/api/proxy/resources",
+      {
+        method: "POST",
+        headers: {
+          cookie: `${SESSION_COOKIE_NAME}=${sealedCookieValue()}`,
+          origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            stream = controller;
+          },
+        }),
+        // Node's Request requires half-duplex for stream bodies.
+        ...({ duplex: "half" } as { duplex: "half" }),
+        ...(signal ? { signal } : {}),
+      },
+    );
+    return { request, stream };
+  }
+
+  it("returns 499 with zero upstream calls when the inbound upload aborts mid-body", async () => {
+    stubBffEnv();
+    const fetchMock = stubUpstream(200, []);
+    const controller = new AbortController();
+    const { request, stream } = streamingBodyRequest(controller.signal);
+    const responsePromise = POST(request, routeContext(["resources"]));
+    // Simulate the socket teardown a real client disconnect causes while the
+    // BFF is still buffering the upload: abort the inbound signal and error
+    // the request stream the way the platform would.
+    await vi.waitFor(() => expect(stream.desiredSize).not.toBeNull());
+    controller.abort();
+    stream.error(new Error("client reset"));
+    const response = await responsePromise;
+    expect(response.status).toBe(499);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain(TOKEN);
+  });
+
+  it("returns the coded 503 when the inbound upload stream fails without a client cancel", async () => {
+    stubBffEnv();
+    const fetchMock = stubUpstream(200, []);
+    const { request, stream } = streamingBodyRequest();
+    const responsePromise = POST(request, routeContext(["resources"]));
+    await vi.waitFor(() => expect(stream.desiredSize).not.toBeNull());
+    stream.error(new Error("upload stream reset"));
+    const response = await responsePromise;
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "service_unavailable",
+      message: "service-unavailable",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

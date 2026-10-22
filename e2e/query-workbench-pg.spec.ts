@@ -1,7 +1,9 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real fixture backend at localhost:8080 + disposable PostgreSQL at localhost:55432
-// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, browser→BFF→proxy→backend cancel propagation with keyed cancelled/stopped read-back plus a forwarding-disabled negative control, disclosure/truncation/whole-page CSV gating, governed paging, keyed navigation dedup, labeled fault injection, invalid-context reselection, persistence/restore)
+// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, pg_stat_activity-gated browser→BFF→proxy→backend cancel propagation with keyed cancelled/stopped read-back plus a strict timeout-identity forwarding-disabled negative control, disclosure/truncation/whole-page CSV gating, governed paging, keyed navigation dedup, labeled fault injection, invalid-context reselection, persistence/restore)
 // pos: PostgreSQL counterpart of query-workbench.spec.ts — every assertion goes through the real UI against real backend services; no route mocks
 // note: if this file changes, update header and e2e/README.md
+import { execFileSync } from "node:child_process";
+
 import { expect, test, type Page } from "@playwright/test";
 import { parse as parseCsv } from "csv-parse/sync";
 import { checkBackendHealth } from "./harness/backend-health";
@@ -476,6 +478,101 @@ test.describe("PG cancellation and history", () => {
   const LONG_LOAD_SQL =
     "select count(*) from (select md5(i.id::text || g::text) from e2e.items i cross join generate_series(1,100000000) g) t";
 
+  /**
+   * Marker embedded as a string literal inside the md5 input — the backend's
+   * disclosure-safe wrapper rewrites the statement (comments are stripped
+   * from the executed text) but string literals inside the user's SELECT
+   * survive verbatim into pg_stat_activity.query.
+   */
+  function markedLoadSql(marker: string): string {
+    return `select count(*) from (select md5(i.id::text || g::text || '${marker}') from e2e.items i cross join generate_series(1,100000000) g) t`;
+  }
+
+  /**
+   * Real-database activity barrier. A "POST emitted" or a visible loading
+   * spinner never proves the statement reached PG execution — the cancel
+   * tests may only click once pg_stat_activity shows OUR marked statement
+   * active on labdb.
+   *
+   * The monitor runs server-side via the disposable fixture container's psql
+   * (no extra network surface, no credentials in this file). The marker is
+   * bound as a server-side parameter ($1) so the monitor's own query text
+   * never contains it — plus `pid <> pg_backend_pid()` excludes the monitor
+   * connection and the marker match excludes the backend's own evidence
+   * probes and unrelated lookalike queries.
+   */
+  function pgFixtureContainer(): string {
+    if (process.env.E2E_PG_CONTAINER) return process.env.E2E_PG_CONTAINER;
+    const names = execFileSync(
+      "docker",
+      ["ps", "--format", "{{.Names}}", "--filter", "publish=55432"],
+      { encoding: "utf8" },
+    )
+      .split("\n")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    if (names.length !== 1) {
+      throw new Error(
+        `expected exactly one docker container publishing 55432, got ${names.length} (${names.join(",")})`,
+      );
+    }
+    return names[0]!;
+  }
+
+  type PgActivityRow = { pid: number; backendStart: string; state: string };
+
+  function pgStatActivityForMarker(marker: string): PgActivityRow[] {
+    const out = execFileSync(
+      "docker",
+      [
+        "exec",
+        pgFixtureContainer(),
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        PG_CONN_LABDB,
+        "-At",
+        "-F",
+        "|",
+        "-c",
+        `\\bind '${marker}'`,
+        "-c",
+        `SELECT a.pid, a.backend_start::text, a.state
+           FROM pg_catalog.pg_stat_activity a
+          WHERE a.datname = '${PG_CONN_LABDB}'
+            AND a.pid <> pg_backend_pid()
+            AND a.query LIKE '%' || $1 || '%'`,
+      ],
+      { encoding: "utf8", timeout: 10_000 },
+    );
+    return out
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [pid, backendStart, state] = line.split("|");
+        return { pid: Number(pid), backendStart: backendStart ?? "", state: state ?? "" };
+      });
+  }
+
+  /** Poll until our marked statement is observed `active` on real PG; returns its backend identity. */
+  async function awaitPgActive(marker: string): Promise<PgActivityRow> {
+    let observed: PgActivityRow | undefined;
+    await expect
+      .poll(
+        () => {
+          observed = pgStatActivityForMarker(marker).find(
+            (row) => row.state === "active",
+          );
+          return observed !== undefined;
+        },
+        { timeout: 15_000, intervals: [100, 250, 500] },
+      )
+      .toBe(true);
+    return observed!;
+  }
+
   /** Capture the real POST bodies the browser sends to the keyed execute path. */
   function captureExecutePosts(page: Page): string[] {
     const executePath = `/query-targets/${pgTargetResourceId}/execute`;
@@ -496,6 +593,7 @@ test.describe("PG cancellation and history", () => {
     status?: string;
     remoteState?: string | null;
     clientExecutionId?: string | null;
+    errorCode?: string;
   } | null> {
     const res = await apiFetch(
       `/query-targets/${pgTargetResourceId}/executions?clientExecutionId=${encodeURIComponent(clientExecutionId)}&database=${encodeURIComponent(PG_CONN_LABDB)}&pageSize=5`,
@@ -509,6 +607,7 @@ test.describe("PG cancellation and history", () => {
         status?: string;
         remoteState?: string | null;
         clientExecutionId?: string | null;
+        errorCode?: string;
       }>;
     };
     return (
@@ -525,15 +624,25 @@ test.describe("PG cancellation and history", () => {
     await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
     const postedBodies = captureExecutePosts(page);
 
-    // A several-second, disclosure-clean statement: generate_series is allowed
-    // by the G5 guard (pg_sleep is denied) and every output column traces to a
-    // policied source, so the request actually reaches PG execution.
-    await runStatement(page, LONG_LOAD_SQL);
+    // A several-second, disclosure-clean statement carrying a unique run
+    // marker as a literal: generate_series is allowed by the G5 guard
+    // (pg_sleep is denied) and every output column traces to a policied
+    // source, so the request actually reaches PG execution.
+    const marker = `t14r2-pos-${crypto.randomUUID().slice(0, 8)}`;
+    await runStatement(page, markedLoadSql(marker));
     const cancelButton = page.getByTestId("cancel-execution");
     await expect(cancelButton).toBeVisible({ timeout: 10_000 });
     await expect.poll(() => postedBodies.length, { timeout: 10_000 }).toBe(1);
     const key = JSON.parse(postedBodies[0]!).clientExecutionId as string;
     expect(key.length).toBeGreaterThan(0);
+
+    // Execution-stage barrier: only after pg_stat_activity shows THIS marked
+    // statement active (its own backend pid + backend_start) is there a real
+    // remote statement for the cancel click to kill.
+    const active = await awaitPgActive(marker);
+    expect(active.pid).toBeGreaterThan(0);
+    expect(active.backendStart).not.toBe("");
+
     await cancelButton.click();
 
     // Positive acceptance is the server-confirmed stop — a rendered
@@ -550,6 +659,18 @@ test.describe("PG cancellation and history", () => {
     expect(record?.kind).toBe("execution");
     expect(record?.status).toBe("cancelled");
     expect(record?.remoteState).toBe("stopped");
+
+    // Server-side death cross-check: the exact backend pid we pinned is no
+    // longer running our marked statement.
+    await expect
+      .poll(
+        () =>
+          pgStatActivityForMarker(marker).some(
+            (row) => row.pid === active.pid && row.state === "active",
+          ),
+        { timeout: 15_000, intervals: [200, 500] },
+      )
+      .toBe(false);
   });
 
   test("blocking proxy cancel-forwarding makes the positive acceptance fail (negative control)", async ({
@@ -575,33 +696,51 @@ test.describe("PG cancellation and history", () => {
       await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
       const postedBodies = captureExecutePosts(page);
 
-      await runStatement(page, LONG_LOAD_SQL);
+      const marker = `t14r2-neg-${crypto.randomUUID().slice(0, 8)}`;
+      await runStatement(page, markedLoadSql(marker));
       const cancelButton = page.getByTestId("cancel-execution");
       await expect(cancelButton).toBeVisible({ timeout: 10_000 });
       await expect.poll(() => postedBodies.length, { timeout: 10_000 }).toBe(1);
       const key = JSON.parse(postedBodies[0]!).clientExecutionId as string;
+
+      // Same execution-stage barrier as the positive test: the marked
+      // statement must be live on PG before we click — otherwise "cancel did
+      // not arrive" proves nothing.
+      await awaitPgActive(marker);
       await cancelButton.click();
 
       // The cancel surface resolves honestly — requested → running/unknown,
       // then terminal once the backend records something. A statement_timeout
       // kill also reads remote `stopped`, so UI text alone cannot distinguish
       // our cancel from the natural budget death — only the persisted keyed
-      // status can (`cancelled` vs `timeout`).
+      // status and its error code can (`cancelled` vs `timeout`/`query_timeout`).
       const outcome = page.getByTestId("cancel-outcome");
       await expect(outcome).toBeVisible({ timeout: 30_000 });
 
-      // Positive acceptance fails: the keyed read-back reaches a terminal
-      // execution row (the ~5s attempt budget kills the abandoned statement)
-      // whose status is NEVER `cancelled` — nothing about our click reached
-      // the backend, only its own statement_timeout did.
+      // Strict negative acceptance: the keyed read-back must converge to a
+      // terminal `timeout` row with the safe `query_timeout` identity — never
+      // `cancelled`, `failed`, `rejected`, or (worst of all) `success`. Only
+      // the server-side attempt budget ended the statement; nothing about our
+      // click crossed the proxy.
       await expect
         .poll(
-          async () => (await keyedExecutionRecord(key))?.kind ?? "absent",
-          { timeout: 20_000, intervals: [500, 1000, 2000] },
+          async () => (await keyedExecutionRecord(key))?.status ?? "absent",
+          { timeout: 30_000, intervals: [500, 1000, 2000] },
         )
-        .toBe("execution");
+        .toBe("timeout");
       const record = await keyedExecutionRecord(key);
-      expect(record?.status).not.toBe("cancelled");
+      expect(record?.kind).toBe("execution");
+      expect(record?.status).toBe("timeout");
+      expect(record?.errorCode).toBe("query_timeout");
+
+      // Budget death, not a stuck orphan: the marked statement leaves
+      // pg_stat_activity on its own (no admin terminate rescue).
+      await expect
+        .poll(() => pgStatActivityForMarker(marker).length > 0, {
+          timeout: 15_000,
+          intervals: [500, 1000],
+        })
+        .toBe(false);
     } finally {
       // Restore forwarding — this toggle is module state on the shared proxy;
       // leaving it off would silently break every later cancel assertion.

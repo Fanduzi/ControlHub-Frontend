@@ -1044,6 +1044,175 @@ describe("WorksheetSession PostgreSQL context", () => {
     }
   });
 
+  it("a running claim followed by a deadline-interrupted read resolves unknown, not stale running", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      let getCalls = 0;
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { signal?: AbortSignal; clientExecutionId?: string }) => {
+          getCalls += 1;
+          if (getCalls === 1) {
+            // GET1 completes inside the window: a still-running claim.
+            return Promise.resolve({
+              items: [{
+                kind: "claim" as const,
+                clientExecutionId: params?.clientExecutionId ?? null,
+                status: "running",
+              }],
+              nextCursor: null,
+            });
+          }
+          // GET2 never answers — only the shared deadline can abort it.
+          return new Promise((_resolve, reject) =>
+            params?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        },
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(400);
+      expect(listExecutions).toHaveBeenCalledTimes(2);
+
+      // The second read dies on the shared deadline without producing a
+      // current state — the stale GET1 `running` must not be reused as this
+      // round's conclusion.
+      await vi.advanceTimersByTimeAsync(11_000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(session.active.cancellation.phase).toBe("resolved");
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({ kind: "unknown" });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a deadline-interrupted backoff wait keeps the last completed read (running), unlike a killed in-flight GET", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { clientExecutionId?: string }) =>
+          Promise.resolve({
+            items: [{
+              kind: "claim" as const,
+              clientExecutionId: params?.clientExecutionId ?? null,
+              status: "running",
+            }],
+            nextCursor: null,
+          }),
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+
+      // GETs keep answering running; the deadline fires while the last
+      // backoff wait is in flight. Unlike an interrupted READ, an interrupted
+      // wait lost no observation — the last completed read is still the
+      // honest conclusion (the normal continuous-running control).
+      await vi.advanceTimersByTimeAsync(6_000);
+      expect(session.active.cancellation.phase).toBe("requested");
+      await vi.advanceTimersByTimeAsync(5_100);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(session.active.cancellation.phase).toBe("resolved");
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({ kind: "running" });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a terminal row observed before the deadline is never downgraded by a later read failure", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      let getCalls = 0;
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { clientExecutionId?: string }) => {
+          getCalls += 1;
+          if (getCalls === 1) {
+            return Promise.resolve({
+              items: [{
+                kind: "claim" as const,
+                clientExecutionId: params?.clientExecutionId ?? null,
+                status: "running",
+              }],
+              nextCursor: null,
+            });
+          }
+          return Promise.resolve({
+            items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+            nextCursor: null,
+          });
+        },
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+      await vi.advanceTimersByTimeAsync(400);
+
+      await vi.waitFor(() =>
+        expect(session.active.cancellation.phase).toBe("resolved"),
+      );
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({
+          kind: "terminal",
+          status: "cancelled",
+          remoteState: "stopped",
+        });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("aborts a backoff wait when the session is disposed mid-probe", async () => {
     vi.useFakeTimers();
     try {

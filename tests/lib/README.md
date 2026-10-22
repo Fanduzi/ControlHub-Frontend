@@ -6,7 +6,7 @@ Vitest unit tests for frontend library modules.
 
 - Tests exercise exported library functions with literal input/output contracts.
 - `worksheet-session`/`schema-catalog` tests cover the PostgreSQL composite context: connection/schema pinning, keyed execution, abort-then-reconcile cancellation, and the terminal+claim history union.
-- `worksheet-session` navigation coverage includes single in-flight intent dedup, supersession aborting the old attempt, context-teardown abort, `execution_already_exists` replay via keyed state read, `client_execution_id_conflict` hard stop, late-response dropping, and cancellation probes sharing one total budget (abortable backoff, hanging GET consumed by the deadline, newer-probe ownership replacement, no stuck `requested` state).
+- `worksheet-session` navigation coverage includes single in-flight intent dedup, supersession aborting the old attempt, context-teardown abort, `execution_already_exists` replay via keyed state read, `client_execution_id_conflict` hard stop, late-response dropping, and cancellation probes sharing one total budget (abortable backoff, hanging GET consumed by the deadline → `unknown` — never stale `running`, while a deadline-interrupted wait keeps the last completed read, newer-probe ownership replacement, no stuck `requested` state).
 
 ## Dependencies
 

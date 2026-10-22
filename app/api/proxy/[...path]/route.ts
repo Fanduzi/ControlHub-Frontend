@@ -38,6 +38,18 @@ const FORBIDDEN_HEADERS = new Set([
 
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/**
+ * The peer is gone: a bare status with no error vocabulary — there is no
+ * client left to read a synthesized envelope, and no backend failure to
+ * report anyway.
+ */
+function clientGoneResponse(): NextResponse {
+  return new NextResponse(null, {
+    status: 499,
+    headers: { "cache-control": "no-store" },
+  });
+}
+
 /** Upstream path prefixes the BFF must never forward (token-minting, etc.). */
 const BLOCKED_PATH_PREFIXES = ["auth"];
 
@@ -90,17 +102,23 @@ async function readProxyBody(
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_PROXY_BODY_BYTES) {
-      await reader.cancel();
-      return { ok: false };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_PROXY_BODY_BYTES) {
+        await reader.cancel();
+        return { ok: false };
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+    return { ok: true, body: Buffer.concat(chunks) };
+  } catch (error) {
+    // The stream already failed; best-effort cancel releases the lock.
+    await reader.cancel().catch(() => undefined);
+    throw error;
   }
-  return { ok: true, body: Buffer.concat(chunks) };
 }
 
 async function handleProxy(
@@ -151,28 +169,28 @@ async function handleProxy(
   // The only credential forwarded is the server-held one from the session.
   headers.set("authorization", `Bearer ${session.payload.token}`);
 
-  const bufferedBody = await readProxyBody(request);
-  if (!bufferedBody.ok) {
-    return bffJson(413, "payload-too-large");
-  }
-  const body = bufferedBody.body
-    ? new Uint8Array(bufferedBody.body)
-    : undefined;
-
-  // The client vanished while its body was being buffered: the upstream call
-  // must not be sent at all (a pre-send cancel is a distinct outcome from a
-  // mid-flight abort). A bare 499 is the honest terminal — the peer is gone,
-  // so no error vocabulary is published.
-  if (request.signal.aborted) {
-    return new NextResponse(null, {
-      status: 499,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-
-  let upstream: Response;
+  // One classification boundary covers the whole exchange — inbound body
+  // buffering, the upstream fetch, and the upstream response-body read. Any
+  // rejection lands here exactly once: an aborted inbound signal is the
+  // client cancel (bare 499); anything else is an upstream-side failure the
+  // caller can still read about (coded 503, never the raw exception).
   try {
-    upstream = await fetch(target, {
+    const bufferedBody = await readProxyBody(request);
+    if (!bufferedBody.ok) {
+      return bffJson(413, "payload-too-large");
+    }
+    const body = bufferedBody.body
+      ? new Uint8Array(bufferedBody.body)
+      : undefined;
+
+    // The client vanished while its body was being buffered: the upstream
+    // call must not be sent at all (a pre-send cancel is a distinct outcome
+    // from a mid-flight abort).
+    if (request.signal.aborted) {
+      return clientGoneResponse();
+    }
+
+    const upstream = await fetch(target, {
       method: request.method,
       headers,
       body,
@@ -183,42 +201,40 @@ async function handleProxy(
       // abort immediately, including while the response body streams.
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(PROXY_TIMEOUT_MS)]),
     });
-  } catch {
-    if (request.signal.aborted) {
-      // Client cancelled mid-flight: the upstream fetch aborted on the same
-      // combined signal; a closed peer gets a bare 499, not a backend-error
-      // vocabulary that implies a server-side failure.
+
+    if (upstream.status === 401) {
+      const response = bffJson(401, "unauthorized");
+      clearSessionCookie(response, config.value.secureCookies);
+      return response;
+    }
+
+    // 403 and other non-401 statuses keep the session and forward the
+    // upstream body so product messages (disclosure policy, validation,
+    // etc.) survive.
+
+    const responseHeaders = upstreamResponseHeaders(upstream);
+
+    if (upstream.status === 204 || request.method === "HEAD") {
       return new NextResponse(null, {
-        status: 499,
-        headers: { "cache-control": "no-store" },
+        status: upstream.status,
+        headers: responseHeaders,
       });
     }
-    return bffJson(503, "service-unavailable");
-  }
 
-  if (upstream.status === 401) {
-    const response = bffJson(401, "unauthorized");
-    clearSessionCookie(response, config.value.secureCookies);
-    return response;
-  }
-
-  // 403 and other non-401 statuses keep the session and forward the upstream
-  // body so product messages (disclosure policy, validation, etc.) survive.
-
-  const responseHeaders = upstreamResponseHeaders(upstream);
-
-  if (upstream.status === 204 || request.method === "HEAD") {
-    return new NextResponse(null, {
+    // The composite signal stays armed through the body read: a mid-body
+    // cancel or drop rejects here and is classified by the catch below,
+    // never forwarded as a raw stream error.
+    const upstreamBody = Buffer.from(await upstream.arrayBuffer());
+    return new NextResponse(upstreamBody, {
       status: upstream.status,
       headers: responseHeaders,
     });
+  } catch {
+    if (request.signal.aborted) {
+      return clientGoneResponse();
+    }
+    return bffJson(503, "service-unavailable");
   }
-
-  const upstreamBody = Buffer.from(await upstream.arrayBuffer());
-  return new NextResponse(upstreamBody, {
-    status: upstream.status,
-    headers: responseHeaders,
-  });
 }
 
 type ProxyRouteContext = { params: Promise<{ path: string[] }> };

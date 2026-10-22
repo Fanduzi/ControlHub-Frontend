@@ -1424,7 +1424,8 @@ export class WorksheetSession {
             await sleepOrAbort(Math.min(backoff, budget), controller.signal);
           } catch {
             // The shared deadline may abort the wait (resolve below); an owner
-            // abort (teardown, newer probe) leaves silently.
+            // abort (teardown, newer probe) leaves silently. A killed wait
+            // loses no observation — the last completed read still stands.
             if (deadlineFired) break;
             return;
           }
@@ -1463,7 +1464,13 @@ export class WorksheetSession {
               : { kind: "unknown" };
         } catch {
           if (controller.signal.aborted) {
-            if (deadlineFired) break;
+            if (deadlineFired) {
+              // The in-flight read was killed by the shared deadline and
+              // produced no current state: an earlier `running` is stale and
+              // must not be reused as this round's conclusion.
+              outcome = { kind: "unknown" };
+              break;
+            }
             return;
           }
           // Transport/read failure: keep polling while budget remains.
