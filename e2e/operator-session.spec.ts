@@ -320,8 +320,12 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     );
     expect(proxyAfterLogout.status()).toBe(401);
 
-    // Protected navigation now redirects to login.
-    await page.goto("/overview");
+    // Protected navigation now redirects to login. Under CI latency the
+    // middleware redirect can abort the document request before load — the
+    // final URL assertion is the real check.
+    await page.goto("/overview").catch((error: Error) => {
+      if (!error.message.includes("ERR_ABORTED")) throw error;
+    });
     await expect(page).toHaveURL(/\/login\?from=/);
 
     assertNoCredentialLeak(await storageSnapshot(page));
