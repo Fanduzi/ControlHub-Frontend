@@ -320,13 +320,15 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     );
     expect(proxyAfterLogout.status()).toBe(401);
 
-    // Protected navigation now redirects to login. Under CI latency the
-    // middleware redirect can abort the document request before load — the
-    // final URL assertion is the real check.
+    // Protected navigation now redirects to login. The document request can
+    // still carry the session cookie while middleware validates it — a stale
+    // cookie yields ?reason=session-expired, no cookie yields ?from=. Either
+    // proves the protected page requires login; the redirect may also abort
+    // the document request under CI latency.
     await page.goto("/overview").catch((error: Error) => {
       if (!error.message.includes("ERR_ABORTED")) throw error;
     });
-    await expect(page).toHaveURL(/\/login\?from=/);
+    await expect(page).toHaveURL(/\/login\?(from=|reason=session-expired)/);
 
     assertNoCredentialLeak(await storageSnapshot(page));
     assertClean(consoleMessages, networkErrors);
