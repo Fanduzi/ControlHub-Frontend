@@ -1,9 +1,10 @@
-// input: @playwright/test, ./harness/*
+// input: @playwright/test, ./harness/*, ./api.helpers
 // output: Playwright E2E for query credential settings admin flows
-// pos: browser verification of BFF-session-backed credential admin controls without browser role persistence
+// pos: browser verification of BFF-session-backed credential admin controls without browser role persistence, incl. composite (resource, database) per-connection rows + ?database= addressing for PostgreSQL targets
 // note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 
+import { apiFetch, getAuthToken } from "./api.helpers";
 import { loginViaUI } from "./harness/auth";
 import { checkBackendHealth } from "./harness/backend-health";
 import {
@@ -486,5 +487,86 @@ test.describe("Query credential settings", () => {
       "Credential metadata saved.",
       { timeout: 15_000 },
     );
+  });
+
+  test("a composite PostgreSQL target lists one row per connection and addresses it per-connection", async ({
+    page,
+  }) => {
+    // WHY: credential metadata is addressed by the composite key
+    // (resourceId, database). A composite target must never be read or
+    // mutated by bare resourceId — the backend rejects that shape (400), and
+    // collapsing connections into one row would misattribute statuses.
+    const token = await getAuthToken();
+    const targets = await apiFetch<{
+      items: {
+        resourceId: number;
+        displayName: string;
+        connectionContext: { engine: string };
+        connections?: { database: string }[];
+      }[];
+    }>("/query-targets?page=1&pageSize=100", { token });
+    const composite = targets.items.find(
+      (item) =>
+        item.connectionContext.engine === "postgresql" &&
+        (item.connections?.length ?? 0) > 0,
+    );
+    if (!composite) {
+      test.skip(
+        true,
+        "No composite PostgreSQL target is seeded in this fixture",
+      );
+      return;
+    }
+
+    const credentialRequests: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request
+          .url()
+          .includes(`/query-targets/${composite.resourceId}/credential`)
+      ) {
+        credentialRequests.push(request.url());
+      }
+    });
+
+    await loginViaUI(page);
+    await page.goto("/settings/query-credentials");
+
+    const connections = composite.connections ?? [];
+    for (const connection of connections) {
+      await expect(
+        page.getByRole("button", {
+          name: `${composite.displayName} · ${connection.database}`,
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 15_000 });
+    }
+
+    const firstDatabase = connections[0].database;
+    await page
+      .getByRole("button", {
+        name: `${composite.displayName} · ${firstDatabase}`,
+        exact: true,
+      })
+      .first()
+      .click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.locator("#credential-ref")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Every credential request for this target — fan-out and dialog alike —
+    // must carry the ?database= selector; the bare-target shape is a contract
+    // violation for composite engines.
+    expect(credentialRequests.length).toBeGreaterThan(0);
+    for (const url of credentialRequests) {
+      expect(url).toContain("database=");
+    }
+    expect(
+      credentialRequests.some((url) =>
+        url.includes(`database=${firstDatabase}`),
+      ),
+    ).toBe(true);
   });
 });

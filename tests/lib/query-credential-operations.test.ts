@@ -11,9 +11,12 @@ import {
   collectEnvironments,
   collectEngines,
   collectRuntimeStatuses,
+  credentialRowKey,
   deriveCoverageCounts,
   filterCredentialRows,
   groupOperationRows,
+  isCompositeCredentialRow,
+  isCompositeCredentialTarget,
   isTargetSelectable,
 } from "@/lib/query-credential-operations";
 import type { QueryCredentialStatusResponse } from "@/types/query-credential";
@@ -227,12 +230,13 @@ describe("buildOperationRows", () => {
   it("merges targets with credential responses", () => {
     const targets = [mysqlTarget({ resourceId: 42 })];
     const credentialMap = new Map([
-      [42, credentialResponse({ runtimeStatus: "secret_resolved" })],
+      ["42", credentialResponse({ runtimeStatus: "secret_resolved" })],
     ]);
-    const errorMap = new Map<number, string>();
+    const errorMap = new Map<string, string>();
 
     const rows = buildOperationRows(targets, credentialMap, errorMap);
     expect(rows).toHaveLength(1);
+    expect(rows[0].rowKey).toBe("42");
     expect(rows[0].runtimeStatus).toBe("secret_resolved");
     expect(rows[0].credential?.runtimeStatus).toBe("secret_resolved");
     expect(rows[0].fetchError).toBeNull();
@@ -240,8 +244,8 @@ describe("buildOperationRows", () => {
 
   it("marks missing credential as fetch_pending", () => {
     const targets = [mysqlTarget({ resourceId: 42 })];
-    const credentialMap = new Map<number, QueryCredentialStatusResponse | null>();
-    const errorMap = new Map<number, string>();
+    const credentialMap = new Map<string, QueryCredentialStatusResponse | null>();
+    const errorMap = new Map<string, string>();
 
     const rows = buildOperationRows(targets, credentialMap, errorMap);
     expect(rows[0].runtimeStatus).toBe("fetch_pending");
@@ -250,14 +254,91 @@ describe("buildOperationRows", () => {
 
   it("marks errored credential as fetch_error", () => {
     const targets = [mysqlTarget({ resourceId: 42 })];
-    const credentialMap = new Map<number, QueryCredentialStatusResponse | null>([
-      [42, null],
+    const credentialMap = new Map<string, QueryCredentialStatusResponse | null>([
+      ["42", null],
     ]);
-    const errorMap = new Map<number, string>([[42, "Network error"]]);
+    const errorMap = new Map<string, string>([["42", "Network error"]]);
 
     const rows = buildOperationRows(targets, credentialMap, errorMap);
     expect(rows[0].runtimeStatus).toBe("fetch_error");
     expect(rows[0].fetchError).toBe("Network error");
+  });
+
+  it("expands a composite PostgreSQL target into one row per connection", () => {
+    const targets = [
+      mysqlTarget({
+        resourceId: 103,
+        connectionContext: {
+          engine: "postgresql",
+          host: "pg.internal",
+          port: 5432,
+          environment: "Development",
+          owner: "DBA",
+          clusterName: "PG Cluster",
+        },
+        connections: [
+          {
+            database: "labdb",
+            defaultSchema: "e2e",
+            enabled: true,
+            environmentPolicy: "non_prod_only",
+            runtime: "secret_resolved",
+          },
+          {
+            database: "labdb_other",
+            defaultSchema: "e2e_alt",
+            enabled: true,
+            environmentPolicy: "non_prod_only",
+            runtime: "secret_missing",
+          },
+        ],
+      }),
+    ];
+    const credentialMap = new Map<string, QueryCredentialStatusResponse | null>([
+      ["103@labdb", credentialResponse({ resourceId: 103, engine: "postgresql", database: "labdb", defaultSchema: "e2e", runtimeStatus: "secret_resolved" })],
+      ["103@labdb_other", credentialResponse({ resourceId: 103, engine: "postgresql", database: "labdb_other", defaultSchema: "e2e_alt", runtimeStatus: "secret_missing" })],
+    ]);
+
+    const rows = buildOperationRows(targets, credentialMap, new Map());
+    // WHY: composite (resource, database) addressing means each connection
+    // carries its own credential row — collapsing them would show one
+    // connection's status under another connection's name.
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.rowKey)).toEqual(["103@labdb", "103@labdb_other"]);
+    expect(rows.map((r) => r.database)).toEqual(["labdb", "labdb_other"]);
+    expect(rows[0].runtimeStatus).toBe("secret_resolved");
+    expect(rows[1].runtimeStatus).toBe("secret_missing");
+    expect(rows.every((r) => !r.selectable)).toBe(true);
+    expect(rows.every((r) => r.notSelectableReason === "unsupported_engine")).toBe(true);
+  });
+
+  it("emits a single unaddressable row when a composite target reports no connections", () => {
+    const targets = [
+      mysqlTarget({
+        resourceId: 104,
+        connectionContext: {
+          engine: "postgresql",
+          host: "pg.internal",
+          port: 5432,
+          environment: "Development",
+          owner: "DBA",
+          clusterName: "PG Cluster",
+        },
+      }),
+    ];
+
+    const rows = buildOperationRows(
+      targets,
+      new Map([["104", null]]),
+      new Map([["104", "No managed connection is reported for this composite target."]]),
+    );
+    // WHY: without connections[] there is no ?database= selector to address —
+    // the row must surface the enumeration gap instead of pretending a
+    // legacy-shaped row exists.
+    expect(rows).toHaveLength(1);
+    expect(rows[0].rowKey).toBe("104");
+    expect(rows[0].database).toBe("");
+    expect(rows[0].runtimeStatus).toBe("fetch_error");
   });
 
   it("marks unsupported engine targets as not selectable", () => {
@@ -281,6 +362,33 @@ describe("buildOperationRows", () => {
     );
     expect(rows[0].selectable).toBe(false);
     expect(rows[0].notSelectableReason).toBe("unsupported_engine");
+  });
+});
+
+describe("credentialRowKey / composite predicates", () => {
+  it("keys legacy rows by resourceId and composite rows by resourceId@database", () => {
+    expect(credentialRowKey(42)).toBe("42");
+    expect(credentialRowKey(103, "labdb")).toBe("103@labdb");
+  });
+
+  it("recognizes composite targets and rows by engine", () => {
+    expect(isCompositeCredentialTarget(mysqlTarget())).toBe(false);
+    expect(
+      isCompositeCredentialTarget(
+        mysqlTarget({
+          connectionContext: {
+            engine: "postgresql",
+            host: "pg.internal",
+            port: 5432,
+            environment: "Development",
+            owner: "DBA",
+            clusterName: "PG Cluster",
+          },
+        }),
+      ),
+    ).toBe(true);
+    expect(isCompositeCredentialRow({ engine: "postgresql" })).toBe(true);
+    expect(isCompositeCredentialRow({ engine: "mysql" })).toBe(false);
   });
 });
 

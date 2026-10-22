@@ -17,7 +17,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | operator-console-smoke.spec.ts | Operator console smoke tests |
 | operator-database-workflow.spec.ts | Operator database workflow, including fresh observed-health setup for the healthy compact deck |
 | operator-interaction-stability.spec.ts | Operator interaction stability |
-| query-credential-settings.spec.ts | Query credential settings (BFF-session-backed admin flows with no readable browser role state) |
+| query-credential-settings.spec.ts | Query credential settings (BFF-session-backed admin flows with no readable browser role state); composite PostgreSQL targets render one row per enumerated connection and every credential request carries the `?database=` selector |
 | resource-archive.spec.ts | Resource archiving |
 | resources-sheet.spec.ts | Resources sheet |
 | settings.spec.ts | Settings page |
@@ -37,7 +37,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | harness/result-contract-fixture.ts | T13-A fixture seeder: `docker exec` idempotent seed of `t13_*` boundary-cell/FK tables into the disposable Query E2E MySQL (password read from the backend fixture state file, never printed) + disclosure policies via the real admin API |
 | harness/saved-statement-teardown.ts | Query Workbench Saved Statement teardown: record create ids, `afterEach` DELETE (404 is success; any other failure fails the test) |
 | api.helpers.ts | Authenticated API helpers; defaultResourceInput supplies typed-profile minimum identity |
-| api-proxy.mjs | API proxy for same-origin E2E requests |
+| api-proxy.mjs | API proxy for same-origin E2E requests. Forwards real traffic plus controlled CORS; injects `availableActions.export` only on the MySQL fixture target row (PG run/export comes from the backend read model, never injected); exposes `/__health` run identity for the spec's fixture check and `/__recorded-requests` sanitized per-path OCC metadata (no bodies/SQL/credentials) |
 
 ## Saved Statement teardown
 

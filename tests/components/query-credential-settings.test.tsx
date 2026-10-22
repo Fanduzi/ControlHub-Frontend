@@ -348,7 +348,7 @@ describe("QueryCredentialSettings admin gate — selecting a target", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    expect(mockGetQueryCredential).toHaveBeenCalledWith(42);
+    expect(mockGetQueryCredential).toHaveBeenCalledWith(42, undefined);
   });
 });
 
@@ -828,8 +828,8 @@ describe("QueryCredentialSettings — credential status fan-out", () => {
     });
 
     // Should have been called for both targets.
-    expect(mockGetQueryCredential).toHaveBeenCalledWith(42);
-    expect(mockGetQueryCredential).toHaveBeenCalledWith(43);
+    expect(mockGetQueryCredential).toHaveBeenCalledWith(42, undefined);
+    expect(mockGetQueryCredential).toHaveBeenCalledWith(43, undefined);
   });
 
   it("shows per-row fetch error badge when credential fetch fails", async () => {
@@ -2402,9 +2402,9 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
     });
 
     for (let id = 1; id <= 25; id++) {
-      expect(mockGetQueryCredential).toHaveBeenCalledWith(id);
+      expect(mockGetQueryCredential).toHaveBeenCalledWith(id, undefined);
     }
-    expect(mockGetQueryCredential).not.toHaveBeenCalledWith(26);
+    expect(mockGetQueryCredential).not.toHaveBeenCalledWith(26, undefined);
   });
 
   it("continues loading every server-page credential after a readiness filter hides a pending row", async () => {
@@ -2461,7 +2461,7 @@ describe("QueryCredentialSettings — Phase 38H scalable IA reset", () => {
 
     await waitFor(() => {
       for (const target of targets) {
-        expect(mockGetQueryCredential).toHaveBeenCalledWith(target.resourceId);
+        expect(mockGetQueryCredential).toHaveBeenCalledWith(target.resourceId, undefined);
       }
     });
   });
@@ -2787,9 +2787,9 @@ describe("QueryCredentialSettings — Phase 38H credential paging", () => {
       expect(screen.getByText("Target 1")).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(mockGetQueryCredential).toHaveBeenCalledWith(50);
+      expect(mockGetQueryCredential).toHaveBeenCalledWith(50, undefined);
     });
-    expect(mockGetQueryCredential).not.toHaveBeenCalledWith(51);
+    expect(mockGetQueryCredential).not.toHaveBeenCalledWith(51, undefined);
     expect(
       screen.getAllByText(/status totals reflect this page and current filters/i).length,
     ).toBeGreaterThanOrEqual(1);

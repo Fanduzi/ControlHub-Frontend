@@ -66,6 +66,30 @@ describe("getQueryCredential", () => {
 
     await expect(getQueryCredential(42)).resolves.toEqual(response);
   });
+
+  it("addresses a PostgreSQL connection through the ?database= selector", async () => {
+    // WHY: composite (resource, database) addressing is required for
+    // PostgreSQL targets — a bare request is a contract violation (400).
+    mockApiClient.mockResolvedValueOnce({
+      resourceId: 103,
+      configured: true,
+      engine: "postgresql",
+      credentialRef: "PG_LAB_RO",
+      enabled: true,
+      environmentPolicy: "non_prod_only",
+      runtimeStatus: "secret_resolved",
+      executionEligible: false,
+      message: "ok",
+      database: "labdb",
+      defaultSchema: "e2e",
+    });
+
+    await getQueryCredential(103, "labdb");
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/103/credential?database=labdb",
+    );
+  });
 });
 
 describe("saveQueryCredential", () => {
@@ -278,6 +302,36 @@ describe("saveQueryCredential", () => {
     const callBody = firstCallBody();
     expect(callBody).not.toHaveProperty("confirmAllEnvironments");
   });
+
+  it("sends defaultSchema and the ?database= selector for PostgreSQL connections", async () => {
+    // WHY: the backend requires defaultSchema as part of the composite PG
+    // identity; omitting it makes the upsert a contract violation (400).
+    mockApiClient.mockResolvedValueOnce({});
+
+    await saveQueryCredential(
+      103,
+      {
+        credentialRef: "PG_LAB_RO",
+        enabled: true,
+        environmentPolicy: "non_prod_only",
+        defaultSchema: "e2e",
+      },
+      "labdb",
+    );
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/103/credential?database=labdb",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          credentialRef: "PG_LAB_RO",
+          enabled: true,
+          environmentPolicy: "non_prod_only",
+          defaultSchema: "e2e",
+        }),
+      },
+    );
+  });
 });
 
 describe("deleteQueryCredential", () => {
@@ -293,6 +347,17 @@ describe("deleteQueryCredential", () => {
     expect(mockApiClient).toHaveBeenCalledWith("/query-targets/42/credential", {
       method: "DELETE",
     });
+  });
+
+  it("addresses a PostgreSQL connection through the ?database= selector", async () => {
+    mockApiClient.mockResolvedValueOnce(undefined);
+
+    await deleteQueryCredential(103, "labdb");
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/103/credential?database=labdb",
+      { method: "DELETE" },
+    );
   });
 });
 

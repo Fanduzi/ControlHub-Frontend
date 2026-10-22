@@ -14,6 +14,7 @@ Shared frontend libraries.
 | `schema-catalog.ts` | Query workbench schema catalog: lists, table details, schema listing, and SQL completion namespace keyed by database (and PostgreSQL schema scope) |
 | `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, related records, history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation |
 | `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
+| `query-credential-operations.ts` | Credential operations read model: composite `credentialRowKey` (resourceId or resourceId@database), per-connection row expansion for PostgreSQL `connections[]`, coverage counts, grouping/filtering, and whitelisted PUT body incl. `defaultSchema` |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
 same-origin Operator Session endpoint. It does not trust browser storage or

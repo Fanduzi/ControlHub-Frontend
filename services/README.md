@@ -17,6 +17,7 @@ Frontend API service modules.
 | `query-schema.ts` | Schema catalog calls (databases, schemas, objects, details, table definition, relationship map) carrying the PostgreSQL `schema` parameter and caller-owned abort signals |
 | `query-saved-statements.ts` | Saved statement list/create/update/delete/execute with `?database` scoping and the PostgreSQL `database`/`schema`/`clientExecutionId` fields on create/execute |
 | `query-workspace.ts` | Owner workspace aggregate GET/PUT with optimistic-concurrency version |
+| `query-credentials.ts` | Credential metadata status/upsert/delete addressed by composite connection key — `?database=` selector for PostgreSQL connections, absent for legacy targets; request body whitelist incl. `defaultSchema` |
 
 `api-client.ts` routes every fetch (browser and server/RSC) through the
 same-origin BFF `/api/proxy` without client Authorization; the proxy attaches

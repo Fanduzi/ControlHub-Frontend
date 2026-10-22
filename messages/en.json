@@ -2168,6 +2168,7 @@
     "errors": {
       "loadFailed": "Failed to load credential status.",
       "loadTargetsFailed": "Failed to load targets.",
+      "connectionEnumerationUnavailable": "No managed connection is reported for this composite target.",
       "unknown": "Unknown error",
       "saveFailed": "Failed to save credential.",
       "removeFailed": "Failed to remove credential."

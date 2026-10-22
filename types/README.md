@@ -21,6 +21,7 @@ deployment fails closed against an older backend payload.
 | `query-schema.ts` | Schema catalog wire contracts (databases, schemas, objects, details, relationship map) incl. the PostgreSQL `schema` request/response fields |
 | `query-workspace.ts` | Persisted worksheet draft aggregate (incl. `activeDatabase`/`activeSchema` pins) and optimistic-concurrency request contract |
 | `query-saved-statement.ts` | Saved statement records, parameter definitions, and execute contract incl. the PostgreSQL `database`/`schema` scope fields |
+| `query-credential.ts` | Credential metadata status/upsert contracts incl. the composite `database`/`defaultSchema` identity fields for PostgreSQL connections |
 
 `audit.ts` defines the append-only audit event contract. Inventory events may
 include server-owned field changes with a domain field name, operation, and
