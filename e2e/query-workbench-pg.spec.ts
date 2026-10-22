@@ -1,8 +1,9 @@
 // input: @playwright/test, ./harness/*, ./api.helpers, real fixture backend at localhost:8080 + disposable PostgreSQL at localhost:55432
-// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, cancellation state read-back, disclosure/truncation/CSV safety, governed paging, keyed-attempt lifecycle, labeled fault injection, invalid-context reselection, persistence/restore)
+// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, browser→BFF→proxy→backend cancel propagation with keyed cancelled/stopped read-back plus a forwarding-disabled negative control, disclosure/truncation/whole-page CSV gating, governed paging, keyed navigation dedup, labeled fault injection, invalid-context reselection, persistence/restore)
 // pos: PostgreSQL counterpart of query-workbench.spec.ts — every assertion goes through the real UI against real backend services; no route mocks
 // note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page } from "@playwright/test";
+import { parse as parseCsv } from "csv-parse/sync";
 import { checkBackendHealth } from "./harness/backend-health";
 import {
   openQueryWorkbench,
@@ -394,6 +395,8 @@ test.describe("PG disclosure, truncation, copy and CSV", () => {
     // The masked value must never render the raw secret.
     await expect(grid).not.toContainText("topsecret-alpha");
     await expect(grid).not.toContainText("topsecret-beta");
+    // A masked column makes the whole page ineligible for CSV export.
+    await expect(page.getByTestId("export-csv")).toBeDisabled();
   });
 
   test("selecting an unpolicied column is blocked with a controlled disclosure error", async ({
@@ -455,8 +458,14 @@ test.describe("PG disclosure, truncation, copy and CSV", () => {
     const path = await download.path();
     const { readFileSync } = await import("node:fs");
     const csv = readFileSync(path, "utf8");
-    expect(csv).toContain("alpha");
-    expect(csv).toContain("beta");
+    // Field-level round-trip through an independent RFC-4180 reader — a
+    // substring check is not a completeness proof for the export contract.
+    const records = parseCsv(csv, { relax_quotes: false }) as string[][];
+    expect(records[0]).toEqual(["id", "name"]);
+    expect(records.slice(1)).toEqual([
+      ["1", "alpha"],
+      ["2", "beta"],
+    ]);
     expect(csv).not.toContain("topsecret");
   });
 });
@@ -464,28 +473,146 @@ test.describe("PG disclosure, truncation, copy and CSV", () => {
 test.describe("PG cancellation and history", () => {
   installSavedStatementTeardown();
 
-  test("cancel aborts the request and reconciles via server history", async ({
+  const LONG_LOAD_SQL =
+    "select count(*) from (select md5(i.id::text || g::text) from e2e.items i cross join generate_series(1,100000000) g) t";
+
+  /** Capture the real POST bodies the browser sends to the keyed execute path. */
+  function captureExecutePosts(page: Page): string[] {
+    const executePath = `/query-targets/${pgTargetResourceId}/execute`;
+    const bodies: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().endsWith(executePath)) {
+        bodies.push(req.postData() ?? "");
+      }
+    });
+    return bodies;
+  }
+
+  /** Keyed point read-back through the proxy → real fixture backend. */
+  async function keyedExecutionRecord(
+    clientExecutionId: string,
+  ): Promise<{
+    kind?: string;
+    status?: string;
+    remoteState?: string | null;
+    clientExecutionId?: string | null;
+  } | null> {
+    const res = await apiFetch(
+      `/query-targets/${pgTargetResourceId}/executions?clientExecutionId=${encodeURIComponent(clientExecutionId)}&database=${encodeURIComponent(PG_CONN_LABDB)}&pageSize=5`,
+    );
+    if (!res.ok) {
+      throw new Error(`keyed execution read failed: ${res.status}`);
+    }
+    const payload = (await res.json()) as {
+      items?: Array<{
+        kind?: string;
+        status?: string;
+        remoteState?: string | null;
+        clientExecutionId?: string | null;
+      }>;
+    };
+    return (
+      (payload.items ?? []).find(
+        (item) => item.clientExecutionId === clientExecutionId,
+      ) ?? null
+    );
+  }
+
+  test("cancel propagates browser → BFF → proxy → backend (positive chain)", async ({
     page,
   }) => {
     await openQueryWorkbench(page);
     await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+    const postedBodies = captureExecutePosts(page);
 
     // A several-second, disclosure-clean statement: generate_series is allowed
     // by the G5 guard (pg_sleep is denied) and every output column traces to a
     // policied source, so the request actually reaches PG execution.
-    await runStatement(
-      page,
-      "select count(*) from (select md5(i.id::text || g::text) from e2e.items i cross join generate_series(1,100000000) g) t",
-    );
+    await runStatement(page, LONG_LOAD_SQL);
     const cancelButton = page.getByTestId("cancel-execution");
     await expect(cancelButton).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => postedBodies.length, { timeout: 10_000 }).toBe(1);
+    const key = JSON.parse(postedBodies[0]!).clientExecutionId as string;
+    expect(key.length).toBeGreaterThan(0);
     await cancelButton.click();
 
-    // The cancellation outcome region reports one of the three probe states;
-    // the exact outcome depends on the finalize race — assert it is rendered.
-    await expect(page.getByTestId("cancel-outcome")).toBeVisible({
-      timeout: 30_000,
-    });
+    // Positive acceptance is the server-confirmed stop — a rendered
+    // "requested"/"unknown" surface alone never proves the chain carried.
+    await expect(page.getByTestId("cancel-outcome")).toContainText(
+      "Server confirmed the execution stopped.",
+      { timeout: 30_000 },
+    );
+
+    // Backend cancel evidence: the SAME clientExecutionId must read back a
+    // terminal `cancelled` row whose probed remote state is `stopped` — the
+    // fixture observed the real backend death, not a guessed state.
+    const record = await keyedExecutionRecord(key);
+    expect(record?.kind).toBe("execution");
+    expect(record?.status).toBe("cancelled");
+    expect(record?.remoteState).toBe("stopped");
+  });
+
+  test("blocking proxy cancel-forwarding makes the positive acceptance fail (negative control)", async ({
+    page,
+  }) => {
+    // The disposable E2E proxy's test-only toggle stops forwarding the
+    // downstream abort into the upstream fetch. The UI still aborts its own
+    // fetch and still probes — but nothing can reach the backend, so the
+    // keyed record must NEVER land cancelled+stopped.
+    const toggleUrl = "http://localhost:8081/__cancel-forwarding";
+    const setForwarding = async (enabled: boolean) => {
+      const res = await fetch(toggleUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) throw new Error(`cancel-forwarding toggle failed: ${res.status}`);
+    };
+    await setForwarding(false);
+    try {
+      await openQueryWorkbench(page);
+      await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+      const postedBodies = captureExecutePosts(page);
+
+      await runStatement(page, LONG_LOAD_SQL);
+      const cancelButton = page.getByTestId("cancel-execution");
+      await expect(cancelButton).toBeVisible({ timeout: 10_000 });
+      await expect.poll(() => postedBodies.length, { timeout: 10_000 }).toBe(1);
+      const key = JSON.parse(postedBodies[0]!).clientExecutionId as string;
+      await cancelButton.click();
+
+      // The cancel surface resolves honestly — requested → running/unknown,
+      // then terminal once the backend records something. A statement_timeout
+      // kill also reads remote `stopped`, so UI text alone cannot distinguish
+      // our cancel from the natural budget death — only the persisted keyed
+      // status can (`cancelled` vs `timeout`).
+      const outcome = page.getByTestId("cancel-outcome");
+      await expect(outcome).toBeVisible({ timeout: 30_000 });
+
+      // Positive acceptance fails: the keyed read-back reaches a terminal
+      // execution row (the ~5s attempt budget kills the abandoned statement)
+      // whose status is NEVER `cancelled` — nothing about our click reached
+      // the backend, only its own statement_timeout did.
+      await expect
+        .poll(
+          async () => (await keyedExecutionRecord(key))?.kind ?? "absent",
+          { timeout: 20_000, intervals: [500, 1000, 2000] },
+        )
+        .toBe("execution");
+      const record = await keyedExecutionRecord(key);
+      expect(record?.status).not.toBe("cancelled");
+    } finally {
+      // Restore forwarding — this toggle is module state on the shared proxy;
+      // leaving it off would silently break every later cancel assertion.
+      await setForwarding(true);
+      const health = (await (
+        await fetch("http://localhost:8081/__health", {
+          signal: AbortSignal.timeout(10_000),
+        })
+      ).json()) as { cancelForwarding?: boolean };
+      expect(health.cancelForwarding).toBe(true);
+    }
   });
 
   test("history lists the terminal execution after a run", async ({ page }) => {
@@ -617,6 +744,62 @@ test.describe("PG saved statement + related records + persistence", () => {
     });
     await expect(relatedPanel).toBeVisible({ timeout: 15_000 });
     await expect(relatedPanel).toContainText("Alpha Parent");
+  });
+
+  test("a duplicated navigation gesture sends one keyed related-records request", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+
+    const navPath = `/query-targets/${pgTargetResourceId}/related-records`;
+    const navBodies: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().endsWith(navPath)) {
+        navBodies.push(req.postData() ?? "");
+      }
+    });
+
+    // Same explorer → preview path as the navigation spec above.
+    await page.getByRole("button", { name: "Objects", exact: true }).click();
+    const explorer = page.getByRole("complementary", { name: "Objects" });
+    await expect(explorer).toBeVisible();
+    await explorer
+      .getByRole("treeitem", { name: PG_CONN_LABDB, exact: true })
+      .getByRole("button")
+      .click();
+    await explorer
+      .getByRole("treeitem", { name: PG_SCHEMA_E2E, exact: true })
+      .getByRole("button")
+      .click();
+    await explorer
+      .getByRole("treeitem", { name: "child", exact: true })
+      .getByRole("button")
+      .click();
+    await explorer.getByRole("button", { name: "Preview rows" }).click();
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const grid = page.getByRole("grid").first();
+    await expect(grid).toBeVisible({ timeout: 30_000 });
+
+    await grid.getByRole("gridcell").nth(1).click();
+    await page.getByTestId("related-records").click();
+    const menuItem = page.getByRole("menuitem", {
+      name: /child_parent_id_fkey/,
+    });
+    await expect(menuItem).toBeVisible({ timeout: 10_000 });
+    // Two identical intents inside the same gesture — the second must fold
+    // into the in-flight attempt, never mint a second key or POST.
+    await menuItem.dispatchEvent("click");
+    await menuItem.dispatchEvent("click");
+
+    const relatedPanel = page.getByRole("region", {
+      name: /related records/i,
+    });
+    await expect(relatedPanel).toBeVisible({ timeout: 15_000 });
+    await expect(relatedPanel).toContainText("Alpha Parent");
+    await expect.poll(() => navBodies.length, { timeout: 5_000 }).toBe(1);
+    const navKey = JSON.parse(navBodies[0]!).clientExecutionId as string;
+    expect(navKey.length).toBeGreaterThan(0);
   });
 
   test("connection, schema and statement survive a reload", async ({

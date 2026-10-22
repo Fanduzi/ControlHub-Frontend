@@ -84,7 +84,7 @@ import {
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
-import { serializeQueryResultCsv } from "@/lib/query-result-csv";
+import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
 import {
   DEFAULT_STATEMENT,
@@ -243,6 +243,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       workspaceSaveInFlightRef.current = false;
     };
   }, []);
+
+  // Unmount/logout: release every request the session still owns — in-flight
+  // executions, navigation attempts, and pending cancellation probes.
+  useEffect(() => () => session.dispose(), [session]);
 
   // A failed persist may still have committed server-side (a dropped response
   // does not roll back the write), and a stale-version 409 tells us the server
@@ -822,6 +826,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     session.cancel();
   }
 
+  function handleRefreshCancellation() {
+    session.refreshCancellation();
+  }
+
   async function handleRun() {
     if (!runEnabled || !activeMaxRowsDraftIsValid()) {
       return;
@@ -1215,6 +1223,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
               onCancel={handleCancel}
+              onRefreshCancellation={handleRefreshCancellation}
               cancellation={activeWorksheet.cancellation}
               explainEnabled={
                 !templateMode &&
@@ -1531,6 +1540,7 @@ function ReadyWorksheet({
   isExecuting,
   onRun,
   onCancel,
+  onRefreshCancellation,
   cancellation,
   explainEnabled,
   explainState,
@@ -1579,6 +1589,7 @@ function ReadyWorksheet({
   isExecuting: boolean;
   onRun: () => void;
   onCancel: () => void;
+  onRefreshCancellation: () => void;
   cancellation: CancellationState;
   explainEnabled: boolean;
   explainState: ExplainState;
@@ -1732,6 +1743,17 @@ function ReadyWorksheet({
               : cancellation.outcome.kind === "running"
                 ? t("editor.cancelOutcomeRunning")
                 : t("editor.cancelOutcomeUnknown")}
+          {cancellation.outcome.kind !== "terminal" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onRefreshCancellation}
+              data-testid="cancel-outcome-refresh"
+            >
+              {t("editor.cancelOutcomeRefresh")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -2299,7 +2321,9 @@ function ResultTable({
     return cellTruncated[rowIndex]?.[colIndex] === true;
   }
 
-  const hasTruncatedCells = cellTruncated.some((row) => row.some((flag) => flag === true));
+  // Whole-page eligibility mirrors the serializer boundary: a non-copyable
+  // column or corrupt matrix disables the control, not only truncation.
+  const csvExportable = isQueryResultCsvExportable(columns, rows, cellTruncated);
 
   // Compute eligible FKs for the current selected data row.
   const eligibleFKs = useMemo(() => {
@@ -2451,7 +2475,7 @@ function ResultTable({
   }
 
   function handleExportCsv() {
-    if (!exportEnabled || hasTruncatedCells) return;
+    if (!exportEnabled || !csvExportable) return;
     let csv: string;
     try {
       csv = serializeQueryResultCsv(columns, rows, cellTruncated);
@@ -2541,9 +2565,9 @@ function ResultTable({
           size="sm"
           variant="outline"
           onClick={handleExportCsv}
-          disabled={hasTruncatedCells}
-          title={hasTruncatedCells ? t("result.exportCsvBlocked") : undefined}
-          aria-label={hasTruncatedCells ? t("result.exportCsvBlocked") : undefined}
+          disabled={!csvExportable}
+          title={!csvExportable ? t("result.exportCsvBlocked") : undefined}
+          aria-label={!csvExportable ? t("result.exportCsvBlocked") : undefined}
           data-testid="export-csv"
         >
           <Download className="size-3.5" aria-hidden />
@@ -2600,7 +2624,6 @@ function ResultTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
-        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- roving tabindex: only the active cell has tabIndex=0 */}
         <table
           role="grid"
           className="w-full border-collapse text-sm"

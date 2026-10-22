@@ -10,9 +10,9 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs and the explicit `all` sentinel to unscoped params |
 | `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
-| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV while enforcing server-owned disclosure metadata and the validated per-cell truncation matrix |
+| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV behind a fail-closed whole-page eligibility gate (per-column raw+copy permission, structurally valid truncation matrix, no disclosure-blocked or truncated cell) |
 | `schema-catalog.ts` | Query workbench schema catalog: lists, table details, schema listing, and SQL completion namespace keyed by database (and PostgreSQL schema scope) |
-| `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, related records, history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation |
+| `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, owned navigation attempts (single in-flight intent, dedup/supersede, keyed replay/conflict exits), history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation probes with a shared total budget and per-worksheet ownership |
 | `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
 | `query-credential-operations.ts` | Credential operations read model: composite `credentialRowKey` (resourceId or resourceId@database), per-connection row expansion for PostgreSQL `connections[]`, coverage counts, grouping/filtering, and whitelisted PUT body incl. `defaultSchema` |
 
@@ -53,13 +53,16 @@ from shareable list URLs. Resource labels retain valid unknown `key` or
 blank, malformed, and overlong values. `parsePositiveDecimalInteger` is the
 shared strict parser for URL IDs.
 
-`query-result-csv.ts` emits the current visible result page only. Raw values
-need both `raw_copy_allowed` and `copyAllowed`; masked and malformed disclosure
-metadata become stable placeholders, and values/headers beginning with a
-spreadsheet formula prefix are emitted as literal text. The validated
-`cellTruncated` matrix is a required argument: any `true` flag or dimension
-mismatch refuses serialization instead of exporting truncated prefixes as
-complete values.
+`query-result-csv.ts` emits the current visible result page only and owns the
+whole-page export eligibility decision at runtime: every column needs both
+`raw_copy_allowed` and `copyAllowed`, the `cellTruncated` matrix must be a
+present, fully boolean, row/column-exact structure, rows must match the column
+count exactly (a missing cell is a refusal, never a SQL NULL, and extra cells
+are never dropped), and any truncated or disclosure-blocked cell refuses the
+page — `[masked]`/`[blocked]` placeholders are never serialized. Direct calls
+fail closed on malformed input; TypeScript types are not the gate.
+Values/headers beginning with a spreadsheet formula prefix are emitted as
+literal text.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

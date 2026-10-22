@@ -24,4 +24,13 @@ Guards:
 - Request bodies are capped at 10 MiB (`413` beyond the cap), enforced both
   on `Content-Length` and while streaming chunked bodies.
 
+Cancellation:
+
+- The inbound request signal and the 30-second upstream timeout are composed
+  with `AbortSignal.any`, so a browser disconnect aborts the upstream fetch
+  across the whole exchange (headers wait and body streaming alike).
+- A client-triggered abort returns a bare `499` with no fabricated error
+  envelope; an upstream failure without inbound cancellation maps to coded
+  `503 service-unavailable`.
+
 Blocked upstream prefixes: `auth/*` (never mint browser-visible tokens through the proxy).

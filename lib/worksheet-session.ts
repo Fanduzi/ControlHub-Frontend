@@ -89,6 +89,13 @@ export type CancellationState =
   | {
       readonly phase: "resolved";
       readonly key: string;
+      readonly database: string | null;
+      /**
+       * Owning execute attempt identity; null for navigation attempts, whose
+       * ownership is the unique key alone. An explicit refresh re-probes only
+       * while this identity still owns the worksheet.
+       */
+      readonly requestId: string | null;
       readonly outcome: CancellationOutcome;
     };
 
@@ -275,16 +282,71 @@ function buildTemplateValues(
   return values;
 }
 
-/** In-flight keyed attempt control state — never persisted or rendered. */
-type InflightAttempt = {
+/** Owned in-flight request: one intent, one controller, one pinned scope. */
+type OwnedAttempt = {
   readonly worksheetId: string;
-  readonly requestId: string;
   /** clientExecutionId for keyed engines (PostgreSQL); null for keyless. */
   readonly key: string | null;
   readonly targetId: number;
   readonly database: string | null;
   readonly controller: AbortController;
 };
+
+/** In-flight keyed attempt control state — never persisted or rendered. */
+type InflightAttempt = OwnedAttempt & {
+  readonly requestId: string;
+};
+
+/** In-flight related-records navigation attempt — never persisted. */
+type NavAttempt = OwnedAttempt & {
+  readonly navId: string;
+  /** Canonical intent identity: target + source scope + FK + ordered values. */
+  readonly identity: string;
+};
+
+/**
+ * In-flight keyed state probe owned by one attempt — registered under the
+ * worksheet so context switches, close and dispose can reach its pending
+ * read; never persisted or rendered.
+ */
+type ProbeAttempt = {
+  readonly worksheetId: string;
+  /** Owning execute requestId; null for navigation attempts (key-owned). */
+  readonly requestId: string | null;
+  readonly key: string;
+  readonly controller: AbortController;
+};
+
+/**
+ * Total wall-clock budget of one cancellation probe: backoff waits, the
+ * in-flight GET and the finalization share this single deadline — a hanging
+ * read consumes the window instead of holding a fresh per-poll budget.
+ */
+const PROBE_TOTAL_BUDGET_MS = 11_000;
+const PROBE_BACKOFF_MS = [0, 400, 800, 1600, 3200, 5000] as const;
+
+/** setTimeout that rejects when the owning signal aborts mid-wait. */
+function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abortError = () =>
+      signal.reason instanceof Error
+        ? signal.reason
+        : new DOMException("The operation was aborted.", "AbortError");
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 export class WorksheetSession {
   private worksheets: Worksheet[];
@@ -295,6 +357,8 @@ export class WorksheetSession {
   private readonly createId: () => string;
   private readonly engineFor: (targetId: number) => string | undefined;
   private readonly inflight = new Map<string, InflightAttempt>();
+  private readonly navInflight = new Map<string, NavAttempt>();
+  private readonly probes = new Map<string, ProbeAttempt>();
   private nextIndex: number;
 
   constructor(options: {
@@ -487,6 +551,7 @@ export class WorksheetSession {
       worksheet.relatedRecords.status !== "idle" ||
       worksheet.explain.status !== "idle" ||
       worksheet.formatError !== null;
+    if (invalidateDerived && !dropInFlight) this.abortNavAttempt(worksheet.id);
 
     this.patch(worksheet.id, {
       statement,
@@ -527,6 +592,7 @@ export class WorksheetSession {
     formatError: string | null = null,
   ): void {
     const worksheet = this.active;
+    this.abortNavAttempt(worksheet.id);
     this.patch(worksheet.id, {
       statement,
       parameters: [...parameters],
@@ -714,6 +780,7 @@ export class WorksheetSession {
       return;
     }
     const statementChanged = formatted !== worksheet.statement;
+    if (statementChanged) this.abortNavAttempt(worksheet.id);
     this.patch(worksheet.id, {
       statement: formatted,
       formatError: null,
@@ -793,6 +860,9 @@ export class WorksheetSession {
     const requestId = this.createId();
     const provenance = worksheet.previewProvenance;
     const statementChanged = provenance !== null && worksheet.statement !== provenance.statement;
+    // A new execution is a context change for the related-records panel: an
+    // in-flight navigation is superseded, so its request is released too.
+    this.abortNavAttempt(worksheet.id);
     this.patch(worksheet.id, {
       isExecuting: true,
       error: null,
@@ -952,15 +1022,49 @@ export class WorksheetSession {
     this.patch(this.active.id, { explain: invalidateExplainState(this.active.explain) });
   }
 
+  /**
+   * One navigation intent = one attempt: target + source scope + FK + the
+   * ordered local values + one key + one controller. An identical call while
+   * the intent is in flight reuses it (never a second key, never a second
+   * POST); a different intent supersedes — the old request is aborted under
+   * its own key with a keyed state read-back, so the old SQL is never
+   * pretended never to have run.
+   */
   navigateRelated(foreignKey: string, localValues: readonly string[]): void {
     const worksheet = this.active;
     const provenance = worksheet.previewProvenance;
     if (!provenance) return;
-    const generation = worksheet.relatedRecords.generation + 1;
     const targetId = worksheet.targetResourceId;
     const worksheetId = worksheet.id;
-    this.patch(worksheetId, { relatedRecords: { status: "loading", generation, foreignKey } });
     const pg = this.isPostgres(targetId);
+    const identity = JSON.stringify([
+      targetId,
+      provenance.database,
+      provenance.schema ?? null,
+      provenance.table,
+      foreignKey,
+      localValues,
+    ]);
+    if (this.navInflight.get(worksheetId)?.identity === identity) return;
+    this.abortNavAttempt(worksheetId, true);
+
+    const generation = worksheet.relatedRecords.generation + 1;
+    const navId = this.createId();
+    const key = pg ? this.createId() : null;
+    const controller = new AbortController();
+    const attempt: NavAttempt = {
+      worksheetId,
+      navId,
+      identity,
+      key,
+      targetId,
+      // The read-back scope is pinned at intent time — never re-read from the
+      // current selectors, which the user may have switched since.
+      database: pg ? provenance.database : null,
+      controller,
+    };
+    this.navInflight.set(worksheetId, attempt);
+    this.patch(worksheetId, { relatedRecords: { status: "loading", generation, foreignKey } });
     const request: RelatedRecordNavigationRequest = {
       source: {
         database: provenance.database,
@@ -970,9 +1074,9 @@ export class WorksheetSession {
         foreignKey,
       },
       localValues: [...localValues],
-      ...(pg ? { clientExecutionId: this.createId() } : {}),
+      ...(key !== null ? { clientExecutionId: key } : {}),
     };
-    void this.ports.navigateRelated(targetId, request).then(
+    void this.ports.navigateRelated(targetId, request, { signal: controller.signal }).then(
       (response) => {
         const ws = this.worksheets.find((item) => item.id === worksheetId);
         if (
@@ -1004,14 +1108,38 @@ export class WorksheetSession {
       (error: unknown) => {
         const ws = this.worksheets.find((item) => item.id === worksheetId);
         if (!ws || ws.targetResourceId !== targetId || ws.relatedRecords.generation !== generation) return;
+        if (isAbortError(error) || controller.signal.aborted) {
+          // Superseded or closed navigation: the owning policy already
+          // decided the outcome — never a synthesized error row.
+          return;
+        }
         const code = error instanceof QueryExecuteError ? error.code : ("internal_error" as const);
         this.patch(worksheetId, { relatedRecords: { status: "error", generation, code } });
+        if (code === "execution_already_exists" && attempt.key !== null) {
+          // The backend already holds this exact keyed request: convert the
+          // rejection into a keyed state read under the pinned identity —
+          // never a re-POST, never a fresh key. A client_execution_id_conflict
+          // instead stops right here as the explicit error above.
+          this.patch(worksheetId, {
+            cancellation: { phase: "requested", key: attempt.key, database: attempt.database },
+          });
+          void this.probeExecutionState(worksheetId, null, targetId, attempt.database, attempt.key);
+        }
       },
-    );
+    ).finally(() => {
+      // Release only this attempt's registration — a newer intent may
+      // already own the slot.
+      if (this.navInflight.get(worksheetId)?.navId === navId) {
+        this.navInflight.delete(worksheetId);
+      }
+    });
   }
 
   closeRelatedRecords(): void {
     const worksheet = this.active;
+    // Closing the panel while a navigation is in flight is the defined
+    // user-intent abort: the keyed attempt is read back under its own key.
+    this.abortNavAttempt(worksheet.id, true);
     this.patch(worksheet.id, {
       relatedRecords: { status: "idle", generation: worksheet.relatedRecords.generation + 1 },
     });
@@ -1227,43 +1355,95 @@ export class WorksheetSession {
   }
 
   /**
-   * Bounded backoff read-back of one keyed attempt. Polls the history point
-   * read until a terminal execution row appears or the window closes. Late
-   * results patch only the owning attempt; a retargeted/closed worksheet or a
-   * superseded requestId silently drops the resolution.
+   * Bounded backoff read-back of one keyed attempt, registered as an owned
+   * resource of that attempt: context switches, close and dispose reach and
+   * abort a pending read, and a newer probe replaces (aborts) an older one.
+   * Backoff waits, the in-flight GET and finalization share one total
+   * deadline — a hanging read consumes the window and resolves `unknown`,
+   * never a "stopped" claim. Late results patch only the owning attempt; a
+   * retargeted/closed worksheet or a superseded identity resolves `unknown`
+   * rather than leaving `requested` stuck.
    */
   private async probeExecutionState(
     worksheetId: string,
-    requestId: string,
+    requestId: string | null,
     targetId: number,
     database: string | null,
     key: string,
   ): Promise<void> {
-    const delays = [0, 400, 800, 1600, 3200, 5000];
-    // The probe polls on its own controller — a fresh signal that is never the
-    // aborted request's. Bailing out mid-poll aborts any in-flight read.
-    const probe = new AbortController();
+    const controller = new AbortController();
+    const registration: ProbeAttempt = { worksheetId, requestId, key, controller };
+    this.probes.get(worksheetId)?.controller.abort();
+    this.probes.set(worksheetId, registration);
+
+    const deadline = Date.now() + PROBE_TOTAL_BUDGET_MS;
+    // One timer = the whole window: backoff waits, the in-flight GET and the
+    // finalization share it. When it fires the controller aborts, so a hanging
+    // read consumes the remaining budget and the probe resolves `unknown`.
+    let deadlineFired = false;
+    const deadlineTimer = setTimeout(() => {
+      deadlineFired = true;
+      controller.abort();
+    }, Math.max(0, deadline - Date.now()));
+    const owns = (ws: Worksheet | undefined): boolean =>
+      !!ws &&
+      (requestId === null || ws.requestId === requestId) &&
+      ws.cancellation.phase === "requested" &&
+      ws.cancellation.key === key;
+    const resolveOutcome = (outcome: CancellationOutcome): void => {
+      const ws = this.worksheets.find((item) => item.id === worksheetId);
+      if (!owns(ws)) {
+        // Ownership drifted while the phase is still keyed to this probe
+        // (e.g. the requestId moved): resolve unknown rather than leave the
+        // cancel surface stuck on "requested" forever.
+        if (ws && ws.cancellation.phase === "requested" && ws.cancellation.key === key) {
+          this.patch(worksheetId, {
+            cancellation: {
+              phase: "resolved",
+              key,
+              database,
+              requestId,
+              outcome: { kind: "unknown" },
+            },
+          });
+        }
+        return;
+      }
+      this.patch(worksheetId, {
+        cancellation: { phase: "resolved", key, database, requestId, outcome },
+      });
+    };
+
     let outcome: CancellationOutcome = { kind: "unknown" };
     try {
-      for (const delay of delays) {
-        if (delay > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
+      for (const backoff of PROBE_BACKOFF_MS) {
+        const budget = deadline - Date.now();
+        if (budget <= 0) break;
+        if (backoff > 0) {
+          try {
+            await sleepOrAbort(Math.min(backoff, budget), controller.signal);
+          } catch {
+            // The shared deadline may abort the wait (resolve below); an owner
+            // abort (teardown, newer probe) leaves silently.
+            if (deadlineFired) break;
+            return;
+          }
         }
         const ws = this.worksheets.find((item) => item.id === worksheetId);
-        if (
-          !ws ||
-          ws.requestId !== requestId ||
-          ws.cancellation.phase !== "requested" ||
-          ws.cancellation.key !== key
-        ) {
+        if (!owns(ws)) {
+          resolveOutcome(outcome);
           return;
         }
+        if (deadline - Date.now() <= 0) break;
         try {
           const page = await this.ports.listExecutions(targetId, {
             ...(database ? { database } : {}),
             clientExecutionId: key,
             pageSize: 5,
-            signal: probe.signal,
+            // The remaining budget, not a fresh per-poll budget: the shared
+            // deadline aborts a hanging read and the probe resolves `unknown`
+            // instead of pretending a bounded window existed.
+            signal: controller.signal,
           });
           const record = page.items.find((item) => item.clientExecutionId === key);
           if (record?.kind === "execution") {
@@ -1274,31 +1454,31 @@ export class WorksheetSession {
             };
             break;
           }
-          if (record?.kind === "claim" && record.status === "running") {
-            outcome = { kind: "running" };
-            continue;
-          }
-          // claim "unknown" or not yet visible: keep polling inside the window.
-          outcome = { kind: "unknown" };
+          // A still-running claim (or nothing yet): keep polling inside the
+          // shared window — a late `running` never overwrites a terminal row
+          // because terminal exits the loop immediately.
+          outcome =
+            record?.kind === "claim" && record.status === "running"
+              ? { kind: "running" }
+              : { kind: "unknown" };
         } catch {
-          // Transport/read failure: keep polling inside the bounded window.
+          if (controller.signal.aborted) {
+            if (deadlineFired) break;
+            return;
+          }
+          // Transport/read failure: keep polling while budget remains.
           outcome = { kind: "unknown" };
         }
       }
-      const ws = this.worksheets.find((item) => item.id === worksheetId);
-      if (
-        !ws ||
-        ws.requestId !== requestId ||
-        ws.cancellation.phase !== "requested" ||
-        ws.cancellation.key !== key
-      ) {
-        return;
-      }
-      this.patch(worksheetId, {
-        cancellation: { phase: "resolved", key, outcome },
-      });
+      resolveOutcome(outcome);
     } finally {
-      probe.abort();
+      // Release only this probe's registration and timer — a newer attempt's
+      // probe already in the slot is not ours to remove.
+      clearTimeout(deadlineTimer);
+      if (this.probes.get(worksheetId) === registration) {
+        this.probes.delete(worksheetId);
+      }
+      controller.abort();
     }
   }
 
@@ -1330,12 +1510,74 @@ export class WorksheetSession {
     };
   }
 
-  /** Abort and forget the in-flight request of a worksheet, if any. */
+  /** Abort and forget every request a worksheet owns: run, navigation, probe. */
   private abortInflight(worksheetId: string): void {
     const inflight = this.inflight.get(worksheetId);
-    if (!inflight) return;
-    this.inflight.delete(worksheetId);
-    inflight.controller.abort();
+    if (inflight) {
+      this.inflight.delete(worksheetId);
+      inflight.controller.abort();
+    }
+    this.abortNavAttempt(worksheetId);
+    const probe = this.probes.get(worksheetId);
+    if (probe) {
+      this.probes.delete(worksheetId);
+      probe.controller.abort();
+    }
+  }
+
+  /**
+   * Abort the worksheet's in-flight navigation attempt, if any. `readBack`
+   * asks a keyed attempt for its server-side state under the pinned
+   * key/database — used for user-intent aborts (supersede, panel close) so a
+   * cancelled navigation is never pretended never to have run. Context
+   * teardown aborts without it: the reset patch clears the cancellation
+   * surface anyway.
+   */
+  private abortNavAttempt(worksheetId: string, readBack = false): void {
+    const attempt = this.navInflight.get(worksheetId);
+    if (!attempt) return;
+    this.navInflight.delete(worksheetId);
+    attempt.controller.abort();
+    if (!readBack || attempt.key === null) return;
+    const ws = this.worksheets.find((item) => item.id === worksheetId);
+    if (!ws) return;
+    this.patch(worksheetId, {
+      cancellation: { phase: "requested", key: attempt.key, database: attempt.database },
+    });
+    void this.probeExecutionState(worksheetId, null, attempt.targetId, attempt.database, attempt.key);
+  }
+
+  /** Abort every request the session still owns: unmount, logout, teardown. */
+  dispose(): void {
+    for (const worksheetId of new Set([
+      ...this.inflight.keys(),
+      ...this.navInflight.keys(),
+      ...this.probes.keys(),
+    ])) {
+      this.abortInflight(worksheetId);
+    }
+  }
+
+  /**
+   * Explicit user re-read of a resolved non-terminal cancellation outcome
+   * (`running`/`unknown`). Re-probes only while the owning attempt still
+   * owns the worksheet; otherwise a no-op — never a re-POST, never a new key.
+   */
+  refreshCancellation(): void {
+    const worksheet = this.active;
+    const state = worksheet.cancellation;
+    if (state.phase !== "resolved" || state.outcome.kind === "terminal") return;
+    if (state.requestId !== null && worksheet.requestId !== state.requestId) return;
+    this.patch(worksheet.id, {
+      cancellation: { phase: "requested", key: state.key, database: state.database },
+    });
+    void this.probeExecutionState(
+      worksheet.id,
+      state.requestId,
+      worksheet.targetResourceId,
+      state.database,
+      state.key,
+    );
   }
 
   private isPostgres(targetId: number): boolean {
@@ -1448,6 +1690,32 @@ export class WorksheetSession {
         return;
       }
       const templateError = caught instanceof QueryExecuteError ? caught : null;
+      if (
+        templateError?.code === "execution_already_exists" &&
+        clientExecutionId !== undefined
+      ) {
+        // The backend already holds this exact keyed request: convert the
+        // rejection into a keyed state read under the pinned identity —
+        // never a re-POST, never a fresh key. A client_execution_id_conflict
+        // instead falls through to the explicit error below.
+        const attemptDatabase = pg ? worksheet.activeDatabase : null;
+        this.guardedPatch(worksheetId, requestId, {
+          isExecuting: false,
+          cancellation: {
+            phase: "requested",
+            key: clientExecutionId,
+            database: attemptDatabase,
+          },
+        });
+        void this.probeExecutionState(
+          worksheetId,
+          requestId,
+          targetId,
+          attemptDatabase,
+          clientExecutionId,
+        );
+        return;
+      }
       this.guardedPatch(worksheetId, requestId, {
         result: null,
         error: templateError,

@@ -1505,7 +1505,8 @@
       "cancelOutcomeStopped": "服务端已确认执行停止。",
       "cancelOutcomeTerminal": "服务端结果：{status}。",
       "cancelOutcomeRunning": "服务端仍在执行。",
-      "cancelOutcomeUnknown": "尚未取得服务端最终状态。"
+      "cancelOutcomeUnknown": "尚未取得服务端最终状态。",
+      "cancelOutcomeRefresh": "刷新状态"
     },
     "workspace": {
       "reload": "重新加载工作表",

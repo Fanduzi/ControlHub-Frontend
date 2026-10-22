@@ -15,8 +15,9 @@ responses, and fail-closed scopes.
 |---|---|
 | `components/` | React component behavior, including URL-owned audit search and result-contract badges/copy/CSV gating |
 | `services/` | API service serialization, `cellTruncated` capability declaration, and controlled-error behavior |
-| `lib/` | Shared list URL parsing, result-envelope matrix validation, CSV truncation refusal, and worksheet-session state contracts |
+| `lib/` | Shared list URL parsing, result-envelope matrix validation, CSV whole-page eligibility refusal (missing/extra cells, non-boolean matrix, truncated/disclosure-blocked cells), and worksheet-session state contracts |
 | `use-debounce.test.ts` | Shared callback debounce timing and unmount cancellation |
+| `e2e-api-proxy-cancel.test.ts` | Socket-level downstream-close → upstream-abort cancel propagation for the disposable E2E api proxy, including the `/__cancel-forwarding` negative control |
 | `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, server search/pagination requests, persisted audit environment scope, settings dictionaries, and table data flow. |
 | `pages.query.test.tsx` | Verifies Query Workbench/disclosure All-environment loading, URL scope, and fail-closed explicit environment/target selection. |
 | `topology-page.test.tsx` | Verifies server resolution of canonical topology environment/root URL state. |

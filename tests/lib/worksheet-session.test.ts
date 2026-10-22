@@ -719,4 +719,497 @@ describe("WorksheetSession PostgreSQL context", () => {
     session.reconcileConnection(session.active.id, ["orders"]);
     expect(session.active.history.boundDatabase).toBe("orders");
   });
+
+  function previewInput() {
+    return {
+      targetId: 7,
+      database: "orders",
+      schema: "sales",
+      table: "orders",
+      foreignKeys: [{
+        name: "fk_tenant",
+        columns: ["tenant_id"],
+        referencedDatabase: "orders",
+        referencedSchema: "core",
+        referencedObject: "tenants",
+        referencedColumns: ["id"],
+        onUpdate: "cascade",
+        onDelete: "restrict",
+      }],
+      foreignKeysTruncated: false,
+    };
+  }
+
+  function pgNavResponse(rowCount = 0) {
+    return {
+      columns: [],
+      rows: [],
+      rowCount,
+      context: { database: "orders", schema: "sales" },
+    };
+  }
+
+  it("reuses the in-flight navigation attempt for a repeated identical intent — one key, one POST", async () => {
+    let resolveNav: ((value: unknown) => void) | undefined;
+    const signals: AbortSignal[] = [];
+    const navigateRelated = vi.fn().mockImplementation(
+      (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) => {
+        if (opts?.signal) signals.push(opts.signal);
+        return new Promise((resolve) => {
+          resolveNav = resolve;
+        });
+      },
+    );
+    const session = createPgSession({ navigateRelated });
+    session.openPreview(previewInput());
+
+    session.navigateRelated("fk_tenant", ["7"]);
+    session.navigateRelated("fk_tenant", ["7"]);
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(1));
+
+    // The attempt carries a real signal and is not aborted by the dedup.
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[0]?.aborted).toBe(false);
+    resolveNav?.(pgNavResponse());
+    await vi.waitFor(() =>
+      expect(session.active.relatedRecords.status).toBe("ready"),
+    );
+  });
+
+  it("supersedes a different intent: aborts the old request and reads its keyed state back under the pinned scope", async () => {
+    const signals: AbortSignal[] = [];
+    const navigateRelated = vi.fn().mockImplementation(
+      (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) => {
+        if (opts?.signal) signals.push(opts.signal);
+        return new Promise(() => {});
+      },
+    );
+    const listExecutions = vi.fn().mockImplementation(
+      (_id: number, params?: { clientExecutionId?: string }) =>
+        Promise.resolve({
+          items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+          nextCursor: null,
+        }),
+    );
+    const session = createPgSession({ navigateRelated, listExecutions });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(1));
+    const keyA = navigateRelated.mock.calls[0]![1].clientExecutionId;
+
+    session.navigateRelated("fk_tenant", ["8"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(2));
+    const keyB = navigateRelated.mock.calls[1]![1].clientExecutionId;
+    expect(keyB).not.toBe(keyA);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+
+    // The superseded keyed attempt is read back under its own key/database —
+    // the old SQL is not pretended never to have run.
+    await vi.waitFor(() =>
+      expect(listExecutions).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({ clientExecutionId: keyA, database: "orders" }),
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(session.active.cancellation.phase).toBe("resolved"),
+    );
+  });
+
+  it("closing the panel aborts the in-flight navigation request", async () => {
+    const signals: AbortSignal[] = [];
+    const navigateRelated = vi.fn().mockImplementation(
+      (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) => {
+        if (opts?.signal) signals.push(opts.signal);
+        return new Promise(() => {});
+      },
+    );
+    const listExecutions = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const session = createPgSession({ navigateRelated, listExecutions });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(1));
+
+    session.closeRelatedRecords();
+    expect(signals[0]?.aborted).toBe(true);
+    expect(session.active.relatedRecords.status).toBe("idle");
+    await vi.waitFor(() => expect(listExecutions).toHaveBeenCalled());
+  });
+
+  it("a context switch aborts a pending navigation without claiming an outcome", async () => {
+    const signals: AbortSignal[] = [];
+    const navigateRelated = vi.fn().mockImplementation(
+      (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) => {
+        if (opts?.signal) signals.push(opts.signal);
+        return new Promise(() => {});
+      },
+    );
+    const session = createPgSession({ navigateRelated });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(1));
+
+    session.selectConnection(session.active.id, "billing");
+    expect(signals[0]?.aborted).toBe(true);
+    expect(session.active.relatedRecords.status).toBe("idle");
+    expect(session.active.cancellation.phase).toBe("idle");
+  });
+
+  it("converts an execution_already_exists navigation rejection into a keyed state read — no re-POST, no new key", async () => {
+    const navigateRelated = vi.fn().mockRejectedValue(
+      new QueryExecuteError(409, "execution_already_exists", "already exists"),
+    );
+    const listExecutions = vi.fn().mockImplementation(
+      (_id: number, params?: { clientExecutionId?: string }) =>
+        Promise.resolve({
+          items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+          nextCursor: null,
+        }),
+    );
+    const session = createPgSession({ navigateRelated, listExecutions });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() =>
+      expect(session.active.relatedRecords.status).toBe("error"),
+    );
+    const key = navigateRelated.mock.calls[0]![1].clientExecutionId;
+    expect(navigateRelated).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(session.active.cancellation.phase).toBe("resolved"),
+    );
+    expect(listExecutions).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ clientExecutionId: key, database: "orders" }),
+    );
+  });
+
+  it("stops explicitly on client_execution_id_conflict — no probe, no retry", async () => {
+    const navigateRelated = vi.fn().mockRejectedValue(
+      new QueryExecuteError(409, "client_execution_id_conflict", "conflict"),
+    );
+    const listExecutions = vi.fn();
+    const session = createPgSession({ navigateRelated, listExecutions });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() =>
+      expect(session.active.relatedRecords.status).toBe("error"),
+    );
+    expect(navigateRelated).toHaveBeenCalledTimes(1);
+    expect(listExecutions).not.toHaveBeenCalled();
+    expect(session.active.cancellation.phase).toBe("idle");
+  });
+
+  it("drops a late superseded navigation response instead of overwriting the current intent", async () => {
+    const resolvers: Array<(value: unknown) => void> = [];
+    const navigateRelated = vi.fn().mockImplementation(
+      () => new Promise((resolve) => resolvers.push(resolve)),
+    );
+    const session = createPgSession({ navigateRelated });
+    session.openPreview(previewInput());
+    session.navigateRelated("fk_tenant", ["7"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(1));
+    session.navigateRelated("fk_tenant", ["8"]);
+    await vi.waitFor(() => expect(navigateRelated).toHaveBeenCalledTimes(2));
+
+    resolvers[1]?.(pgNavResponse(2));
+    await vi.waitFor(() =>
+      expect(session.active.relatedRecords.status).toBe("ready"),
+    );
+    if (session.active.relatedRecords.status === "ready") {
+      expect(session.active.relatedRecords.response.rowCount).toBe(2);
+    }
+    resolvers[0]?.(pgNavResponse(1));
+    await Promise.resolve();
+    if (session.active.relatedRecords.status === "ready") {
+      expect(session.active.relatedRecords.response.rowCount).toBe(2);
+    }
+  });
+
+  it("converts an execution_already_exists execute rejection into a keyed state read", async () => {
+    const execute = vi.fn().mockRejectedValue(
+      new QueryExecuteError(409, "execution_already_exists", "already exists"),
+    );
+    const listExecutions = vi.fn().mockImplementation(
+      (_id: number, params?: { clientExecutionId?: string }) =>
+        Promise.resolve({
+          items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+          nextCursor: null,
+        }),
+    );
+    const session = createPgSession({ execute, listExecutions });
+    session.selectConnection(session.active.id, "orders");
+    session.selectSchema(session.active.id, "sales");
+    session.editStatement("select 1");
+    await session.run();
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(session.active.error).toBeNull();
+    await vi.waitFor(() =>
+      expect(session.active.cancellation.phase).toBe("resolved"),
+    );
+    const key = execute.mock.calls[0]![1].clientExecutionId;
+    expect(listExecutions).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ clientExecutionId: key, database: "orders" }),
+    );
+  });
+
+  it("aborts a pending probe read on context switch and leaves nothing stuck", async () => {
+    vi.useFakeTimers();
+    try {
+      let executeSignal: AbortSignal | undefined;
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) => {
+          executeSignal = opts?.signal;
+          return new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        },
+      );
+      const probeSignals: AbortSignal[] = [];
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { signal?: AbortSignal }) => {
+          if (params?.signal) probeSignals.push(params.signal);
+          return new Promise(() => {});
+        },
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+
+      session.selectConnection(session.active.id, "billing");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(probeSignals[0]?.aborted).toBe(true);
+      expect(session.active.cancellation.phase).toBe("idle");
+      expect(executeSignal?.aborted).toBe(true);
+      session.dispose();
+      await running.catch(() => {});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a hanging GET consumes the shared probe window and resolves unknown", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      const probeSignals: AbortSignal[] = [];
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            if (params?.signal) probeSignals.push(params.signal);
+            params?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+
+      // One GET holds the whole window: no fresh per-poll budget.
+      await vi.advanceTimersByTimeAsync(11_000);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+      expect(probeSignals[0]?.aborted).toBe(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(session.active.cancellation.phase).toBe("resolved");
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({ kind: "unknown" });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts a backoff wait when the session is disposed mid-probe", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { clientExecutionId?: string }) =>
+          Promise.resolve({
+            items: [{
+              kind: "claim" as const,
+              clientExecutionId: params?.clientExecutionId ?? null,
+              status: "running",
+            }],
+            nextCursor: null,
+          }),
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+
+      // Disposal during the 400ms backoff: no further polls ever happen.
+      session.dispose();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a superseded probe cannot overwrite the newer attempt's outcome", async () => {
+    vi.useFakeTimers();
+    try {
+      const executeSignals: AbortSignal[] = [];
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            if (opts?.signal) executeSignals.push(opts.signal);
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      );
+      const probeSignals: AbortSignal[] = [];
+      const pendingGet = new Promise<never>(() => {});
+      let getCalls = 0;
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { signal?: AbortSignal; clientExecutionId?: string }) => {
+          if (params?.signal) probeSignals.push(params.signal);
+          getCalls += 1;
+          if (getCalls === 1) return pendingGet;
+          return Promise.resolve({
+            items: [historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })],
+            nextCursor: null,
+          });
+        },
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+
+      const first = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await first.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(listExecutions).toHaveBeenCalledTimes(1);
+
+      // A second run + cancel supersedes the first probe.
+      session.editStatement("select 2");
+      const second = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await second.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      // The old probe's pending read was aborted when the new probe took over.
+      expect(probeSignals[0]?.aborted).toBe(true);
+      const keyB = execute.mock.calls[1]![1].clientExecutionId;
+      await vi.waitFor(() =>
+        expect(session.active.cancellation.phase).toBe("resolved"),
+      );
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.key).toBe(keyB);
+        expect(session.active.cancellation.outcome).toEqual({
+          kind: "terminal",
+          status: "cancelled",
+          remoteState: "stopped",
+        });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refreshCancellation re-reads a resolved non-terminal outcome under the same key", async () => {
+    vi.useFakeTimers();
+    try {
+      const execute = vi.fn().mockImplementation(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+      let terminal = false;
+      const listExecutions = vi.fn().mockImplementation(
+        (_id: number, params?: { clientExecutionId?: string }) =>
+          Promise.resolve({
+            items: [
+              terminal
+                ? historyExecution({ clientExecutionId: params?.clientExecutionId ?? null })
+                : {
+                    kind: "claim" as const,
+                    clientExecutionId: params?.clientExecutionId ?? null,
+                    status: "running",
+                  },
+            ],
+            nextCursor: null,
+          }),
+      );
+      const session = createPgSession({ execute, listExecutions });
+      session.selectConnection(session.active.id, "orders");
+      session.selectSchema(session.active.id, "sales");
+      session.editStatement("select 1");
+      const running = session.run();
+      await vi.advanceTimersByTimeAsync(0);
+      session.cancel();
+      await running.catch(() => {});
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      expect(session.active.cancellation.phase).toBe("resolved");
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({ kind: "running" });
+      }
+
+      terminal = true;
+      session.refreshCancellation();
+      expect(session.active.cancellation.phase).toBe("requested");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(session.active.cancellation.phase).toBe("resolved");
+      if (session.active.cancellation.phase === "resolved") {
+        expect(session.active.cancellation.outcome).toEqual({
+          kind: "terminal",
+          status: "cancelled",
+          remoteState: "stopped",
+        });
+      }
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

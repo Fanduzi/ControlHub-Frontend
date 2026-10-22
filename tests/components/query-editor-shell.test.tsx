@@ -1655,8 +1655,9 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
       expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
-    // WHY: the response remains structurally valid for export, but the raw
-    // blocked value must not become a screen-readable or copyable value.
+    // WHY: the response renders as a display-only placeholder, but the raw
+    // blocked value must not become a screen-readable or copyable value (and
+    // under the R1 whole-page contract this page is never CSV-exportable).
     expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
     expect(screen.queryByText("alice@example.com")).toBeNull();
     await user.click(screen.getByRole("cell", { name: "[blocked]" }));

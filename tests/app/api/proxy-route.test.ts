@@ -449,4 +449,95 @@ describe("BFF proxy boundary", () => {
       `Bearer ${TOKEN}`,
     );
   });
+
+  it("returns 499 without any upstream call for an already-aborted inbound signal", async () => {
+    stubBffEnv();
+    const fetchMock = stubUpstream(200, []);
+    const controller = new AbortController();
+    controller.abort();
+
+    const response = await GET(
+      new NextRequest("http://localhost:3100/api/proxy/resources", {
+        method: "GET",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${sealedCookieValue()}` },
+        signal: controller.signal,
+      }),
+      routeContext(["resources"]),
+    );
+    expect(response.status).toBe(499);
+    expect(fetchMock).not.toHaveBeenCalled();
+    // A bare cancel status: no error vocabulary, no credential echo.
+    expect(await response.text()).not.toContain(TOKEN);
+  });
+
+  it("propagates a mid-flight inbound abort to the upstream fetch signal", async () => {
+    stubBffEnv();
+    let upstreamSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_url: string | URL, init?: RequestInit) => {
+      upstreamSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("The operation was aborted.", "AbortError")),
+        ),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    const responsePromise = GET(
+      new NextRequest("http://localhost:3100/api/proxy/resources", {
+        method: "GET",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${sealedCookieValue()}` },
+        signal: controller.signal,
+      }),
+      routeContext(["resources"]),
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    controller.abort();
+
+    // The composite upstream signal — not the raw inbound one — fires.
+    expect(upstreamSignal).toBeInstanceOf(AbortSignal);
+    expect(upstreamSignal?.aborted).toBe(true);
+    const response = await responsePromise;
+    // Client cancel is reported as 499, not mislabeled as a backend outage.
+    expect(response.status).toBe(499);
+    expect(await response.text()).not.toContain("service-unavailable");
+    expect(await response.text()).not.toContain(TOKEN);
+  });
+
+  it("maps an upstream-side abort with no inbound cancel to 503, not 499", async () => {
+    stubBffEnv();
+    let upstreamSignal: AbortSignal | undefined;
+    let rejectUpstream: ((error: unknown) => void) | undefined;
+    const fetchMock = vi.fn((_url: string | URL, init?: RequestInit) => {
+      upstreamSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        rejectUpstream = reject;
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("timed out", "TimeoutError")),
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const responsePromise = GET(
+      proxyRequest("GET", ["resources"], {
+        cookie: sealedCookieValue(),
+        origin: null,
+      }),
+      routeContext(["resources"]),
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    // The 30s server-side backstop lives on the same composite signal: when it
+    // fires, the inbound signal is NOT aborted, so the outcome is the coded
+    // service-unavailable envelope — a client cancel would have been 499.
+    expect(upstreamSignal).toBeInstanceOf(AbortSignal);
+    rejectUpstream?.(new DOMException("timed out", "TimeoutError"));
+    const response = await responsePromise;
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "service_unavailable",
+      message: "service-unavailable",
+    });
+  });
 });

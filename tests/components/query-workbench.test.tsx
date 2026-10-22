@@ -3267,26 +3267,44 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     return response;
   }
 
-  it("serializes current rows as RFC-4180 CSV without leaking protected disclosure values", () => {
+  it("serializes a fully copyable page as RFC-4180 CSV with NULL/empty/text-NULL fidelity", () => {
     const csv = serializeQueryResultCsv(
       [
         col("id", "BIGINT", false),
         col("note", "VARCHAR", true),
-        { name: "masked", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
-        { name: "inconsistent", databaseType: "VARCHAR", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: false },
-        { name: "unknown", databaseType: "VARCHAR", nullable: false, displayMode: "future_mode" as never, copyAllowed: true },
         col("nullable", "VARCHAR", true),
       ],
-      [[7, "a,b \"quote\"\r\nnext", "TOP SECRET", "also secret", "still secret", null]],
-      [[false, false, false, false, false, false]],
+      [[7, "a,b \"quote\"\r\nnext", null], [8, "NULL", ""]],
+      [[false, false, false], [false, false, false]],
     );
 
+    // WHY: commas/quotes/CR-LF round-trip through RFC-4180 quoting; SQL NULL
+    // and the empty string both serialize as empty fields while the literal
+    // text "NULL" stays verbatim. (R1 contract: DecideCSVExport whole-page
+    // eligibility — placeholders for restricted columns are abolished.)
     expect(csv).toBe(
-      "id,note,masked,inconsistent,unknown,nullable\r\n7,\"a,b \"\"quote\"\"\r\nnext\",[masked],[blocked],[blocked],\r\n",
+      "id,note,nullable\r\n7,\"a,b \"\"quote\"\"\r\nnext\",\r\n8,NULL,\r\n",
     );
-    expect(csv).not.toContain("TOP SECRET");
-    expect(csv).not.toContain("also secret");
-    expect(csv).not.toContain("still secret");
+  });
+
+  it("refuses the whole page when any column is not raw+copyable — no placeholder export", () => {
+    const restricted = [
+      { name: "masked", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
+      { name: "inconsistent", databaseType: "VARCHAR", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: false },
+      { name: "unknown", databaseType: "VARCHAR", nullable: false, displayMode: "future_mode" as never, copyAllowed: true },
+    ] as const;
+    for (const column of restricted) {
+      // WHY: the backend DecideCSVExport contract denies the page when any
+      // delivered column is not copyable — a masked/blocked placeholder would
+      // silently export a shape the server never authorized for copy.
+      expect(() =>
+        serializeQueryResultCsv(
+          [col("id", "BIGINT", false), column as never],
+          [[1, "TOP SECRET"]],
+          [[false, false]],
+        ),
+      ).toThrow(/Cannot export result/);
+    }
   });
 
   it("neutralizes formula-leading visible values and column names while leaving ordinary CSV text unchanged", () => {
@@ -3529,7 +3547,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     }
   });
 
-  it("exports blocked disclosure as [blocked] without rendering or serializing the raw value", async () => {
+  it("refuses CSV export entirely on a page with a blocked column — zero download", async () => {
     const rawSecret = "TOP SECRET 123";
     await renderWithResult({
       columns: [
@@ -3540,8 +3558,10 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       rowCount: 1,
     });
 
-    // WHY: a blocked value must remain exportable as a placeholder, while the
-    // result grid never receives its raw value.
+    // WHY: the whole-page contract (DecideCSVExport) denies export when any
+    // delivered column is not copyable. The cell still renders the [blocked]
+    // placeholder, but the page can produce no download event — placeholder
+    // export was abolished in R1.
     expect(screen.getByRole("columnheader", { name: "secret" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
     expect(screen.queryByText(rawSecret)).toBeNull();
@@ -3551,14 +3571,22 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
     try {
-      await userEvent.setup().click(screen.getByRole("button", { name: "Export CSV" }));
-      const blob = createObjectURL.mock.calls[0]![0];
-      await expect(blob.text()).resolves.toBe("id,secret\r\n1,[blocked]\r\n");
-      expect(await blob.text()).not.toContain(rawSecret);
+      const exportButton = screen.getByTestId("export-csv");
+      expect(exportButton).toBeDisabled();
+      await userEvent.setup().click(exportButton);
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(click).not.toHaveBeenCalled();
     } finally {
       click.mockRestore();
       vi.unstubAllGlobals();
     }
+    expect(() =>
+      serializeQueryResultCsv(
+        [col("id", "BIGINT", false), { name: "secret", databaseType: "VARCHAR", nullable: false, displayMode: "blocked", copyAllowed: false }],
+        [[1, rawSecret]],
+        [[false, false]],
+      ),
+    ).toThrow(/Cannot export result/);
   });
 
   it("does not render or execute CSV export when the server disables export", async () => {
@@ -4170,17 +4198,46 @@ describe("serializeQueryResultCsv result-contract gate", () => {
     ).toThrow();
   });
 
-  it("still serializes a clean page with masked/blocked placeholders", () => {
-    const csv = serializeQueryResultCsv(
-      [
-        col("id", "BIGINT", false),
-        { name: "m", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
-        { name: "b", databaseType: "VARCHAR", nullable: false, displayMode: "blocked", copyAllowed: false },
-      ],
-      [[1, "[MASKED]", "hidden"]],
-      [[false, false, false]],
-    );
-    expect(csv).toBe("id,m,b\r\n1,[masked],[blocked]\r\n");
+  it("refuses the whole page when a delivered column is masked or blocked", () => {
+    // WHY: R1 aligns to the backend DecideCSVExport contract — masked and
+    // blocked columns are never exportable, not even as placeholders. The old
+    // placeholder behavior exported a shape the server never authorized.
+    expect(() =>
+      serializeQueryResultCsv(
+        [
+          col("id", "BIGINT", false),
+          { name: "m", databaseType: "VARCHAR", nullable: false, displayMode: "masked_no_copy", copyAllowed: false },
+          { name: "b", databaseType: "VARCHAR", nullable: false, displayMode: "blocked", copyAllowed: false },
+        ],
+        [[1, "[MASKED]", "hidden"]],
+        [[false, false, false]],
+      ),
+    ).toThrow(/Cannot export result/);
+  });
+
+  it("refuses structurally corrupt pages even when every column is copyable", () => {
+    const cols = [col("id", "BIGINT", false), col("name", "VARCHAR", true)];
+    const good = [[1, "x"]];
+    // No columns at all.
+    expect(() => serializeQueryResultCsv([], good, [[false, false]])).toThrow(/Cannot export/);
+    // Row shorter than the column list — a missing cell is never a SQL NULL.
+    expect(() => serializeQueryResultCsv(cols, [[1] as never], [[false, false]])).toThrow(/Cannot export/);
+    // Row longer than the column list — surplus cells are never dropped.
+    expect(() => serializeQueryResultCsv(cols, [[1, "x", "extra"] as never], [[false, false, false]])).toThrow(/Cannot export/);
+    // Explicit undefined cell — structural hole, not NULL.
+    expect(() => serializeQueryResultCsv(cols, [[1, undefined] as never], [[false, false]])).toThrow(/Cannot export/);
+    // Non-scalar cell (object) — not a JSON-safe value.
+    expect(() => serializeQueryResultCsv(cols, [[1, { v: 1 }] as never], [[false, false]])).toThrow(/Cannot export/);
+    // Non-array matrix.
+    expect(() => serializeQueryResultCsv(cols, good, "bogus" as never)).toThrow(/Cannot export/);
+    // Matrix with a sparse hole (reads undefined → non-boolean).
+    const sparse = [[false, false]] as boolean[][];
+    delete sparse[0]![1];
+    expect(() => serializeQueryResultCsv(cols, good, sparse)).toThrow(/Cannot export/);
+    // Non-boolean matrix element.
+    expect(() => serializeQueryResultCsv(cols, good, [[false, 1] as never])).toThrow(/Cannot export/);
+    // Residual matrix on a zero-row page is corrupt evidence, not clean.
+    expect(() => serializeQueryResultCsv(cols, [], [[false, false]])).toThrow(/Cannot export/);
   });
 });
 

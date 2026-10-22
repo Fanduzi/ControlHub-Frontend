@@ -159,6 +159,17 @@ async function handleProxy(
     ? new Uint8Array(bufferedBody.body)
     : undefined;
 
+  // The client vanished while its body was being buffered: the upstream call
+  // must not be sent at all (a pre-send cancel is a distinct outcome from a
+  // mid-flight abort). A bare 499 is the honest terminal — the peer is gone,
+  // so no error vocabulary is published.
+  if (request.signal.aborted) {
+    return new NextResponse(null, {
+      status: 499,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
   let upstream: Response;
   try {
     upstream = await fetch(target, {
@@ -167,9 +178,21 @@ async function handleProxy(
       body,
       cache: "no-store",
       redirect: "manual",
-      signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+      // The 30s backstop composes with inbound cancellation instead of
+      // replacing it: an already-aborted inbound signal fires the upstream
+      // abort immediately, including while the response body streams.
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(PROXY_TIMEOUT_MS)]),
     });
   } catch {
+    if (request.signal.aborted) {
+      // Client cancelled mid-flight: the upstream fetch aborted on the same
+      // combined signal; a closed peer gets a bare 499, not a backend-error
+      // vocabulary that implies a server-side failure.
+      return new NextResponse(null, {
+        status: 499,
+        headers: { "cache-control": "no-store" },
+      });
+    }
     return bffJson(503, "service-unavailable");
   }
 

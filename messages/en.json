@@ -1505,7 +1505,8 @@
       "cancelOutcomeStopped": "Server confirmed the execution stopped.",
       "cancelOutcomeTerminal": "Server outcome: {status}.",
       "cancelOutcomeRunning": "Still running on the server.",
-      "cancelOutcomeUnknown": "Server outcome not confirmed yet."
+      "cancelOutcomeUnknown": "Server outcome not confirmed yet.",
+      "cancelOutcomeRefresh": "Refresh status"
     },
     "workspace": {
       "reload": "Reload workspace",

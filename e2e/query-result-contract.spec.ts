@@ -305,14 +305,16 @@ test.describe("T13-A result contract consumption", () => {
       .toBe("over-8193");
   });
 
-  test("clean page downloads a parseable CSV; masked/blocked stay placeholders", async ({
+  test("clean page downloads a parseable CSV with field-level fidelity", async ({
     page,
   }) => {
     await openReady(page);
 
+    // Fully copyable projection only — `secret` is masked_no_copy and would
+    // make the page ineligible under the whole-page export contract.
     await runSql(
       page,
-      `select id, pad, secret, note from query_e2e_aux.t13_cells where id in (6,7,8,9,10) order by id`,
+      `select id, pad, note from query_e2e_aux.t13_cells where id in (6,7,8,9,10) order by id`,
     );
 
     await expect(page.getByTestId("truncated-page-notice")).toHaveCount(0);
@@ -330,23 +332,39 @@ test.describe("T13-A result contract consumption", () => {
     // Field-level round-trip through an independent RFC-4180 reader.
     const records = parse(csvText, { relax_quotes: false }) as string[][];
 
-    expect(records[0]).toEqual(["id", "pad", "secret", "note"]);
+    expect(records[0]).toEqual(["id", "pad", "note"]);
     const rowFor = (id: string) =>
-      records.find((r) => r[0] === id && r.length === 4);
-    // NULL → empty field; '' → empty field; text 'NULL' preserved verbatim;
-    // the masked secret column stays a placeholder, never the raw value.
-    expect(rowFor(String(T13_CELLS.emptyStr))).toEqual([
-      "6", "", "[masked]", "empty-str",
-    ]);
-    expect(rowFor(String(T13_CELLS.sqlNull))).toEqual([
-      "7", "", "[masked]", "sql-null",
-    ]);
-    expect(rowFor(String(T13_CELLS.textNull))).toEqual([
-      "8", "NULL", "[masked]", "text-null",
-    ]);
+      records.find((r) => r[0] === id && r.length === 3);
+    // NULL → empty field; '' → empty field; text 'NULL' preserved verbatim.
+    expect(rowFor(String(T13_CELLS.emptyStr))).toEqual(["6", "", "empty-str"]);
+    expect(rowFor(String(T13_CELLS.sqlNull))).toEqual(["7", "", "sql-null"]);
+    expect(rowFor(String(T13_CELLS.textNull))).toEqual(["8", "NULL", "text-null"]);
     // Comma+quote and embedded newline round-trip through field-level parsing.
-    expect(rowFor(String(T13_CELLS.csvCommaQuote))?.[3]).toBe('x,"y');
-    expect(rowFor(String(T13_CELLS.csvNewline))?.[3]).toBe("line1\nline2");
+    expect(rowFor(String(T13_CELLS.csvCommaQuote))?.[2]).toBe('x,"y');
+    expect(rowFor(String(T13_CELLS.csvNewline))?.[2]).toBe("line1\nline2");
+  });
+
+  test("a page with a masked column produces zero download events", async ({
+    page,
+  }) => {
+    await openReady(page);
+
+    // The masked `secret` column is deliverable to the grid, but the page is
+    // never exportable: the whole-page contract refuses any non-copyable
+    // column, so the control disables and no download event can occur.
+    await runSql(
+      page,
+      `select id, pad, secret, note from query_e2e_aux.t13_cells where id in (6,7,8) order by id`,
+    );
+    await expect(page.getByRole("grid")).toBeVisible();
+
+    const downloadEvents: string[] = [];
+    page.on("download", (d) => downloadEvents.push(d.suggestedFilename()));
+    const exportButton = page.getByTestId("export-csv");
+    await expect(exportButton).toBeDisabled();
+    await exportButton.click({ force: true });
+    await page.waitForTimeout(500);
+    expect(downloadEvents).toHaveLength(0);
   });
 
   test("projecting an unpolicied column is refused 403 — capabilities cannot export it", async ({
