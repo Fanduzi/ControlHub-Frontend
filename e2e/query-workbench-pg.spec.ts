@@ -3,6 +3,7 @@
 // pos: PostgreSQL counterpart of query-workbench.spec.ts — every assertion goes through the real UI against real backend services; no route mocks
 // note: if this file changes, update header and e2e/README.md
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 import { expect, test, type Page } from "@playwright/test";
 import { parse as parseCsv } from "csv-parse/sync";
@@ -76,13 +77,14 @@ test.beforeAll(async () => {
   const assemblyRes = await fetch(`${PROBE_API_BASE}/e2e/assembly`, {
     signal: AbortSignal.timeout(10_000),
   });
-  if (assemblyRes.status === 404) {
-    test.skip(
-      true,
-      "PG fixture backend not provisioned (no /e2e/assembly run-identity document); " +
-        "this spec requires the test-only cmd/e2e-pg-server listener.",
+  // Mandatory PG acceptance must fail loud: a missing fixture (plain
+  // cmd/server answers 404 here) can never silently skip this spec.
+  if (!assemblyRes.ok) {
+    throw new Error(
+      `PG fixture backend not provisioned (GET /e2e/assembly -> ${assemblyRes.status}); ` +
+        "this spec requires the test-only cmd/e2e-pg-server listener " +
+        "(scripts/e2e/pg-fixture-up.sh).",
     );
-    return;
   }
   const assembly = (await assemblyRes.json()) as {
     kind?: string;
@@ -99,6 +101,14 @@ test.beforeAll(async () => {
     // match so a stale listener from an earlier run cannot be reused silently.
     expect(assembly.runId).toBe(process.env.E2E_RUN_ID);
   }
+  // The fixture binary must prove it was built from the pinned backend object
+  // (vcs.revision stamped by the Go toolchain in a real clone). An unstamped
+  // or foreign build fails closed.
+  const pinnedSha = readFileSync("e2e/backend-fixture.env", "utf8").match(
+    /^CONTROLHUB_BACKEND_SHA=([0-9a-f]{40})$/m,
+  )?.[1];
+  expect(pinnedSha, "e2e/backend-fixture.env must pin a full backend SHA").toBeTruthy();
+  expect(assembly.backendSha).toBe(pinnedSha);
 
   const proxyHealth = (await (
     await fetch("http://localhost:8081/__health", {
@@ -111,7 +121,7 @@ test.beforeAll(async () => {
     expect(proxyHealth.runId).toBe(process.env.E2E_RUN_ID);
   }
   console.log(
-    `[t14-assembly] runId=${assembly.runId} backendSha=${assembly.backendSha || "(unstamped)"} ` +
+    `[t14-assembly] runId=${assembly.runId} backendSha=${assembly.backendSha} ` +
       `listen=${assembly.listenAddr} proxyRunId=${proxyHealth.runId ?? "(none)"}`,
   );
 
@@ -474,9 +484,6 @@ test.describe("PG disclosure, truncation, copy and CSV", () => {
 
 test.describe("PG cancellation and history", () => {
   installSavedStatementTeardown();
-
-  const LONG_LOAD_SQL =
-    "select count(*) from (select md5(i.id::text || g::text) from e2e.items i cross join generate_series(1,100000000) g) t";
 
   /**
    * Marker embedded as a string literal inside the md5 input — the backend's

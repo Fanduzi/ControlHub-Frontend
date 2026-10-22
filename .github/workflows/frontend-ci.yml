@@ -28,11 +28,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout backend
+      # The backend companion object is pinned in e2e/backend-fixture.env —
+      # the single reviewed source of truth shared by both jobs. Never follow
+      # a moving branch here.
+      - name: Resolve pinned backend ref
+        id: backend-pin
+        run: |
+          sha="$(sed -n 's/^CONTROLHUB_BACKEND_SHA=//p' e2e/backend-fixture.env)"
+          tree="$(sed -n 's/^CONTROLHUB_BACKEND_TREE=//p' e2e/backend-fixture.env)"
+          test "${#sha}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex SHA"; exit 1; }
+          test "${#tree}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex tree"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout backend (pinned)
         uses: actions/checkout@v4
         with:
           repository: Fanduzi/ControlHub-Backend
+          ref: ${{ steps.backend-pin.outputs.sha }}
           path: ${{ env.CONTROLHUB_BACKEND_DIR }}
+
+      - name: Verify backend checkout identity
+        run: |
+          cd ${{ env.CONTROLHUB_BACKEND_DIR }}
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "backend HEAD=$head tree=$tree"
+          test "$head" = "${{ steps.backend-pin.outputs.sha }}"
+          test "$tree" = "${{ steps.backend-pin.outputs.tree }}"
 
       - uses: actions/setup-node@v4
         with:
@@ -72,6 +95,10 @@ jobs:
           --health-retries=12
     env:
       BACKEND_DIR: controlhub-backend
+      # Per-run identity shared by the fixture listener, the playwright-managed
+      # api-proxy, and the mandatory gate/spec checks.
+      E2E_RUN_ID: e2e-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      E2E_PG_CONTAINER: chub-pg-ci-${{ github.run_id }}-${{ github.run_attempt }}
       # Dedicated disposable E2E metadata database. The fixture provisioning
       # seam (backend cmd/e2e-fixture-bootstrap) refuses the default
       # `controlhub` database and requires a *_e2e name; the backend server
@@ -91,11 +118,33 @@ jobs:
       - name: Checkout frontend
         uses: actions/checkout@v4
 
-      - name: Checkout backend
+      # Same pinned companion object as release-local — one reviewed source
+      # (e2e/backend-fixture.env), never a moving branch.
+      - name: Resolve pinned backend ref
+        id: backend-pin
+        run: |
+          sha="$(sed -n 's/^CONTROLHUB_BACKEND_SHA=//p' e2e/backend-fixture.env)"
+          tree="$(sed -n 's/^CONTROLHUB_BACKEND_TREE=//p' e2e/backend-fixture.env)"
+          test "${#sha}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex SHA"; exit 1; }
+          test "${#tree}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex tree"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout backend (pinned)
         uses: actions/checkout@v4
         with:
           repository: Fanduzi/ControlHub-Backend
+          ref: ${{ steps.backend-pin.outputs.sha }}
           path: ${{ env.BACKEND_DIR }}
+
+      - name: Verify backend checkout identity
+        run: |
+          cd ${{ env.BACKEND_DIR }}
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "backend HEAD=$head tree=$tree"
+          test "$head" = "${{ steps.backend-pin.outputs.sha }}"
+          test "$tree" = "${{ steps.backend-pin.outputs.tree }}"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -303,23 +352,27 @@ jobs:
             exit 1
           fi
 
-      - name: Start backend server
-        working-directory: ${{ env.BACKEND_DIR }}
-        run: |
-          nohup make run > ../backend.log 2>&1 &
-          echo $! > ../backend.pid
+      # The full suite's backend is the TEST/CI-ONLY cmd/e2e-pg-server listener
+      # built from the pinned object: identical serverboot production graph
+      # plus the two construction-time fixture gates (PG HTTP entries +
+      # connection lister). A disposable postgres:17.10 container is provisioned
+      # with per-run secrets, seeded (labdb/labdb_other + SELECT-only ro_user +
+      # credential/policy metadata), and its /e2e/assembly identity is verified
+      # (kind, pgEntries, runId, backendSha == pin) before the suite may run.
+      - name: Provision PG fixture + start fixture listener
+        run: bash scripts/e2e/pg-fixture-up.sh
 
       - name: Wait for backend health
         run: |
-          for i in {1..60}; do
+          for i in {1..30}; do
             if curl -fsS http://localhost:8080/health; then
               exit 0
             fi
             sleep 2
           done
-          echo "Backend did not become healthy."
-          echo "---- backend.log ----"
-          cat backend.log || true
+          echo "Fixture listener did not become healthy."
+          echo "---- fixture-server.log ----"
+          cat .e2e-pg-fixture-state/fixture-server.log || true
           exit 1
 
       - name: Run E2E preflight
@@ -346,6 +399,12 @@ jobs:
           E2E_FIXTURE_EDITOR_PASSWORD: ${{ steps.provision.outputs.editor_password }}
         run: npm run release:e2e
 
+      # Teardown only this run's owned resources (recorded PID + container ID
+      # in .e2e-pg-fixture-state) — never name/prefix matches.
+      - name: Teardown PG fixture
+        if: always()
+        run: bash scripts/e2e/pg-fixture-down.sh
+
       - name: Upload E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -354,6 +413,8 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            backend.log
+            .e2e-pg-fixture-state/fixture-server.log
+            .e2e-pg-fixture-state/pg-seed.log
+            .e2e-pg-fixture-state/assembly.json
           if-no-files-found: ignore
           retention-days: 7

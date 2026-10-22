@@ -38,6 +38,29 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | harness/saved-statement-teardown.ts | Query Workbench Saved Statement teardown: record create ids, `afterEach` DELETE (404 is success; any other failure fails the test) |
 | api.helpers.ts | Authenticated API helpers; defaultResourceInput supplies typed-profile minimum identity |
 | api-proxy.mjs | API proxy for same-origin E2E requests. Forwards real traffic plus controlled CORS; no permission rewriting — every capability flag reaches the browser exactly as the fixture backend emits it (R1 removed the former export=true injection; the fixture backend grants the CSV affordance itself from resolver-verified credentials). Forwards downstream-cancel → upstream-abort across the whole fetch exchange (a close after response end is teardown, never a cancel); test-only `/__cancel-forwarding` negative control disables that forwarding for the cancel-propagation spec; `/__health` run identity for the spec's fixture check; `/__recorded-requests` sanitized per-path OCC metadata (no bodies/SQL/credentials) |
+| backend-fixture.env | Single reviewed pin of the backend companion object (`CONTROLHUB_BACKEND_SHA` + `CONTROLHUB_BACKEND_TREE`). Both CI jobs, the fixture launcher, the pre-browser gate, and the PG spec's assembly check all read this one file — never a moving branch. Bump only by reviewed change. |
+| pg-fixture-seed.sql | Deterministic disposable-PostgreSQL seed applied by `scripts/e2e/pg-fixture-up.sh`: `labdb`/`labdb_other` databases, SELECT-only `ro_user` (per-run password via psql variable, never stored), `e2e`/`e2e_alt` schemas, items/parent/child(FK)/paging/alt/only_in_other objects and rows, and grants — identical to the verified local fixture. |
+
+## PG fixture lifecycle (mandatory for the full suite)
+
+`scripts/e2e/pg-fixture-up.sh` cold-starts the entire verified combination on a
+clean machine: verifies the backend checkout `HEAD`/`tree` against
+`backend-fixture.env`, starts a disposable `postgres:17.10` container with
+per-run masked passwords, applies `pg-fixture-seed.sql`, seeds the metadata
+rows (target `local-pg-query-dev`, `PG_LABDB_RO`/`PG_OTHER_RO` credentials,
+disclosure policies), builds `cmd/e2e-pg-server` (refuses unstamped linked-
+worktree builds — `vcs.revision` must equal the pin), starts the listener with
+`E2E_RUN_ID` + `CONTROLHUB_E2E_FIXTURE_MODE=1`, and asserts the `/e2e/assembly`
+identity document before declaring success. `scripts/e2e/pg-fixture-down.sh`
+tears down only the recorded PID + container ID.
+
+`npm run release:e2e` first runs `scripts/check-e2e-pg-fixture.mjs`, which
+fails closed (nonzero) unless the assembly document reports the pinned
+`backendSha` and this run's `E2E_RUN_ID`, and resolver-verified
+`labdb`/`labdb_other` connections are enumerated — a plain `cmd/server` or a
+foreign/stale listener is rejected, never skipped. The PG spec's `beforeAll`
+repeats the same identity assertions plus the playwright-managed proxy's
+`runId`, so a missing fixture cannot silently pass.
 
 ## Saved Statement teardown
 
