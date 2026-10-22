@@ -90,7 +90,8 @@ case "$DATABASE_DSN" in
   *) die "DATABASE_DSN not in expected MySQL DSN form" ;;
 esac
 META_DB="$(printf '%s' "$DATABASE_DSN" | sed -n 's|.*/\([^?]*\)?.*|\1|p')"
-case "$META_DB" in controlhub_*_e2e) ;; *) die "metadata DB $META_DB is not a disposable controlhub_*_e2e name" ;; esac
+printf '%s' "$META_DB" | grep -qE '^controlhub_[a-z0-9_]*e2e$' \
+  || die "metadata DB $META_DB is not a disposable controlhub_*e2e name"
 META_USER="$(printf '%s' "$DATABASE_DSN" | sed -n 's|^\([^:]*\):.*|\1|p')"
 META_HOSTPORT="$(printf '%s' "$DATABASE_DSN" | sed -n 's|.*@tcp(\([^)]*\)).*|\1|p')"
 META_HOST="${META_HOSTPORT%%:*}"
