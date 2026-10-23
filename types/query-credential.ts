@@ -35,7 +35,13 @@ export type QueryCredentialWritableEnvironmentPolicy =
   | "non_prod_only"
   | "all_environments";
 
-/** Response from GET /query-targets/{id}/credential. */
+/**
+ * Response from GET /query-targets/{id}/credential.
+ *
+ * `database`/`defaultSchema` echo the composite connection identity for
+ * PostgreSQL rows (addressed via the ?database= selector); they are absent
+ * for legacy MySQL/TiDB rows.
+ */
 export type QueryCredentialStatusResponse = {
   resourceId: number;
   configured: boolean;
@@ -46,14 +52,23 @@ export type QueryCredentialStatusResponse = {
   runtimeStatus: QueryCredentialRuntimeStatus;
   executionEligible: boolean;
   message: string;
+  database?: string;
+  defaultSchema?: string;
 };
 
-/** Request body for PUT /query-targets/{id}/credential. */
+/**
+ * Request body for PUT /query-targets/{id}/credential.
+ *
+ * `defaultSchema` is required non-empty when the addressed connection is
+ * PostgreSQL (it is part of the composite identity); it must be absent for
+ * MySQL/TiDB rows.
+ */
 export type QueryCredentialUpsertRequest = {
   credentialRef: string;
   enabled: boolean;
   environmentPolicy: QueryCredentialWritableEnvironmentPolicy;
   confirmAllEnvironments?: boolean;
+  defaultSchema?: string;
 };
 
 /** All known runtime status values for client-side label resolution. */

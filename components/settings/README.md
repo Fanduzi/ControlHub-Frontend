@@ -12,7 +12,7 @@ Settings-page controls and administrator-gated entry points.
 | `machine-principal-settings.tsx` | Issues, rotates, revokes, and displays safe credential lifecycle records. |
 | `owners-section.tsx` | Displays owners in Settings. |
 | `query-credential-entry.tsx` | Links administrators to query credential management. |
-| `query-credential-settings.tsx` | Manages query credential metadata. |
+| `query-credential-settings.tsx` | Manages query credential metadata per addressable connection — one row per `connections[]` entry for composite PostgreSQL targets, addressed via the `?database=` selector; unenumerable composite targets surface an enumeration gap, never a bare-target request. |
 | `query-disclosure-entry.tsx` | Links administrators to disclosure policies. |
 | `query-disclosure-settings.tsx` | Manages disclosure policies with scoped or all-environment target search and pagination. |
 | `theme-toggle.tsx` | Selects the console theme. |

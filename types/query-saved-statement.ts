@@ -1,3 +1,7 @@
+// input: backend saved statement OpenAPI schemas (records, parameters, execute)
+// output: saved statement transport contracts incl. PostgreSQL database/schema scope
+// pos: type-only boundary for saved statement library and template execution
+// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 import type { QueryExecutePaginationRequest } from "@/types/query-execution";
 
@@ -42,6 +46,10 @@ export type QuerySavedStatementParameterDefinition = {
 export type QuerySavedStatementRecord = {
   readonly id: number;
   readonly targetResourceId: number;
+  /** Bound connection database (non-empty for PostgreSQL-scoped statements). */
+  readonly database: string;
+  /** Bound PostgreSQL namespace; empty for MySQL/TiDB. */
+  readonly schema: string;
   readonly name: string;
   readonly statement: string;
   readonly scope: QuerySavedStatementScope;
@@ -66,6 +74,10 @@ export type QuerySavedStatementCreateRequest = {
   readonly name: string;
   readonly statement: string;
   readonly scope: QuerySavedStatementScope;
+  /** Required non-empty for PostgreSQL targets; omitted for MySQL/TiDB. */
+  readonly database?: string;
+  /** PostgreSQL namespace pin; omitted for MySQL/TiDB and default-schema binds. */
+  readonly schema?: string;
   readonly parameters: readonly QuerySavedStatementParameterDefinition[];
 };
 
@@ -97,6 +109,10 @@ export type QuerySavedStatementParameterValue = string | number | boolean;
  */
 export type QuerySavedStatementExecuteRequest = {
   readonly values: Readonly<Record<string, QuerySavedStatementParameterValue>>;
+  /** Idempotency key; required non-empty for PostgreSQL statements. */
+  readonly clientExecutionId?: string;
   readonly maxRows?: number;
   readonly pagination?: QueryExecutePaginationRequest;
+  /** Fixed client result-contract declaration, e.g. `["cellTruncated"]`. */
+  readonly capabilities?: readonly string[];
 };

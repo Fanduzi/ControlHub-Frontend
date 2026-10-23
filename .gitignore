@@ -74,3 +74,7 @@ query-*/
 # E2E failure screenshots (Phase 38W-3 template execution)
 tpl-*.png
 .pi-subagents/
+
+# PG fixture run state (scripts/e2e/pg-fixture-*.sh)
+.e2e-pg-fixture-state/
+e2e-evidence/

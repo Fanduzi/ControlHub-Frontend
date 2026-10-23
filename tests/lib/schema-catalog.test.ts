@@ -61,6 +61,10 @@ function createFetch(overrides: Partial<SchemaCatalogFetch> = {}): SchemaCatalog
       items: [{ name: "mydb" }, { name: "other" }],
       pageInfo: pageInfo({ pageSize: COMPLETION_PAGE_SIZE, totalItems: 2 }),
     }),
+    getSchemas: async () => ({
+      items: [{ name: "public" }],
+      pageInfo: pageInfo({ pageSize: 200, totalItems: 1 }),
+    }),
     getObjects: async (_targetId, params) => ({
       items: [
         { database: params.database, name: "users", kind: "table" },
@@ -76,7 +80,11 @@ function createFetch(overrides: Partial<SchemaCatalogFetch> = {}): SchemaCatalog
 describe("SchemaCatalog listings", () => {
   it("isolates object lists by 库身份 so completions cannot see the other database", async () => {
     const fetch = createFetch({
-      getObjects: async (_targetId, params) => ({
+      getSchemas: async () => ({
+      items: [{ name: "public" }],
+      pageInfo: pageInfo({ pageSize: 200, totalItems: 1 }),
+    }),
+    getObjects: async (_targetId, params) => ({
         items: [{ database: params.database, name: `${params.database}_table`, kind: "table" }],
         pageInfo: pageInfo(),
       }),
@@ -162,7 +170,7 @@ describe("SchemaCatalog listings", () => {
       },
     });
     const catalog = new SchemaCatalog(fetch);
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
 
     await catalog.ensureDatabases(1, { page: 1, pageSize: 25 });
     await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: 25 });
@@ -252,7 +260,7 @@ describe("SchemaCatalog listings", () => {
 describe("SchemaCatalog details", () => {
   it("returns ready columns within the positive TTL", async () => {
     const catalog = new SchemaCatalog(createFetch());
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
     await catalog.ensureDetail(key);
     advance(4 * 60 * 1000);
     const state = catalog.getDetailState(key);
@@ -261,7 +269,7 @@ describe("SchemaCatalog details", () => {
 
   it("marks detail stale after five minutes", async () => {
     const catalog = new SchemaCatalog(createFetch());
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
     await catalog.ensureDetail(key);
     advance(5 * 60 * 1000 + 1);
     expect(catalog.getDetailState(key).status).toBe("stale");
@@ -275,7 +283,7 @@ describe("SchemaCatalog details", () => {
         },
       }),
     );
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
     await catalog.ensureDetail(key);
     expect(catalog.getDetailState(key).status).toBe("error");
     advance(30 * 1000 + 1);
@@ -291,10 +299,10 @@ describe("SchemaCatalog details", () => {
     );
     for (let i = 0; i < 51; i++) {
       name = `table_${i}`;
-      await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name });
+      await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name });
     }
-    expect(catalog.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "table_0" }).status).toBe("idle");
-    expect(catalog.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "table_50" }).status).toBe("ready");
+    expect(catalog.getDetailState({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "table_0" }).status).toBe("idle");
+    expect(catalog.getDetailState({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "table_50" }).status).toBe("ready");
   });
 
   it("does not start a sixth concurrent detail fetch", async () => {
@@ -309,7 +317,7 @@ describe("SchemaCatalog details", () => {
       }),
     );
     void Array.from({ length: 6 }, (_, i) =>
-      catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: `t${i}` }),
+      catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: `t${i}` }),
     );
     await Promise.resolve();
     await Promise.resolve();
@@ -326,7 +334,7 @@ describe("SchemaCatalog details", () => {
         },
       }),
     );
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
     await Promise.all([catalog.ensureDetail(key), catalog.ensureDetail(key)]);
     expect(calls).toBe(1);
   });
@@ -346,7 +354,7 @@ describe("SchemaCatalog details", () => {
         },
       }),
     );
-    const key = { targetId: 1, database: "mydb", kind: "table", name: "users" };
+    const key = { targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" };
     const controller = new AbortController();
     const pending = catalog.ensureDetail(key, controller.signal);
     controller.abort();
@@ -363,18 +371,18 @@ describe("SchemaCatalog details", () => {
   it("clear drops listings and details", async () => {
     const catalog = new SchemaCatalog(createFetch());
     await catalog.ensureDatabases(1, { page: 1, pageSize: 25 });
-    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
     catalog.clear();
     expect(catalog.getDatabases(1, 25).status).toBe("idle");
-    expect(catalog.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "users" }).status).toBe("idle");
+    expect(catalog.getDetailState({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" }).status).toBe("idle");
   });
 
   it("does not persist to web storage", async () => {
     const catalog = new SchemaCatalog(createFetch());
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const getItem = vi.spyOn(Storage.prototype, "getItem");
-    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
-    catalog.getDetailState({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
+    catalog.getDetailState({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
     expect(setItem).not.toHaveBeenCalled();
     expect(getItem).not.toHaveBeenCalled();
     setItem.mockRestore();
@@ -412,7 +420,7 @@ describe("SchemaCatalog completion namespace", () => {
   it("fills loaded columns from ready details", async () => {
     const catalog = new SchemaCatalog(createFetch());
     await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });
-    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
     const namespace = catalog.completionNamespace(1, "mydb");
     expect(namespace?.loadedColumns?.users).toEqual(["id", "email"]);
   });
@@ -428,7 +436,7 @@ describe("SchemaCatalog completion namespace", () => {
       }),
     );
     await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });
-    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
     const columns = await catalog.columnsFor(1, "mydb", "users");
     expect(columns).toEqual(["id", "email"]);
     expect(calls).toBe(1);

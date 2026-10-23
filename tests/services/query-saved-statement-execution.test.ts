@@ -24,6 +24,7 @@ function buildResponse(): QueryExecuteResponse {
     durationMs: 5,
     limitApplied: 100,
     executedAt: "2026-08-01T00:00:00Z",
+    cellTruncated: [[false]],
   };
 }
 
@@ -34,6 +35,7 @@ describe("executeSavedStatementTemplate", () => {
     mockApiClient.mockResolvedValueOnce(buildResponse());
     await executeSavedStatementTemplate(22, 7, {
       values: { status: "paid", minimum_total: "100.50" },
+      capabilities: ["cellTruncated"],
       maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
     });
@@ -45,6 +47,7 @@ describe("executeSavedStatementTemplate", () => {
     const body = JSON.parse(String(mockApiClient.mock.calls[0]?.[1]?.body));
     expect(body).toEqual({
       values: { status: "paid", minimum_total: "100.50" },
+      capabilities: ["cellTruncated"],
       maxRows: 100,
       pagination: { page: 1, pageSize: 10 },
     });

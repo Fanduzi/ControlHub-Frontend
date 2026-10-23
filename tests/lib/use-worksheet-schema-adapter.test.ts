@@ -45,6 +45,10 @@ function createFetch(overrides: Partial<SchemaCatalogFetch> = {}): SchemaCatalog
       items: [{ name: "mydb" }, { name: "other" }],
       pageInfo: pageInfo(),
     }),
+    getSchemas: async () => ({
+      items: [{ name: "public" }],
+      pageInfo: pageInfo(),
+    }),
     getObjects: async (_targetId, params) => ({
       items: [{ database: params.database, name: "users", kind: "table" as const }],
       pageInfo: pageInfo(),
@@ -73,7 +77,7 @@ describe("useWorksheetSchemaAdapter", () => {
     const catalog = new SchemaCatalog(createFetch());
     await catalog.ensureDatabases(1, { page: 1, pageSize: COMPLETION_PAGE_SIZE });
     await catalog.ensureObjects(1, "mydb", { page: 1, pageSize: COMPLETION_PAGE_SIZE });
-    await catalog.ensureDetail({ targetId: 1, database: "mydb", kind: "table", name: "users" });
+    await catalog.ensureDetail({ targetId: 1, database: "mydb", schema: "", kind: "table", name: "users" });
     const { result } = renderHook(() => useWorksheetSchemaAdapter(catalog, 1, "mydb"));
     expect(result.current.namespace?.tables).toEqual([{ name: "users", kind: "table" }]);
     expect(result.current.namespace?.loadedColumns?.users).toEqual(["id", "email"]);

@@ -1,5 +1,13 @@
+// input: backend query target OpenAPI read model (connections, credential policy, availability)
+// output: query target transport contracts incl. composite PostgreSQL connection rows
+// pos: type-only boundary for governed query target selection and composite context
+// note: if this file changes, update this header and types/README.md.
 import type { ResourceType } from "@/types/resource";
 import type { PageInfo } from "@/types/resource";
+import type {
+  QueryCredentialEnvironmentPolicy,
+  QueryCredentialRuntimeStatus,
+} from "@/types/query-credential";
 
 /**
  * Query target context read model consumed by the locked Query Workbench shell
@@ -76,6 +84,21 @@ export type QueryTargetSchemaPreviewNode = {
   children?: QueryTargetSchemaPreviewNode[];
 };
 
+/**
+ * One composite connection row of a target, keyed by (resourceId, database).
+ * PostgreSQL targets enumerate one entry per authorized database; legacy
+ * MySQL/TiDB targets report a single entry with an empty database. `runtime`
+ * is this connection's own resolver-verified status — never a sibling copy.
+ * Emitted only by assemblies that wire the composite-key credential read.
+ */
+export type QueryTargetConnection = {
+  database: string;
+  defaultSchema: string;
+  enabled: boolean;
+  environmentPolicy: QueryCredentialEnvironmentPolicy;
+  runtime?: QueryCredentialRuntimeStatus;
+};
+
 /** Read-only query capability context for one database resource. */
 export type QueryTarget = {
   resourceId: number;
@@ -83,6 +106,8 @@ export type QueryTarget = {
   displayName: string;
   resourceType: ResourceType;
   connectionContext: QueryTargetConnectionContext;
+  /** Composite connection rows; absent when the backend does not emit them. */
+  connections?: QueryTargetConnection[];
   capability: QueryTargetCapability;
   readiness: QueryTargetReadiness;
   missingFields: string[];

@@ -82,6 +82,7 @@ export function buildQueryTarget(
     displayName: overrides.displayName ?? "Analytics ClickHouse Node 01",
     resourceType: overrides.resourceType ?? "database_instance",
     connectionContext,
+    connections: overrides.connections,
     capability,
     readiness: overrides.readiness ?? "credential_required",
     missingFields: overrides.missingFields ?? ["readonlyCredential"],

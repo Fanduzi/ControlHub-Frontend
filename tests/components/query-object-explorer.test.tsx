@@ -1,3 +1,7 @@
+// input: @/components/query/query-object-explorer
+// output: explorer tests incl. PostgreSQL connection->schema->object hierarchy
+// pos: component test for the schema explorer
+// note: if this file changes, update this header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -6,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/services/query-schema", () => ({
   getObjectDetails: vi.fn(),
   getSchemaDatabases: vi.fn(),
+  getSchemaSchemas: vi.fn().mockResolvedValue({ items: [] }),
   getSchemaObjects: vi.fn(),
   getTableDefinition: vi.fn(),
 }));
@@ -103,6 +108,42 @@ describe("QuerySchemaBrowser", () => {
       12,
       expect.objectContaining({ database: "database_0", page: 1, pageSize: 25 }),
     );
+  });
+
+  it("ignores populated connections[] on non-PostgreSQL engines", async () => {
+    // Regression: MySQL/TiDB targets may carry legacy-selector connection rows;
+    // the explorer must keep the database->object layout for them.
+    const user = userEvent.setup();
+    mockGetSchemaDatabases.mockResolvedValue({
+      targetResourceId: 12,
+      defaultDatabase: "app",
+      items: [{ name: "app", isDefault: true }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    mockGetSchemaObjects.mockResolvedValue({
+      targetResourceId: 12,
+      database: "app",
+      items: [{ database: "app", name: "orders", kind: "table" as const }],
+      pageInfo: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <QuerySchemaBrowser
+          store={new SchemaCatalog()}
+          target={buildQueryTarget({
+            resourceId: 12,
+            connectionContext: { engine: "mysql" },
+            connections: [{ database: "", defaultSchema: "", enabled: true, environmentPolicy: "all_environments", runtime: "secret_resolved" }],
+          })}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const openButtons = screen.getAllByRole("button", { name: "Open objects" });
+    await user.click(openButtons[0]!);
+    await screen.findByRole("button", { name: "app" });
+    expect(mockGetSchemaDatabases).toHaveBeenCalledTimes(1);
   });
 });
 

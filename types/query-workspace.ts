@@ -8,6 +8,8 @@ export type QueryWorkspaceWorksheet = {
   readonly targetResourceId: number;
   readonly statement: string;
   readonly activeDatabase: string | null;
+  /** Persisted PostgreSQL namespace pin; absent on legacy documents. */
+  readonly activeSchema?: string | null;
 };
 
 export type QueryWorkspace = {

@@ -19,12 +19,14 @@ export function useWorksheetSchemaAdapter(
   catalog: SchemaCatalog,
   targetId: number | undefined,
   activeDatabase: string | undefined,
+  activeSchema?: string,
+  postgres = false,
 ): WorksheetSchemaAdapter {
   useSchemaCatalogVersion(catalog);
-  const namespace = catalog.completionNamespace(targetId, activeDatabase);
+  const namespace = catalog.completionNamespace(targetId, activeDatabase, activeSchema, postgres);
   const columnFetcher = useCallback(
-    (table: string) => catalog.columnsFor(targetId, activeDatabase, table),
-    [catalog, targetId, activeDatabase],
+    (table: string) => catalog.columnsFor(targetId, activeDatabase, table, activeSchema, postgres),
+    [catalog, targetId, activeDatabase, activeSchema, postgres],
   );
   return { namespace, columnFetcher };
 }

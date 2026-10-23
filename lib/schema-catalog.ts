@@ -8,12 +8,14 @@ import {
   getObjectDetails,
   getSchemaDatabases,
   getSchemaObjects,
+  getSchemaSchemas,
 } from "@/services/query-schema";
 import type { SchemaNamespace } from "@/lib/query-sql-completion";
 import type {
   ObjectDetailResponse,
   ObjectSummary,
   SchemaDatabaseListParams,
+  SchemaListParams,
   SchemaObjectDetailParams,
   SchemaObjectListParams,
 } from "@/types/query-schema";
@@ -28,6 +30,13 @@ export type SchemaCatalogFetch = {
     params?: SchemaDatabaseListParams,
   ) => Promise<{
     readonly defaultDatabase: string | null;
+    readonly items: readonly { readonly name: string }[];
+    readonly pageInfo: PageInfo;
+  }>;
+  readonly getSchemas: (
+    targetId: number,
+    params: SchemaListParams,
+  ) => Promise<{
     readonly items: readonly { readonly name: string }[];
     readonly pageInfo: PageInfo;
   }>;
@@ -46,6 +55,7 @@ export type SchemaCatalogFetch = {
 
 const defaultFetch: SchemaCatalogFetch = {
   getDatabases: getSchemaDatabases,
+  getSchemas: getSchemaSchemas,
   getObjects: getSchemaObjects,
   getObjectDetails: getObjectDetails,
 };
@@ -53,6 +63,8 @@ const defaultFetch: SchemaCatalogFetch = {
 export type SchemaStoreKey = {
   readonly targetId: number;
   readonly database: string;
+  /** PostgreSQL namespace pin; empty string for MySQL/TiDB. */
+  readonly schema: string;
   readonly kind: string;
   readonly name: string;
 };
@@ -69,6 +81,13 @@ export type SchemaListStatus = "idle" | "loading" | "ready" | "error";
 export type DatabaseListing = {
   readonly items: readonly string[];
   readonly defaultDatabase: string | null;
+  readonly pageInfo: PageInfo | null;
+  readonly status: SchemaListStatus;
+};
+
+/** PostgreSQL namespace list for one connection (targetId, database). */
+export type SchemaListing = {
+  readonly items: readonly string[];
   readonly pageInfo: PageInfo | null;
   readonly status: SchemaListStatus;
 };
@@ -97,6 +116,12 @@ const emptyObjectListing: ObjectListing = {
   status: "idle",
 };
 
+const emptySchemaListing: SchemaListing = {
+  items: [],
+  pageInfo: null,
+  status: "idle",
+};
+
 type DatabaseEntry = {
   items: string[];
   defaultDatabase: string | null;
@@ -105,9 +130,17 @@ type DatabaseEntry = {
   generation: number;
 };
 
+type SchemaEntry = {
+  items: string[];
+  pageInfo: PageInfo | null;
+  status: SchemaListStatus;
+  generation: number;
+};
+
 type ObjectEntry = {
   targetId: number;
   database: string;
+  schema: string;
   q: string;
   items: ObjectSummary[];
   pageInfo: PageInfo | null;
@@ -125,7 +158,7 @@ type EmptyEntry = {
 };
 
 function serializeDetailKey(key: SchemaStoreKey): string {
-  return `${key.targetId}:${key.database}:${key.kind}:${key.name}`;
+  return `det:${JSON.stringify([key.targetId, key.database, key.schema, key.kind, key.name])}`;
 }
 
 function databaseKey(
@@ -137,8 +170,18 @@ function databaseKey(
   return `db:${targetId}:${pageSize}:${q}:${includeSystem ? 1 : 0}`;
 }
 
-function objectKey(targetId: number, database: string, pageSize: number, q: string): string {
-  return `obj:${targetId}:${database}:${pageSize}:${q}`;
+function schemaKey(targetId: number, database: string): string {
+  return `sch:${JSON.stringify([targetId, database])}`;
+}
+
+function objectKey(
+  targetId: number,
+  database: string,
+  schema: string,
+  pageSize: number,
+  q: string,
+): string {
+  return `obj:${JSON.stringify([targetId, database, schema, pageSize, q])}`;
 }
 
 function dedupeNames(items: readonly string[]): string[] {
@@ -148,7 +191,7 @@ function dedupeNames(items: readonly string[]): string[] {
 function dedupeObjects(items: readonly ObjectSummary[]): ObjectSummary[] {
   const seen = new Set<string>();
   return items.filter((object) => {
-    const key = `${object.kind}:${object.name}`;
+    const key = JSON.stringify([object.schema ?? "", object.kind, object.name]);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -161,6 +204,7 @@ function dedupeObjects(items: readonly ObjectSummary[]): ObjectSummary[] {
  */
 export class SchemaCatalog {
   private readonly databases = new Map<string, DatabaseEntry>();
+  private readonly schemas = new Map<string, SchemaEntry>();
   private readonly objects = new Map<string, ObjectEntry>();
   private readonly details = new Map<string, DetailEntry>();
   private readonly empties = new Map<string, EmptyEntry>();
@@ -214,13 +258,28 @@ export class SchemaCatalog {
     return null;
   }
 
+  /**
+   * PostgreSQL namespaces of one connection. `items` are verbatim names —
+   * casing/whitespace preserved for quoted identifiers.
+   */
+  getSchemas(targetId: number, database: string): SchemaListing {
+    const entry = this.schemas.get(schemaKey(targetId, database));
+    if (!entry) return emptySchemaListing;
+    return {
+      items: entry.items,
+      pageInfo: entry.pageInfo,
+      status: entry.status,
+    };
+  }
+
   getObjects(
     targetId: number,
     database: string,
     pageSize: number,
     q = "",
+    schema = "",
   ): ObjectListing {
-    const entry = this.objects.get(objectKey(targetId, database, pageSize, q));
+    const entry = this.objects.get(objectKey(targetId, database, schema, pageSize, q));
     if (!entry) return emptyObjectListing;
     return {
       items: entry.items,
@@ -312,12 +371,68 @@ export class SchemaCatalog {
     }
   }
 
+  /**
+   * Fetch namespaces for one PostgreSQL connection. Entries are scoped to
+   * (targetId, database) — never shared across connections.
+   */
+  async ensureSchemas(
+    targetId: number,
+    database: string,
+    options: {
+      readonly refresh?: boolean;
+      readonly signal?: AbortSignal;
+    } = {},
+  ): Promise<void> {
+    const key = schemaKey(targetId, database);
+    let entry = this.schemas.get(key);
+    if (!entry) {
+      entry = { items: [], pageInfo: null, status: "idle", generation: 0 };
+      this.schemas.set(key, entry);
+    }
+    if (entry.status === "loading") return;
+    const generation = entry.generation + 1;
+    entry.generation = generation;
+    entry.status = "loading";
+    this.notify();
+
+    try {
+      // The schema API caps pageSize at 100; paginate until the server reports
+      // no further page so large catalogs are not silently clipped.
+      const names: string[] = [];
+      let page = 1;
+      let pageInfo: PageInfo | null = null;
+      for (;;) {
+        const response = await this.fetch.getSchemas(targetId, {
+          database,
+          page,
+          pageSize: 100,
+          ...(options.refresh ? { refresh: true } : {}),
+          signal: options.signal,
+        });
+        if (options.signal?.aborted || generation !== entry.generation) return;
+        names.push(...response.items.map((item) => item.name));
+        pageInfo = response.pageInfo;
+        if (!response.pageInfo.hasNextPage) break;
+        page += 1;
+      }
+      entry.items = dedupeNames(names);
+      entry.pageInfo = pageInfo;
+      entry.status = "ready";
+      this.notify();
+    } catch {
+      if (options.signal?.aborted || generation !== entry.generation) return;
+      entry.status = "error";
+      this.notify();
+    }
+  }
+
   async ensureObjects(
     targetId: number,
     database: string,
     options: {
       readonly page: number;
       readonly pageSize: number;
+      readonly schema?: string;
       readonly q?: string;
       readonly refresh?: boolean;
       readonly replace?: boolean;
@@ -325,13 +440,15 @@ export class SchemaCatalog {
     },
   ): Promise<void> {
     const q = options.q ?? "";
-    const key = objectKey(targetId, database, options.pageSize, q);
+    const schema = options.schema ?? "";
+    const key = objectKey(targetId, database, schema, options.pageSize, q);
     const replace = options.replace !== false;
     let entry = this.objects.get(key);
     if (!entry) {
       entry = {
         targetId,
         database,
+        schema,
         q,
         items: [],
         pageInfo: null,
@@ -352,6 +469,7 @@ export class SchemaCatalog {
     try {
       const response = await this.fetch.getObjects(targetId, {
         database,
+        ...(schema ? { schema } : {}),
         ...(q ? { q } : {}),
         page: options.page,
         pageSize: options.pageSize,
@@ -400,6 +518,7 @@ export class SchemaCatalog {
       try {
         const detail = await this.fetch.getObjectDetails(key.targetId, {
           database: key.database,
+          ...(key.schema ? { schema: key.schema } : {}),
           name: key.name,
           kind: key.kind as "table" | "view",
           ...(refresh ? { refresh: true } : {}),
@@ -434,8 +553,10 @@ export class SchemaCatalog {
   completionNamespace(
     targetId: number | undefined,
     activeDatabase: string | undefined,
+    activeSchema?: string,
+    postgres = false,
   ): SchemaNamespace | undefined {
-    const key = `${targetId ?? ""}:${activeDatabase ?? ""}`;
+    const key = `${postgres ? "pg" : "db"}:${targetId ?? ""}:${activeDatabase ?? ""}:${activeSchema ?? ""}`;
     if (
       this.completionMemo &&
       this.completionMemo.key === key &&
@@ -443,7 +564,7 @@ export class SchemaCatalog {
     ) {
       return this.completionMemo.value;
     }
-    const value = this.buildCompletionNamespace(targetId, activeDatabase);
+    const value = this.buildCompletionNamespace(targetId, activeDatabase, activeSchema ?? "", postgres);
     this.completionMemo = { key, catalogVersion: this.version, value };
     return value;
   }
@@ -451,25 +572,40 @@ export class SchemaCatalog {
   private buildCompletionNamespace(
     targetId: number | undefined,
     activeDatabase: string | undefined,
+    activeSchema: string,
+    pg: boolean,
   ): SchemaNamespace | undefined {
     if (!targetId) return undefined;
-    const databases = this.getDatabases(targetId, COMPLETION_PAGE_SIZE).items;
+    const databases = pg
+      ? this.getSchemas(targetId, activeDatabase ?? "").items.map(
+          (name) => name,
+        )
+      : this.getDatabases(targetId, COMPLETION_PAGE_SIZE).items;
     if (!activeDatabase) {
       return { tables: [], databases, loadedColumns: {} };
     }
-    const objects = this.getObjects(targetId, activeDatabase, COMPLETION_PAGE_SIZE, "").items;
+    const objects = this.getObjects(
+      targetId,
+      activeDatabase,
+      COMPLETION_PAGE_SIZE,
+      "",
+      activeSchema,
+    ).items;
     const loadedColumns: Record<string, readonly string[]> = {};
     for (const object of objects) {
       const state = this.getDetailState({
         targetId,
         database: object.database,
+        schema: object.schema ?? activeSchema,
         kind: object.kind,
         name: object.name,
       });
       if (state.status !== "ready") continue;
       const names = state.data.columns.map((column) => column.name);
       loadedColumns[object.name] = names;
-      if (object.database !== activeDatabase) {
+      if (pg && (object.schema ?? "") !== "" && object.schema !== activeSchema) {
+        loadedColumns[`${object.schema}.${object.name}`] = names;
+      } else if (!pg && object.database !== activeDatabase) {
         loadedColumns[`${object.database}.${object.name}`] = names;
       }
     }
@@ -487,13 +623,16 @@ export class SchemaCatalog {
     targetId: number | undefined,
     activeDatabase: string | undefined,
     table: string,
+    activeSchema?: string,
+    postgres = false,
   ): Promise<readonly string[]> {
     if (!targetId || !activeDatabase) return [];
-    const object = this.findObject(targetId, activeDatabase, table);
+    const object = this.findObject(targetId, activeDatabase, table, activeSchema ?? "", postgres);
     if (!object) return [];
     const key: SchemaStoreKey = {
       targetId,
       database: object.database,
+      schema: object.schema ?? activeSchema ?? "",
       kind: object.kind,
       name: object.name,
     };
@@ -524,9 +663,26 @@ export class SchemaCatalog {
     if (changed) this.notify();
   }
 
-  invalidateObjects(targetId: number, database: string, pageSize: number, q = ""): void {
-    const key = objectKey(targetId, database, pageSize, q);
+  invalidateObjects(
+    targetId: number,
+    database: string,
+    pageSize: number,
+    q = "",
+    schema = "",
+  ): void {
+    const key = objectKey(targetId, database, schema, pageSize, q);
     const entry = this.objects.get(key);
+    if (!entry) return;
+    entry.generation += 1;
+    entry.items = [];
+    entry.pageInfo = null;
+    entry.status = "idle";
+    this.notify();
+  }
+
+  invalidateSchemas(targetId: number, database: string): void {
+    const key = schemaKey(targetId, database);
+    const entry = this.schemas.get(key);
     if (!entry) return;
     entry.generation += 1;
     entry.items = [];
@@ -537,6 +693,7 @@ export class SchemaCatalog {
 
   clear(): void {
     this.databases.clear();
+    this.schemas.clear();
     this.objects.clear();
     this.details.clear();
     this.empties.clear();
@@ -550,17 +707,31 @@ export class SchemaCatalog {
     targetId: number,
     activeDatabase: string,
     table: string,
+    activeSchema: string,
+    pg: boolean,
   ): ObjectSummary | null {
-    const completion = this.getObjects(targetId, activeDatabase, COMPLETION_PAGE_SIZE, "").items;
+    const completion = this.getObjects(
+      targetId,
+      activeDatabase,
+      COMPLETION_PAGE_SIZE,
+      "",
+      activeSchema,
+    ).items;
+    const qualified = pg
+      ? (name: string, schema: string | undefined) =>
+          name === table || `${schema ?? ""}.${name}` === table
+      : (name: string) => name === table || `${activeDatabase}.${name}` === table;
     const hit =
-      completion.find((object) => object.name === table || `${object.database}.${object.name}` === table) ??
-      null;
+      completion.find((object) => qualified(object.name, object.schema)) ?? null;
     if (hit) return hit;
     for (const entry of this.objects.values()) {
       if (entry.targetId !== targetId) continue;
-      const found = entry.items.find(
-        (object) => object.name === table || `${object.database}.${object.name}` === table,
-      );
+      if (entry.database !== activeDatabase) continue;
+      // PostgreSQL: an unqualified name resolves only inside the active
+      // schema's listing — a same-named object in a sibling schema is a
+      // different relation, never a fallback hit.
+      if (pg && entry.schema !== activeSchema) continue;
+      const found = entry.items.find((object) => qualified(object.name, object.schema));
       if (found) return found;
     }
     return null;

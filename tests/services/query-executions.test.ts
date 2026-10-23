@@ -48,6 +48,7 @@ function buildExecuteResponse() {
     durationMs: 18,
     limitApplied: 100,
     executedAt: "2026-06-22T08:30:00Z",
+    cellTruncated: [[false]],
   };
 }
 
@@ -59,6 +60,10 @@ function buildExecutionListResponse() {
         targetResourceId: 22,
         actor: { displayName: "Chen Hao" },
         engine: "mysql",
+        kind: "execution",
+        clientExecutionId: null,
+        database: "",
+        schema: "",
         statementDigest: "select 1 as value",
         statementPreview: "select 1 as value",
         canRestore: true,
@@ -91,6 +96,7 @@ function buildRelatedRecordResponse() {
     durationMs: 12,
     limitApplied: 100,
     executedAt: "2026-07-14T08:00:00Z",
+    cellTruncated: [[false,false]],
     sourceDatabase: "orders",
     sourceObject: "order_items",
     foreignKey: "fk_order_items_order",
@@ -128,7 +134,11 @@ describe("executeQueryTarget", () => {
     await executeQueryTarget(22, { statement: "select 1", maxRows: 100 });
 
     const [, init] = mockApiClient.mock.calls[0]!;
-    expect(requestBody(init)).toEqual({ statement: "select 1", maxRows: 100 });
+    expect(requestBody(init)).toEqual({
+      statement: "select 1",
+      maxRows: 100,
+      capabilities: ["cellTruncated"],
+    });
   });
 
   it("never sends actorUserId in the request body", async () => {
@@ -148,7 +158,10 @@ describe("executeQueryTarget", () => {
     await executeQueryTarget(22, { statement: "select 1" });
 
     const [, init] = mockApiClient.mock.calls[0]!;
-    expect(requestBody(init)).toEqual({ statement: "select 1" });
+    expect(requestBody(init)).toEqual({
+      statement: "select 1",
+      capabilities: ["cellTruncated"],
+    });
   });
 
   it("returns the backend execution response unchanged", async () => {
@@ -387,6 +400,7 @@ describe("navigateRelatedRecords", () => {
       source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
       localValues: ["42"],
       maxRows: 100,
+      capabilities: ["cellTruncated"],
     });
 
     const [, init] = mockApiClient.mock.calls[0]!;
@@ -394,6 +408,7 @@ describe("navigateRelatedRecords", () => {
       source: { database: "orders", object: "order_items", kind: "table", foreignKey: "fk_order_items_order" },
       localValues: ["42"],
       maxRows: 100,
+      capabilities: ["cellTruncated"],
     });
   });
 
@@ -584,9 +599,11 @@ describe("query-executions module surface", () => {
         "executeQueryTarget",
         "explainQueryTarget",
         "getQueryExecutionStatement",
+        "isAbortError",
         "isRetryableControlledErrorCode",
         "listQueryExecutions",
         "navigateRelatedRecords",
+        "RESULT_CONTRACT_CAPABILITIES",
         "toQueryExecuteError",
       ].sort(),
     );
@@ -637,6 +654,7 @@ describe("Phase 38S: governed result paging request shape", () => {
       statement: "select * from orders",
       maxRows: 100,
       pagination: { page: 2, pageSize: 25 },
+      capabilities: ["cellTruncated"],
     });
   });
 
@@ -653,7 +671,7 @@ describe("Phase 38S: governed result paging request shape", () => {
 
     const [, init] = mockApiClient.mock.calls[0]!;
     const body = requestBody(init);
-    expect(Object.keys(body).sort()).toEqual(["maxRows", "pagination", "statement"]);
+    expect(Object.keys(body).sort()).toEqual(["capabilities", "maxRows", "pagination", "statement"]);
     expect(body).not.toHaveProperty("cursor");
     expect(body).not.toHaveProperty("pageSize");
   });
@@ -666,7 +684,10 @@ describe("Phase 38S: governed result paging request shape", () => {
 
     const [, init] = mockApiClient.mock.calls[0]!;
     const body = requestBody(init);
-    expect(body).toEqual({ statement: "select 1" });
+    expect(body).toEqual({
+      statement: "select 1",
+      capabilities: ["cellTruncated"],
+    });
     expect(body).not.toHaveProperty("cursor");
     expect(body).not.toHaveProperty("pageSize");
     expect(body).not.toHaveProperty("pageToken");
@@ -821,5 +842,121 @@ describe("Phase 38S: governed result paging QueryExecuteRequest type surface", (
     expect(badCursorRequest.statement).toBe("select 1");
     expect(badPageSizeRequest.statement).toBe("select 1");
     expect(badResponse.executionId).toBe(1001);
+  });
+});
+
+describe("executeQueryTarget PostgreSQL context", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends database, schema, and clientExecutionId alongside statement/capabilities", async () => {
+    mockApiClient.mockResolvedValueOnce(buildExecuteResponse());
+
+    await executeQueryTarget(22, {
+      statement: "select 1",
+      database: "orders",
+      schema: "sales",
+      clientExecutionId: "key-abc",
+      maxRows: 100,
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).toEqual({
+      statement: "select 1",
+      database: "orders",
+      schema: "sales",
+      clientExecutionId: "key-abc",
+      maxRows: 100,
+      capabilities: ["cellTruncated"],
+    });
+  });
+
+  it("omits empty connection fields so MySQL/TiDB requests stay unchanged", async () => {
+    mockApiClient.mockResolvedValueOnce(buildExecuteResponse());
+
+    await executeQueryTarget(22, {
+      statement: "select 1",
+      database: "",
+      schema: "",
+      maxRows: 100,
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    const body = requestBody(init) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("database");
+    expect(body).not.toHaveProperty("schema");
+    expect(body).not.toHaveProperty("clientExecutionId");
+  });
+});
+
+describe("listQueryExecutions PostgreSQL scoping", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("forwards database and clientExecutionId filters for keyed state read-back", async () => {
+    mockApiClient.mockResolvedValueOnce({ items: [], nextCursor: null });
+
+    await listQueryExecutions(22, { database: "orders", clientExecutionId: "key-abc" });
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      "/query-targets/22/executions?database=orders&clientExecutionId=key-abc&pageSize=20",
+    );
+  });
+
+  it("parses claim occupancy rows as a distinct non-restorable kind", async () => {
+    mockApiClient.mockResolvedValueOnce({
+      items: [
+        {
+          kind: "claim",
+          id: null,
+          targetResourceId: 22,
+          clientExecutionId: "key-abc",
+          actor: null,
+          engine: "postgresql",
+          database: "orders",
+          schema: "sales",
+          statementDigest: "d",
+          statementPreview: "select 1",
+          canRestore: false,
+          status: "running",
+          rowCount: 0,
+          durationMs: 0,
+          errorCode: "",
+          errorMessage: "",
+          claimedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+      nextCursor: null,
+    });
+
+    const page = await listQueryExecutions(22, { database: "orders" });
+    expect(page.items[0]?.kind).toBe("claim");
+    expect(page.items[0]?.id).toBeNull();
+    expect(page.items[0]?.canRestore).toBe(false);
+  });
+});
+
+describe("navigateRelatedRecords PostgreSQL source scope", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends source.schema and clientExecutionId for composite navigation", async () => {
+    mockApiClient.mockResolvedValueOnce(buildRelatedRecordResponse());
+
+    await navigateRelatedRecords(22, {
+      source: {
+        database: "orders",
+        schema: "sales",
+        object: "order_items",
+        kind: "table",
+        foreignKey: "fk_order_items_order",
+      },
+      localValues: ["42"],
+      clientExecutionId: "key-nav",
+    });
+
+    const [, init] = mockApiClient.mock.calls[0]!;
+    expect(requestBody(init)).toMatchObject({
+      source: { database: "orders", schema: "sales", object: "order_items" },
+      clientExecutionId: "key-nav",
+      capabilities: ["cellTruncated"],
+    });
   });
 });

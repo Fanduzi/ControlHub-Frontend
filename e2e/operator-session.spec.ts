@@ -13,6 +13,8 @@ import {
   assertClean,
   collectConsoleMessages,
   collectNetworkErrors,
+  takeExpectedConsoleStatusError,
+  takeOptionalNetworkError,
 } from "./harness/console-guards";
 
 const CONSOLE_ORIGIN = "http://localhost:3100";
@@ -292,8 +294,8 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
   test("logout clears the operator session and protected pages require login again", async ({
     page,
   }) => {
-    const consoleMessages = collectConsoleMessages(page);
-    const networkErrors = collectNetworkErrors(page);
+    let consoleMessages = collectConsoleMessages(page);
+    let networkErrors = collectNetworkErrors(page);
 
     await page.goto("/login");
     expect((await bffLoginViaRequest(page)).status).toBe(200);
@@ -320,11 +322,40 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     );
     expect(proxyAfterLogout.status()).toBe(401);
 
-    // Protected navigation now redirects to login.
-    await page.goto("/overview");
-    await expect(page).toHaveURL(/\/login\?from=/);
+    // Protected navigation now redirects to login. The document request can
+    // still carry the session cookie while middleware validates it — a stale
+    // cookie yields ?reason=session-expired, no cookie yields ?from=. Either
+    // proves the protected page requires login; the redirect may also abort
+    // the document request under CI latency.
+    await page.goto("/overview").catch((error: Error) => {
+      if (!error.message.includes("ERR_ABORTED")) throw error;
+    });
+    await expect(page).toHaveURL(/\/login\?(from=|reason=session-expired)/);
 
     assertNoCredentialLeak(await storageSnapshot(page));
+
+    // Session-status polling and still-mounted page fetches (operator-session
+    // probe, environments) race the logout and fail closed 401 after the
+    // cookie clears — bounded consumption like the query-workbench sign-out
+    // race, never a broad allowlist. A storm beyond the cap still fails.
+    for (let i = 0; i < 8; i += 1) {
+      networkErrors = takeOptionalNetworkError(networkErrors, {
+        method: "GET",
+        url: `${CONSOLE_ORIGIN}/api/operator-session`,
+        status: 401,
+      });
+    }
+    for (let i = 0; i < 2; i += 1) {
+      networkErrors = takeOptionalNetworkError(networkErrors, {
+        method: "GET",
+        url: `${CONSOLE_ORIGIN}/api/proxy/environments`,
+        status: 401,
+      });
+    }
+    for (let i = 0; i < 10; i += 1) {
+      consoleMessages = takeExpectedConsoleStatusError(consoleMessages, 401);
+    }
+
     assertClean(consoleMessages, networkErrors);
   });
 

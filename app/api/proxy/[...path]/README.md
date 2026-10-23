@@ -24,4 +24,16 @@ Guards:
 - Request bodies are capped at 10 MiB (`413` beyond the cap), enforced both
   on `Content-Length` and while streaming chunked bodies.
 
+Cancellation and exchange failure:
+
+- The inbound request signal and the 30-second upstream timeout are composed
+  with `AbortSignal.any`, so a browser disconnect aborts the upstream fetch
+  across the whole exchange (headers wait and body streaming alike).
+- One classification boundary wraps inbound body buffering, the upstream
+  fetch, and the upstream response-body read: a client-triggered abort on
+  any leg returns a bare `499` with no fabricated error envelope, and an
+  upstream-side failure (unreachable, socket drop, or body-read timeout)
+  without inbound cancellation maps to coded `503 service-unavailable` —
+  raw driver/network errors never escape the route.
+
 Blocked upstream prefixes: `auth/*` (never mint browser-visible tokens through the proxy).

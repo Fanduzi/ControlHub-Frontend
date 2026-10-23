@@ -5,6 +5,7 @@ Vitest component tests for React UI components.
 ## Interfaces
 
 - Tests exercise components through rendered accessible controls and public callbacks.
+- Query components cover the PostgreSQL three-level explorer (connection → schema → object), connection/schema selectors, claim-row history rendering, and saved-statement database scoping.
 
 ## Dependencies
 
@@ -16,10 +17,10 @@ Vitest component tests for React UI components.
 | Test | Component under test |
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates |
-| query-workbench.test.tsx | QueryWorkbench — unavailable-target recovery, scoped/All search, fallback/retry, engine filtering, server-authorized history fixtures, and formula-safe CSV export |
-| query-editor-shell.test.tsx | QueryEditorShell — tabs, template mode, lifecycle, serialized workspace OCC/hydration, scoped/All persisted-target recovery, unavailable-target locking, navigator-safe worksheet limits, execution routing, server-authorized history restore, and blocked-result redaction |
+| query-workbench.test.tsx | QueryWorkbench — unavailable-target recovery, scoped/All search, fallback/retry, engine filtering, server-authorized history fixtures, and formula-safe CSV export (masked/blocked/disclosure-gated pages refuse export rather than emitting placeholders) |
+| query-editor-shell.test.tsx | QueryEditorShell — tabs, template mode, lifecycle, serialized workspace OCC/hydration with conflict reconcile re-read, scoped/All persisted-target recovery, unavailable-target locking, navigator-safe worksheet limits, execution routing, server-authorized history restore, blocked-result redaction, and whole-page CSV eligibility gating |
 | query-connection-navigator.test.tsx | Connection navigator |
-| query-credential-settings.test.tsx | Query credential settings |
+| query-credential-settings.test.tsx | Query credential settings (composite per-connection addressing) |
 | query-disclosure-settings.test.tsx | Query disclosure settings with scoped and All-environment target pagination |
 | query-object-explorer.test.tsx | Schema object explorer, including database search, include-system, and refresh through the schema catalog |
 | query-object-inspector.test.tsx | Object inspector controlled error codes, retry behavior, localization, and raw-message isolation |

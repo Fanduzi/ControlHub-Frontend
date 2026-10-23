@@ -477,6 +477,7 @@ export function QueryObjectInspector({
 
     void getTableDefinition(targetId, {
       database: detail.database,
+      ...(detail.schema ? { schema: detail.schema } : {}),
       name: detail.name,
       signal: controller.signal,
     }).then(
@@ -495,7 +496,7 @@ export function QueryObjectInspector({
         }
       },
     );
-  }, [targetId, detail.database, detail.name]);
+  }, [targetId, detail.database, detail.schema, detail.name]);
 
   const handleRetryDefinition = useCallback(() => {
     handleViewDefinition();
@@ -568,6 +569,7 @@ export function QueryObjectInspector({
               <QueryRelationshipMap
                 targetId={targetId}
                 database={detail.database}
+                schema={detail.schema}
                 name={detail.name}
                 onBack={handleBackToDetails}
               />
@@ -639,6 +641,7 @@ export function QueryObjectInspector({
           <QueryRelationshipMap
             targetId={targetId}
             database={detail.database}
+            schema={detail.schema}
             name={detail.name}
             onBack={handleBackToDetails}
           />

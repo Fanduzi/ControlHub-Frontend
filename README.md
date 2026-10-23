@@ -186,6 +186,18 @@ search input triggers a server-side `q` search 250ms after the last keystroke.
 There is no submit button. A clear icon appears while the input is non-empty
 and resets the listing to the unfiltered first page.
 
+### PostgreSQL worksheet context
+
+PostgreSQL targets expose composite connections: the worksheet context is
+`(targetId, database = connection, schema)`. A `null` schema pin means the
+connection's `defaultSchema`. Persisted worksheets round-trip
+`activeDatabase`/`activeSchema`; on restore the bound connection is
+revalidated against the live enumeration and cleared fail-closed when it
+disappears. PostgreSQL executions carry a `clientExecutionId` so aborts can
+be reconciled through `GET /executions?database&clientExecutionId`, and
+saved-statement list/create is scoped by `?database=`. MySQL and TiDB paths
+keep their legacy keyless, schema-less behavior.
+
 ## Verification
 
 Playwright uses one worker because the E2E fixture operators own mutable,

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { type SchemaCatalog, useSchemaCatalogVersion } from "@/lib/schema-catalog";
 import type { ObjectSummary } from "@/types/query-schema";
+import type { QueryTargetConnection } from "@/types/query-target";
 
 const PAGE_SIZE = 50;
 
@@ -19,16 +20,27 @@ type QueryObjectQuickNavigatorProps = {
   readonly catalog: SchemaCatalog;
   readonly targetId: number;
   readonly activeDatabase: string | null;
+  /** PostgreSQL namespace pin; null/undefined means the connection default. */
+  readonly activeSchema?: string | null;
+  /** Composite connections for PostgreSQL targets (enumerates databases). */
+  readonly connections?: readonly QueryTargetConnection[];
   readonly onDatabaseSelect: (database: string) => void;
+  /** PostgreSQL only: pin a namespace of the selected connection. */
+  readonly onSchemaSelect?: (schema: string) => void;
   readonly onRevealObject?: (object: ObjectSummary) => void;
-  readonly onInsertObject: (object: Pick<ObjectSummary, "database" | "name">) => void;
+  readonly onInsertObject: (
+    object: Pick<ObjectSummary, "database" | "name" | "schema">,
+  ) => void;
 };
 
 export function QueryObjectQuickNavigator({
   catalog,
   targetId,
   activeDatabase,
+  activeSchema,
+  connections,
   onDatabaseSelect,
+  onSchemaSelect,
   onRevealObject,
   onInsertObject,
 }: QueryObjectQuickNavigatorProps) {
@@ -49,17 +61,30 @@ export function QueryObjectQuickNavigator({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [pathname]);
 
+  const isPostgres = (connections?.length ?? 0) > 0;
+
   useEffect(() => {
     if (!open) return;
+    if (isPostgres) return;
     const controller = new AbortController();
     void catalog.ensureDatabases(targetId, { page: 1, pageSize: PAGE_SIZE, replace: true, signal: controller.signal });
     return () => controller.abort();
-  }, [catalog, open, targetId]);
+  }, [catalog, isPostgres, open, targetId]);
+
+  // PostgreSQL: once a connection is active, load its namespaces so the
+  // navigator can pin a schema; objects then load under the resolved schema.
+  useEffect(() => {
+    if (!open || !isPostgres || !activeDatabase) return;
+    const controller = new AbortController();
+    void catalog.ensureSchemas(targetId, activeDatabase, { signal: controller.signal });
+    return () => controller.abort();
+  }, [activeDatabase, catalog, isPostgres, open, targetId]);
 
   useEffect(() => {
     if (!open || !activeDatabase) return;
     const controller = new AbortController();
     void catalog.ensureObjects(targetId, activeDatabase, {
+      ...(isPostgres && activeSchema ? { schema: activeSchema } : {}),
       q: query || undefined,
       page: 1,
       pageSize: PAGE_SIZE,
@@ -67,17 +92,36 @@ export function QueryObjectQuickNavigator({
       signal: controller.signal,
     });
     return () => controller.abort();
-  }, [activeDatabase, catalog, open, query, targetId]);
+  }, [activeDatabase, activeSchema, catalog, isPostgres, open, query, targetId]);
 
-  const databases = catalog.getDatabases(targetId, PAGE_SIZE);
+  const databases = isPostgres
+    ? {
+        items: (connections ?? []).map((row) => row.database),
+        status: "ready" as const,
+      }
+    : catalog.getDatabases(targetId, PAGE_SIZE);
+  const schemas =
+    isPostgres && activeDatabase ? catalog.getSchemas(targetId, activeDatabase) : null;
   const objects = activeDatabase
-    ? catalog.getObjects(targetId, activeDatabase, PAGE_SIZE, query)
+    ? catalog.getObjects(
+        targetId,
+        activeDatabase,
+        PAGE_SIZE,
+        query,
+        isPostgres ? (activeSchema ?? "") : "",
+      )
     : { items: [], status: "idle" as const };
-  const error = databases.status === "error" || objects.status === "error";
+  const error =
+    databases.status === "error" ||
+    objects.status === "error" ||
+    schemas?.status === "error";
   const options = [
     ...databases.items
       .filter((database) => database.includes(query))
       .map((database) => ({ kind: "database" as const, database })),
+    ...(schemas?.items ?? [])
+      .filter((schema) => schema.includes(query))
+      .map((schema) => ({ kind: "schema" as const, schema })),
     ...objects.items.map((object) => ({ kind: "object" as const, object })),
   ];
 
@@ -85,6 +129,7 @@ export function QueryObjectQuickNavigator({
     const option = options[activeIndex];
     if (!option) return;
     if (option.kind === "database") onDatabaseSelect(option.database);
+    else if (option.kind === "schema") onSchemaSelect?.(option.schema);
     else onRevealObject?.(option.object);
   }
 
@@ -139,8 +184,18 @@ export function QueryObjectQuickNavigator({
               >
                 {option.database}
               </Button>
+            ) : option.kind === "schema" ? (
+              <Button
+                key={option.schema}
+                variant="ghost"
+                className="w-full justify-start pl-6"
+                aria-selected={index === activeIndex}
+                onClick={() => onSchemaSelect?.(option.schema)}
+              >
+                {option.schema}
+              </Button>
             ) : (
-              <div key={`${option.object.kind}-${option.object.name}`} className="flex items-center justify-between">
+              <div key={`${option.object.schema ?? ""}-${option.object.kind}-${option.object.name}`} className="flex items-center justify-between">
                 <Button variant="ghost" aria-selected={index === activeIndex} onClick={() => onRevealObject?.(option.object)}>
                   {option.object.name}
                 </Button>

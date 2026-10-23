@@ -1,7 +1,9 @@
 /**
  * Pure derivation helpers for the Phase 38B query credential operations
  * experience. These functions produce a coverage read model from
- * `QueryTarget[]` plus per-target `QueryCredentialStatusResponse` results.
+ * `QueryTarget[]` plus per-connection `QueryCredentialStatusResponse`
+ * results keyed by `credentialRowKey` (resourceId, or resourceId@database
+ * for composite PostgreSQL connections).
  *
  * No React hooks, no network calls — pure data transformations only.
  */
@@ -16,9 +18,45 @@ import type { QueryTarget } from "@/types/query-target";
 // Normalized operation row
 // ---------------------------------------------------------------------------
 
-/** Per-target credential operation row, merged from target + credential status. */
+/**
+ * Stable identity of one operation row. Credential metadata is addressed by
+ * the COMPOSITE connection key (resourceId, database): PostgreSQL targets
+ * emit one row per connections[] entry and legacy targets a single row with
+ * an empty database segment.
+ */
+export function credentialRowKey(
+  resourceId: number,
+  database?: string,
+): string {
+  return database ? `${resourceId}@${database}` : `${resourceId}`;
+}
+
+/**
+ * Reports whether a target uses composite per-connection credential
+ * addressing (the ?database= selector). Only PostgreSQL does; every other
+ * engine addresses its single legacy (resourceId, '') row.
+ */
+export function isCompositeCredentialTarget(target: QueryTarget): boolean {
+  return target.connectionContext.engine.toLowerCase() === "postgresql";
+}
+
+/**
+ * Reports whether an operation row belongs to a composite-addressed engine.
+ * Such rows are only addressable when `database` is non-empty.
+ */
+export function isCompositeCredentialRow(
+  row: Pick<CredentialOperationRow, "engine">,
+): boolean {
+  return row.engine.toLowerCase() === "postgresql";
+}
+
+/** Per-connection credential operation row, merged from target + credential status. */
 export type CredentialOperationRow = {
+  /** Composite row identity — unique across connections of one target. */
+  rowKey: string;
   resourceId: number;
+  /** Database segment of the connection key; "" for legacy targets. */
+  database: string;
   displayName: string;
   resourceName: string;
   engine: string;
@@ -194,42 +232,65 @@ export function deriveCoverageCounts(
 /**
  * Merge query targets with their credential status responses into normalized
  * operation rows. Credential status may be null (pending/error).
+ *
+ * A composite (PostgreSQL) target expands to one row per enumerated
+ * connection — credential metadata is addressed per (resourceId, database)
+ * and each row carries its own status. A composite target whose backend does
+ * not enumerate connections emits a single unaddressable row; callers leave
+ * its credential unset and mark the fetch error themselves.
  */
 export function buildOperationRows(
   targets: QueryTarget[],
-  credentialMap: Map<number, QueryCredentialStatusResponse | null>,
-  errorMap: Map<number, string>,
+  credentialMap: Map<string, QueryCredentialStatusResponse | null>,
+  errorMap: Map<string, string>,
 ): CredentialOperationRow[] {
-  return targets.map((target) => {
-    const credential = credentialMap.get(target.resourceId) ?? null;
-    const fetchError = errorMap.get(target.resourceId) ?? null;
+  const rows: CredentialOperationRow[] = [];
+  for (const target of targets) {
     const selection = isTargetSelectable(target);
+    const connections = isCompositeCredentialTarget(target)
+      ? (target.connections ?? [])
+      : [];
+    const units: { rowKey: string; database: string }[] =
+      connections.length > 0
+        ? connections.map((connection) => ({
+            rowKey: credentialRowKey(target.resourceId, connection.database),
+            database: connection.database,
+          }))
+        : [{ rowKey: credentialRowKey(target.resourceId), database: "" }];
 
-    let runtimeStatus: CredentialOperationRow["runtimeStatus"];
-    if (fetchError) {
-      runtimeStatus = "fetch_error";
-    } else if (credential === null) {
-      runtimeStatus = "fetch_pending";
-    } else {
-      runtimeStatus = credential.runtimeStatus;
+    for (const unit of units) {
+      const credential = credentialMap.get(unit.rowKey) ?? null;
+      const fetchError = errorMap.get(unit.rowKey) ?? null;
+
+      let runtimeStatus: CredentialOperationRow["runtimeStatus"];
+      if (fetchError) {
+        runtimeStatus = "fetch_error";
+      } else if (credential === null) {
+        runtimeStatus = "fetch_pending";
+      } else {
+        runtimeStatus = credential.runtimeStatus;
+      }
+
+      rows.push({
+        rowKey: unit.rowKey,
+        resourceId: target.resourceId,
+        database: unit.database,
+        displayName: target.displayName,
+        resourceName: target.resourceName,
+        engine: target.connectionContext.engine,
+        environment: target.connectionContext.environment,
+        clusterName: target.connectionContext.clusterName ?? "",
+        host: target.connectionContext.host,
+        port: target.connectionContext.port,
+        credential,
+        fetchError,
+        runtimeStatus,
+        selectable: selection.selectable,
+        notSelectableReason: selection.reason,
+      });
     }
-
-    return {
-      resourceId: target.resourceId,
-      displayName: target.displayName,
-      resourceName: target.resourceName,
-      engine: target.connectionContext.engine,
-      environment: target.connectionContext.environment,
-      clusterName: target.connectionContext.clusterName ?? "",
-      host: target.connectionContext.host,
-      port: target.connectionContext.port,
-      credential,
-      fetchError,
-      runtimeStatus,
-      selectable: selection.selectable,
-      notSelectableReason: selection.reason,
-    };
-  });
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -393,11 +454,13 @@ export function buildCredentialPutBody(input: {
   enabled: boolean;
   environmentPolicy: "non_prod_only" | "all_environments";
   confirmAllEnvironments?: boolean;
+  defaultSchema?: string;
 }): {
   credentialRef: string;
   enabled: boolean;
   environmentPolicy: "non_prod_only" | "all_environments";
   confirmAllEnvironments?: boolean;
+  defaultSchema?: string;
 } {
   const body: Record<string, unknown> = {
     credentialRef: input.credentialRef,
@@ -406,6 +469,9 @@ export function buildCredentialPutBody(input: {
   };
   if (input.confirmAllEnvironments !== undefined) {
     body.confirmAllEnvironments = input.confirmAllEnvironments;
+  }
+  if (input.defaultSchema) {
+    body.defaultSchema = input.defaultSchema;
   }
   return body as ReturnType<typeof buildCredentialPutBody>;
 }

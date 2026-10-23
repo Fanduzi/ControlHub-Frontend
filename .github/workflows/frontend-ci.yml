@@ -28,11 +28,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout backend
+      # The backend companion object is pinned in e2e/backend-fixture.env —
+      # the single reviewed source of truth shared by both jobs. Never follow
+      # a moving branch here.
+      - name: Resolve pinned backend ref
+        id: backend-pin
+        run: |
+          sha="$(sed -n 's/^CONTROLHUB_BACKEND_SHA=//p' e2e/backend-fixture.env)"
+          tree="$(sed -n 's/^CONTROLHUB_BACKEND_TREE=//p' e2e/backend-fixture.env)"
+          test "${#sha}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex SHA"; exit 1; }
+          test "${#tree}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex tree"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout backend (pinned)
         uses: actions/checkout@v4
         with:
           repository: Fanduzi/ControlHub-Backend
+          ref: ${{ steps.backend-pin.outputs.sha }}
           path: ${{ env.CONTROLHUB_BACKEND_DIR }}
+
+      - name: Verify backend checkout identity
+        run: |
+          cd ${{ env.CONTROLHUB_BACKEND_DIR }}
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "backend HEAD=$head tree=$tree"
+          test "$head" = "${{ steps.backend-pin.outputs.sha }}"
+          test "$tree" = "${{ steps.backend-pin.outputs.tree }}"
 
       - uses: actions/setup-node@v4
         with:
@@ -72,6 +95,10 @@ jobs:
           --health-retries=12
     env:
       BACKEND_DIR: controlhub-backend
+      # Per-run identity shared by the fixture listener, the playwright-managed
+      # api-proxy, and the mandatory gate/spec checks.
+      E2E_RUN_ID: e2e-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      E2E_PG_CONTAINER: chub-pg-ci-${{ github.run_id }}-${{ github.run_attempt }}
       # Dedicated disposable E2E metadata database. The fixture provisioning
       # seam (backend cmd/e2e-fixture-bootstrap) refuses the default
       # `controlhub` database and requires a *_e2e name; the backend server
@@ -91,11 +118,33 @@ jobs:
       - name: Checkout frontend
         uses: actions/checkout@v4
 
-      - name: Checkout backend
+      # Same pinned companion object as release-local — one reviewed source
+      # (e2e/backend-fixture.env), never a moving branch.
+      - name: Resolve pinned backend ref
+        id: backend-pin
+        run: |
+          sha="$(sed -n 's/^CONTROLHUB_BACKEND_SHA=//p' e2e/backend-fixture.env)"
+          tree="$(sed -n 's/^CONTROLHUB_BACKEND_TREE=//p' e2e/backend-fixture.env)"
+          test "${#sha}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex SHA"; exit 1; }
+          test "${#tree}" = "40" || { echo "e2e/backend-fixture.env lacks a full 40-hex tree"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout backend (pinned)
         uses: actions/checkout@v4
         with:
           repository: Fanduzi/ControlHub-Backend
+          ref: ${{ steps.backend-pin.outputs.sha }}
           path: ${{ env.BACKEND_DIR }}
+
+      - name: Verify backend checkout identity
+        run: |
+          cd ${{ env.BACKEND_DIR }}
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "backend HEAD=$head tree=$tree"
+          test "$head" = "${{ steps.backend-pin.outputs.sha }}"
+          test "$tree" = "${{ steps.backend-pin.outputs.tree }}"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -131,112 +180,24 @@ jobs:
           echo "MySQL did not become ready."
           exit 1
 
-      - name: Create query_e2e databases and seed tables
+      # Dedicated disposable Query E2E MySQL fixture (container :13306, ro
+      # user, query_e2e + query_e2e_aux fixture data) — the same
+      # backend-owned script local runs use. Its per-identity state file hands
+      # off the read-only DSN; the password is masked and never printed.
+      - name: Start Query E2E MySQL fixture
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: bash scripts/query-e2e-mysql.sh up
+
+      - name: Load query fixture credential state
+        working-directory: ${{ env.BACKEND_DIR }}
         run: |
-          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
-          CREATE DATABASE IF NOT EXISTS query_e2e;
-          CREATE DATABASE IF NOT EXISTS query_e2e_aux;
-
-          USE query_e2e;
-
-          CREATE TABLE IF NOT EXISTS query_e2e_items (
-            id bigint unsigned NOT NULL PRIMARY KEY,
-            name varchar(64) NOT NULL,
-            category varchar(32) NOT NULL,
-            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-          );
-          INSERT INTO query_e2e_items (id, name, category) VALUES
-            (1, 'alpha', 'sample'), (2, 'beta', 'sample')
-          ON DUPLICATE KEY UPDATE name=VALUES(name), category=VALUES(category);
-
-          CREATE TABLE IF NOT EXISTS qe_explain_big (
-            id bigint unsigned NOT NULL PRIMARY KEY,
-            payload varchar(64) NOT NULL,
-            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-          ) ENGINE=InnoDB;
-          INSERT IGNORE INTO qe_explain_big (id, payload) VALUES
-            (1,'row-001'),(2,'row-002'),(3,'row-003'),(4,'row-004'),(5,'row-005'),
-            (6,'row-006'),(7,'row-007'),(8,'row-008'),(9,'row-009'),(10,'row-010'),
-            (11,'row-011'),(12,'row-012'),(13,'row-013'),(14,'row-014'),(15,'row-015'),
-            (16,'row-016'),(17,'row-017'),(18,'row-018'),(19,'row-019'),(20,'row-020'),
-            (21,'row-021'),(22,'row-022'),(23,'row-023'),(24,'row-024'),(25,'row-025'),
-            (26,'row-026'),(27,'row-027'),(28,'row-028'),(29,'row-029'),(30,'row-030'),
-            (31,'row-031'),(32,'row-032'),(33,'row-033'),(34,'row-034'),(35,'row-035'),
-            (36,'row-036'),(37,'row-037'),(38,'row-038'),(39,'row-039'),(40,'row-040'),
-            (41,'row-041'),(42,'row-042'),(43,'row-043'),(44,'row-044'),(45,'row-045'),
-            (46,'row-046'),(47,'row-047'),(48,'row-048'),(49,'row-049'),(50,'row-050'),
-            (51,'row-051'),(52,'row-052'),(53,'row-053'),(54,'row-054'),(55,'row-055'),
-            (56,'row-056'),(57,'row-057'),(58,'row-058'),(59,'row-059'),(60,'row-060'),
-            (61,'row-061'),(62,'row-062'),(63,'row-063'),(64,'row-064'),(65,'row-065'),
-            (66,'row-066'),(67,'row-067'),(68,'row-068'),(69,'row-069'),(70,'row-070'),
-            (71,'row-071'),(72,'row-072'),(73,'row-073'),(74,'row-074'),(75,'row-075'),
-            (76,'row-076'),(77,'row-077'),(78,'row-078'),(79,'row-079'),(80,'row-080'),
-            (81,'row-081'),(82,'row-082'),(83,'row-083'),(84,'row-084'),(85,'row-085'),
-            (86,'row-086'),(87,'row-087'),(88,'row-088'),(89,'row-089'),(90,'row-090'),
-            (91,'row-091'),(92,'row-092'),(93,'row-093'),(94,'row-094'),(95,'row-095'),
-            (96,'row-096'),(97,'row-097'),(98,'row-098'),(99,'row-099'),(100,'row-100');
-
-          USE query_e2e_aux;
-
-          CREATE TABLE IF NOT EXISTS schema_parent (
-            id bigint unsigned NOT NULL AUTO_INCREMENT,
-            parent_code varchar(32) NOT NULL,
-            label varchar(128) NOT NULL DEFAULT '',
-            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uq_schema_parent_code (parent_code),
-            KEY idx_schema_parent_label (label)
-          ) ENGINE=InnoDB;
-
-          CREATE TABLE IF NOT EXISTS schema_child (
-            id bigint unsigned NOT NULL AUTO_INCREMENT,
-            parent_id bigint unsigned NOT NULL,
-            child_name varchar(64) NOT NULL,
-            sort_order int NOT NULL DEFAULT 0,
-            PRIMARY KEY (id),
-            KEY idx_schema_child_parent (parent_id, sort_order),
-            CONSTRAINT fk_schema_child_parent FOREIGN KEY (parent_id) REFERENCES schema_parent (id) ON UPDATE CASCADE ON DELETE RESTRICT
-          ) ENGINE=InnoDB;
-          INSERT IGNORE INTO schema_parent (id, parent_code, label) VALUES
-            (1, 'P_ALPHA', 'Alpha Parent'), (2, 'P_BETA', 'Beta Parent');
-          INSERT IGNORE INTO schema_child (id, parent_id, child_name, sort_order) VALUES
-            (1, 1, 'child_a1', 1), (2, 1, 'child_a2', 2), (3, 2, 'child_b1', 1);
-
-          -- Pagination fixture: 26 tables for schema object page 2 tests
-          CREATE TABLE IF NOT EXISTS schema_zz_page_01 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_02 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_03 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_04 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_05 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_06 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_07 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_08 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_09 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_10 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_11 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_12 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_13 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_14 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_15 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_16 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_17 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_18 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_19 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_20 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_21 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_22 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_23 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_24 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_25 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-          CREATE TABLE IF NOT EXISTS schema_zz_page_26 (id bigint unsigned NOT NULL PRIMARY KEY, label varchar(128) NOT NULL DEFAULT '') ENGINE=InnoDB;
-
-          CREATE OR REPLACE VIEW schema_parent_summary AS SELECT id, parent_code, label FROM schema_parent;
-
-          CREATE USER IF NOT EXISTS 'query_e2e_ro'@'%' IDENTIFIED BY 'ci_password';
-          GRANT SELECT ON query_e2e.* TO 'query_e2e_ro'@'%';
-          GRANT SELECT ON query_e2e_aux.* TO 'query_e2e_ro'@'%';
-          FLUSH PRIVILEGES;
-          SQL
+          ENV_FILE="$(bash scripts/query-e2e-mysql.sh env-file)"
+          test -r "$ENV_FILE" || { echo "fixture state file missing after up"; exit 1; }
+          PW="$(sed -n 's/^QUERY_E2E_MYSQL_READONLY_PASSWORD=//p' "$ENV_FILE")"
+          echo "::add-mask::$PW"
+          set -a; . "$ENV_FILE"; set +a
+          echo "::add-mask::$CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO"
+          echo "CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO=$CONTROLHUB_QUERY_CREDENTIAL_LOCAL_QUERY_RO" >> "$GITHUB_ENV"
 
       - name: Create disposable E2E metadata database
         run: |
@@ -262,10 +223,6 @@ jobs:
       # uses explicit per-run fixture operators provisioned by the backend
       # TEST/CI-ONLY seam cmd/e2e-fixture-bootstrap (refuses the retired seeds).
       # Passwords are generated per run, masked, and never printed.
-      #
-      # BACKEND PREREQUISITE: this step requires cmd/e2e-fixture-bootstrap on
-      # backend main (ticket Fanduzi/ControlHub-Backend#19, blocks #15). Until
-      # that backend change is merged/pushed/CI-green, release-e2e cannot run.
       - name: Provision E2E fixture operators
         id: provision
         working-directory: ${{ env.BACKEND_DIR }}
@@ -303,23 +260,27 @@ jobs:
             exit 1
           fi
 
-      - name: Start backend server
-        working-directory: ${{ env.BACKEND_DIR }}
-        run: |
-          nohup make run > ../backend.log 2>&1 &
-          echo $! > ../backend.pid
+      # The full suite's backend is the TEST/CI-ONLY cmd/e2e-pg-server listener
+      # built from the pinned object: identical serverboot production graph
+      # plus the two construction-time fixture gates (PG HTTP entries +
+      # connection lister). A disposable postgres:17.10 container is provisioned
+      # with per-run secrets, seeded (labdb/labdb_other + SELECT-only ro_user +
+      # credential/policy metadata), and its /e2e/assembly identity is verified
+      # (kind, pgEntries, runId, backendSha == pin) before the suite may run.
+      - name: Provision PG fixture + start fixture listener
+        run: bash scripts/e2e/pg-fixture-up.sh
 
       - name: Wait for backend health
         run: |
-          for i in {1..60}; do
+          for i in {1..30}; do
             if curl -fsS http://localhost:8080/health; then
               exit 0
             fi
             sleep 2
           done
-          echo "Backend did not become healthy."
-          echo "---- backend.log ----"
-          cat backend.log || true
+          echo "Fixture listener did not become healthy."
+          echo "---- fixture-server.log ----"
+          cat ".e2e-pg-fixture-state/${E2E_RUN_ID}/fixture-server.log" || true
           exit 1
 
       - name: Run E2E preflight
@@ -346,6 +307,24 @@ jobs:
           E2E_FIXTURE_EDITOR_PASSWORD: ${{ steps.provision.outputs.editor_password }}
         run: npm run release:e2e
 
+      # Form the sanitized evidence set BEFORE teardown deletes runtime
+      # state. Whitelist only — secrets/cnf/pid/binary never leave the state
+      # dir; required files fail closed.
+      - name: Collect sanitized E2E evidence
+        if: always()
+        run: bash scripts/e2e/pg-fixture-evidence.sh
+
+      # Teardown only this run's owned resources (verified PID + container ID
+      # in .e2e-pg-fixture-state/<runId>/) — never name/prefix matches. The
+      # cleanup log itself is evidence and lands in e2e-evidence/.
+      - name: Teardown PG fixture
+        if: always()
+        run: |
+          set -o pipefail
+          mkdir -p e2e-evidence
+          bash scripts/e2e/pg-fixture-down.sh 2>&1 | tee "e2e-evidence/pg-fixture-down-${E2E_RUN_ID}.log"
+          (cd ${{ env.BACKEND_DIR }} && bash scripts/query-e2e-mysql.sh down) || true
+
       - name: Upload E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -354,6 +333,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            backend.log
-          if-no-files-found: ignore
+            e2e-evidence/
+          if-no-files-found: error
           retention-days: 7

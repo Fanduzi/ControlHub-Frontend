@@ -1,5 +1,9 @@
+// input: @/services/api-client, @/types/query-saved-statement
+// output: saved statement CRUD/execute calls incl. PG database/schema scope and keyed execute
+// pos: service boundary for the saved statement library
+// note: list/create/execute carry the composite context for PostgreSQL; if this file changes, update header and services/README.md
 import { apiClient, ApiError } from "@/services/api-client";
-import { toQueryExecuteError } from "@/services/query-executions";
+import { isAbortError, RESULT_CONTRACT_CAPABILITIES, toQueryExecuteError } from "@/services/query-executions";
 import type { QueryExecuteResponse } from "@/types/query-execution";
 import type {
   QuerySavedStatementCreateRequest,
@@ -65,6 +69,8 @@ export async function listSavedStatements(
   targetResourceId: number,
   params: {
     q?: string;
+    /** PostgreSQL connection scope; only statements bound to it are listed. */
+    database?: string;
     page?: number;
     pageSize?: number;
     signal?: AbortSignal;
@@ -72,6 +78,7 @@ export async function listSavedStatements(
 ): Promise<QuerySavedStatementListResponse> {
   const searchParams = new URLSearchParams();
   if (params.q) searchParams.set("q", params.q);
+  if (params.database) searchParams.set("database", params.database);
   if (params.page !== undefined) searchParams.set("page", String(params.page));
   if (params.pageSize !== undefined) searchParams.set("pageSize", String(params.pageSize));
 
@@ -97,6 +104,12 @@ export async function createSavedStatement(
     name: input.name,
     statement: input.statement,
     scope: input.scope,
+    ...(input.database !== undefined && input.database !== ""
+      ? { database: input.database }
+      : {}),
+    ...(input.schema !== undefined && input.schema !== ""
+      ? { schema: input.schema }
+      : {}),
     parameters: sanitizeParameterDefinitions(input.parameters),
   };
 
@@ -155,22 +168,37 @@ export async function executeSavedStatementTemplate(
   targetResourceId: number,
   statementId: number,
   input: QuerySavedStatementExecuteRequest,
+  options?: {
+    /** PostgreSQL connection scope; must equal the statement's bound database. */
+    readonly database?: string;
+    readonly signal?: AbortSignal;
+  },
 ): Promise<QueryExecuteResponse> {
   const body: QuerySavedStatementExecuteRequest = {
     values: input.values,
+    capabilities: RESULT_CONTRACT_CAPABILITIES,
+    ...(input.clientExecutionId !== undefined && input.clientExecutionId !== ""
+      ? { clientExecutionId: input.clientExecutionId }
+      : {}),
     ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
     ...(input.pagination !== undefined ? { pagination: input.pagination } : {}),
   };
 
+  const searchParams = new URLSearchParams();
+  if (options?.database) searchParams.set("database", options.database);
+  const query = searchParams.toString();
+
   try {
     return await apiClient<QueryExecuteResponse>(
-      `/query-targets/${targetResourceId}/saved-statements/${statementId}/execute`,
+      `/query-targets/${targetResourceId}/saved-statements/${statementId}/execute${query ? `?${query}` : ""}`,
       {
         method: "POST",
         body: JSON.stringify(body),
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       },
     );
   } catch (error) {
+    if (isAbortError(error)) throw error;
     throw toQueryExecuteError(error);
   }
 }

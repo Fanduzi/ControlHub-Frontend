@@ -19,7 +19,7 @@ function column(overrides: Partial<QueryResultColumn> = {}): QueryResultColumn {
 }
 
 function result(overrides: Partial<QueryExecuteResponse> = {}): QueryExecuteResponse {
-  return {
+  const response: QueryExecuteResponse = {
     executionId: 1,
     status: "success",
     targetResourceId: 1,
@@ -33,6 +33,14 @@ function result(overrides: Partial<QueryExecuteResponse> = {}): QueryExecuteResp
     executedAt: "2026-08-01T00:00:00Z",
     ...overrides,
   };
+  // Derived default: an aligned all-false matrix unless the test overrides
+  // cellTruncated explicitly (including `undefined` for missing-matrix cases).
+  if (!("cellTruncated" in overrides)) {
+    response.cellTruncated = (Array.isArray(response.rows) ? response.rows : []).map(
+      (row) => (Array.isArray(row) ? row : []).map(() => false),
+    );
+  }
+  return response;
 }
 
 describe("normalizeExecuteResponse", () => {
@@ -88,5 +96,109 @@ describe("normalizeExecuteResponse", () => {
       }),
     );
     expect(envelope.ok).toBe(false);
+  });
+});
+
+describe("normalizeExecuteResponse cellTruncated matrix", () => {
+  it("preserves an aligned matrix verbatim, including true flags", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ cellTruncated: [[true]] }),
+    );
+    expect(envelope.ok).toBe(true);
+    if (envelope.ok) {
+      expect(envelope.response.cellTruncated).toEqual([[true]]);
+    }
+  });
+
+  it("rejects a non-empty success page with no matrix", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ cellTruncated: undefined }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("rejects a matrix whose row count does not match rows", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ cellTruncated: [[false], [false]] }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("rejects a matrix row whose width does not match columns", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ cellTruncated: [[false, false]] }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("rejects non-boolean matrix entries without coercion", () => {
+    for (const bad of ["true", 1, null, "false"]) {
+      const envelope = normalizeExecuteResponse(
+        result({ cellTruncated: [[bad as unknown as boolean]] }),
+      );
+      expect(envelope.ok).toBe(false);
+    }
+  });
+
+  it("rejects a non-array matrix entry row", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ cellTruncated: ["x" as unknown as boolean[]] }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("accepts a zero-row page with an absent matrix and normalizes it to empty", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ rows: [], rowCount: 0, cellTruncated: undefined }),
+    );
+    expect(envelope.ok).toBe(true);
+    if (envelope.ok) expect(envelope.response.cellTruncated).toEqual([]);
+  });
+
+  it("accepts a zero-row page with an empty matrix", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ rows: [], rowCount: 0, cellTruncated: [] }),
+    );
+    expect(envelope.ok).toBe(true);
+    if (envelope.ok) expect(envelope.response.cellTruncated).toEqual([]);
+  });
+
+  it("rejects a residual non-empty matrix on a zero-row page", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ rows: [], rowCount: 0, cellTruncated: [[false]] }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("rejects a residual non-empty matrix on a legacy rows:null zero-row page", () => {
+    const envelope = normalizeExecuteResponse(
+      result({
+        rows: null as unknown as QueryExecuteResponse["rows"],
+        rowCount: 0,
+        cellTruncated: [[false]],
+      }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+});
+
+describe("normalizeExecuteResponse postgresql cell contract", () => {
+  it("accepts string and null cells on a postgresql page", () => {
+    const envelope = normalizeExecuteResponse(
+      result({ engine: "postgresql", rows: [["7", null]], columns: [column(), column({ name: "note", nullable: true })], rowCount: 1 }),
+    );
+    expect(envelope.ok).toBe(true);
+  });
+
+  it.each([7, true])("rejects a non-string non-null postgresql cell (%s)", (cell) => {
+    const envelope = normalizeExecuteResponse(
+      result({ engine: "postgresql", rows: [[cell]], rowCount: 1 }),
+    );
+    expect(envelope.ok).toBe(false);
+  });
+
+  it("keeps numeric cells valid for mysql", () => {
+    const envelope = normalizeExecuteResponse(result({ rows: [[7]] }));
+    expect(envelope.ok).toBe(true);
   });
 });

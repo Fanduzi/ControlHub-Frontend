@@ -1,5 +1,5 @@
 // input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
-// output: QuerySavedStatements component (terminal list generations, create/edit/delete with terminal delete state machine, shared-template affordance gate)
+// output: QuerySavedStatements component (terminal list generations, create/edit/delete with terminal delete state machine, shared-template affordance gate, optional PostgreSQL database/schema scoping on list+create)
 // pos: UI component for managing saved query statements within the query workbench
 // note: list/delete terminal states key off Controlled Error Code; if this file changes, update header and components/query/README.md
 "use client";
@@ -72,6 +72,11 @@ function useIsDesktop(): boolean {
 
 type QuerySavedStatementsProps = {
   targetResourceId: number;
+  /** PostgreSQL connection selector; omitted for MySQL/TiDB whose statements
+   * are stored under the legacy empty database scope. */
+  database?: string;
+  /** PostgreSQL namespace pin recorded on create; omitted for MySQL/TiDB. */
+  schema?: string;
   currentStatement: string;
   /** Passes the full authorized record so the editor can enter template mode
    * with the statement ID and parameter definitions. */
@@ -111,6 +116,8 @@ type DeleteDialogState = {
 
 export function QuerySavedStatements({
   targetResourceId,
+  database,
+  schema,
   currentStatement,
   onStatementLoad,
   className,
@@ -158,6 +165,7 @@ export function QuerySavedStatements({
       try {
         const response = await listSavedStatements(targetResourceId, {
           q: searchDebounced || undefined,
+          database,
           page,
           signal: controller.signal,
         });
@@ -197,7 +205,7 @@ export function QuerySavedStatements({
         }));
       }
     },
-    [targetResourceId, searchDebounced],
+    [targetResourceId, database, searchDebounced],
   );
 
   // Fetch on mount and search change
@@ -264,6 +272,8 @@ export function QuerySavedStatements({
         name: createName.trim(),
         statement: createStatement.trim(),
         scope: createDialog.scope,
+        database,
+        schema,
         parameters: createParameters,
       });
       if (
@@ -295,6 +305,8 @@ export function QuerySavedStatements({
     createDialog.scope,
     createDialog.triggerRef,
     targetResourceId,
+    database,
+    schema,
     fetchStatements,
     restoreFocus,
     t,

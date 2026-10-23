@@ -19,6 +19,8 @@ import type {
 type QueryRelationshipMapProps = {
   readonly targetId: number;
   readonly database: string;
+  /** PostgreSQL namespace pin; undefined for MySQL/TiDB. */
+  readonly schema?: string;
   readonly name: string;
   readonly onBack: () => void;
 };
@@ -208,6 +210,7 @@ function RelationshipMapContent({
 export function QueryRelationshipMap({
   targetId,
   database,
+  schema,
   name,
   onBack,
 }: QueryRelationshipMapProps) {
@@ -242,6 +245,7 @@ export function QueryRelationshipMap({
 
     void getRelationshipMap(targetId, {
       database,
+      ...(schema ? { schema } : {}),
       name,
       ...(refresh ? { refresh: true } : {}),
       signal: controller.signal,
@@ -269,7 +273,7 @@ export function QueryRelationshipMap({
     return () => {
       controller.abort();
     };
-  }, [targetId, database, name, refreshNonce, retryNonce]);
+  }, [targetId, database, schema, name, refreshNonce, retryNonce]);
 
   const error = state.status === "error"
     ? mapRelationshipError(state.code, state.httpStatus, t)

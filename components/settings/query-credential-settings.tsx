@@ -73,11 +73,53 @@ import {
   collectEngines,
   collectRuntimeStatuses,
   CredentialFilterState,
+  credentialRowKey,
   deriveCoverageCounts,
   EMPTY_CREDENTIAL_FILTERS,
   filterCredentialRows,
   groupOperationRows,
+  isCompositeCredentialRow,
+  isCompositeCredentialTarget,
 } from "@/lib/query-credential-operations";
+
+// ---------------------------------------------------------------------------
+// Credential fetch units — one unit per addressable connection row
+// ---------------------------------------------------------------------------
+
+type CredentialFetchUnit =
+  | { kind: "fetch"; rowKey: string; resourceId: number; database?: string }
+  | { kind: "unavailable"; rowKey: string };
+
+/**
+ * Expand one target into its credential fetch units. Legacy targets produce
+ * one (resourceId) unit; composite PostgreSQL targets produce one
+ * (resourceId, database) unit per enumerated connection, or a single
+ * "unavailable" marker when the backend does not enumerate connections —
+ * the ?database= selector is then unknown and any request must fail.
+ */
+function credentialFetchUnits(target: QueryTarget): CredentialFetchUnit[] {
+  if (isCompositeCredentialTarget(target)) {
+    const connections = target.connections ?? [];
+    if (connections.length === 0) {
+      return [
+        { kind: "unavailable", rowKey: credentialRowKey(target.resourceId) },
+      ];
+    }
+    return connections.map((connection) => ({
+      kind: "fetch",
+      rowKey: credentialRowKey(target.resourceId, connection.database),
+      resourceId: target.resourceId,
+      database: connection.database,
+    }));
+  }
+  return [
+    {
+      kind: "fetch",
+      rowKey: credentialRowKey(target.resourceId),
+      resourceId: target.resourceId,
+    },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Concurrency limit for credential status fan-out
@@ -164,11 +206,12 @@ export function QueryCredentialSettings({
   const t = useTranslations("queryCredentialSettings");
   const isAdmin = useAdminRole();
 
-  // Credential status map: resourceId -> status or null
+  // Credential status maps keyed by the composite row identity
+  // (resourceId or resourceId@database for PostgreSQL connections).
   const [credentialMap, setCredentialMap] = useState<
-    Map<number, QueryCredentialStatusResponse | null>
+    Map<string, QueryCredentialStatusResponse | null>
   >(new Map());
-  const [errorMap, setErrorMap] = useState<Map<number, string>>(new Map());
+  const [errorMap, setErrorMap] = useState<Map<string, string>>(new Map());
   const [statusesLoading, setStatusesLoading] = useState(false);
   const [targetList, setTargetList] = useState<QueryTarget[]>(targets);
   const [targetPageInfo, setTargetPageInfo] = useState<PageInfo>(pageInfo);
@@ -189,8 +232,11 @@ export function QueryCredentialSettings({
     TargetOperationResult[]
   >([]);
 
-  const [activeTargetId, setActiveTargetId] = useState<number | null>(null);
-  const [dialogTargetId, setDialogTargetId] = useState<number | null>(null);
+  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
+  const [dialogTarget, setDialogTarget] = useState<{
+    resourceId: number;
+    database: string;
+  } | null>(null);
   const [page, setPage] = useState(pageInfo.page);
   const [pageSize, setPageSize] = useState<CredentialPageSize>(() =>
     toCredentialPageSize(pageInfo.pageSize),
@@ -203,6 +249,11 @@ export function QueryCredentialSettings({
   const visibleTargetIdsKeyRef = useRef("");
 
   // --- Fetch all credential statuses with bounded fan-out ---
+  // Each fetch unit is one addressable connection row: (resourceId) for
+  // legacy targets, (resourceId, database) per enumerated connection for
+  // composite PostgreSQL targets. A composite target the backend does not
+  // enumerate connections for is unaddressable — it is marked in place
+  // instead of issuing a request that must 400 by contract.
   const fetchAllCredentialStatuses = useCallback(
     async (targetsForPage: QueryTarget[]) => {
       const generation = statusFetchGenerationRef.current + 1;
@@ -219,14 +270,34 @@ export function QueryCredentialSettings({
       }
 
       setStatusesLoading(true);
-      const newMap = new Map<number, QueryCredentialStatusResponse | null>();
-      const newErrors = new Map<number, string>();
+      const newMap = new Map<
+        string,
+        QueryCredentialStatusResponse | null
+      >();
+      const newErrors = new Map<string, string>();
+
+      const fetchUnits: Extract<CredentialFetchUnit, { kind: "fetch" }>[] = [];
+      for (const target of targetsForPage) {
+        for (const unit of credentialFetchUnits(target)) {
+          if (unit.kind === "unavailable") {
+            newMap.set(unit.rowKey, null);
+            newErrors.set(
+              unit.rowKey,
+              t("errors.connectionEnumerationUnavailable"),
+            );
+          } else {
+            fetchUnits.push(unit);
+          }
+        }
+      }
 
       // Process in batches of FAN_OUT_CONCURRENCY
-      for (let i = 0; i < targetsForPage.length; i += FAN_OUT_CONCURRENCY) {
-        const batch = targetsForPage.slice(i, i + FAN_OUT_CONCURRENCY);
+      for (let i = 0; i < fetchUnits.length; i += FAN_OUT_CONCURRENCY) {
+        const batch = fetchUnits.slice(i, i + FAN_OUT_CONCURRENCY);
         const results = await Promise.allSettled(
-          batch.map((target) => getQueryCredential(target.resourceId)),
+          batch.map((unit) =>
+            getQueryCredential(unit.resourceId, unit.database),
+          ),
         );
 
         if (
@@ -239,12 +310,12 @@ export function QueryCredentialSettings({
 
         for (let j = 0; j < batch.length; j++) {
           const result = results[j];
-          const targetId = batch[j].resourceId;
+          const rowKey = batch[j].rowKey;
           if (result.status === "fulfilled") {
-            newMap.set(targetId, result.value);
+            newMap.set(rowKey, result.value);
           } else {
-            newMap.set(targetId, null);
-            newErrors.set(targetId, t("errors.loadFailed"));
+            newMap.set(rowKey, null);
+            newErrors.set(rowKey, t("errors.loadFailed"));
           }
         }
 
@@ -296,7 +367,7 @@ export function QueryCredentialSettings({
   );
 
   const visibleTargetIdsKey = useMemo(
-    () => visibleRows.map((row) => row.resourceId).join(","),
+    () => visibleRows.map((row) => row.rowKey).join(","),
     [visibleRows],
   );
   // eslint-disable-next-line react-hooks/refs -- async fetch generation guard
@@ -353,8 +424,8 @@ export function QueryCredentialSettings({
       setTargetList(response.items);
       setTargetPageInfo(response.pageInfo);
       setSelectedIds(new Set());
-      setActiveTargetId(null);
-      setDialogTargetId(null);
+      setActiveRowKey(null);
+      setDialogTarget(null);
     };
 
     void loadTargets()
@@ -476,39 +547,59 @@ export function QueryCredentialSettings({
     setOperationResults([]);
   }
 
+  // Retry reloads every addressable connection of the target — composite
+  // targets settle per-connection results; an unenumerable composite target
+  // keeps its unavailable marker.
   function retryFetchForTarget(resourceId: number) {
     const target = targetList.find((t) => t.resourceId === resourceId);
     if (!target) return;
     const targetPageGeneration = targetFetchGenerationRef.current;
     const targetIdsKey = visibleTargetIdsKeyRef.current;
     void (async () => {
-      try {
-        const data = await getQueryCredential(resourceId);
-        if (
-          targetFetchGenerationRef.current !== targetPageGeneration ||
-          visibleTargetIdsKeyRef.current !== targetIdsKey ||
-          !targetIdsKey.split(",").includes(String(resourceId))
-        ) {
-          return;
-        }
-        setCredentialMap((prev) => new Map(prev).set(resourceId, data));
-        setErrorMap((prev) => {
-          const next = new Map(prev);
-          next.delete(resourceId);
-          return next;
-        });
-      } catch {
-        if (
-          targetFetchGenerationRef.current !== targetPageGeneration ||
-          visibleTargetIdsKeyRef.current !== targetIdsKey ||
-          !targetIdsKey.split(",").includes(String(resourceId))
-        ) {
-          return;
-        }
-        setErrorMap((previous) =>
-          new Map(previous).set(resourceId, t("errors.loadFailed")),
-        );
+      const units = credentialFetchUnits(target);
+      const results = await Promise.all(
+        units.map(async (unit) => {
+          if (unit.kind === "unavailable") {
+            return {
+              rowKey: unit.rowKey,
+              data: null,
+              error: t("errors.connectionEnumerationUnavailable"),
+            };
+          }
+          try {
+            return {
+              rowKey: unit.rowKey,
+              data: await getQueryCredential(unit.resourceId, unit.database),
+              error: null,
+            };
+          } catch {
+            return { rowKey: unit.rowKey, data: null, error: t("errors.loadFailed") };
+          }
+        }),
+      );
+      if (
+        targetFetchGenerationRef.current !== targetPageGeneration ||
+        visibleTargetIdsKeyRef.current !== targetIdsKey ||
+        !units.some((unit) => targetIdsKey.split(",").includes(unit.rowKey))
+      ) {
+        return;
       }
+      setCredentialMap((prev) => {
+        const next = new Map(prev);
+        for (const result of results) next.set(result.rowKey, result.data);
+        return next;
+      });
+      setErrorMap((prev) => {
+        const next = new Map(prev);
+        for (const result of results) {
+          if (result.error) {
+            next.set(result.rowKey, result.error);
+          } else {
+            next.delete(result.rowKey);
+          }
+        }
+        return next;
+      });
     })();
   }
 
@@ -580,14 +671,16 @@ export function QueryCredentialSettings({
           groups={pagedGroups}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
-          activeTargetId={activeTargetId}
-          onSelectTarget={(id) => {
-            setActiveTargetId(id);
-            setDialogTargetId(id);
+          activeRowKey={activeRowKey}
+          onSelectTarget={(row) => {
+            setActiveRowKey(row.rowKey);
+            if (isCompositeCredentialRow(row) && row.database === "") return;
+            setDialogTarget({ resourceId: row.resourceId, database: row.database });
           }}
-          onOpenDialog={(id) => {
-            setActiveTargetId(id);
-            setDialogTargetId(id);
+          onOpenDialog={(row) => {
+            setActiveRowKey(row.rowKey);
+            if (isCompositeCredentialRow(row) && row.database === "") return;
+            setDialogTarget({ resourceId: row.resourceId, database: row.database });
           }}
           onRetryFetch={retryFetchForTarget}
         />
@@ -601,33 +694,42 @@ export function QueryCredentialSettings({
       </div>
 
       <Dialog
-        open={dialogTargetId !== null}
+        open={dialogTarget !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setDialogTargetId(null);
+            setDialogTarget(null);
           }
         }}
       >
         <DialogContent className="inset-0 max-h-none max-w-none translate-x-0 translate-y-0 overflow-y-auto overflow-x-hidden rounded-none p-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:max-h-[85vh] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-4">
           <DialogHeader className="pr-8">
             <DialogTitle>
-              {dialogTargetId !== null
+              {dialogTarget !== null
                 ? t("detail.title", {
-                    name: targetList.find((t) => t.resourceId === dialogTargetId)?.displayName ?? "",
+                    name:
+                      (targetList.find(
+                        (t) => t.resourceId === dialogTarget.resourceId,
+                      )?.displayName ?? "") +
+                      (dialogTarget.database
+                        ? ` · ${dialogTarget.database}`
+                        : ""),
                   })
                 : t("detail.title", { name: "" })}
             </DialogTitle>
           </DialogHeader>
-          {dialogTargetId !== null && (
+          {dialogTarget !== null && (
             <CredentialDetailPanel
-              key={dialogTargetId}
+              key={credentialRowKey(dialogTarget.resourceId, dialogTarget.database)}
               target={
-                targetList.find((t) => t.resourceId === dialogTargetId) ?? targetList[0]
+                targetList.find(
+                  (t) => t.resourceId === dialogTarget.resourceId,
+                ) ?? targetList[0]
               }
+              database={dialogTarget.database}
               onCredentialChanged={() =>
                 void fetchAllCredentialStatuses(targetList)
               }
-              onClose={() => setDialogTargetId(null)}
+              onClose={() => setDialogTarget(null)}
             />
           )}
         </DialogContent>
@@ -1566,7 +1668,7 @@ function OperationsTable({
   groups,
   selectedIds,
   onToggleSelect,
-  activeTargetId,
+  activeRowKey,
   onSelectTarget,
   onOpenDialog,
   onRetryFetch,
@@ -1574,9 +1676,9 @@ function OperationsTable({
   groups: { key: string; label: string; rows: CredentialOperationRow[] }[];
   selectedIds: Set<number>;
   onToggleSelect: (id: number) => void;
-  activeTargetId: number | null;
-  onSelectTarget: (id: number) => void;
-  onOpenDialog: (id: number) => void;
+  activeRowKey: string | null;
+  onSelectTarget: (row: CredentialOperationRow) => void;
+  onOpenDialog: (row: CredentialOperationRow) => void;
   onRetryFetch: (id: number) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
@@ -1620,11 +1722,11 @@ function OperationsTable({
             <div className="space-y-2">
               {group.rows.map((row) => (
                 <MobileOperationCard
-                  key={row.resourceId}
+                  key={row.rowKey}
                   row={row}
                   selected={selectedIds.has(row.resourceId)}
                   onToggleSelect={onToggleSelect}
-                  isActive={activeTargetId === row.resourceId}
+                  isActive={activeRowKey === row.rowKey}
                   onSelectTarget={onSelectTarget}
                   onOpenDialog={onOpenDialog}
                   onRetryFetch={onRetryFetch}
@@ -1668,11 +1770,11 @@ function OperationsTable({
                 <tbody className="divide-y divide-border">
                   {group.rows.map((row) => (
                     <OperationRow
-                      key={row.resourceId}
+                      key={row.rowKey}
                       row={row}
                       selected={selectedIds.has(row.resourceId)}
                       onToggleSelect={onToggleSelect}
-                      isActive={activeTargetId === row.resourceId}
+                      isActive={activeRowKey === row.rowKey}
                       onSelectTarget={onSelectTarget}
                       onOpenDialog={onOpenDialog}
                       onRetryFetch={onRetryFetch}
@@ -1705,8 +1807,8 @@ function MobileOperationCard({
   selected: boolean;
   onToggleSelect: (id: number) => void;
   isActive: boolean;
-  onSelectTarget: (id: number) => void;
-  onOpenDialog: (id: number) => void;
+  onSelectTarget: (row: CredentialOperationRow) => void;
+  onOpenDialog: (row: CredentialOperationRow) => void;
   onRetryFetch: (id: number) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
@@ -1771,10 +1873,15 @@ function MobileOperationCard({
         <div className="flex-1 min-w-0">
           <button
             type="button"
-            onClick={() => onSelectTarget(row.resourceId)}
+            onClick={() => onSelectTarget(row)}
             className="text-left text-sm font-medium text-foreground hover:underline truncate block"
           >
             {row.displayName}
+            {row.database && (
+              <span className="font-normal text-muted-foreground">
+                {` · ${row.database}`}
+              </span>
+            )}
           </button>
           <p className="text-xs text-muted-foreground truncate">
             {formatHostPortLabel(row.host, row.port, "—")}
@@ -1785,7 +1892,7 @@ function MobileOperationCard({
           variant="ghost"
           size="sm"
           className="h-6 px-2 text-xs shrink-0"
-          onClick={() => onOpenDialog(row.resourceId)}
+          onClick={() => onOpenDialog(row)}
         >
           {row.credential?.configured
             ? t("detail.editButton")
@@ -1870,8 +1977,8 @@ function OperationRow({
   selected: boolean;
   onToggleSelect: (id: number) => void;
   isActive: boolean;
-  onSelectTarget: (id: number) => void;
-  onOpenDialog: (id: number) => void;
+  onSelectTarget: (row: CredentialOperationRow) => void;
+  onOpenDialog: (row: CredentialOperationRow) => void;
   onRetryFetch: (id: number) => void;
 }) {
   const t = useTranslations("queryCredentialSettings");
@@ -1941,10 +2048,15 @@ function OperationRow({
           <div>
             <button
               type="button"
-              onClick={() => onSelectTarget(row.resourceId)}
+              onClick={() => onSelectTarget(row)}
               className="text-left text-sm font-medium text-foreground hover:underline"
             >
               {row.displayName}
+              {row.database && (
+                <span className="font-normal text-muted-foreground">
+                  {` · ${row.database}`}
+                </span>
+              )}
             </button>
             <p className="text-xs text-muted-foreground">
               {formatHostPortLabel(row.host, row.port, "—")}
@@ -2009,7 +2121,7 @@ function OperationRow({
           variant="ghost"
           size="sm"
           className="h-6 px-2 text-xs"
-          onClick={() => onOpenDialog(row.resourceId)}
+          onClick={() => onOpenDialog(row)}
         >
           {row.credential?.configured
             ? t("detail.editButton")
@@ -2033,10 +2145,13 @@ function toWritablePolicy(
 
 function CredentialDetailPanel({
   target,
+  database,
   onCredentialChanged,
   onClose,
 }: {
   target: QueryTarget;
+  /** Composite connection segment — required for PostgreSQL rows, "" otherwise. */
+  database: string;
   onCredentialChanged: () => void;
   onClose: () => void;
 }) {
@@ -2066,13 +2181,20 @@ function CredentialDetailPanel({
   const canSave =
     credentialRef.trim() !== "" && (!isAllEnvironments || confirmAllEnvironments);
 
-  const loadCredential = useCallback(async (targetId: number) => {
+  // Composite addressing: PostgreSQL connections are fetched/upserted/deleted
+  // through the ?database= selector; legacy targets leave it undefined.
+  const connectionDatabase = database || undefined;
+  const connectionDefaultSchema =
+    target.connections?.find((c) => c.database === database)?.defaultSchema ??
+    credential?.defaultSchema;
+
+  const loadCredential = useCallback(async (targetId: number, database?: string) => {
     activeTargetIdRef.current = targetId;
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const data = await getQueryCredential(targetId);
+      const data = await getQueryCredential(targetId, database);
       if (activeTargetIdRef.current !== targetId) return;
       setCredential(data);
       setCredentialRef(data.credentialRef);
@@ -2092,7 +2214,8 @@ function CredentialDetailPanel({
 
   useEffect(() => {
     activeTargetIdRef.current = target.resourceId;
-    void loadCredential(target.resourceId);
+    void loadCredential(target.resourceId, connectionDatabase);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connectionDatabase is fixed for the panel's mounted identity
   }, [target.resourceId, loadCredential]);
 
   function markDirty() {
@@ -2119,8 +2242,13 @@ function CredentialDetailPanel({
         enabled,
         environmentPolicy,
         confirmAllEnvironments: isAllEnvironments ? true : undefined,
+        defaultSchema: connectionDefaultSchema,
       });
-      const result = await saveQueryCredential(targetId, body);
+      const result = await saveQueryCredential(
+        targetId,
+        body,
+        connectionDatabase,
+      );
       if (activeTargetIdRef.current !== targetId) return;
       setCredential(result);
       setSuccess(t("detail.saved"));
@@ -2142,9 +2270,9 @@ function CredentialDetailPanel({
     setError(null);
     setSuccess(null);
     try {
-      await deleteQueryCredential(targetId);
+      await deleteQueryCredential(targetId, connectionDatabase);
       if (activeTargetIdRef.current !== targetId) return;
-      await loadCredential(targetId);
+      await loadCredential(targetId, connectionDatabase);
       if (activeTargetIdRef.current !== targetId) return;
       setSuccess(t("detail.removed"));
       setShowRemoveConfirm(false);

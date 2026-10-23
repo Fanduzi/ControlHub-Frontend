@@ -16,6 +16,7 @@ import type {
   QueryExecutePaginationResponse,
   QueryExecuteResponse,
   QueryExecutionFilter,
+  QueryExecutionHistoryExecution,
   QueryExecutionRecord,
   QueryResultCellValue,
   QueryResultColumn,
@@ -83,7 +84,7 @@ import {
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
-import { serializeQueryResultCsv } from "@/lib/query-result-csv";
+import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
 import {
   DEFAULT_STATEMENT,
@@ -91,6 +92,7 @@ import {
   MAX_WORKSHEETS,
   WorksheetSession,
   useWorksheetSessionVersion,
+  type CancellationState,
   type ExplainState,
   type PreviewProvenance,
   type RelatedRecordsState,
@@ -149,8 +151,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     worksheetId: string;
   } | null>(null);
 
+  const engineByTargetRef = useRef(new Map<number, string>());
   const [session] = useState(
-    () => new WorksheetSession({ initialTargetId: activeTarget.resourceId }),
+    () =>
+      new WorksheetSession({
+        initialTargetId: activeTarget.resourceId,
+        engineFor: (targetId) => engineByTargetRef.current.get(targetId),
+      }),
   );
   useWorksheetSessionVersion(session);
   const worksheets = session.list;
@@ -173,12 +180,28 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   activeTargetRef.current = activeTarget;
   const workspaceWorksheets = session.persistedSnapshot();
   const workspaceSignature = JSON.stringify(workspaceWorksheets);
+  // Authoritative workspace version: the server only ever increases the OCC
+  // version, so a late GET response or a stale debounce closure must never move
+  // it backwards — a regressed version is how self-inflicted 409s happen.
+  const workspaceVersionRef = useRef<number | null>(null);
+  const latestWorkspaceSignatureRef = useRef(workspaceSignature);
+  latestWorkspaceSignatureRef.current = workspaceSignature;
+  const applyWorkspaceVersion = useCallback((version: number | null) => {
+    if (version === null) {
+      workspaceVersionRef.current = null;
+      setWorkspaceVersion(null);
+      return;
+    }
+    const next = Math.max(workspaceVersionRef.current ?? 0, version);
+    workspaceVersionRef.current = next;
+    setWorkspaceVersion(next);
+  }, []);
 
   const loadWorkspace = useCallback(async (replaceEmpty = false) => {
     try {
       const workspace = await getQueryWorkspace();
       if (!replaceEmpty && workspace.worksheets.length > 0 && localWorkspaceChangedRef.current) {
-        setWorkspaceVersion(workspace.version);
+        applyWorkspaceVersion(workspace.version);
         setWorkspaceProblem(null);
         setWorkspaceConflict(true);
         return;
@@ -189,14 +212,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       } else {
         savedWorkspaceSignatureRef.current = "[]";
       }
-      setWorkspaceVersion(workspace.version);
+      applyWorkspaceVersion(workspace.version);
       setWorkspaceProblem(null);
       setWorkspaceConflict(false);
       localWorkspaceChangedRef.current = false;
     } catch {
       setWorkspaceProblem("load");
     }
-  }, [session]);
+  }, [session, applyWorkspaceVersion]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -212,18 +235,63 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     return () => {
       persistAliveRef.current = false;
       queuedWorkspaceSaveRef.current = null;
-      controller.abort();
+      // Do not abort an in-flight save: the request may already have committed
+      // server-side, and dropping the response desyncs the OCC version. Let it
+      // settle; persistAliveRef already suppresses state writes on the dead
+      // component, and a committed snapshot is the user's own work.
       persistAbortRef.current = null;
       workspaceSaveInFlightRef.current = false;
     };
   }, []);
 
+  // Unmount/logout: release every request the session still owns — in-flight
+  // executions, navigation attempts, and pending cancellation probes.
+  useEffect(() => () => session.dispose(), [session]);
+
+  // A failed persist may still have committed server-side (a dropped response
+  // does not roll back the write), and a stale-version 409 tells us the server
+  // moved ahead. Re-read the authoritative workspace and reconcile: adopt the
+  // server version when our attempted snapshot (or the current local one) is
+  // what the server already stores; let the signature effect resend with a
+  // fresh version when the server still holds our last save; only surface the
+  // conflict UX when the server content is genuinely foreign.
+  const reconcileWorkspaceSaveFailure = useCallback(
+    async (attemptedSignature: string) => {
+      try {
+        const workspace = await getQueryWorkspace();
+        if (!persistAliveRef.current) return;
+        const serverSignature = JSON.stringify(workspace.worksheets);
+        if (
+          serverSignature === attemptedSignature ||
+          serverSignature === latestWorkspaceSignatureRef.current
+        ) {
+          applyWorkspaceVersion(workspace.version);
+          savedWorkspaceSignatureRef.current = serverSignature;
+          setWorkspaceProblem(null);
+          return;
+        }
+        if (serverSignature === savedWorkspaceSignatureRef.current) {
+          applyWorkspaceVersion(workspace.version);
+          setWorkspaceProblem(null);
+          return;
+        }
+        // Foreign server content: keep our version stale so any already-
+        // scheduled send still 409s instead of overwriting another writer.
+        setWorkspaceConflict(true);
+      } catch {
+        if (persistAliveRef.current) setWorkspaceProblem("save");
+      }
+    },
+    [applyWorkspaceVersion],
+  );
+
   const saveWorkspace = useCallback(function persistWorkspace(
-    version: number,
     signature: string,
     snapshot: readonly QueryWorkspaceWorksheet[],
   ): void {
     if (!persistAliveRef.current) return;
+    const version = workspaceVersionRef.current;
+    if (version === null) return;
     if (workspaceSaveInFlightRef.current) {
       queuedWorkspaceSaveRef.current = { signature, worksheets: snapshot };
       return;
@@ -238,28 +306,24 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           return;
         }
         savedWorkspaceSignatureRef.current = signature;
-        setWorkspaceVersion(workspace.version);
+        applyWorkspaceVersion(workspace.version);
         setWorkspaceProblem(null);
 
         const queued = queuedWorkspaceSaveRef.current;
         queuedWorkspaceSaveRef.current = null;
         workspaceSaveInFlightRef.current = false;
         if (queued && queued.signature !== signature) {
-          persistWorkspace(workspace.version, queued.signature, queued.worksheets);
+          persistWorkspace(queued.signature, queued.worksheets);
         }
       },
-      (error: unknown) => {
+      () => {
         queuedWorkspaceSaveRef.current = null;
         workspaceSaveInFlightRef.current = false;
         if (!persistAliveRef.current) return;
-        if (error instanceof QueryExecuteError && error.code === "query_workspace_conflict") {
-          setWorkspaceConflict(true);
-          return;
-        }
-        setWorkspaceProblem("save");
+        void reconcileWorkspaceSaveFailure(signature);
       },
     );
-  }, []);
+  }, [applyWorkspaceVersion, reconcileWorkspaceSaveFailure]);
 
   useEffect(() => {
     if (
@@ -270,7 +334,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     ) return;
 
     const timer = window.setTimeout(() => {
-      saveWorkspace(workspaceVersion, workspaceSignature, workspaceWorksheets);
+      saveWorkspace(workspaceSignature, workspaceWorksheets);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [saveWorkspace, workspaceConflict, workspaceProblem, workspaceSignature, workspaceVersion, workspaceWorksheets]);
@@ -295,6 +359,12 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     () => new Map(targets.map((t) => [t.resourceId, t])),
     [targets],
   );
+
+  useEffect(() => {
+    engineByTargetRef.current = new Map(
+      targets.map((t) => [t.resourceId, t.connectionContext.engine]),
+    );
+  }, [targets]);
 
   // Derive execution permissions from the worksheet's own target, not the
   // parent's activeTarget. This prevents a race where switching worksheets
@@ -395,6 +465,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   function openHistoryDetail(record: QueryExecutionRecord) {
+    // Claim occupancy rows have no persisted id — they are non-interactive.
+    if (record.kind !== "execution") return;
     session.openHistoryDetail(record.id);
   }
 
@@ -404,7 +476,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }
 
   async function restoreHistoryStatement(record: QueryExecutionRecord) {
-    if (!record.canRestore || isRestoringHistoryStatement) return;
+    if (record.kind !== "execution" || !record.canRestore || isRestoringHistoryStatement) return;
     const sourceWorksheet = session.active;
     if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
@@ -425,7 +497,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       const restored = session.restoreDraft({
         targetId: sourceWorksheet.targetResourceId,
         statement: response.statement,
-        activeDatabase: sourceWorksheet.activeDatabase,
+        activeDatabase: record.database || sourceWorksheet.activeDatabase,
+        activeSchema: record.schema || sourceWorksheet.activeSchema,
       });
       if (!restored) {
         setWorksheetLimitReached(true);
@@ -487,6 +560,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     session.openPreview({
       targetId: request.targetId,
       database: request.database,
+      ...(request.schema !== undefined ? { schema: request.schema } : {}),
       table: request.table,
       foreignKeys: request.foreignKeys,
       foreignKeysTruncated: request.foreignKeysTruncated,
@@ -505,15 +579,56 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   const completionTargetId = activeWorksheet.targetResourceId;
   const completionDatabase = activeWorksheet.activeDatabase;
+  const isPostgresTarget =
+    worksheetTarget?.connectionContext.engine === "postgresql";
+  const pgConnections = useMemo(
+    () => (isPostgresTarget ? (worksheetTarget?.connections ?? []) : []),
+    [isPostgresTarget, worksheetTarget?.connections],
+  );
+  const activeConnection = useMemo(
+    () => pgConnections.find((row) => row.database === activeWorksheet.activeDatabase) ?? null,
+    [pgConnections, activeWorksheet.activeDatabase],
+  );
+  // Resolved schema: explicit pin, otherwise the connection's default schema.
+  const resolvedSchema =
+    activeWorksheet.activeSchema ?? activeConnection?.defaultSchema ?? null;
+  const activeSchemaListing =
+    isPostgresTarget && activeWorksheet.activeDatabase
+      ? schemaStore.getSchemas(activeWorksheet.targetResourceId, activeWorksheet.activeDatabase)
+      : { items: [], pageInfo: null, status: "idle" as const };
   const databaseListing = schemaStore.getDatabases(completionTargetId, COMPLETION_PAGE_SIZE);
   const objectListing = completionDatabase
-    ? schemaStore.getObjects(completionTargetId, completionDatabase, COMPLETION_PAGE_SIZE, "")
+    ? schemaStore.getObjects(
+        completionTargetId,
+        completionDatabase,
+        COMPLETION_PAGE_SIZE,
+        "",
+        isPostgresTarget ? (resolvedSchema ?? "") : "",
+      )
     : { items: [], pageInfo: null, status: "idle" as const };
-  const metadataError = databaseListing.status === "error" || objectListing.status === "error";
+  const metadataError =
+    (!isPostgresTarget && databaseListing.status === "error") ||
+    objectListing.status === "error" ||
+    (isPostgresTarget && activeWorksheet.activeDatabase !== null && activeSchemaListing.status === "error");
 
   useEffect(() => {
     const targetId = activeWorksheet.targetResourceId;
     if (!worksheetTarget?.availableActions.run) return;
+    if (isPostgresTarget) {
+      // Composite targets enumerate connections from the target row; schemas
+      // load lazily once a connection is selected.
+      if (activeWorksheet.activeDatabase) {
+        const listing = schemaStore.getSchemas(targetId, activeWorksheet.activeDatabase);
+        if (listing.status === "idle" || listing.status === "error") {
+          const controller = new AbortController();
+          void schemaStore.ensureSchemas(targetId, activeWorksheet.activeDatabase, {
+            signal: controller.signal,
+          });
+          return () => controller.abort();
+        }
+      }
+      return;
+    }
     const controller = new AbortController();
     const databases = schemaStore.getDatabases(targetId, COMPLETION_PAGE_SIZE);
     if (databases.status === "idle" || databases.status === "error") {
@@ -525,9 +640,28 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       });
     }
     return () => controller.abort();
-  }, [activeWorksheet.targetResourceId, metadataRetryKey, schemaStore, worksheetTarget?.availableActions.run]);
+  }, [
+    activeWorksheet.activeDatabase,
+    activeWorksheet.targetResourceId,
+    isPostgresTarget,
+    metadataRetryKey,
+    schemaStore,
+    worksheetTarget?.availableActions.run,
+  ]);
+
+  // Restored/persisted PostgreSQL context is revalidated against the live
+  // connection enumeration: a vanished or disabled connection stops the
+  // worksheet's context instead of silently falling back.
+  useEffect(() => {
+    if (!isPostgresTarget || pgConnections.length === 0) return;
+    session.reconcileConnection(
+      activeWorksheet.id,
+      pgConnections.map((row) => row.database),
+    );
+  }, [activeWorksheet.id, isPostgresTarget, pgConnections, session]);
 
   useEffect(() => {
+    if (isPostgresTarget) return;
     const targetId = activeWorksheet.targetResourceId;
     const defaultDb = schemaStore.getDefaultDatabase(targetId);
     if (activeWorksheet.activeDatabase === null && defaultDb) {
@@ -538,11 +672,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     activeWorksheet.targetResourceId,
     applyDefaultToNullWorksheets,
     catalogVersion,
+    isPostgresTarget,
     schemaStore,
   ]);
 
-  const effectiveCompletionDatabase =
-    activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
+  const effectiveCompletionDatabase = isPostgresTarget
+    ? activeWorksheet.activeDatabase
+    : activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
 
   useEffect(() => {
     const targetId = activeWorksheet.targetResourceId;
@@ -553,12 +689,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       effectiveCompletionDatabase,
       COMPLETION_PAGE_SIZE,
       "",
+      isPostgresTarget ? (resolvedSchema ?? "") : "",
     );
     if (objects.status === "idle" || objects.status === "error") {
       void schemaStore.ensureObjects(targetId, effectiveCompletionDatabase, {
         page: 1,
         pageSize: COMPLETION_PAGE_SIZE,
         replace: true,
+        ...(isPostgresTarget && resolvedSchema ? { schema: resolvedSchema } : {}),
         signal: controller.signal,
       });
     }
@@ -566,16 +704,31 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   }, [
     activeWorksheet.targetResourceId,
     effectiveCompletionDatabase,
+    isPostgresTarget,
     metadataRetryKey,
+    resolvedSchema,
     schemaStore,
     worksheetTarget?.availableActions.run,
   ]);
 
   function retryMetadata() {
     const targetId = activeWorksheet.targetResourceId;
-    schemaStore.invalidateDatabases(targetId, COMPLETION_PAGE_SIZE);
-    if (activeWorksheet.activeDatabase) {
-      schemaStore.invalidateObjects(targetId, activeWorksheet.activeDatabase, COMPLETION_PAGE_SIZE, "");
+    if (isPostgresTarget) {
+      if (activeWorksheet.activeDatabase) {
+        schemaStore.invalidateSchemas(targetId, activeWorksheet.activeDatabase);
+        schemaStore.invalidateObjects(
+          targetId,
+          activeWorksheet.activeDatabase,
+          COMPLETION_PAGE_SIZE,
+          "",
+          resolvedSchema ?? "",
+        );
+      }
+    } else {
+      schemaStore.invalidateDatabases(targetId, COMPLETION_PAGE_SIZE);
+      if (activeWorksheet.activeDatabase) {
+        schemaStore.invalidateObjects(targetId, activeWorksheet.activeDatabase, COMPLETION_PAGE_SIZE, "");
+      }
     }
     setMetadataRetryKey((key) => key + 1);
   }
@@ -591,7 +744,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       (parameter) => (activeWorksheet.parameterValues[parameter.name] ?? "").trim() !== "",
     );
   const runEnabled =
-    canExecute && !activeWorksheet.isExecuting && activeWorksheet.statement.trim() !== "" && templateValuesReady;
+    canExecute &&
+    !activeWorksheet.isExecuting &&
+    activeWorksheet.statement.trim() !== "" &&
+    templateValuesReady &&
+    (!isPostgresTarget || activeWorksheet.activeDatabase !== null);
 
   function handleParameterValueChange(name: string, value: string) {
     session.setParameterValue(name, value);
@@ -663,6 +820,14 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   function handleCloseRelatedRecords() {
     session.closeRelatedRecords();
+  }
+
+  function handleCancel() {
+    session.cancel();
+  }
+
+  function handleRefreshCancellation() {
+    session.refreshCancellation();
   }
 
   async function handleRun() {
@@ -917,17 +1082,98 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             catalog={schemaStore}
             targetId={activeWorksheet.targetResourceId}
             activeDatabase={activeWorksheet.activeDatabase}
+            activeSchema={resolvedSchema}
+            connections={isPostgresTarget ? pgConnections : undefined}
             onDatabaseSelect={(activeDatabase) => {
               localWorkspaceChangedRef.current = true;
-              session.setActiveDatabase(activeDatabase);
+              if (isPostgresTarget) {
+                session.selectConnection(activeWorksheet.id, activeDatabase);
+              } else {
+                session.setActiveDatabase(activeDatabase);
+              }
             }}
-            onInsertObject={({ database, name }) => {
+            onSchemaSelect={(schema) => {
+              localWorkspaceChangedRef.current = true;
+              session.selectSchema(activeWorksheet.id, schema);
+            }}
+            onInsertObject={({ database, name, schema }) => {
               const view = editorViewRef.current;
               if (!view) return;
-              const text = objectIdentifier({ database, name, activeDatabase: activeWorksheet.activeDatabase });
+              const text = objectIdentifier({
+                database,
+                name,
+                activeDatabase: activeWorksheet.activeDatabase,
+                schema,
+                activeSchema: resolvedSchema,
+                dialect: isPostgresTarget ? "postgresql" : "mysql",
+              });
               insertIdentifierAtSelection(view, text);
             }}
           />
+          {isPostgresTarget ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2" data-testid="pg-context-bar">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>{t("schema.connectionLabel")}</span>
+                <select
+                  value={activeWorksheet.activeDatabase ?? ""}
+                  onChange={(event) => {
+                    localWorkspaceChangedRef.current = true;
+                    session.selectConnection(activeWorksheet.id, event.target.value);
+                  }}
+                  aria-label={t("schema.connectionLabel")}
+                  data-testid="pg-connection-select"
+                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  <option value="" disabled>
+                    {t("schema.connectionPlaceholder")}
+                  </option>
+                  {pgConnections.map((row) => (
+                    <option key={row.database} value={row.database} disabled={row.enabled === false}>
+                      {row.database}
+                      {row.enabled === false ? ` (${t("schema.connectionDisabledBadge")})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {activeWorksheet.activeDatabase ? (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>{t("schema.schemaLabel")}</span>
+                  <select
+                    value={activeWorksheet.activeSchema ?? ""}
+                    onChange={(event) => {
+                      localWorkspaceChangedRef.current = true;
+                      session.selectSchema(
+                        activeWorksheet.id,
+                        event.target.value === "" ? null : event.target.value,
+                      );
+                    }}
+                    aria-label={t("schema.schemaLabel")}
+                    data-testid="pg-schema-select"
+                    disabled={activeSchemaListing.status === "loading"}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="">
+                      {t("schema.schemaDefault", {
+                        schema: activeConnection?.defaultSchema ?? "",
+                      })}
+                    </option>
+                    {activeSchemaListing.items.map((schema) => (
+                      <option key={schema} value={schema}>
+                        {schema}
+                      </option>
+                    ))}
+                    {activeWorksheet.activeSchema !== null &&
+                    activeSchemaListing.status === "ready" &&
+                    !activeSchemaListing.items.includes(activeWorksheet.activeSchema) ? (
+                      <option value={activeWorksheet.activeSchema} disabled>
+                        {t("schema.schemaMissingOption", { schema: activeWorksheet.activeSchema })}
+                      </option>
+                    ) : null}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
         </>
       ) : (
         <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
@@ -976,6 +1222,9 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
+              onCancel={handleCancel}
+              onRefreshCancellation={handleRefreshCancellation}
+              cancellation={activeWorksheet.cancellation}
               explainEnabled={
                 !templateMode &&
                 actions?.explain === true &&
@@ -998,6 +1247,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               schemaStore={schemaStore}
               targetId={activeWorksheet.targetResourceId}
               activeDatabase={activeWorksheet.activeDatabase}
+              activeSchema={resolvedSchema}
               metadataError={metadataError}
               onRetryMetadata={retryMetadata}
               previewProvenance={activeWorksheet.previewProvenance}
@@ -1060,7 +1310,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
             onClearFilter={clearFilters}
             onLoadMore={() => void loadMoreHistory(activeWorksheet.id)}
             detailExecution={activeWorksheet.history.items.find(
-              (item) => item.id === activeWorksheet.history.selectedRecordId,
+              (item): item is QueryExecutionHistoryExecution =>
+                item.kind === "execution" && item.id === activeWorksheet.history.selectedRecordId,
             ) ?? null}
             onOpenDetail={openHistoryDetail}
             onCloseDetail={closeHistoryDetail}
@@ -1074,6 +1325,16 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
           <QuerySavedStatements
             targetResourceId={activeWorksheet.targetResourceId}
+            database={
+              isPostgresTarget
+                ? (activeWorksheet.activeDatabase ?? undefined)
+                : undefined
+            }
+            schema={
+              isPostgresTarget
+                ? (activeWorksheet.activeSchema ?? undefined)
+                : undefined
+            }
             currentStatement={activeWorksheet.statement}
             onStatementLoad={loadSavedStatement}
           />
@@ -1278,6 +1539,9 @@ function ReadyWorksheet({
   runEnabled,
   isExecuting,
   onRun,
+  onCancel,
+  onRefreshCancellation,
+  cancellation,
   explainEnabled,
   explainState,
   onExplain,
@@ -1295,6 +1559,7 @@ function ReadyWorksheet({
   schemaStore,
   targetId,
   activeDatabase,
+  activeSchema,
   metadataError,
   onRetryMetadata,
   previewProvenance,
@@ -1323,6 +1588,9 @@ function ReadyWorksheet({
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
+  onCancel: () => void;
+  onRefreshCancellation: () => void;
+  cancellation: CancellationState;
   explainEnabled: boolean;
   explainState: ExplainState;
   onExplain: () => void;
@@ -1340,6 +1608,7 @@ function ReadyWorksheet({
   schemaStore: SchemaCatalog;
   targetId: number;
   activeDatabase: string | null;
+  activeSchema: string | null;
   metadataError: boolean;
   onRetryMetadata: () => void;
   previewProvenance: PreviewProvenance | null;
@@ -1359,6 +1628,8 @@ function ReadyWorksheet({
     schemaStore,
     targetId,
     activeDatabase ?? undefined,
+    activeSchema ?? undefined,
+    engine === "postgresql",
   );
 
   // Ref for the Related records trigger button, used for focus restoration
@@ -1390,6 +1661,18 @@ function ReadyWorksheet({
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
         </Button>
+        {isExecuting ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onCancel}
+            disabled={cancellation.phase !== "idle"}
+            data-testid="cancel-execution"
+          >
+            {cancellation.phase === "requested" ? t("editor.cancelling") : t("editor.cancel")}
+          </Button>
+        ) : null}
         {explainEnabled || explainState.status !== "idle" ? (
           <Button
             ref={explainTriggerRef}
@@ -1446,6 +1729,33 @@ function ReadyWorksheet({
         </span>
         <span data-testid="provenance-state" data-has-provenance={!!previewProvenance} className="sr-only" />
       </div>
+
+      {cancellation.phase === "resolved" ? (
+        <div
+          role="status"
+          data-testid="cancel-outcome"
+          className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+        >
+          {cancellation.outcome.kind === "terminal" && cancellation.outcome.remoteState === "stopped"
+            ? t("editor.cancelOutcomeStopped")
+            : cancellation.outcome.kind === "terminal"
+              ? t("editor.cancelOutcomeTerminal", { status: cancellation.outcome.status })
+              : cancellation.outcome.kind === "running"
+                ? t("editor.cancelOutcomeRunning")
+                : t("editor.cancelOutcomeUnknown")}
+          {cancellation.outcome.kind !== "terminal" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onRefreshCancellation}
+              data-testid="cancel-outcome-refresh"
+            >
+              {t("editor.cancelOutcomeRefresh")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="border-b border-border bg-muted/20 p-3">
         <label className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -1678,7 +1988,16 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef,
         </dd>
       </dl>
 
-      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
+      {safeResult.cellTruncated.some((row) => row.some((flag) => flag)) ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-300"
+          data-testid="truncated-page-notice"
+        >
+          {t("result.truncatedPageNotice")}
+        </p>
+      ) : null}
+
+      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} cellTruncated={safeResult.cellTruncated} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
     </div>
   );
 }
@@ -1742,7 +2061,7 @@ function RelatedRecordsPanel({
               <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
               {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
             </dl>
-            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} exportEnabled={false} />
+            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} cellTruncated={safeResponse.cellTruncated} exportEnabled={false} />
           </>
         );
       })()}
@@ -1932,6 +2251,7 @@ function ExplainPanel({
 function ResultTable({
   columns,
   rows,
+  cellTruncated,
   navigationCapability,
   relatedRecordsTriggerRef,
   onRelatedRecordsIneligible,
@@ -1939,6 +2259,7 @@ function ResultTable({
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
+  cellTruncated: readonly (readonly boolean[])[];
   navigationCapability?: NavigationCapability;
   relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
   onRelatedRecordsIneligible?: () => void;
@@ -1993,6 +2314,16 @@ function ResultTable({
 
   const colCount = columns.length;
   const rowCount = rows.length;
+
+  // Per-cell truncation flags follow the validated matrix positionally — the
+  // grid never re-derives them from value length or column names.
+  function isCellTruncated(rowIndex: number, colIndex: number): boolean {
+    return cellTruncated[rowIndex]?.[colIndex] === true;
+  }
+
+  // Whole-page eligibility mirrors the serializer boundary: a non-copyable
+  // column or corrupt matrix disables the control, not only truncation.
+  const csvExportable = isQueryResultCsvExportable(columns, rows, cellTruncated);
 
   // Compute eligible FKs for the current selected data row.
   const eligibleFKs = useMemo(() => {
@@ -2144,9 +2475,16 @@ function ResultTable({
   }
 
   function handleExportCsv() {
-    if (!exportEnabled) return;
+    if (!exportEnabled || !csvExportable) return;
+    let csv: string;
+    try {
+      csv = serializeQueryResultCsv(columns, rows, cellTruncated);
+    } catch {
+      showFeedback(t("result.exportCsvBlocked"), "error");
+      return;
+    }
     const url = URL.createObjectURL(
-      new Blob([serializeQueryResultCsv(columns, rows)], { type: "text/csv;charset=utf-8" }),
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
     );
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -2165,6 +2503,12 @@ function ResultTable({
     if (selectedCell) {
       const column = columns[selectedCell.colIndex];
       if (column && !isColumnCopyable(column)) {
+        return;
+      }
+      // A truncated cell only holds the safe backend prefix — never copy it as
+      // if it were the complete value.
+      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
+        showFeedback(t("result.copyTruncatedBlocked"), "error");
         return;
       }
       text = getCellCopyText(selectedCell.value);
@@ -2186,6 +2530,9 @@ function ResultTable({
       if (column && !isColumnCopyable(column)) {
         return t("result.copyNotAllowed");
       }
+      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
+        return t("result.copyTruncatedBlocked");
+      }
       return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
     }
     if (selectedHeader) {
@@ -2205,7 +2552,7 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) : false)}
+          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) || isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex) : false)}
           onClick={() => void handleCopy()}
           aria-label={copyButtonLabel()}
           data-testid="copy-selection"
@@ -2218,6 +2565,10 @@ function ResultTable({
           size="sm"
           variant="outline"
           onClick={handleExportCsv}
+          disabled={!csvExportable}
+          title={!csvExportable ? t("result.exportCsvBlocked") : undefined}
+          aria-label={!csvExportable ? t("result.exportCsvBlocked") : undefined}
+          data-testid="export-csv"
         >
           <Download className="size-3.5" aria-hidden />
           {t("result.exportCsv")}
@@ -2273,7 +2624,6 @@ function ResultTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
-        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- roving tabindex: only the active cell has tabIndex=0 */}
         <table
           role="grid"
           className="w-full border-collapse text-sm"
@@ -2323,7 +2673,7 @@ function ResultTable({
                         isSelected && "ring-2 ring-inset ring-ring",
                       )}
                     >
-                      <ResultCell value={cell} />
+                      <ResultCell value={cell} truncated={isCellTruncated(rowIndex, cellIndex)} />
                     </td>
                   );
                 })}
@@ -2338,20 +2688,38 @@ function ResultTable({
 
 /**
  * Render one JSON-safe cell. SQL NULL is preserved as an explicit, localized
- * marker — never coerced to 0, empty string, or "undefined".
+ * marker — never coerced to 0, empty string, or "undefined". A truncated cell
+ * keeps the backend's safe prefix value unchanged and gains a separate
+ * accessible badge; the flag never becomes part of the rendered value.
  */
-function ResultCell({ value }: { value: QueryResultCellValue }) {
+function ResultCell({ value, truncated }: { value: QueryResultCellValue; truncated?: boolean }) {
   const t = useTranslations("queryWorkbench");
 
-  if (value === null) {
-    return (
+  const rendered =
+    value === null ? (
       <span className="font-mono text-xs italic text-muted-foreground">{t("result.nullMarker")}</span>
+    ) : typeof value === "boolean" ? (
+      <span className="font-mono text-xs text-foreground">{value ? "true" : "false"}</span>
+    ) : (
+      <span className="font-mono text-xs text-foreground">{String(value)}</span>
     );
-  }
-  if (typeof value === "boolean") {
-    return <span className="font-mono text-xs text-foreground">{value ? "true" : "false"}</span>;
-  }
-  return <span className="font-mono text-xs text-foreground">{String(value)}</span>;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {rendered}
+      {truncated ? (
+        <Badge
+          variant="outline"
+          className="border-amber-500/50 px-1 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+          title={t("result.cellTruncated")}
+          aria-label={t("result.cellTruncated")}
+          data-testid="cell-truncated-badge"
+        >
+          {t("result.cellTruncated")}
+        </Badge>
+      ) : null}
+    </span>
+  );
 }
 
 const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
@@ -2360,6 +2728,9 @@ const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
   "query_target_not_found",
   "query_explain_not_supported",
   "query_result_disclosure_blocked",
+  "query_binding_mismatch",
+  "query_dependency_not_approved",
+  "result_contract_upgrade_required",
   "query_timeout",
   "query_backend_error",
   "internal_error",

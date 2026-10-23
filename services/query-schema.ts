@@ -1,3 +1,7 @@
+// input: @/services/api-client, @/types/query-schema
+// output: schema catalog calls (databases, schemas, objects, details, relationship map) with schema param + abort signals
+// pos: service boundary for schema metadata
+// note: if this file changes, update this header and services/README.md
 import { apiClient } from "@/services/api-client";
 import type {
   DatabaseListResponse,
@@ -6,6 +10,8 @@ import type {
   RelationshipMapParams,
   RelationshipMapResponse,
   SchemaDatabaseListParams,
+  SchemaListParams,
+  SchemaListResponse,
   SchemaObjectDetailParams,
   SchemaObjectListParams,
   TableDefinitionParams,
@@ -24,6 +30,31 @@ export async function getSchemaDatabases(
 ): Promise<DatabaseListResponse> {
   const path = buildSchemaDatabasesPath(targetId, params);
   return apiClient<DatabaseListResponse>(path, { signal: params.signal });
+}
+
+/**
+ * Fetch PostgreSQL namespaces visible to one connection database.
+ * Scoped to `params.database` — the exact connection identity.
+ *
+ * @param targetId - The query target resource ID
+ * @param params - Required connection database, optional pagination and abort signal
+ */
+export async function getSchemaSchemas(
+  targetId: number,
+  params: SchemaListParams,
+): Promise<SchemaListResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("database", params.database);
+  if (params.q) searchParams.set("q", params.q);
+  if (params.page !== undefined) searchParams.set("page", String(params.page));
+  if (params.pageSize !== undefined) {
+    searchParams.set("pageSize", String(params.pageSize));
+  }
+  if (params.refresh) searchParams.set("refresh", "true");
+  return apiClient<SchemaListResponse>(
+    `/query-targets/${targetId}/schema/schemas?${searchParams.toString()}`,
+    { signal: params.signal },
+  );
 }
 
 /**
@@ -67,6 +98,7 @@ export async function getTableDefinition(
 ): Promise<TableDefinitionResponse> {
   const searchParams = new URLSearchParams();
   searchParams.set("database", params.database);
+  if (params.schema) searchParams.set("schema", params.schema);
   searchParams.set("name", params.name);
 
   return apiClient<TableDefinitionResponse>(
@@ -149,6 +181,9 @@ function buildSchemaObjectsPath(
 ): string {
   const searchParams = new URLSearchParams();
   searchParams.set("database", params.database);
+  if (params.schema) {
+    searchParams.set("schema", params.schema);
+  }
 
   if (params.kind) {
     searchParams.set("kind", params.kind);
@@ -175,6 +210,9 @@ function buildObjectDetailsPath(
 ): string {
   const searchParams = new URLSearchParams();
   searchParams.set("database", params.database);
+  if (params.schema) {
+    searchParams.set("schema", params.schema);
+  }
   searchParams.set("name", params.name);
 
   if (params.kind) {
@@ -195,6 +233,7 @@ function buildRelationshipMapPath(
     database: params.database,
     name: params.name,
   });
+  if (params.schema) searchParams.set("schema", params.schema);
   if (params.refresh) searchParams.set("refresh", "true");
   return `/query-targets/${targetId}/schema/relationship-map?${searchParams.toString()}`;
 }
