@@ -77,3 +77,4 @@ tpl-*.png
 
 # PG fixture run state (scripts/e2e/pg-fixture-*.sh)
 .e2e-pg-fixture-state/
+e2e-evidence/

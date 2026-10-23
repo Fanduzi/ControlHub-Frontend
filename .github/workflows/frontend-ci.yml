@@ -280,7 +280,7 @@ jobs:
           done
           echo "Fixture listener did not become healthy."
           echo "---- fixture-server.log ----"
-          cat .e2e-pg-fixture-state/fixture-server.log || true
+          cat ".e2e-pg-fixture-state/${E2E_RUN_ID}/fixture-server.log" || true
           exit 1
 
       - name: Run E2E preflight
@@ -307,12 +307,22 @@ jobs:
           E2E_FIXTURE_EDITOR_PASSWORD: ${{ steps.provision.outputs.editor_password }}
         run: npm run release:e2e
 
-      # Teardown only this run's owned resources (recorded PID + container ID
-      # in .e2e-pg-fixture-state) — never name/prefix matches.
+      # Form the sanitized evidence set BEFORE teardown deletes runtime
+      # state. Whitelist only — secrets/cnf/pid/binary never leave the state
+      # dir; required files fail closed.
+      - name: Collect sanitized E2E evidence
+        if: always()
+        run: bash scripts/e2e/pg-fixture-evidence.sh
+
+      # Teardown only this run's owned resources (verified PID + container ID
+      # in .e2e-pg-fixture-state/<runId>/) — never name/prefix matches. The
+      # cleanup log itself is evidence and lands in e2e-evidence/.
       - name: Teardown PG fixture
         if: always()
         run: |
-          bash scripts/e2e/pg-fixture-down.sh
+          set -o pipefail
+          mkdir -p e2e-evidence
+          bash scripts/e2e/pg-fixture-down.sh 2>&1 | tee "e2e-evidence/pg-fixture-down-${E2E_RUN_ID}.log"
           (cd ${{ env.BACKEND_DIR }} && bash scripts/query-e2e-mysql.sh down) || true
 
       - name: Upload E2E artifacts
@@ -323,8 +333,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            .e2e-pg-fixture-state/fixture-server.log
-            .e2e-pg-fixture-state/pg-seed.log
-            .e2e-pg-fixture-state/assembly.json
-          if-no-files-found: ignore
+            e2e-evidence/
+          if-no-files-found: error
           retention-days: 7

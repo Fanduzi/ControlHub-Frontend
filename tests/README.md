@@ -21,7 +21,7 @@ responses, and fail-closed scopes.
 | `pages.list-pagination.test.tsx` | Verifies list-page parameter normalization, server search/pagination requests, persisted audit environment scope, settings dictionaries, and table data flow. |
 | `pages.query.test.tsx` | Verifies Query Workbench/disclosure All-environment loading, URL scope, and fail-closed explicit environment/target selection. |
 | `topology-page.test.tsx` | Verifies server resolution of canonical topology environment/root URL state. |
-| `scripts/` | Gate-script contracts: `check-e2e-pg-fixture.test.ts` locks the mandatory pre-browser PG fixture gate (assembly 404 / wrong backendSha / foreign runId / missing or unresolved connections / unset E2E_RUN_ID all fail closed) plus the existing preflight/governance/error-code checker tests |
+| `scripts/` | Gate-script contracts: `check-e2e-pg-fixture.test.ts` locks the mandatory pre-browser PG fixture gate (assembly 404 / wrong backendSha / foreign runId / missing or unresolved connections / unset E2E_RUN_ID all fail closed); `pg-fixture-lifecycle.test.ts` locks the fixture script safety/lifecycle contract with PATH command stunt doubles (precheck rejects remote/malformed DSNs and dirty worktrees with zero docker/mysql calls, exclusive per-run state, create→register→start ordering, converged failure cleanup, foreign-PID refusal, classified container errors, sanitized whitelist evidence) plus the existing preflight/governance/error-code checker tests |
 
 ## Interfaces
 

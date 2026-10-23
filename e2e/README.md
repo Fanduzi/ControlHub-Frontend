@@ -44,15 +44,41 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 ## PG fixture lifecycle (mandatory for the full suite)
 
 `scripts/e2e/pg-fixture-up.sh` cold-starts the entire verified combination on a
-clean machine: verifies the backend checkout `HEAD`/`tree` against
-`backend-fixture.env`, starts a disposable `postgres:17.10` container with
-per-run masked passwords, applies `pg-fixture-seed.sql`, seeds the metadata
-rows (target `local-pg-query-dev`, `PG_LABDB_RO`/`PG_OTHER_RO` credentials,
-disclosure policies), builds `cmd/e2e-pg-server` (refuses unstamped linked-
-worktree builds — `vcs.revision` must equal the pin), starts the listener with
-`E2E_RUN_ID` + `CONTROLHUB_E2E_FIXTURE_MODE=1`, and asserts the `/e2e/assembly`
-identity document before declaring success. `scripts/e2e/pg-fixture-down.sh`
-tears down only the recorded PID + container ID.
+clean machine. Every safety check runs BEFORE any side effect: required env,
+manifest pin, backend `HEAD`/`tree` AND a clean worktree (a dirty build would
+still stamp `vcs.revision` and masquerade as the approved object), a strict
+`user:pass@tcp(<literal loopback>:<port>)/<db>?<params>` DSN parse limited to
+`127.0.0.1`/`::1` + `controlhub_*e2e` names, tool availability, and free ports.
+Only then does it claim an exclusive per-run state dir
+`.e2e-pg-fixture-state/<runId>/` (existing state is refused, never truncated),
+create → register → start the disposable `postgres:17.10` container with
+per-run masked passwords, apply `pg-fixture-seed.sql` under `ON_ERROR_STOP=1`
+with a 60-row paging assertion, seed the metadata rows (target
+`local-pg-query-dev`, `PG_LABDB_RO`/`PG_OTHER_RO` credentials, 19 disclosure
+policies), build `cmd/e2e-pg-server` (`vcs.revision` must equal the pin and
+`vcs.modified` must be false), start the listener with `E2E_RUN_ID` +
+`CONTROLHUB_E2E_FIXTURE_MODE=1`, and assert the `/e2e/assembly` identity
+document. Any failure after state creation converges through one EXIT-trap
+cleanup of exactly the registered resources; the state dir is kept with
+`STATUS=failed` for `pg-fixture-down.sh` to finish the job.
+
+`scripts/e2e/pg-fixture-down.sh` resolves this run's state dir (`E2E_RUN_ID`,
+or the single marked dir when unset), parses `state.env` key-by-key (never
+sources it), signals the fixture PID only after the process's executable
+resolves to the recorded fixture binary (foreign/stale PID ⇒ fail, state
+preserved, bounded TERM→KILL wait), removes the recorded container with
+NotFound-only idempotence (daemon/permission errors fail closed), and deletes
+the marked state dir only when every owned cleanup succeeded — otherwise it
+exits non-zero with the state intact for retry.
+
+`scripts/e2e/pg-fixture-evidence.sh` runs BEFORE teardown in CI and copies a
+sanitized whitelist (`run-manifest.txt`, `assembly.json`,
+`fixture-server.log`, `pg-seed.log`) into `e2e-evidence/`: credential shapes
+(DSN passwords, `password=`/`token=`/`Bearer` values) are scrubbed and
+re-verified, `cnf`/`state.env`/`fixture.pid`/the binary are never copied, and
+a `STATUS=up` run missing required files fails closed. The artifact upload
+uses `if-no-files-found: error`, so an empty evidence set can never pass
+silently.
 
 `npm run release:e2e` first runs `scripts/check-e2e-pg-fixture.mjs`, which
 fails closed (nonzero) unless the assembly document reports the pinned
