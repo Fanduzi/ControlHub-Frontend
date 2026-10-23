@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # input: per-run state dir written by scripts/e2e/pg-fixture-up.sh (BASE=$PG_FIXTURE_STATE_DIR, default .e2e-pg-fixture-state/<runId>/)
 # output: kills ONLY this run's verified fixture PID (exe-identity checked, bounded wait) and removes ONLY this run's container by recorded ID, then clears ONLY the owned state dir
-# pos: teardown counterpart — state is parsed key-by-key (never sourced), container errors are classified (NotFound=idempotent vs daemon=fail), any cleanup failure preserves state and exits non-zero
+# pos: teardown counterpart — state is parsed key-by-key (never sourced), destroy primitives come from pg-fixture-lib.sh, container errors are classified (NotFound-only idempotence), any cleanup failure preserves state and exits non-zero
 # note: if this file changes, update e2e/README.md
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/e2e/pg-fixture-lib.sh
+. "${REPO_ROOT}/scripts/e2e/pg-fixture-lib.sh"
 BASE_STATE_DIR="${PG_FIXTURE_STATE_DIR:-${REPO_ROOT}/.e2e-pg-fixture-state}"
 OWNED_MARKER=".owned-by-e2e-pg-fixture"
 
@@ -50,73 +52,31 @@ CID="$(state_get CONTAINER_ID)"
 CNAME="$(state_get CONTAINER_NAME)"
 FPID="$(state_get FIXTURE_PID)"
 FEXE="$(state_get FIXTURE_EXE)"
+SRUN_ID="$(state_get E2E_RUN_ID)"
 
 [ -z "$FPID" ] || printf '%s' "$FPID" | grep -qE '^[0-9]+$' \
   || { fail "recorded FIXTURE_PID is malformed"; exit 1; }
 [ -z "$CID" ] || printf '%s' "$CID" | grep -qE '^[0-9a-f]{12,64}$' \
   || { fail "recorded CONTAINER_ID is malformed"; exit 1; }
-if [ -n "$FEXE" ]; then
-  FEXE="$(cd "$(dirname "$FEXE")" 2>/dev/null && pwd -P)/$(basename "$FEXE")"
-fi
 
 failures=0
 
-# ── 1. Listener PID — verify executable identity before signalling ───────
-pid_exe() {
-  local pid="$1" exe=""
-  if [ -e "/proc/${pid}/exe" ]; then
-    exe="$(readlink "/proc/${pid}/exe" 2>/dev/null)"
-  else
-    exe="$(lsof -a -p "$pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
-  fi
-  printf '%s' "${exe% (deleted)}"
-}
-
+# ── 1. Listener PID — verified executable identity before signalling ─────
 if [ -n "$FPID" ] && kill -0 "$FPID" 2>/dev/null; then
-  ACTUAL_EXE="$(pid_exe "$FPID")"
-  if [ -n "$FEXE" ] && [ "$ACTUAL_EXE" = "$FEXE" ]; then
-    kill "$FPID" 2>/dev/null || true
-    alive=0
-    for _ in $(seq 1 20); do
-      kill -0 "$FPID" 2>/dev/null || { alive=1; break; }
-      sleep 0.5
-    done
-    if [ "$alive" = 0 ]; then
-      kill -9 "$FPID" 2>/dev/null || true
-      for _ in $(seq 1 10); do
-        kill -0 "$FPID" 2>/dev/null || { alive=1; break; }
-        sleep 0.5
-      done
-    fi
-    if [ "$alive" = 1 ]; then
-      note "stopped fixture listener pid=$FPID"
-    else
-      fail "fixture listener pid=$FPID survived TERM+KILL — state preserved"
-      failures=$((failures + 1))
-    fi
+  if pg_fixture_stop_pid "$FPID" "$FEXE" "$SRUN_ID"; then
+    note "stopped fixture listener pid=$FPID"
   else
-    fail "pid=$FPID alive but exe '${ACTUAL_EXE:-unknown}' != recorded '$FEXE' — refusing to signal a foreign process; state preserved"
+    fail "fixture listener pid=$FPID could not be verified/terminated — state preserved"
     failures=$((failures + 1))
   fi
 fi
 
-# ── 2. Container — classify removal errors, only NotFound is idempotent ──
+# ── 2. Container — classified removal, only confirmed absence is idempotent
 if [ -n "$CID" ]; then
-  if inspect_err="$(docker inspect "$CID" 2>&1 >/dev/null)"; then
-    if ! rm_err="$(docker rm -f "$CID" 2>&1)"; then
-      if docker inspect "$CID" >/dev/null 2>&1; then
-        fail "docker rm -f $CID failed: $rm_err — container still exists; state preserved"
-        failures=$((failures + 1))
-      else
-        note "container ${CID:0:12} removed (rm reported error but container is gone)"
-      fi
-    else
-      note "removed container ${CID:0:12} (${CNAME:-unnamed})"
-    fi
-  elif printf '%s' "$inspect_err" | grep -qiE 'no such (object|container)'; then
-    note "container ${CID:0:12} already gone"
+  if pg_fixture_rm_container "$CID"; then
+    note "container ${CID:0:12} (${CNAME:-unnamed}) handled"
   else
-    fail "docker inspect $CID failed (daemon/permission?): $inspect_err — cannot classify; state preserved"
+    fail "container ${CID:0:12} removal unconfirmed — state preserved"
     failures=$((failures + 1))
   fi
 fi

@@ -62,6 +62,19 @@ document. Any failure after state creation converges through one EXIT-trap
 cleanup of exactly the registered resources; the state dir is kept with
 `STATUS=failed` for `pg-fixture-down.sh` to finish the job.
 
+`scripts/e2e/pg-fixture-lib.sh` is the single destroy-primitive helper sourced
+by both `up` and `down` — never executed standalone. `pg_fixture_stop_pid`
+resolves the PID's real executable (`/proc/<pid>/exe` on Linux,
+`ps -o comm=` elsewhere), physical-normalizes BOTH the recorded and actual
+paths (macOS `/var` → `/private/var`, symlinked parents), optionally checks
+`E2E_RUN_ID` against `/proc/<pid>/environ`, refuses the signal when identity
+is unknown or foreign, and waits boundedly through TERM then KILL.
+`pg_fixture_rm_container` treats `docker rm -f` success or a follow-up inspect
+failing with the precise "No such object/container" response as the only
+removal proof — daemon, permission, timeout, and unknown inspect failures all
+return non-zero with both error texts preserved, so no ambiguous path can be
+reported as "already gone".
+
 `scripts/e2e/pg-fixture-down.sh` resolves this run's state dir (`E2E_RUN_ID`,
 or the single marked dir when unset), parses `state.env` key-by-key (never
 sources it), signals the fixture PID only after the process's executable

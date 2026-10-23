@@ -6,6 +6,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/e2e/pg-fixture-lib.sh
+. "${REPO_ROOT}/scripts/e2e/pg-fixture-lib.sh"
 # PG_FIXTURE_MANIFEST/PG_FIXTURE_SEED exist only as narrow test seams — CI and
 # local runs always use the reviewed repo paths.
 MANIFEST="${PG_FIXTURE_MANIFEST:-${REPO_ROOT}/e2e/backend-fixture.env}"
@@ -91,21 +93,33 @@ touch "${RUN_DIR}/.owned-by-e2e-pg-fixture"
 } > "$STATE_FILE"
 
 # From here on, every failure path converges on bounded cleanup of what this
-# run actually registered. The original die message prints first; cleanup
-# notes are secondary and never overwrite the primary cause.
+# run actually registered — the SAME identity/classification rules as
+# pg-fixture-down.sh (shared pg-fixture-lib.sh primitives). The original die
+# message prints first; cleanup errors are recorded, never overwrite the
+# primary cause, and never pretend a cleanup succeeded.
 UP_DONE=0
+state_get() { sed -n "s/^$1=//p" "$STATE_FILE" | head -1; }
 on_exit() {
   rc=$?
   if [ "$UP_DONE" = 1 ]; then return; fi
   note "startup failed — cleaning resources registered by this run"
+  clean_failures=0
   rm -f "${RUN_DIR}/mysql-client.cnf" 2>/dev/null || true
-  if [ -f "${RUN_DIR}/fixture.pid" ]; then
-    kill "$(cat "${RUN_DIR}/fixture.pid")" 2>/dev/null || true
+  FPID="$(state_get FIXTURE_PID)"
+  FEXE="$(state_get FIXTURE_EXE)"
+  if [ -n "$FPID" ] && kill -0 "$FPID" 2>/dev/null; then
+    pg_fixture_stop_pid "$FPID" "$FEXE" "$E2E_RUN_ID" || clean_failures=$((clean_failures + 1))
   fi
-  if grep -q '^CONTAINER_ID=' "$STATE_FILE" 2>/dev/null; then
-    docker rm -f "$(sed -n 's/^CONTAINER_ID=//p' "$STATE_FILE")" >/dev/null 2>&1 || true
+  CID="$(state_get CONTAINER_ID)"
+  if [ -n "$CID" ]; then
+    pg_fixture_rm_container "$CID" || clean_failures=$((clean_failures + 1))
   fi
-  echo "STATUS=failed" >> "$STATE_FILE" 2>/dev/null || true
+  if [ "$clean_failures" -gt 0 ]; then
+    echo "STATUS=failed-cleanup-incomplete" >> "$STATE_FILE" 2>/dev/null || true
+    note "startup cleanup incomplete ($clean_failures) — state preserved for pg-fixture-down.sh"
+  else
+    echo "STATUS=failed" >> "$STATE_FILE" 2>/dev/null || true
+  fi
   exit "$rc"
 }
 trap on_exit EXIT

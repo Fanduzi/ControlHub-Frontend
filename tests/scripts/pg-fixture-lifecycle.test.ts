@@ -10,6 +10,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
@@ -20,6 +21,7 @@ const REPO_ROOT = process.cwd();
 const UP = join(REPO_ROOT, "scripts/e2e/pg-fixture-up.sh");
 const DOWN = join(REPO_ROOT, "scripts/e2e/pg-fixture-down.sh");
 const EVIDENCE = join(REPO_ROOT, "scripts/e2e/pg-fixture-evidence.sh");
+const LIB = join(REPO_ROOT, "scripts/e2e/pg-fixture-lib.sh");
 const RUN_ID = "t-life-1";
 const DSN = "meta:pw@tcp(127.0.0.1:3306)/controlhub_x_e2e?parseTime=true";
 
@@ -62,6 +64,27 @@ const run = (script: string, extra: Record<string, string | undefined> = {}) => 
 
 const calls = () =>
   existsSync(fx.callLog) ? readFileSync(fx.callLog, "utf8") : "";
+
+// Drive a single shared-lib primitive under the same stub PATH/env.
+const runLib = (
+  scriptlet: string,
+  extra: Record<string, string | undefined> = {},
+) => {
+  try {
+    const out = execFileSync("bash", ["-c", `. "${LIB}"; ${scriptlet}`], {
+      env: { ...fx.env, ...extra },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { code: 0, out: String(out) };
+  } catch (e: unknown) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    return {
+      code: err.status ?? 1,
+      out: `${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
+  }
+};
 
 beforeEach(() => {
   const dir = mkdtempSync(join(tmpdir(), "pgfix-life-"));
@@ -133,11 +156,18 @@ case "$1" in
     if [[ "$*" == *"select version()"* ]]; then echo "PostgreSQL 17.10 fake"; exit 0; fi
     if [[ "$*" == *"count(*) from e2e.paging"* ]]; then echo 60; exit 0; fi
     exit 0 ;;
-  inspect) shift; [ "${"$"}{STUB_DOCKER_FAIL:-}" = "daemon" ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+  inspect) shift
+    case "${"$"}{STUB_DOCKER_INSPECT_MODE:-}" in
+      nosuch) echo "Error response from daemon: No such object: $1" >&2; exit 1 ;;
+      daemon) echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" >&2; exit 1 ;;
+      permission) echo "Error response from daemon: permission denied while trying to connect" >&2; exit 1 ;;
+      timeout) echo "Error response from daemon: i/o timeout" >&2; exit 1 ;;
+    esac
+    [ "${"$"}{STUB_DOCKER_FAIL:-}" = "daemon" ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
     [ -f "$store/$1" ] || { echo "Error response from daemon: No such object: $1" >&2; exit 1; } ;;
   rm) shift
     [ "$1" = "-f" ] && shift
-    [ "${"$"}{STUB_DOCKER_FAIL:-}" = "rm" ] && { echo "rm: simulated failure" >&2; exit 1; }
+    case "${"$"}{STUB_DOCKER_FAIL:-}" in rm|daemon) echo "rm: simulated failure" >&2; exit 1 ;; esac
     if [ -f "$store/$1" ]; then rm -f "$store/$1" "$store/$1.started"; else echo "No such container: $1" >&2; exit 1; fi ;;
   *) exit 0 ;;
 esac`);
@@ -150,6 +180,7 @@ exit 0`);
 
   sh("curl", `
 echo "curl $*" >> "$CALL_LOG"
+if [[ "$*" == *"/e2e/assembly"* ]] && [ "${"$"}{STUB_CURL_FAIL:-}" = "assembly" ]; then exit 1; fi
 if [[ "$*" == *"/health"* ]]; then exit 0; fi
 if [[ "$*" == *"/e2e/assembly"* ]]; then
   printf '{\\n  "backendSha": "%s",\\n  "kind": "controlhub-e2e-pg-fixture",\\n  "listenAddr": ":8080",\\n  "pgEntries": true,\\n  "runId": "%s"\\n}\\n' "$(git -C "$STUB_BACKEND_DIR" rev-parse HEAD)" "$E2E_RUN_ID"
@@ -334,5 +365,126 @@ describe("C: sanitized evidence", () => {
     const r = run(EVIDENCE);
     expect(r.code).toBe(1);
     expect(r.out).toContain("assembly.json");
+  });
+});
+
+// Build a REAL sleeper binary via the go-build stub so the process's exe path
+// resolves exactly to a recorded fixture path.
+const buildSleeper = (out?: string) => {
+  const target = out ?? join(fx.dir, "e2e-pg-server");
+  execFileSync("go", ["build", "-o", target, "x"], { env: fx.env });
+  return target;
+};
+
+describe("B-01: classified docker removal (shared lib)", () => {
+  const mkContainer = () => {
+    const cid = execFileSync("docker", ["create", "--name", "x", "img"], {
+      env: fx.env,
+      encoding: "utf8",
+    }).trim();
+    return cid;
+  };
+
+  it("rm success → confirmed removed", () => {
+    const cid = mkContainer();
+    const r = runLib(`pg_fixture_rm_container "${cid}"`);
+    expect(r.code).toBe(0);
+  });
+
+  it("rm failure + container still exists → non-zero, never 'gone'", () => {
+    const cid = mkContainer();
+    const r = runLib(`pg_fixture_rm_container "${cid}"`, { STUB_DOCKER_FAIL: "rm" });
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("still exists");
+    expect(r.out).not.toContain("confirmed absent");
+  });
+
+  it("rm failure + explicit NotFound inspect → idempotent success", () => {
+    const cid = mkContainer();
+    const r = runLib(`pg_fixture_rm_container "${cid}"`, {
+      STUB_DOCKER_FAIL: "rm",
+      STUB_DOCKER_INSPECT_MODE: "nosuch",
+    });
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("confirmed absent");
+  });
+
+  it.each(["daemon", "permission", "timeout"])(
+    "rm failure + unclassifiable inspect (%s) → non-zero, keeps both errors",
+    (mode) => {
+      const cid = mkContainer();
+      const r = runLib(`pg_fixture_rm_container "${cid}"`, {
+        STUB_DOCKER_FAIL: "rm",
+        STUB_DOCKER_INSPECT_MODE: mode,
+      });
+      expect(r.code).toBe(1);
+      expect(r.out).toContain("cannot classify");
+      expect(r.out).toContain("simulated failure");
+    },
+  );
+});
+
+describe("B-02: verified PID termination (shared lib)", () => {
+  // Start processes as orphans (bash exits, init reaps) — a node-child would
+  // linger as a zombie after SIGKILL and kill -0 would keep succeeding.
+  const spawnOrphan = (exe: string, args: string[] = []) => {
+    const out = execFileSync(
+      "bash",
+      ["-c", `"$0" "$@" >/dev/null 2>&1 & echo $!`, exe, ...args],
+      { env: fx.env, encoding: "utf8" },
+    );
+    const pid = Number(out.trim());
+    fx.spawned.push(pid);
+    return pid;
+  };
+
+  it("refuses to signal a foreign process (exe mismatch)", () => {
+    const pid = spawnOrphan("sleep", ["60"]);
+    const r = runLib(
+      `pg_fixture_stop_pid ${pid} "${join(fx.dir, "e2e-pg-server")}"`,
+    );
+    expect(r.code).toBe(1);
+    expect(() => process.kill(pid, 0)).not.toThrow();
+  });
+
+  it("terminates a verified own-executable listener (TERM wait)", () => {
+    const exe = buildSleeper();
+    const pid = spawnOrphan(exe);
+    const r = runLib(`pg_fixture_stop_pid ${pid} "${exe}"`);
+    expect(r.code).toBe(0);
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
+
+  it("matches the recorded exe through a symlinked parent path", () => {
+    const realDir = join(fx.dir, "realbin");
+    mkdirSync(realDir);
+    const exe = buildSleeper(join(realDir, "e2e-pg-server"));
+    const pid = spawnOrphan(exe);
+    const alias = join(fx.dir, "aliasbin");
+    symlinkSync(realDir, alias);
+    const r = runLib(`pg_fixture_stop_pid ${pid} "${alias}/e2e-pg-server"`);
+    expect(r.code).toBe(0);
+  });
+});
+
+describe("B-02: up-failure cleanup uses the same identity rules", () => {
+  it("assembly failure kills the verified listener and removes the container", () => {
+    const r = run(UP, { STUB_CURL_FAIL: "assembly" });
+    expect(r.code).toBe(1);
+    const pid = Number(readFileSync(join(fx.runDir, "fixture.pid"), "utf8"));
+    expect(() => process.kill(pid, 0)).toThrow();
+    expect(calls()).toContain("docker rm -f");
+    expect(readFileSync(join(fx.runDir, "state.env"), "utf8")).toContain("STATUS=failed");
+  });
+
+  it("cleanup failure is recorded as incomplete and down retries to recovery", () => {
+    const up = run(UP, { STUB_CURL_FAIL: "assembly", STUB_DOCKER_FAIL: "rm" });
+    expect(up.code).toBe(1);
+    expect(readFileSync(join(fx.runDir, "state.env"), "utf8")).toContain(
+      "STATUS=failed-cleanup-incomplete",
+    );
+    const down = run(DOWN);
+    expect(down.code).toBe(0);
+    expect(existsSync(fx.runDir)).toBe(false);
   });
 });
