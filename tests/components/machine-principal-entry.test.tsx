@@ -1,7 +1,3 @@
-// input: machine-principal settings entry and presentation role state
-// output: settings discoverability and admin-gate regression coverage
-// pos: Public settings-card seam for machine credential administration
-// note: if this file changes, update tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

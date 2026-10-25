@@ -1,7 +1,3 @@
-// input: Next search params/cookies, environment catalog, audit view models
-// output: admin audit page with URL-or-persisted, fail-closed environment-scoped server results and a localized forbidden notice for non-admin operators
-// pos: authenticated console audit route
-// note: if this file changes, update this header and app/(console)/README.md
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 

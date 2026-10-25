@@ -1,7 +1,3 @@
-// input: @/services/api-client, @/types/query-saved-statement
-// output: saved statement CRUD/execute calls incl. PG database/schema scope and keyed execute
-// pos: service boundary for the saved statement library
-// note: list/create/execute carry the composite context for PostgreSQL; if this file changes, update header and services/README.md
 import { apiClient, ApiError } from "@/services/api-client";
 import { isAbortError, RESULT_CONTRACT_CAPABILITIES, toQueryExecuteError } from "@/services/query-executions";
 import type { QueryExecuteResponse } from "@/types/query-execution";

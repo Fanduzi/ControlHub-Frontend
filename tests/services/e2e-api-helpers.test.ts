@@ -1,7 +1,3 @@
-// input: vitest, e2e/api.helpers
-// output: unit tests for E2E API helpers — fixture-based auth, fail-loud without fixture env
-// pos: contract tests for the E2E API helper surface
-// note: if this file changes, update header and tests/services/README.md
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock global fetch before importing helpers

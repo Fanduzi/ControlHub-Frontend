@@ -1,7 +1,3 @@
-// input: @/services/api-client, @/services/query-executions, @/types/query-workspace
-// output: owner query workspace GET and PUT operations
-// pos: narrow transport boundary for server-persisted worksheet drafts
-// note: if this file changes, update this header and services/README.md.
 import { apiClient } from "@/services/api-client";
 import { toQueryExecuteError } from "@/services/query-executions";
 import type {

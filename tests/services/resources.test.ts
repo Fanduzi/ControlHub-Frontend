@@ -1,7 +1,3 @@
-// input: Vitest, mocked resources API client, and resource service contracts
-// output: resource/profile/relation-rule transport, source-specific relation paths, server-derived completeness write exclusion, managed-identity/effective-value override payloads, and request-shape coverage
-// pos: service contract tests for the resources API boundary
-// note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

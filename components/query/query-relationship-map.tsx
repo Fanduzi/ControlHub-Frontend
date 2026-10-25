@@ -1,7 +1,3 @@
-// input: relationship-map responses, ApiError codes, localized UI primitives, and one-shot refresh requests
-// output: accessible localized relationship map and controlled relationship error states
-// pos: query workbench relationship-map surface
-// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";

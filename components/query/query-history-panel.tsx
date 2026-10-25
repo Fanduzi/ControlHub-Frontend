@@ -1,7 +1,3 @@
-// input: query execution history records, callbacks, next-intl, Base UI controls
-// output: accessible execution-history list and server-authorized statement restore action
-// pos: presentation boundary for query history metadata and details
-// note: if this file changes, update this header and components/query/README.md.
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";

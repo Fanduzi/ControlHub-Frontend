@@ -1,7 +1,3 @@
-// input: vitest, testing-library, resource detail sheet, auth-role
-// output: detail sheet tests including server-derived completeness, health evidence, effective-value provenance, admin-only controls, and override conflicts
-// pos: component tests for the resource detail sheet and Issue 78/80/81 evidence and override behavior
-// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen, waitFor } from "@testing-library/react";

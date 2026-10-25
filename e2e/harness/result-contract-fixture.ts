@@ -1,16 +1,3 @@
-// input: node fs/os/child_process, fetch, process env
-// output: ensureResultContractFixture() — idempotent disposable-MySQL seed of
-//   cellTruncated boundary rows + disclosure policies via the real admin API
-// pos: T13-A fixture seam — seeds ONLY the dedicated Query E2E Docker MySQL
-//   (docker exec as root; password read from the backend fixture state file,
-//   never printed) plus disclosure policies through POST/PUT
-//   /query-disclosure-policies. No production DB, no backend code changes.
-// note: if this file changes, update header and e2e/README.md
-//
-// Boundary data mirrors the backend T8-B wiring fixture so the browser sees the
-// same contract the backend test proved: an 8192-byte cell is NOT truncated,
-// 8193 bytes (or a UTF-8 boundary crossing at 8192) IS truncated to a safe
-// 8192-byte prefix, and NULL / '' / 'NULL' stay distinct.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

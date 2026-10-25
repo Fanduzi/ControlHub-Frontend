@@ -1,7 +1,3 @@
-// input: @playwright/test, ./harness/*, ./api.helpers, real fixture backend at localhost:8080 + disposable PostgreSQL at localhost:55432
-// output: T14 real-browser acceptance matrix for the PostgreSQL governed query workbench (composite connection + schema context, three real execution entry points, pg_stat_activity-gated browser→BFF→proxy→backend cancel propagation with keyed cancelled/stopped read-back plus a strict timeout-identity forwarding-disabled negative control, disclosure/truncation/whole-page CSV gating, governed paging, keyed navigation dedup, labeled fault injection, invalid-context reselection, persistence/restore)
-// pos: PostgreSQL counterpart of query-workbench.spec.ts — every assertion goes through the real UI against real backend services; no route mocks
-// note: if this file changes, update header and e2e/README.md
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 

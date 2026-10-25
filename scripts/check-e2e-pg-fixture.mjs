@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// input: env E2E_RUN_ID / CONTROLHUB_API_PROXY_URL / E2E_FIXTURE_ADMIN_* , e2e/backend-fixture.env, live fixture listener + api-proxy
-// output: runPgFixtureChecks({fetchImpl, env, repoRoot}) -> {ok, failures, report}; CLI prints report and exits nonzero on any failure
-// pos: mandatory pre-browser gate for the full release:e2e path — proves the PG fixture assembly identity, run identity, proxy identity, and resolver-verified connections are THIS run's; fail closed, never degrade to skip
-// note: if this file changes, update header and scripts/README.md (or e2e/README.md fixture section)
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

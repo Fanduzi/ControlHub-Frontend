@@ -1,7 +1,3 @@
-// input: @/lib/query-result-envelope
-// output: Vitest tests for governed result disclosure checks
-// pos: result envelope interface is the test surface
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";

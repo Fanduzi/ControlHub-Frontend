@@ -1,7 +1,3 @@
-// input: grouped query targets, active target, selection callback, and empty-state policy
-// output: accessible environment/cluster target groups and target buttons
-// pos: connection navigator target-list rendering seam
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";

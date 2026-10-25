@@ -1,7 +1,3 @@
-// input: vitest, @/services/api-client, @/services/query-workspace
-// output: query workspace transport contract tests
-// pos: service-level regression tests for owner workspace persistence
-// note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {

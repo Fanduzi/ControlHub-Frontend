@@ -1,10 +1,3 @@
-// input: vitest, e2e/harness/fixtures
-// output: unit tests for the E2E fixture identity resolver — fail-loud when env is
-// missing, explicit admin/editor identities, and hard refusal of the retired 0002
-// seed accounts (no silent fallback)
-// pos: locks the E2E credential contract: fixtures come only from controlled
-// provisioning env; the published seed credentials can never be used or resumed
-// note: if this file changes, update header and tests/e2e-harness/README.md
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

@@ -1,7 +1,3 @@
-// input: @playwright/test, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: admin-workspace-isolated Playwright E2E specs for the query workbench (idempotent target selection, shell, schema, FK nav, inspector, paging, saved statements, guaranteed Saved Statement teardown incl. beforeAll shared-template fixtures via afterAll, terminal delete 404-absence, 375 search-row/no-overflow, explain, relmap, shared-template affordance/disposal, schema metadata identity isolation; workspace reset retries query_workspace_conflict)
-// pos: real-browser integration tests covering query workbench user flows across viewport/locale/role
-// note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";

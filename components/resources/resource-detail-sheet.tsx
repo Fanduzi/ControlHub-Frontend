@@ -1,7 +1,3 @@
-// input: resource view models, health/effective-value evidence, localization, auth role, services, and mutation controls
-// output: resource detail sheet with server-derived completeness, observation/provenance metadata, and admin edit/archive/override affordances
-// pos: authenticated resource detail, completeness, health evidence, and effective-value interaction surface
-// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useEffect, useState } from "react";

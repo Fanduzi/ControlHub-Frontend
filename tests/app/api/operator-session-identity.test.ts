@@ -1,7 +1,3 @@
-// input: Vitest, NextRequest, Operator Session route and seal primitive
-// output: route contracts for sealed operator identity without credential disclosure
-// pos: integration-level identity tests at the sealed-session GET boundary
-// note: if this file changes, update this header and tests/app/api/README.md
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 

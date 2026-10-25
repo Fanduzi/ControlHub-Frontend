@@ -1,8 +1,3 @@
-// input: resource health freshness, observation and override metadata, locale, translations, and date formatting
-// output: compact localized freshness, observed-time, observer, and manual-override readout
-// pos: shared Issue 81 health evidence presentation for resource list and detail views
-// note: if this file changes, update this header and module README.md.
-
 import { DEFAULT_LOCALE, isAppLocale } from "@/i18n/locales";
 import { formatDateTime } from "@/lib/format";
 import { useTranslations } from "next-intl";

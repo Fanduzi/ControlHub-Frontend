@@ -1,7 +1,3 @@
-// input: react, next/navigation, next-intl, same-origin /api/operator-session
-// output: interactive login via Console BFF, localized validation, and safe return to the protected path
-// pos: public login UI for the 38X-1C Operator Session boundary
-// note: if this file changes, update header and app/login/README.md
 "use client";
 
 import { useEffect, useState } from "react";

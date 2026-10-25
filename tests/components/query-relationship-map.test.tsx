@@ -1,7 +1,3 @@
-// input: QueryRelationshipMap, real ApiError instances, localized messages, and mocked map services
-// output: relationship error, retry, localization, and no-leakage coverage
-// pos: Vitest/Testing Library tests for the query relationship-map surface
-// note: if this file changes, update this header and module README.md.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";

@@ -1,7 +1,3 @@
-// input: Testing Library, QueryWorkbench, CSV serialization, mocked query services, and locale messages
-// output: unavailable-target recovery, server-authorized history fixtures, formula-safe/disclosure-safe CSV export, and search interaction tests
-// pos: component-level behavioral coverage for the complete query workbench
-// note: if this file changes, update header and tests/components/README.md
 import { useEffect, useState } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";

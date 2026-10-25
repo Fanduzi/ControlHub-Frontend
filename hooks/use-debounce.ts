@@ -1,7 +1,3 @@
-// input: React lifecycle, callback, and debounce delay
-// output: stable debounced callback that cancels pending work on owner unmount
-// pos: shared client-side debounce lifecycle primitive
-// note: if this file changes, update this header and hooks/README.md
 import { useCallback, useEffect, useRef } from "react";
 
 export function useDebounceCallback<T extends (...args: never[]) => void>(

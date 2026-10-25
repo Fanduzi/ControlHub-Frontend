@@ -1,7 +1,3 @@
-// input: react, next-intl, resource view model, auth-role, resource mutation services
-// output: admin-only archive and restore controls
-// pos: resource mutation boundary
-// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useState } from "react";

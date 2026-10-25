@@ -1,7 +1,3 @@
-// input: @/services/api-client, @/types/query-execution
-// output: governed query execution, history with fail-closed restore eligibility, and owner statement API operations
-// pos: narrow client transport boundary for query target operations
-// note: if this file changes, update this header and services/README.md.
 import { apiClient, ApiError } from "@/services/api-client";
 import type {
   ExplainRequest,

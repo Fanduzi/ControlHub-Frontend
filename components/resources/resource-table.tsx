@@ -1,7 +1,3 @@
-// input: react, navigation, table primitives, auth role, settings taxonomies, saved views, resource health evidence, atomic bulk resource services, and ingestion dialog
-// output: inventory table with server-owned taxonomy/label filters, URL-synced optimistic label controls, named-view controls, server-derived completeness, health evidence, admin create/ingestion affordances, and reviewed atomic bulk mutations with localized feedback
-// pos: inventory list view, mutation entry point, saved-view host, compact completeness, health evidence surface, and role-gated bulk edit/import controls
-// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

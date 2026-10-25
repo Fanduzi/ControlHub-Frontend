@@ -1,7 +1,3 @@
-// input: vitest, testing-library, resource table, auth-role, lifecycle/health dictionaries, and bulk resource service mocks
-// output: resource table tests including server-owned taxonomy/label URL filters with rapid-add retention, server-derived completeness, health evidence, admin-only create affordance, atomic bulk request shapes, selection retention, and localized feedback
-// pos: component tests for inventory health evidence, backend-backed filters, and role-gated atomic mutation controls
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { render, screen, waitFor } from "@testing-library/react";

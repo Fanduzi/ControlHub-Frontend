@@ -1,7 +1,3 @@
-// input: react, next-intl, resource view model, auth-role, edit resource sheet
-// output: admin-only resource edit affordance
-// pos: resource detail page mutation control
-// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useState } from "react";

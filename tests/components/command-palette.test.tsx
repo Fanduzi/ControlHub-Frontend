@@ -1,7 +1,3 @@
-// input: vitest, testing-library, command palette, auth-role, resource service and environment-provider mocks
-// output: command palette tests — server-authoritative all-type resource search with keyboard routing, localized context, and stale/error recovery, create-resource admin gating, and empty-query operator navigation
-// pos: component tests for the console command palette affordance gating
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";

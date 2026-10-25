@@ -1,9 +1,3 @@
-// input: node process env
-// output: fail-loud resolver for E2E fixture operator identities (admin/editor)
-// pos: sole credential source for real E2E; never falls back to the retired
-// 0002 seed accounts, so a missing fixture fails the run loudly
-// note: if this file changes, update header and e2e/README.md
-//
 // Fixture identities are provisioned by the backend test/CI-only seam
 // `cmd/e2e-fixture-bootstrap` (or an equivalent controlled provisioning path)
 // and reach this resolver through the environment:

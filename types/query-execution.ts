@@ -1,7 +1,3 @@
-// input: backend query execution OpenAPI schemas, resource/schema/disclosure types
-// output: query execution transport contracts including server-owned restore eligibility
-// pos: type-only boundary for governed query execution and history
-// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 import type { ForeignKeyDetail } from "@/types/query-schema";
 import type { ResultDisclosureMode } from "@/types/query-disclosure";

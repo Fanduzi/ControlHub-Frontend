@@ -1,7 +1,3 @@
-// input: authenticated browser session and machine-principal API
-// output: localized admin-only machine-principal lifecycle and explicit rotation-scope UI
-// pos: Settings route boundary for one-time credential issuance and rotation
-// note: if this file changes, update components/settings/README.md.
 "use client";
 
 import { useLocale } from "next-intl";

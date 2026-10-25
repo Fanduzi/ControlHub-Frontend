@@ -1,7 +1,3 @@
-// input: machine-principal settings component and mocked service/auth state
-// output: admin gate, one-time secret, explicit rotation scope, and lifecycle interaction tests
-// pos: Accessible browser seam for machine-principal administration
-// note: if this file changes, update tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

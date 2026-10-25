@@ -1,7 +1,3 @@
-// input: Vitest, localized messages, mocked Next navigation, and database table props
-// output: database table search/navigation, pagination, selection, and localized timestamp regression coverage
-// pos: component contract coverage for the database inventory table
-// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

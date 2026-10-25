@@ -1,7 +1,3 @@
-// input: Next.js list-page URL search params and resource/audit list parameter types
-// output: normalized resource/audit list parameters, including bounded key/key:value labels and environment slugs, and strict positive-decimal URL ID parsing
-// pos: shared URL-state parser for paginated list pages and environment-scoped routes
-// note: if this file changes, update this header and lib/README.md
 import type { AuditEventListParams } from "@/types/audit";
 import type { ResourceListParams } from "@/types/resource";
 

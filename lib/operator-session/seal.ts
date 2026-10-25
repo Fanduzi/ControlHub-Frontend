@@ -1,7 +1,3 @@
-// input: node:crypto, @/lib/operator-session/config, @/lib/operator-session/constants
-// output: sealed Operator Session cookie values (AES-256-GCM, identity, active + previous key, fixed eight-hour age)
-// pos: authenticated-encryption primitive for the Sealed Operator Session cookie
-// note: if this file changes, update header and lib/operator-session/README.md
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import type { OperatorSessionConfig } from "@/lib/operator-session/config";

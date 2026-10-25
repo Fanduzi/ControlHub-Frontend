@@ -1,7 +1,3 @@
-// input: @testing-library/react, next-intl/server, CMDB route page
-// output: regression coverage for the visible /cmdb migration notice
-// pos: app route seam test for the retained CMDB bookmark
-// note: if this file changes, update this header and tests/app/README.md.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

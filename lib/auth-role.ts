@@ -1,7 +1,3 @@
-// input: react, same-origin /api/operator-session
-// output: useAdminRole presentation-only admin gate from trusted BFF session identity
-// pos: UI role lookup from the sealed Operator Session
-// note: if this file changes, update header and lib/README.md
 /**
  * Presentation-only admin-role detection for the BFF login role state.
  *

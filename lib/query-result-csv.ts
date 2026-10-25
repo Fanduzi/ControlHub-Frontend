@@ -1,7 +1,3 @@
-// input: Query result columns, visible result rows, server-owned disclosure metadata, and the validated per-cell truncation matrix
-// output: RFC-4180 CSV of a fully copyable page, or a refusal error; plus the non-throwing eligibility predicate for the UI affordance
-// pos: pure current-result CSV serialization boundary — whole-page eligibility is enforced here, not only in the UI
-// note: if this file changes, update this header and lib/README.md
 import type { QueryResultCellValue, QueryResultColumn } from "@/types/query-execution";
 
 const REFUSAL = "Cannot export result";

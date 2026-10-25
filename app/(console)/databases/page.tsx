@@ -1,7 +1,3 @@
-// input: Next search params, environment/posture services, database table
-// output: scoped database inventory page; unknown environments render an empty result
-// pos: authenticated console databases route
-// note: if this file changes, update header and app/(console)/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";

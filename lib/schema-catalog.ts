@@ -1,7 +1,3 @@
-// input: @/services/query-schema, @/lib/query-sql-completion, @/types/query-schema
-// output: SchemaCatalog (lists + details + completion namespace, keyed by 库身份)
-// pos: single in-process schema catalog for the query workbench
-// note: if this file changes, update header and lib/README.md
 import { useSyncExternalStore } from "react";
 
 import {

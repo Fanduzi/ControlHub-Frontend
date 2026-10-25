@@ -1,7 +1,3 @@
-// input: Vitest, named inventory view service functions, and mocked API client
-// output: typed named inventory view request-shape and controlled-error regression tests
-// pos: service contract tests for saved inventory view API boundary
-// note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {

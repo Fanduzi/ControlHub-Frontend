@@ -1,7 +1,3 @@
-// input: @/components/app-shell/topbar, next-intl, next/navigation, environment/theme providers
-// output: Vitest tests for explicit environment/all URL switching and server-confirmed fail-closed sign-out
-// pos: unit contract tests for shell chrome behavior incl. BFF logout failure handling
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

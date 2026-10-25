@@ -1,14 +1,3 @@
-// input: @playwright/test, csv-parse/sync, ./harness/*, ./api.helpers, real backend/frontend at localhost
-// output: T13-A real-browser acceptance — three governed result routes declare
-//   capabilities:["cellTruncated"], real backend truncation matrices render
-//   per-cell badges, CSV refuses truncated pages, 409 upgrade-required shows
-//   controlled copy without retry, and response fault injection fails closed
-// pos: real-backend result-contract E2E; fault injection (capability strip /
-//   matrix corruption) is labeled per-test and never claimed as normal server
-//   behavior; the fixture-target export affordance flag is flipped in
-//   e2e/api-proxy.mjs because the backend keeps availableActions.export=false
-//   for every target today
-// note: if this file changes, update header and e2e/README.md
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { parse } from "csv-parse/sync";
 

@@ -1,7 +1,3 @@
-// input: Vitest, Testing Library, resource table, translations, and mocked presentation role
-// output: non-admin inventory ingestion-control visibility coverage
-// pos: focused resource-table authorization-presentation seam for ingestion
-// note: if this file changes, update this header and module README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";

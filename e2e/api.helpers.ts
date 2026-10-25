@@ -1,7 +1,3 @@
-// input: @playwright/test fetch helpers, ./harness/fixtures, process env
-// output: authenticated API helpers for E2E (fixture identities; exported apiFetch; no seed fallback)
-// pos: server-side E2E data helpers through the api-proxy, including core CI typed-profile identity
-// note: if this file changes, update header and e2e/README.md
 /**
  * Playwright API helpers for authenticated backend requests.
  *

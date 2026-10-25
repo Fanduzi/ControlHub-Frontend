@@ -1,7 +1,3 @@
-// input: Vitest, Next request cookies, and Audits route page
-// output: regression coverage for the admin-only audit route's forbidden notice vs. generic error boundary
-// pos: app route seam test for the authenticated Audits page
-// note: if this file changes, update this header and tests/app/README.md.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

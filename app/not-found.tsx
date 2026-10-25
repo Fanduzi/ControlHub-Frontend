@@ -1,7 +1,3 @@
-// input: next/link, next-intl/server
-// output: localized generic 404 boundary with a console recovery link
-// pos: root app boundary for unmatched routes and missing pages outside console segments
-// note: if this file changes, update header and README.md
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 

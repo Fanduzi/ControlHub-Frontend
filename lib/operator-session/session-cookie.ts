@@ -1,7 +1,3 @@
-// input: next/server, @/lib/operator-session/constants
-// output: shared Operator Session cookie set/clear helpers (HttpOnly, SameSite=Strict, path, Secure policy)
-// pos: single source of truth for Operator Session cookie attributes across BFF routes
-// note: if this file changes, update header and lib/operator-session/README.md
 import type { NextResponse } from "next/server";
 
 import {

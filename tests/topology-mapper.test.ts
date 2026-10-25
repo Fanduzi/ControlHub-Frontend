@@ -1,7 +1,3 @@
-// input: topology mapper public interface and transport fixtures
-// output: mapper behavior regression coverage
-// pos: topology graph mapper contract tests
-// note: if this file changes, update this header and module README.md.
 import { describe, expect, it } from "vitest";
 import type { TopologyEdge, TopologyNode, TopologyResponse } from "@/types/resource";
 import { mapTopologyToFlow } from "@/lib/topology-mapper";

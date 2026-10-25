@@ -1,7 +1,3 @@
-// input: backend query schema OpenAPI schemas (databases/schemas/objects/details)
-// output: schema explorer transport contracts incl. PostgreSQL namespace fields
-// pos: type-only boundary for schema catalog and explorer payloads
-// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 
 /**

@@ -1,7 +1,3 @@
-// input: Vitest and list-page URL search-param parsers
-// output: resource/audit pagination and structured-filter normalization, including bounded label filters and audit environment URL state
-// pos: public parser contract tests for list-page URL state
-// note: if this file changes, update this header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import {

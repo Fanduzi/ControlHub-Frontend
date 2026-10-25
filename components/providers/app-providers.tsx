@@ -1,7 +1,3 @@
-// input: next-intl, theme/accent providers, tooltip
-// output: root client providers without EnvironmentProvider
-// pos: app-wide providers; environments live under console layout
-// note: if this file changes, update header and components/providers/README.md
 "use client";
 
 import type { AbstractIntlMessages } from "next-intl";

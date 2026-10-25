@@ -1,7 +1,3 @@
-// input: backend QueryWorkspace OpenAPI schemas
-// output: owner workspace transport contracts
-// pos: type-only boundary for persisted query worksheet drafts
-// note: if this file changes, update this header and types/README.md.
 export type QueryWorkspaceWorksheet = {
   readonly id: string;
   readonly name: string;

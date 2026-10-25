@@ -1,7 +1,3 @@
-// input: Vitest, mocked resource/settings services, and view-model contracts
-// output: resource/database/audit view-model composition, actor/placeholders, parent resolution, and scoped-list coverage
-// pos: library contract coverage for frontend view-model adapters
-// note: if this file changes, update this header and tests/lib/README.md
 import {
   getResourceViewModel,
   listOverviewResourceViewModels,

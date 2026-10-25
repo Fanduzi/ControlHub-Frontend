@@ -1,7 +1,3 @@
-// input: API client, typed resource/environment topology parameters
-// output: validated resource and environment topology requests with abort forwarding
-// pos: topology backend transport boundary
-// note: if this file changes, update this header and services/README.md.
 import { ApiError, apiClient } from "@/services/api-client";
 import type { EnvironmentTopologyParams, TopologyParams, TopologyResponse } from "@/types/resource";
 

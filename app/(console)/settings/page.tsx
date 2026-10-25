@@ -1,7 +1,3 @@
-// input: next-intl server translations, settings services, and Settings entry components
-// output: authenticated Settings overview with admin-gated machine-principal discovery
-// pos: Server-rendered Settings overview route
-// note: if this file changes, update app/(console)/settings/README.md.
 import { getTranslations } from "next-intl/server";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";

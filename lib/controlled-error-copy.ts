@@ -1,8 +1,3 @@
-// input: errors-namespace translator and an ApiError-shaped failure
-// output: operator copy keyed only by Controlled Error Code
-// pos: shared classification for console error UI; never uses English message text
-// note: if this file changes, update this header and module README.md.
-
 import { CONTROLLED_ERROR_CODES } from "@/lib/controlled-error-codes";
 
 type ErrorsTranslator = {

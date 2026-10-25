@@ -1,7 +1,3 @@
-// input: active application locale
-// output: localized machine-principal administration copy
-// pos: Small localized vocabulary shared by the route and its entry points
-// note: if this file changes, update lib/README.md.
 const english = {
   eyebrow: "Security administration",
   title: "Machine principals",

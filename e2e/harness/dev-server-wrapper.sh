@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input: npm run dev, CONTROLHUB_API_BASE_URL, CONTROLHUB_API_PROXY_URL, CONTROLHUB_BFF_* env
-# output: Next.js dev server for E2E with Console BFF local-development configuration
-# pos: E2E dev-server wrapper filtering the single known Node v22 TransformStream stderr race
-# note: if this file changes, update header and e2e/harness/README.md
 # Wraps the Next.js dev server to filter a known Node.js v22 stderr noise.
 #
 # Node v22 has a TransformStream race condition (node#62036) that sporadically

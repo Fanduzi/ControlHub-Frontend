@@ -1,7 +1,3 @@
-// input: query schema object details, table-definition responses, ApiError codes, and localized UI primitives
-// output: accessible localized object metadata inspector with controlled definition error states
-// pos: query workbench object-inspection surface
-// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";

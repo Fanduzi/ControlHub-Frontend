@@ -1,7 +1,3 @@
-// input: none (pure identifier helpers)
-// output: dialect-aware identifier quoting/identity helpers (mysql + postgresql)
-// pos: shared helper for object identity and SQL reference rendering
-// note: if this file changes, update this header and lib/README.md.
 export type IdentifierDialect = "mysql" | "postgresql";
 
 export type ObjectIdentifierInput = {

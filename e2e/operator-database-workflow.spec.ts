@@ -1,7 +1,3 @@
-// input: Playwright, live console/backend, and per-run admin fixture identity
-// output: real-browser database drilldown checks with explicit fresh health evidence
-// pos: E2E coverage for database operator decision and supporting-detail workflows
-// note: if this file changes, update this header and e2e/README.md
 import { expect, test } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";

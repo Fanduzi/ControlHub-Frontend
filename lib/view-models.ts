@@ -1,7 +1,3 @@
-// input: resource, relation, profile, audit, lookup, settings, and database service responses
-// output: localized resource/detail/database/overview/audit view models with server actor labels, empty audit placeholders, unambiguous parent clusters, and empty members
-// pos: server-side adapter between transport records and console presentation consumers
-// note: if this file changes, update this header and lib/README.md.
 import {
   listRecentAuditEvents,
   listAuditEvents,

@@ -1,7 +1,3 @@
-// input: @/lib/schema-catalog, @/lib/query-sql-completion
-// output: React adapter over SchemaCatalog for worksheet SQL completion
-// pos: thin subscription; catalog owns lists, details, and namespace
-// note: if this file changes, update header and lib/README.md
 import { useCallback } from "react";
 
 import { type SchemaCatalog, useSchemaCatalogVersion } from "@/lib/schema-catalog";

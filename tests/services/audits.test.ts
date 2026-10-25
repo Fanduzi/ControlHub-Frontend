@@ -1,7 +1,3 @@
-// input: vitest, services/audits
-// output: audit service tests — pagination/search/filter/environment forwarding, resource audit path, operator-boundary 403 degradation
-// pos: unit tests for audit list/read services
-// note: if this file changes, update header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listAuditEvents, listRecentAuditEvents, listResourceAuditEvents } from "@/services/audits";

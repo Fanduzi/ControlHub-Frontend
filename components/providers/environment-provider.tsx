@@ -1,7 +1,3 @@
-// input: react, services/settings, lib/preferences
-// output: environment list through the authenticated BFF path and persisted client selection
-// pos: console environment selector data source
-// note: if this file changes, update header and components/providers/README.md
 "use client";
 
 import {

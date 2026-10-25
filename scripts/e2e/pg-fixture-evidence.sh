@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input: per-run state dirs under $PG_FIXTURE_STATE_DIR (default .e2e-pg-fixture-state/), git metadata, e2e/backend-fixture.env
-# output: sanitized whitelist evidence in $PG_FIXTURE_EVIDENCE_DIR (default e2e-evidence/) — run manifest, assembly identity, fixture/seed logs with credential patterns redacted
-# pos: form the uploadable evidence set BEFORE teardown deletes runtime state; secrets/state/cnf/pid/binary files are never copied — whitelist only, and required files fail closed
-# note: if this file changes, update e2e/README.md; runs before pg-fixture-down.sh in CI
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

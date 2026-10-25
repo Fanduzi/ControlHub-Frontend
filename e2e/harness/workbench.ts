@@ -1,10 +1,3 @@
-// input: @playwright/test Page, ./auth
-// output: shared query-workbench helpers — open workbench, editor access,
-//   ready-target selection via the connection navigator
-// pos: reusable E2E navigation/selection seam for query workbench specs;
-//   helpers take the probed fixture identity as parameters so specs do not
-//   share module-level mutable state
-// note: if this file changes, update header and e2e/README.md
 import { expect, type Page } from "@playwright/test";
 
 import { loginViaUI } from "./auth";

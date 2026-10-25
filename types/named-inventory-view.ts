@@ -1,7 +1,3 @@
-// input: named inventory view API JSON contract
-// output: named inventory view state with repeated filters, requests, and responses
-// pos: frontend transport contract for saved inventory views
-// note: if this file changes, update this header and types/README.md.
 export type NamedInventoryViewScope = "personal" | "shared";
 
 export type NamedInventoryViewFilters = {

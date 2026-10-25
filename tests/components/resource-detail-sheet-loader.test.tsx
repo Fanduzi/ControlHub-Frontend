@@ -1,7 +1,3 @@
-// input: resource detail sheet loader, mocked view-model service, localized test data
-// output: loader open behavior and same-id archive/restore refetch regression tests
-// pos: component tests for client detail data refresh
-// note: if this file changes, update header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

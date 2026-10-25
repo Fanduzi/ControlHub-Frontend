@@ -1,7 +1,3 @@
-// input: @codemirror/autocomplete, schema namespace from catalog
-// output: keyword/table/column completions and statement parsers
-// pos: UX-only SQL completion; backend guard is authoritative
-// note: if this file changes, update header and lib/README.md
 /**
  * Read-only SQL completion source for CodeMirror.
  *

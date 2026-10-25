@@ -1,7 +1,3 @@
-// input: vitest, scripts/check-controlled-error-codes.mjs
-// output: fixture drift fails either direction; matching sets pass; real files must match
-// pos: OpenAPI ErrorResponse.error enum vs console CONTROLLED_ERROR_CODES union
-// note: if this file changes, update header
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";

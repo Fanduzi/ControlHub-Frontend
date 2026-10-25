@@ -1,7 +1,3 @@
-// input: Playwright test hooks, e2e/api.helpers getAuthToken, real query-target Saved Statement API
-// output: guaranteed afterEach DELETE for Query Workbench-created Saved Statements (404 is success)
-// pos: E2E cleanup seam for Saved Statements only; other fixture types stay unchanged
-// note: if this file changes, update header and e2e/README.md
 import { test, type Page } from "@playwright/test";
 
 import { getAuthToken } from "../api.helpers";

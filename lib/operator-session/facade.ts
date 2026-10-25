@@ -1,7 +1,3 @@
-// input: next/server, operator-session config/seal/origin/cookie/backend/response
-// output: Operator Session facade (login, logout, readIdentity, authenticateCookie, gatePage)
-// pos: one fail-closed Operator Session module; HTTP routes are adapters
-// note: if this file changes, update header and lib/operator-session/README.md
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 

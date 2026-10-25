@@ -1,7 +1,3 @@
-// input: @/app/api/proxy/[...path]/route, @/lib/operator-session/*, next/server
-// output: Vitest tests for the protected BFF proxy boundary (server-held credential, origin and header rejection, coded synthesized errors, forwarded upstream error)
-// pos: unit-level contract tests for server-side forwarding of the session-held Backend Bearer Credential
-// note: if this file changes, update header and tests/app/api/README.md
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 

@@ -1,8 +1,4 @@
 # shellcheck shell=bash
-# input: sourced by scripts/e2e/pg-fixture-{up,down}.sh — never executed standalone
-# output: shared teardown primitives — executable-verified PID termination (bounded TERM→KILL) and classified docker removal (NotFound-only idempotence)
-# pos: the single destroy logic both scripts reuse — prevents rule drift between up-failure cleanup and explicit down
-# note: if this file changes, update e2e/README.md; every refusal prints to stderr and returns non-zero — callers decide whether state is preserved
 
 # Resolve the executable a live PID is really running. /proc on Linux,
 # `ps -o comm=` elsewhere (returns the path the kernel exec'd — unlike lsof

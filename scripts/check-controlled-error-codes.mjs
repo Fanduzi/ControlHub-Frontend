@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-
-// input: backend OpenAPI YAML and lib/controlled-error-codes.ts
-// output: zero exit when ErrorResponse.error enum matches CONTROLLED_ERROR_CODES
-// pos: frontend CI drift gate for the closed Controlled Error Code set
-// note: if this file changes, update header and package.json
-
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

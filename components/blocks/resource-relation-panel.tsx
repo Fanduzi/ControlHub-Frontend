@@ -1,7 +1,3 @@
-// input: React, root/namespace next-intl, next/navigation, auth-role, and server relation services
-// output: localized relation rows, explicit directed relation creation, resilient successful-delete removal, refresh, and controlled errors
-// pos: shared relation read/mutation surface that validates server-owned rules at the selected source-to-target boundary
-// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";

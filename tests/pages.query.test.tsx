@@ -1,7 +1,3 @@
-// input: Query Workbench server page props and mocked environment/target services
-// output: URL scope, target-selection, and fail-closed page-composition assertions
-// pos: route-level regression coverage for Query Workbench server state
-// note: if this file changes, update this header and tests/README.md
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

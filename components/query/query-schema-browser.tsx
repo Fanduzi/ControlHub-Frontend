@@ -1,7 +1,3 @@
-// input: @/components/query/query-object-explorer, @/lib/schema-catalog, @/types/query-target, next-intl
-// output: QuerySchemaBrowser objects pane/sheet entry point wiring engine-gated composite connections
-// pos: UI boundary between the workbench target and the object explorer
-// note: connections reach the explorer only for postgresql engines; if this file changes, update header and components/query/README.md
 "use client";
 
 import { useState } from "react";

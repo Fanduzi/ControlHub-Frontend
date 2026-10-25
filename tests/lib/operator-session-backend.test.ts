@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/backend
-// output: Vitest tests for server-side BFF login against the existing backend login API
-// pos: unit-level contract tests for the BFF backend-login boundary and generic error mapping
-// note: if this file changes, update header and tests/lib/README.md
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { performBackendLogin } from "@/lib/operator-session/backend";

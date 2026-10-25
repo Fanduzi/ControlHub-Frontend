@@ -1,7 +1,3 @@
-// input: next, next-intl plugin, path
-// output: Next.js config without open /__api backend rewrite
-// pos: app build/runtime configuration; BFF owns browser API access
-// note: if this file changes, update header and README.md
 import path from "node:path";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";

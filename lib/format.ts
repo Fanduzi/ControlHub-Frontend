@@ -1,8 +1,3 @@
-// input: date/time values and the caller's validated application locale
-// output: safe native locale-aware absolute and relative date-time labels
-// pos: shared presentation formatter for console timestamps
-// note: if this file changes, update this header and lib/README.md
-
 import { DEFAULT_LOCALE, type AppLocale } from "@/i18n/locales";
 
 type RoleTranslationKey =

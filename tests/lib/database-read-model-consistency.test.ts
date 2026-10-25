@@ -1,7 +1,3 @@
-// input: database detail view-model fixtures, topology records, and consistency builders
-// output: database parent, member, profile, and topology consistency contracts
-// pos: public consistency-helper seam for database detail consumers
-// note: if this file changes, update this header and tests/lib/README.md.
 import { describe, expect, it } from "vitest";
 
 import type { ClusterMember, TopologyResponse } from "@/types/resource";

@@ -1,7 +1,3 @@
-// input: Playwright, BFF session helpers, Operator Session seal/config
-// output: Browser-level BFF session and no-readable-role-state contracts
-// pos: Operator Session boundary E2E coverage against the real backend
-// note: if this file changes, update e2e/README.md
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 

@@ -1,7 +1,3 @@
-// input: explicit URL environment scope, environment provider fallback, topology panel, translations
-// output: fail-closed explicit URL scope with provider fallback, URL-owned topology controls, and an environment chooser when no single environment is selected
-// pos: dedicated topology route client content
-// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useTranslations } from "next-intl";

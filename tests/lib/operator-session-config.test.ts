@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/config
-// output: Vitest tests for fail-closed Operator Session BFF configuration validation
-// pos: unit-level contract tests for BFF configuration (sealing keys, Console Origin, secure-cookie policy)
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import { loadOperatorSessionConfig } from "@/lib/operator-session/config";

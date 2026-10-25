@@ -1,7 +1,3 @@
-// input: Next search params/cookies, environment resolver, overview view models
-// output: environment-consistent overview where explicit all overrides persisted scope
-// pos: authenticated console overview route
-// note: if this file changes, update this header and app/(console)/README.md
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 

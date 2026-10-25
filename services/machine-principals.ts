@@ -1,7 +1,3 @@
-// input: machine-principal requests and api-client
-// output: typed list/create/rotate/revoke calls for backend dbe6203
-// pos: Browser service boundary for admin machine-credential lifecycle
-// note: if this file changes, update services/README.md.
 import { apiClient } from "@/services/api-client";
 import type {
   MachineCredentialIssue,

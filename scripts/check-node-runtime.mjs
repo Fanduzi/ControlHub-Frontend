@@ -1,8 +1,3 @@
-// input: root .tool-versions and the active Node.js process version
-// output: a zero exit status for Node 22.22.0 or a controlled diagnostic
-// pos: fail-fast runtime contract for local npm commands and CI
-// note: if changed, update the Phase 38V runtime contract documentation
-
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

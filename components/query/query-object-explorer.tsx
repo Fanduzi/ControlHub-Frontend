@@ -1,7 +1,3 @@
-// input: @/lib/schema-catalog, @/components/query/query-object-tree, query-schema fetch via catalog
-// output: QueryObjectExplorer (tree + inspector) reading schema catalog; expanded objects list their columns with inline inspect/preview actions, and the row context menu offers the same actions, loading detail first when not yet fetched
-// pos: object explorer UI adapter over schema catalog
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

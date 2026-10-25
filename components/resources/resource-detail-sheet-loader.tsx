@@ -1,7 +1,3 @@
-// input: resource list view model, open state, and detail view-model service
-// output: client detail-sheet loader with same-id archive/restore refetches
-// pos: resource table to detail sheet data boundary
-// note: if this file changes, update header and components/resources/README.md.
 "use client";
 
 import { useEffect, useState } from "react";

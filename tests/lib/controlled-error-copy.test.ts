@@ -1,8 +1,3 @@
-// input: controlledErrorCopy, CONTROLLED_ERROR_CODES, en/zh-CN errors.codes
-// output: code-only operator copy; English message text is never selected
-// pos: unit contract for Issue #69 console error localization
-// note: if this file changes, update header and lib/README.md
-
 import { describe, expect, it } from "vitest";
 
 import { CONTROLLED_ERROR_CODES } from "@/lib/controlled-error-codes";

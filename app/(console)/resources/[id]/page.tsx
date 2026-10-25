@@ -1,8 +1,3 @@
-// input: resource route id, localized resource view model, health evidence, and detail components
-// output: full resource detail page with localized profile roles, empty cluster members, completeness, health observations, and directed relation context
-// pos: server-rendered resource detail and operational health inspection surface
-// note: if this file changes, update this header and module README.md.
-
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 

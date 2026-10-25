@@ -1,8 +1,3 @@
-// input: StatusBadge, next-intl statusValues, Testing Library render
-// output: lifecycle tone selectors aligned to backend running/degraded keys
-// pos: component-level regression for Issue #64 muted running badges
-// note: if this file changes, update header and tests/components/README.md
-
 import { NextIntlClientProvider } from "next-intl";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";

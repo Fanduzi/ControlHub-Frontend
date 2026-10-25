@@ -1,7 +1,3 @@
-// input: server-rendered page props and mocked environment/settings/view-model loaders
-// output: URL/cookie-owned pagination, scoped-list, bulk-mutation dictionaries, taxonomy, and audit environment data-flow assertions
-// pos: regression coverage for server list-page composition
-// note: if this file changes, update header and tests/README.md
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

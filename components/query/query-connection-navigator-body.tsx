@@ -1,7 +1,3 @@
-// input: grouped targets, filters, localized controls, paging state, and search/load errors
-// output: accessible query target search/filter controls, result list, errors, and retry actions
-// pos: connection navigator body presentation seam
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";

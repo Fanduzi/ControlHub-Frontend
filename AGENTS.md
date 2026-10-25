@@ -111,3 +111,9 @@ If you genuinely think a convention is harmful, surface it. Don't fork silently.
 "Completed" is wrong if anything was skipped silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
+
+## Documentation convention
+
+L3 file headers (`input:`, `output:`, `pos:`, `note:`) are retired in this
+repository. Do not add them to source files. Module `README.md` files (L2) and
+the root architecture map (L1) remain in use.

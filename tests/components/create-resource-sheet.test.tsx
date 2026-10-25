@@ -1,7 +1,3 @@
-// input: CreateResourceSheet, translations, mocked dictionaries, settings/resource service fakes, and localized messages
-// output: create-form behavior for governed identity and all typed-profile identity fields
-// pos: component contract tests for resource creation
-// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

@@ -1,7 +1,3 @@
-// input: Vitest, mocked API client, query execution service
-// output: service contract tests for governed execution, fail-closed history restore eligibility, and statement recovery
-// pos: service-level regression tests for query target transport operations
-// note: if this file changes, update this header and tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {

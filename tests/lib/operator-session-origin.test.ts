@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/origin
-// output: Vitest tests for the Console BFF same-origin guard on unsafe methods
-// pos: unit-level contract tests for Console Origin enforcement at the BFF boundary
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import { isUnsafeMethod, originAllowed } from "@/lib/operator-session/origin";

@@ -1,7 +1,3 @@
-// input: vitest, lib/profile-field-registry
-// output: Test getProfileSchema identity flags and mapControlledFieldPath
-// pos: Locks the console catalog to the four core CI minimum-identity fields
-// note: if this file changes, update this header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import {

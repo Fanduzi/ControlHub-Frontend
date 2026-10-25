@@ -1,7 +1,3 @@
-// input: @/components/query/query-object-explorer
-// output: explorer tests incl. PostgreSQL connection->schema->object hierarchy
-// pos: component test for the schema explorer
-// note: if this file changes, update this header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";

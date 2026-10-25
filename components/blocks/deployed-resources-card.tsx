@@ -1,7 +1,3 @@
-// input: rendered resource relations and root/deployed-resource locale translators
-// output: localized table of resources deployed on the current host
-// pos: detail-page read-only deployment relation view
-// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useTranslations } from "next-intl";

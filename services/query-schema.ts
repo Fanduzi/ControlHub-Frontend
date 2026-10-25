@@ -1,7 +1,3 @@
-// input: @/services/api-client, @/types/query-schema
-// output: schema catalog calls (databases, schemas, objects, details, relationship map) with schema param + abort signals
-// pos: service boundary for schema metadata
-// note: if this file changes, update this header and services/README.md
 import { apiClient } from "@/services/api-client";
 import type {
   DatabaseListResponse,

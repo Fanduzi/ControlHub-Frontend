@@ -1,7 +1,3 @@
-// input: environment list service, resource list params
-// output: environment-scoped list params with known slugs resolved, explicit all unscoped, or null when unknown
-// pos: shared environment URL-scope resolver for console list pages
-// note: if this file changes, update header and lib/README.md
 import { listEnvironments } from "@/services/settings";
 type EnvironmentScopedParams = {
   environmentSlug?: string;

@@ -1,7 +1,3 @@
-// input: @/lib/query-object-identity, @/types/query-schema, @/components/ui/*, next-intl
-// output: QueryObjectTree explorer tree (database->object; optional PostgreSQL connection->schema->object via schemaLevel); object rows expose an optional right-click context menu through renderObjectMenu
-// pos: UI component rendering the schema explorer hierarchy
-// note: schemaLevel opts into the composite PostgreSQL level; if this file changes, update header and components/query/README.md
 "use client";
 
 import { ChevronRight, Database, FolderTree, Search, Table2, Trash2, View } from "lucide-react";

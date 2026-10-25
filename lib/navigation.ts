@@ -1,7 +1,3 @@
-// input: lucide-react
-// output: console navigation registry with adminOnly markers; section id lookup
-// pos: single navigation source consumed by sidebar, command palette, and topbar
-// note: if this file changes, update header and lib/README.md
 import {
   Activity,
   Database,

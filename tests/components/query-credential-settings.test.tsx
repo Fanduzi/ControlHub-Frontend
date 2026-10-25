@@ -1,7 +1,3 @@
-// input: QueryCredentialSettings, mocked credential services and trusted-role seam
-// output: component tests for credential administration and non-admin denial
-// pos: presentation-level coverage for query credential settings
-// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

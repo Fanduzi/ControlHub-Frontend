@@ -1,7 +1,3 @@
-// input: @/components/query/query-object-tree
-// output: Vitest tests for explorer tree a11y ownership incl. the PostgreSQL schema level
-// pos: tree component interface is the test surface
-// note: if this file changes, update header and tests/components/README.md
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";

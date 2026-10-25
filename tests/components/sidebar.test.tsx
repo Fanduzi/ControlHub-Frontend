@@ -1,7 +1,3 @@
-// input: vitest, testing-library, sidebar, auth-role
-// output: sidebar tests — navigation, environment scoping, admin-only audits entry
-// pos: component tests for console navigation chrome
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

@@ -1,7 +1,3 @@
-// input: backend topology transport response and graph layout constants
-// output: React Flow nodes, edges, and database group layouts
-// pos: shared topology transport-to-graph mapper
-// note: if this file changes, update this header and module README.md.
 import type { Edge, Node } from "@xyflow/react";
 import type { EdgeSemanticType, TopologyEdge, TopologyLayer, TopologyNode, TopologyResponse, TopologyRole } from "@/types/resource";
 

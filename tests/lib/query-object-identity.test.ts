@@ -1,7 +1,3 @@
-// input: @/lib/query-object-identity
-// output: Vitest tests for object/scope identity key injectivity
-// pos: identity helper interface is the test surface
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import {

@@ -1,7 +1,3 @@
-// input: resource list view models
-// output: whether a resource belongs in the Overview attention queue
-// pos: shared predicate for Overview posture pending and the attention table
-// note: if this file changes, update this header and lib/README.md
 import { buildDatabaseOperationalSignal } from "@/lib/database-operational-signal";
 import type { ResourceListViewModel } from "@/types/view-models";
 

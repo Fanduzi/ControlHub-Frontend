@@ -1,7 +1,3 @@
-// input: URL params and query services
-// output: fail-closed Query Workbench props
-// pos: authenticated Query Workbench route
-// note: update app/(console)/query/README.md if this changes
 import { QueryWorkbench } from "@/components/query/query-workbench";
 import { resolveEnvironmentSlugToId } from "@/lib/environment-params";
 import { parsePositiveDecimalInteger } from "@/lib/list-page-search-params";

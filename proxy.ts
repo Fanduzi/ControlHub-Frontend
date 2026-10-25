@@ -1,7 +1,3 @@
-// input: next/server, @/lib/operator-session/facade
-// output: console page gate via Operator Session facade; invalid sessions fail closed to login with the protected path and query preserved
-// pos: thin adapter over gatePage
-// note: if this file changes, update header and README.md
 import type { NextRequest } from "next/server";
 
 import { gatePage } from "@/lib/operator-session/facade";

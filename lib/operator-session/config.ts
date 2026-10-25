@@ -1,7 +1,3 @@
-// input: node:buffer, @/lib/operator-session/constants
-// output: fail-closed Operator Session BFF configuration loader (sealing keys, Console Origin, secure-cookie policy)
-// pos: validates BFF environment configuration before any session or proxy traffic is served
-// note: if this file changes, update header and lib/operator-session/README.md
 export interface OperatorSessionConfig {
   /** Active 32-byte AES-256-GCM sealing key. */
   activeKey: Buffer;

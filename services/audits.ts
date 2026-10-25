@@ -1,7 +1,3 @@
-// input: @/services/api-client, @/lib/pagination, @/types/audit
-// output: audit list/read services with q/environment forwarding; resource audit reads degrade to empty on the operator-boundary 403
-// pos: audit data services with server-authoritative access-boundary handling
-// note: if this file changes, update header and services/README.md
 import { apiClient, ApiError } from "@/services/api-client";
 import { appendRepeated } from "@/lib/pagination";
 import type {

@@ -1,7 +1,3 @@
-// input: @testing-library/react, @/components/query/query-saved-statements, @/services/query-saved-statements (mocked)
-// output: Vitest component tests for QuerySavedStatements (terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates)
-// pos: unit-level behavioral tests for the saved-statements UI component
-// note: if this file changes, update header and tests/components/README.md
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";

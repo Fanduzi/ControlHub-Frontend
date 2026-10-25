@@ -1,7 +1,3 @@
-// input: @/types/query-schema ObjectSummary
-// output: stable UI identity keys incl. PostgreSQL schema-scope keys
-// pos: shared identity helper for explorer tree/inspector state
-// note: if this file changes, update this header and lib/README.md.
 import type { ObjectSummary } from "@/types/query-schema";
 
 /** Stable, injective UI identity for an expanded object. */

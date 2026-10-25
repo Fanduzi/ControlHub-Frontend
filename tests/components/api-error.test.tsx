@@ -1,8 +1,3 @@
-// input: ApiError block, next-intl errors catalog, ApiError class
-// output: code-mapped operator copy without English envelope message
-// pos: component-level regression for Issue #69
-// note: if this file changes, update header and tests/components/README.md
-
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";

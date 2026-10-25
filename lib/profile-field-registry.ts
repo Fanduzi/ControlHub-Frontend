@@ -1,8 +1,3 @@
-// input: zod, resource type key
-// output: getProfileSchema, hasProfileFields, ProfileSchema, mapControlledFieldPath
-// pos: Console typed-profile field contract for core CI identity plus Domain Name/Virtual IP; backend remains the identity authority
-// note: if this file changes, update this header and lib/README.md
-
 import { z } from "zod";
 
 export type ProfileFieldDef = {

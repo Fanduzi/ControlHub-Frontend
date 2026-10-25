@@ -1,7 +1,3 @@
-// input: mocked API client and topology service requests
-// output: topology request-path, invalid-root serialization, and abort-forwarding contracts
-// pos: topology transport regression tests
-// note: if this file changes, update this header and tests/services/README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/services/api-client", async () => {

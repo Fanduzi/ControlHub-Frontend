@@ -1,7 +1,3 @@
-// input: vitest, @/lib/operator-session/response
-// output: Vitest tests that BFF-synthesized JSON errors carry a snake_case Controlled Error Code
-// pos: unit-level contract tests for the shared Console BFF JSON helper
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it } from "vitest";
 
 import { bffJson } from "@/lib/operator-session/response";

@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/config
-// output: production startup fail-closed gate for Operator Session BFF configuration
-// pos: throws during next start when sealing keys, Console Origin, or secure-cookie policy are missing or unsafe
-// note: if this file changes, update header and README.md
 import { loadOperatorSessionConfig } from "@/lib/operator-session/config";
 
 export function register(): void {

@@ -1,7 +1,3 @@
-// input: Vitest, testing-library, named inventory view controls, mocked service/router
-// output: repeated-filter saved inventory-view save, apply, and management regression tests
-// pos: component tests for URL-state round-tripping of named inventory views
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

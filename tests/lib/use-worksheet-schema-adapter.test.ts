@@ -1,7 +1,3 @@
-// input: @/lib/use-worksheet-schema-adapter, @/lib/schema-catalog
-// output: Vitest tests for the React adapter over schema catalog completion
-// pos: adapter reads catalog; catalog tests own fetch/TTL
-// note: if this file changes, update header and tests/lib/README.md
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

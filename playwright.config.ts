@@ -1,7 +1,3 @@
-// input: @playwright/test, process environment, E2E frontend/API server commands
-// output: single-worker Chromium E2E configuration with local server orchestration
-// pos: root Playwright runtime boundary preserving one writer for owner-scoped fixtures
-// note: if this file changes, update this header and README.md
 import { defineConfig } from "@playwright/test";
 
 const devServerUrl = "http://localhost:3100";

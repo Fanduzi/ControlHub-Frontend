@@ -1,7 +1,3 @@
-// input: @/proxy, next/server, @/lib/operator-session/config, @/lib/operator-session/seal, @/lib/operator-session/constants
-// output: Vitest tests for the console route guard, including preserved protected path and query on login redirects
-// pos: unit-level contract tests for the Operator Session page boundary enforced by the proxy
-// note: if this file changes, update header and tests/app/README.md
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

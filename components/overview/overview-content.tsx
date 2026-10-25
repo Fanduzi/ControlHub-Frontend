@@ -1,7 +1,3 @@
-// input: environment-scoped resource view models and localized UI messages
-// output: posture metrics, collector-unknown health guidance, and an expandable attention queue with readable reasons and transition-aware status badges
-// pos: client-rendered Overview content; queue membership uses isActionableAttention
-// note: if this file changes, update this header and components/overview/README.md.
 "use client";
 
 import Link from "next/link";

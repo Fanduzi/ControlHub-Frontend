@@ -1,7 +1,3 @@
-// input: react-hook-form, resource dictionaries, profile registry, services, translations, and shared identity fields
-// output: admin resource creation sheet with governed and typed-profile identity
-// pos: Console validation boundary for manual CI registration
-// note: if this file changes, update this header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

@@ -1,7 +1,3 @@
-// input: vitest, e2e/harness/saved-statement-teardown
-// output: unit tests for Saved Statement E2E teardown — 404 is success, other errors fail
-// pos: locks the Query Workbench cleanup contract so leftover rows cannot hide behind swallowed errors
-// note: if this file changes, update header and tests/e2e-harness/README.md
 import { describe, expect, it, vi } from "vitest";
 
 import {

@@ -1,7 +1,3 @@
-// input: React, next-intl, and ingestion service
-// output: localized ingestion review dialog
-// pos: resource ingestion review UI
-// note: update this header and README.md.
 "use client";
 
 import { useState } from "react";

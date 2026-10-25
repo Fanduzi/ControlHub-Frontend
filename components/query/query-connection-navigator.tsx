@@ -1,7 +1,3 @@
-// input: query target page, client filters, search failure/retry state, and navigator callbacks
-// output: grouped connection target navigator with localized loaded/total paging and error presentation
-// pos: connection navigator filtering and grouping boundary
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { type RefObject, useMemo } from "react";

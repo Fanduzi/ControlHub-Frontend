@@ -1,7 +1,3 @@
-// input: backend resource, profile, relation, topology, health, effective-value, identity, override, rule, and bulk-mutation JSON contracts
-// output: governed resource identity, server-derived completeness, health/provenance, override, server-owned relationship-rule, and closed atomic bulk-mutation transport types
-// pos: shared TypeScript transport boundary between resource services and UI
-// note: if this file changes, update this header and types/README.md.
 export type ResourceType =
   | "host"
   | "database_instance"

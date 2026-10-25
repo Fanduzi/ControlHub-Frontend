@@ -1,7 +1,3 @@
-// input: Next search params, environment/resource services, owner/environment/status dictionaries, resource table
-// output: scoped resource inventory page with taxonomy-backed filters and bulk-mutation dictionaries; unknown environments fail closed
-// pos: authenticated console resources route composition
-// note: if this file changes, update header and app/(console)/resources/README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";

@@ -1,7 +1,3 @@
-// input: server-paginated database view models, URL filters, locale messages, and row-detail interaction
-// output: scoped database estate table with server-owned search/pagination, shared role labels, and local operational controls
-// pos: client database inventory presentation for the authenticated console
-// note: if this file changes, update this header and components/databases/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

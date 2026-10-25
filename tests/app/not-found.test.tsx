@@ -1,7 +1,3 @@
-// input: next/link, next-intl/server, @testing-library/react, app not-found boundaries, locale messages
-// output: Vitest render coverage for localized generic and resource-specific 404 boundaries
-// pos: app-boundary tests for unmatched routes and missing resource detail routes
-// note: if this file changes, update header and tests/app/README.md
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

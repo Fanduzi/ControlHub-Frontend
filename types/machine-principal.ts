@@ -1,7 +1,3 @@
-// input: backend 25c7cc9 machine-principal JSON
-// output: typed machine-principal administration data and requests
-// pos: Shared frontend contract for the admin machine-credential UI
-// note: if this file changes, update types/README.md.
 export const MACHINE_PRINCIPAL_SCOPES = [
   { value: "inventory:read", label: "Inventory read" },
   { value: "relations:read", label: "Relations read" },

@@ -1,7 +1,3 @@
-// input: scoped query targets, filters, paging controls, and localized navigator callbacks
-// output: responsive desktop/mobile connection navigator wrappers
-// pos: query workbench navigator presentation boundary
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useRef, useState } from "react";

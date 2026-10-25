@@ -1,7 +1,3 @@
-// input: resource aliases and system/value external identifiers
-// output: accessible controlled editors for resource identity collections
-// pos: shared identity editor used by create and edit resource sheets
-// note: if this file changes, update this header and README.md
 "use client";
 
 import { Button } from "@/components/ui/button";

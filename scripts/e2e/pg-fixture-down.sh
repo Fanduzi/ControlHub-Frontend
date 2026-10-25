@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input: per-run state dir written by scripts/e2e/pg-fixture-up.sh (BASE=$PG_FIXTURE_STATE_DIR, default .e2e-pg-fixture-state/<runId>/)
-# output: kills ONLY this run's verified fixture PID (exe-identity checked, bounded wait) and removes ONLY this run's container by recorded ID, then clears ONLY the owned state dir
-# pos: teardown counterpart — state is parsed key-by-key (never sourced), destroy primitives come from pg-fixture-lib.sh, container errors are classified (NotFound-only idempotence), any cleanup failure preserves state and exits non-zero
-# note: if this file changes, update e2e/README.md
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

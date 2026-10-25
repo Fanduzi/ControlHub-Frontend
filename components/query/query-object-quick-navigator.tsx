@@ -1,7 +1,3 @@
-// input: @/lib/schema-catalog, query-schema types
-// output: Cmd+P quick navigator reading schema catalog
-// pos: UI adapter over schema catalog for bounded database/object search
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useEffect, useState } from "react";

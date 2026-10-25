@@ -1,7 +1,3 @@
-// input: backend query target OpenAPI read model (connections, credential policy, availability)
-// output: query target transport contracts incl. composite PostgreSQL connection rows
-// pos: type-only boundary for governed query target selection and composite context
-// note: if this file changes, update this header and types/README.md.
 import type { ResourceType } from "@/types/resource";
 import type { PageInfo } from "@/types/resource";
 import type {

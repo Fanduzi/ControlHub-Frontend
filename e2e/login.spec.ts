@@ -1,8 +1,3 @@
-// input: @playwright/test, ./harness/fixtures
-// output: login form E2E — valid fixture identity navigates to overview;
-// invalid password stays on login
-// pos: real-browser login form coverage against the live backend
-// note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 
 import { resolveFixtureIdentity } from "./harness/fixtures";

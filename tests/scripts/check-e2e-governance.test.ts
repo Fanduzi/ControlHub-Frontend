@@ -1,7 +1,3 @@
-// input: vitest, scripts/check-e2e-governance.mjs
-// output: chained smoke+interaction+full fails; full-suite-once passes; local subset scripts remain
-// pos: CI release:e2e graph must not re-execute Playwright specs already in the full suite
-// note: if this file changes, update header
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";

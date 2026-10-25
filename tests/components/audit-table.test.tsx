@@ -1,8 +1,3 @@
-// input: AuditTable, URL search params, localized messages, Testing Library user interactions
-// output: acknowledgment/popstate-guarded audit search, seeded auth/query/machine filters, zh-CN event labels, localized timestamps, and field-diff assertions
-// pos: component-level regression contract for the operator audit table
-// note: if this file changes, update header and components/audits/README.md
-
 import { NextIntlClientProvider } from "next-intl";
 import { formatDateTime } from "@/lib/format";
 import { act, fireEvent, render, screen } from "@testing-library/react";

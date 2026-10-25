@@ -1,7 +1,3 @@
-// input: @/services/query-saved-statements
-// output: saved statement request-contract tests incl. ?database scoping + keyed execute
-// pos: service test
-// note: if this file changes, update this header and tests/services/README.md
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", async () => {

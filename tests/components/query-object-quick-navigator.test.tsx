@@ -1,7 +1,3 @@
-// input: @/components/query/query-object-quick-navigator
-// output: quick navigator tests incl. PostgreSQL schema scope
-// pos: component test for the object quick navigator
-// note: if this file changes, update this header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

@@ -1,7 +1,3 @@
-// input: none (server-side env only)
-// output: server-side BFF login against the existing backend login API with generic outcome mapping and identity
-// pos: BFF-only translation from console credentials to a Backend Bearer Credential, never exposed to browsers
-// note: if this file changes, update header and lib/operator-session/README.md
 export type LoginOutcome =
   | {
       ok: true;

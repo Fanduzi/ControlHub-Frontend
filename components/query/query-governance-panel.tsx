@@ -1,7 +1,3 @@
-// input: Query target governance state, translations, admin-role state, and UI primitives
-// output: localized governance policy and credential-status controls
-// pos: query workbench governance and access presentation
-// note: if this file changes, update this header and components/query/README.md
 "use client";
 
 import { useTranslations } from "next-intl";

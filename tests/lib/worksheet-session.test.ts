@@ -1,7 +1,3 @@
-// input: @/lib/worksheet-session
-// output: Vitest tests for 工作表 commands (template mode, execute routing, stale guard)
-// pos: worksheet session interface is the test surface
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it, vi } from "vitest";
 
 import { QueryExecuteError } from "@/services/query-executions";

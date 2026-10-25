@@ -1,7 +1,3 @@
-// input: vitest, testing-library, environment-provider
-// output: tests for the authenticated BFF environments probe without browser role state
-// pos: component unit tests
-// note: if this file changes, update header and tests/components/README.md
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

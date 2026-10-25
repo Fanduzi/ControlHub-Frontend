@@ -1,7 +1,3 @@
-// input: vitest, api-client
-// output: tests for resolveApiBaseUrl, unsafe integers, browser BFF path, BFF 401 session handling, Controlled Error Code and error-body ingest
-// pos: unit tests for shared API client
-// note: if this file changes, update this header and module README.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient, ApiError, resolveApiBaseUrl } from "@/services/api-client";

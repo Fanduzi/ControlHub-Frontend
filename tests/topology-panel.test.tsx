@@ -1,7 +1,3 @@
-// input: topology panel public interface, service mock, and localized messages
-// output: topology panel URL, detail-navigation, and stale-request regression coverage
-// pos: topology graph panel contract tests
-// note: if this file changes, update this header and module README.md.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

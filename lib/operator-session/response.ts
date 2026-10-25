@@ -1,7 +1,3 @@
-// input: next/server
-// output: controlled BFF JSON errors { error, message } with Cache-Control: no-store
-// pos: shared non-cacheable outcome shape for the Console BFF boundary
-// note: if this file changes, update header and lib/operator-session/README.md
 import { NextResponse } from "next/server";
 
 /**

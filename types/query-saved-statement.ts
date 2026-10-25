@@ -1,7 +1,3 @@
-// input: backend saved statement OpenAPI schemas (records, parameters, execute)
-// output: saved statement transport contracts incl. PostgreSQL database/schema scope
-// pos: type-only boundary for saved statement library and template execution
-// note: if this file changes, update this header and types/README.md.
 import type { PageInfo } from "@/types/resource";
 import type { QueryExecutePaginationRequest } from "@/types/query-execution";
 

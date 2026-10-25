@@ -1,8 +1,3 @@
-// input: backend OpenAPI controlled-error contract
-// output: CONTROLLED_ERROR_CODES const list and ControlledErrorCode union
-// pos: closed console union of OpenAPI ErrorResponse.error; not generated
-// note: if this file changes, update this header and module README.md.
-
 /**
  * Closed Controlled Error Code set. Must match OpenAPI `ErrorResponse.error`.
  * Maintained by hand and compared by `scripts/check-controlled-error-codes.mjs`.

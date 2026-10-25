@@ -1,7 +1,3 @@
-// input: next-intl, @testing-library/react, @testing-library/user-event, @/app/login/page, @/messages/zh-CN.json
-// output: Vitest coverage for localized LoginPage validation and safe post-login return paths
-// pos: app-boundary test for the public login page
-// note: if this file changes, update header and tests/app/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

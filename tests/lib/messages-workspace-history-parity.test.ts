@@ -1,7 +1,3 @@
-// input: Vitest, en and zh-CN query workbench messages
-// output: locale parity tests for workspace and statement-recovery copy
-// pos: i18n regression boundary for query workspace persistence and history restore
-// note: if this file changes, update this header and tests/lib/README.md.
 import { describe, expect, it } from "vitest";
 
 import en from "@/messages/en.json";

@@ -1,7 +1,3 @@
-// input: machine-principal service functions and mocked api client
-// output: HTTP contract and request-whitelist tests
-// pos: Frontend boundary for backend dbe6203 machine-principal administration
-// note: if this file changes, update tests/services/README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/api-client", () => ({

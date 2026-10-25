@@ -1,7 +1,3 @@
-// input: Vitest, Next request cookies, and Overview route page
-// output: regression coverage for cookie-scoped Overview loading and explicit all override
-// pos: app route seam test for the authenticated Overview page
-// note: if this file changes, update this header and tests/app/README.md.
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

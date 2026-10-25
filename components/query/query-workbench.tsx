@@ -1,7 +1,3 @@
-// input: QueryWorkbench props, target/schema services, navigation, and messages
-// output: scoped target search, exact persisted-target recovery, unavailable-target locking, and editor state
-// pos: top-level query workbench and target-search generation boundary
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";

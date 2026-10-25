@@ -1,7 +1,3 @@
-// input: @/lib/query-sql-completion
-// output: Vitest tests for keyword/table/column completions and parsers
-// pos: completion builders; concurrency cap lives in schema catalog
-// note: if this file changes, update header and tests/lib/README.md
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   APPROVED_KEYWORDS,

@@ -1,8 +1,3 @@
-// input: @playwright/test, ./fixtures
-// output: UI login helper through the Console BFF login form using provisioned
-// fixture identities (admin default, editor explicit) — never the retired seeds
-// pos: sole UI authentication seam for real E2E flows
-// note: if this file changes, update header and e2e/README.md
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 

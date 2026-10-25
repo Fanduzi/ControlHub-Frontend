@@ -1,7 +1,3 @@
-// input: resource summary values and root next-intl-compatible translators for topology/dictionary keys
-// output: localized resource/relation type labels with stable format-label fallbacks
-// pos: shared root-translation seam for resource labels outside namespace-scoped components
-// note: if this file changes, update this header and module README.md.
 /**
  * Localized fallback summary builder for resources without explicit
  * `resourceSummaries` i18n keys.

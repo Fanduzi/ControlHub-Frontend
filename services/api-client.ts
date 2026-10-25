@@ -1,7 +1,3 @@
-// input: fetch, next/headers (server), operator-session cookie
-// output: shared API client; browser and server use the same-origin BFF proxy; JSON errors (including raw bodies) and native multipart uploads
-// pos: sole browser/SSR fetch helper for console data
-// note: if this file changes, update this header and module README.md.
 export class ApiError extends Error {
   status: number;
   details?: Record<string, string>;

@@ -1,7 +1,3 @@
-// input: API client and named inventory view wire types
-// output: named inventory view list and CRUD service functions
-// pos: frontend API boundary for saved inventory views
-// note: if this file changes, update this header and module README.md.
 import { apiClient } from "@/services/api-client";
 import type {
   CreateNamedInventoryViewInput,

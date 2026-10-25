@@ -1,7 +1,3 @@
-// input: resource detail, React Hook Form state, navigation, resource/profile services, translations, and shared identity fields
-// output: admin resource edit sheet with immutable origin, governed identity, manual health override set/clear, and typed-profile fields
-// pos: client-side resource update and validation boundary
-// note: if this file changes, update this header and components/resources/README.md
 "use client";
 
 import { useCallback, useEffect, useState } from "react";

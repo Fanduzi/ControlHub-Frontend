@@ -1,7 +1,3 @@
-// input: vitest, testing-library, resource archive button, auth-role
-// output: admin archive/restore control tests; non-admin operators see no mutation affordance
-// pos: component tests for role-gated resource mutations
-// note: if this file changes, update header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

@@ -1,7 +1,3 @@
-// input: Next navigation URL state, named inventory view service, translations, visible columns
-// output: personal/shared saved-view save with repeated environment scopes, apply, and management controls for the resource inventory
-// pos: inventory controls mounted ahead of ResourceTable filters
-// note: if this file changes, update header and components/resources/README.md
 "use client";
 
 import { useEffect, useState } from "react";

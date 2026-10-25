@@ -1,7 +1,3 @@
-// input: @/app/api/operator-session/route, @/lib/operator-session/*, next/server
-// output: Vitest tests for the BFF login/logout route boundary (sealed HttpOnly cookie, coded generic outcomes)
-// pos: unit-level contract tests for the Operator Session login and logout HTTP surface
-// note: if this file changes, update header and tests/app/api/README.md
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

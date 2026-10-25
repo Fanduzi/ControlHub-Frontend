@@ -1,7 +1,3 @@
-// input: rendered relation panel, auth-role boundary, service mocks, and English/Chinese locale messages
-// output: public UI contract for localized directions, source-path mutations, resilient row removal, and controlled errors
-// pos: relation-panel rendered seam for role gates, candidates, accessibility, taxonomy rules, and controlled errors
-// note: if this file changes, update this header and tests/components/README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

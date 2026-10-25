@@ -1,7 +1,3 @@
-// input: @/components/query/*, @/services/*, @/types/*, @/lib/*, lucide-react, next-intl, next-themes
-// output: QueryEditorShell UI adapter over WorksheetSession + schema catalog
-// pos: paints worksheets; session owns run/template/explain, catalog owns 库身份 metadata
-// note: if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

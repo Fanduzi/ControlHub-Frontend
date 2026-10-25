@@ -1,7 +1,3 @@
-// input: EditResourceSheet, Vitest, React Testing Library, translations, mocked resource/settings services, and ApiError
-// output: edit behavior for immutable origin, governed-identity conflicts, typed-profile fields/errors, clearing, and removal
-// pos: component contract tests for resource updates
-// note: if this file changes, update this header and tests/components/README.md
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

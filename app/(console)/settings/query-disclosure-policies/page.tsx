@@ -1,7 +1,3 @@
-// input: Next search params, environment scope, and query-target service
-// output: admin disclosure-policy page with fail-closed invalid scope and unscoped All support
-// pos: authenticated disclosure-policy route composition
-// note: if this file changes, update this header and README.md
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@/components/blocks/page-header";

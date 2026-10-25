@@ -1,7 +1,3 @@
-// input: authenticated browser session and localized machine-principal copy
-// output: settings-page entry point for machine-principal administration
-// pos: Admin-gated discoverability card for credential lifecycle management
-// note: if this file changes, update this module's README.md.
 "use client";
 
 import Link from "next/link";

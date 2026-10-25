@@ -1,7 +1,3 @@
-// input: node:fs/path, vitest, playwright.config.ts and e2e/query-workbench.spec.ts source
-// output: static regression checks for isolated workspace ownership and safe target-selection policy
-// pos: fast E2E governance seam preventing concurrent, forced, or duplicate workspace writers
-// note: if this file changes, update this header and tests/README.md.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

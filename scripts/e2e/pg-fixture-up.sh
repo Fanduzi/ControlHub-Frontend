@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input: env (see REQUIRED below), e2e/backend-fixture.env, e2e/pg-fixture-seed.sql, docker, mysql client, go toolchain, curl, python3
-# output: disposable PG container + seeded labdb/labdb_other + metadata rows + built cmd/e2e-pg-server listener on :${APP_PORT} + per-run state dir for pg-fixture-down.sh
-# pos: cold-start the verified T13/T14 PG fixture from a clean runner — ALL input safety checks run before ANY side effect; one run owns one state dir; every identity check fails closed
-# note: if this file changes, update e2e/README.md; never echo passwords/DSNs — per-run secrets are masked (GitHub) or kept out of stdout
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

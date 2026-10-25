@@ -1,7 +1,3 @@
-// input: topology page URL props, environment resolver, and topology workspace mock
-// output: server-route contracts for explicit environment scopes, provider fallback, and fail-closed scopes
-// pos: topology page composition regression tests
-// note: if this file changes, update this header and tests/README.md.
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

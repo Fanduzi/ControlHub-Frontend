@@ -1,7 +1,3 @@
-// input: topology flow data and localized messages
-// output: React Flow topology node and group renderers
-// pos: topology graph node presentation components
-// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { useTranslations } from "next-intl";

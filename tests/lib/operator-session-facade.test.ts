@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/facade, next/server
-// output: Vitest tests for login/logout/authenticateCookie/gatePage
-// pos: unit-level contract tests for the Operator Session facade
-// note: if this file changes, update header and tests/lib/README.md
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

@@ -1,7 +1,3 @@
-// input: @playwright/test, ./harness/*, ./api.helpers
-// output: Playwright E2E for query credential settings admin flows
-// pos: browser verification of BFF-session-backed credential admin controls without browser role persistence, incl. composite (resource, database) per-connection rows + ?database= addressing for PostgreSQL targets
-// note: if this file changes, update header and e2e/README.md
 import { expect, test } from "@playwright/test";
 
 import { apiFetch, getAuthToken } from "./api.helpers";

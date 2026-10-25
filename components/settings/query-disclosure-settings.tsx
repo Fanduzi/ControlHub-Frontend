@@ -1,7 +1,3 @@
-// input: query targets, policy state, admin role, and policy mutations
-// output: localized disclosure policy controls with safe failure feedback
-// pos: query disclosure settings presentation and mutation boundary
-// note: keep policy target selection and target/policy behavior unchanged
 "use client";
 
 import { useCallback, useEffect, useState } from "react";

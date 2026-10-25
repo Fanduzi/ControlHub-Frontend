@@ -1,7 +1,3 @@
-// input: Topbar, React Testing Library, mocked BFF session responses
-// output: Topbar identity rendering and stale-session clearing contracts
-// pos: component-level operator identity tests at the BFF session boundary
-// note: if this file changes, update this header and tests/components/README.md
 import type { ReactNode } from "react";
 
 import { render, screen, waitFor } from "@testing-library/react";

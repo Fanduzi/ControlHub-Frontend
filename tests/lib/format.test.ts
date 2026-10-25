@@ -1,8 +1,3 @@
-// input: exported date formatting helpers and fixed clock values
-// output: safe, localized relative timestamps with date-time fallback after 24 hours
-// pos: shared formatting boundary regression contract
-// note: if this file changes, update this header and tests/lib/README.md
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { formatDateTime, formatRelativeDateTime } from "@/lib/format";

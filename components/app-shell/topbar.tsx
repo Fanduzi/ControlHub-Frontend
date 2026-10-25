@@ -1,8 +1,3 @@
-// input: react, next-intl, environment/theme providers, auth-role
-// output: console topbar identity/role controls, canonical explicit environment/all navigation, fail-closed admin UI/sign-out
-// pos: console shell chrome
-// note: if this file changes, update header and components/app-shell/README.md
-
 "use client";
 
 import { useEffect, useState } from "react";

@@ -1,7 +1,3 @@
-// input: React, root/relations translators, resource list service, and server-derived type/environment filters
-// output: localized, debounced resource selector constrained by caller-supplied relationship rules
-// pos: reusable relation-target picker; never owns relationship policy or resource-type translations
-// note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";

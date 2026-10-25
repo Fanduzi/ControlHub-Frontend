@@ -1,7 +1,3 @@
-// input: @/types/query-execution
-// output: grid-safe execute envelope or controlled failure
-// pos: governed result disclosure checks for run / related-records rendering
-// note: if this file changes, update header and lib/README.md
 import type { QueryExecuteResponse } from "@/types/query-execution";
 
 const VALID_DISCLOSURE_MODES = new Set(["raw_copy_allowed", "masked_no_copy", "blocked"]);

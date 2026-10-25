@@ -1,8 +1,3 @@
-// input: mocked localized resource detail page dependencies and rendered route fixtures
-// output: route-level regression coverage for resource detail rendering and database panels
-// pos: app boundary test for the localized resource detail page
-// note: if this file changes, update this header and tests/README.md.
-
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 

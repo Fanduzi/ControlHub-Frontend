@@ -1,7 +1,3 @@
-// input: e2e/api-proxy.mjs (exported http server), node:http, node:net
-// output: socket-level tests for downstream-close → upstream-abort cancel propagation, incl. the /__cancel-forwarding negative control
-// pos: vitest unit tests over real loopback sockets — no browser, no fixtures
-// note: if this file changes, update header and tests/README.md
 import http from "node:http";
 import net from "node:net";
 import type { AddressInfo } from "node:net";

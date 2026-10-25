@@ -1,7 +1,3 @@
-// input: react, next-intl, next/navigation, next-themes, auth-role, navigation registry, resource service, environment provider
-// output: empty-query commands and bounded server-backed resource search with localized type, environment, and health context; create-resource command is admin-only
-// pos: console quick-navigation overlay with role-gated mutation affordances
-// note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

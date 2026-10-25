@@ -1,7 +1,3 @@
-// input: topology services, URL state, localized messages, and graph data
-// output: URL-synchronized resource/environment topology graph presentation with stale-request protection and a locally paginated root-candidate list (db icon + type/engine per row)
-// pos: reusable topology graph panel for console resource views
-// note: if this file changes, update this header and module README.md.
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";

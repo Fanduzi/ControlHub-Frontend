@@ -1,8 +1,3 @@
-// input: none
-// output: same-origin guard for the Console BFF (unsafe methods require the exact configured Origin)
-// pos: CSRF-boundary check for BFF session and proxy routes
-// note: if this file changes, update header and lib/operator-session/README.md
-
 /** Methods without side effects that are not gated on the Origin header. */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

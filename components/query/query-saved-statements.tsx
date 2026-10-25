@@ -1,7 +1,3 @@
-// input: @/types/query-saved-statement, @/services/query-saved-statements, @/components/ui/*
-// output: QuerySavedStatements component (terminal list generations, create/edit/delete with terminal delete state machine, shared-template affordance gate, optional PostgreSQL database/schema scoping on list+create)
-// pos: UI component for managing saved query statements within the query workbench
-// note: list/delete terminal states key off Controlled Error Code; if this file changes, update header and components/query/README.md
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

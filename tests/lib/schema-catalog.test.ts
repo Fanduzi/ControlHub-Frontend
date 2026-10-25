@@ -1,7 +1,3 @@
-// input: @/lib/schema-catalog
-// output: Vitest tests for schema catalog listings, details, completion namespace
-// pos: catalog interface is the test surface (in-memory fetch)
-// note: if this file changes, update header and tests/lib/README.md
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COMPLETION_PAGE_SIZE, SchemaCatalog, type SchemaCatalogFetch } from "@/lib/schema-catalog";

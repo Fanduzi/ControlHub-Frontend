@@ -1,7 +1,3 @@
-// input: server-derived resource completeness and translations
-// output: read-only resource completeness panel
-// pos: shared list/detail completeness readout
-// note: keep this presentation-only; the server owns completeness derivation.
 import { useTranslations } from "next-intl";
 
 import { DetailPanel } from "@/components/blocks/detail-panel";

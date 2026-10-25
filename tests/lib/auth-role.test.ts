@@ -1,7 +1,3 @@
-// input: vitest, testing-library, useAdminRole
-// output: tests for admin role recovery from trusted BFF session identity
-// pos: unit tests for the fail-closed presentation-only admin gate
-// note: if this file changes, update header and tests/lib/README.md
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAdminRole } from "@/lib/auth-role";

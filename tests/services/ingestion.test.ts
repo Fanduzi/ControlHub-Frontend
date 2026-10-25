@@ -1,7 +1,3 @@
-// input: Vitest, ingestion service, and API client mock
-// output: ingestion service coverage
-// pos: ingestion service tests
-// note: update this header and README.md.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/services/api-client";

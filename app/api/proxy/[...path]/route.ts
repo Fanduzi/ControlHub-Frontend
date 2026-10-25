@@ -1,7 +1,3 @@
-// input: next/server, @/lib/operator-session/config, @/lib/operator-session/facade, @/lib/operator-session/origin, @/lib/operator-session/backend, @/lib/operator-session/session-cookie
-// output: protected same-origin BFF proxy that forwards requests with the server-held Backend Bearer Credential
-// pos: sole console-browser entry to protected backend APIs; rejects client Authorization and unsafe cross-origin requests
-// note: if this file changes, update header and app/api/proxy/README.md
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 

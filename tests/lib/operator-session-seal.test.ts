@@ -1,7 +1,3 @@
-// input: @/lib/operator-session/seal, @/lib/operator-session/config, node:crypto
-// output: Vitest tests for Operator Session sealing (AES-256-GCM, key rotation, fixed eight-hour age)
-// pos: unit-level contract tests for the sealed-session cookie primitive used by the Console BFF
-// note: if this file changes, update header and tests/lib/README.md
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 
 import { describe, expect, it } from "vitest";

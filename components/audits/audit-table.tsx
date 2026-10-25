@@ -1,8 +1,3 @@
-// input: localized audit view models, browser navigation, URL-owned filters/search, shared debounce and table primitives
-// output: acknowledgment-guarded audit search navigation, seeded backend event/result filters, and field-level before/after evidence
-// pos: operator-facing global inventory audit read surface
-// note: if this file changes, update header and components/audits/README.md
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";

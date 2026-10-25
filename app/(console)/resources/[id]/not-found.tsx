@@ -1,7 +1,3 @@
-// input: next/link, next-intl/server
-// output: localized resource-specific 404 boundary with a resources recovery link
-// pos: resource detail segment boundary for missing or archived resources
-// note: if this file changes, update header and app/(console)/README.md
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 

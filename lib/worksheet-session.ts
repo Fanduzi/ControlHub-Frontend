@@ -1,7 +1,3 @@
-// input: query execution ports, saved-statement execute port, worksheet snapshot types, query-workspace persist types
-// output: WorksheetSession (edit/replace/run/template commands + persisted snapshot for the query workbench 工作表)
-// pos: in-process worksheet session; React only renders
-// note: if this file changes, update header and lib/README.md
 import { useSyncExternalStore } from "react";
 
 import {

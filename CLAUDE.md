@@ -53,6 +53,7 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 - **Tailwind v4** uses inline `@theme` in `globals.css`, not `tailwind.config.ts` (which is mostly empty).
 - **shadcn components** use `@base-ui/react` under the hood, not Radix. Use `data-slot` attributes for test selectors.
 - **Colors**: OKLCH color space in CSS variables. Accent system (blue/purple/emerald/amber) via `data-accent` attribute.
+- **Documentation**: L3 file headers (`input:`, `output:`, `pos:`, `note:`) are retired. Do not add them to source files. Module `README.md` files (L2) and the root architecture map (L1) remain in use.
 
 ## Environment
 

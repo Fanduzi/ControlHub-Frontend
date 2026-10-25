@@ -1,8 +1,3 @@
-// input: next/link, next-intl/server, PageHeader, localized CMDB migration copy
-// output: visible CMDB migration notice linking to /resources
-// pos: retained CMDB bookmark route; points operators to the unified resource inventory
-// note: if this file changes, update header and app/(console)/cmdb/README.md
-
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 

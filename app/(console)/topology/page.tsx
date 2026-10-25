@@ -1,7 +1,3 @@
-// input: Next search params, environment slug resolver, page header, environment topology content
-// output: explicit fail-closed URL environment scope with provider fallback when the parameter is absent
-// pos: console topology entry point
-// note: if this file changes, update this header and app/(console)/README.md.
 import { getTranslations } from "next-intl/server";
 
 import { EnvironmentTopologyContent } from "@/components/blocks/environment-topology-content";

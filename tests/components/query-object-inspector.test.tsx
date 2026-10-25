@@ -1,7 +1,3 @@
-// input: QueryObjectInspector, real ApiError instances, localized messages, and mocked schema services
-// output: definition error, retry, localization, and no-leakage coverage
-// pos: Vitest/Testing Library tests for the query object inspector surface
-// note: if this file changes, update this header and module README.md.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";

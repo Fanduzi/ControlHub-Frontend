@@ -1,7 +1,3 @@
-// input: localized messages and resource view-model fixtures
-// output: regression coverage for the Overview attention queue, expansion, readable reasons, and transition-aware badges
-// pos: component test for exact actionable membership, expansion, and labels
-// note: if this file changes, update this header and tests/components/README.md.
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

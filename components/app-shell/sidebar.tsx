@@ -1,7 +1,3 @@
-// input: react, next-intl, next/navigation, environment provider, auth-role, navigation registry
-// output: console sidebar navigation; admin-only entries (audits) hidden for non-admin operators
-// pos: console navigation chrome mirroring the server-owned access matrix
-// note: if this file changes, update header and components/app-shell/README.md
 "use client";
 
 import Link from "next/link";

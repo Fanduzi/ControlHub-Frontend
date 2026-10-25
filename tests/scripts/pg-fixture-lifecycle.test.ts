@@ -1,7 +1,3 @@
-// input: scripts/e2e/pg-fixture-{up,down,evidence}.sh + PATH stunt doubles for docker/mysql/curl/go
-// output: red→green control-flow coverage — precheck rejects before any side effect; exclusive run state; converged cleanup; PID/exe identity; classified container errors; sanitized evidence
-// pos: lifecycle safety gates for the T13/T14 CI fixture scripts — external commands are stubbed, real processes/spawned sleepers are used only where stated
-// note: if this file changes, update tests/README.md
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   existsSync,

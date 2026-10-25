@@ -1,7 +1,3 @@
-// input: Vitest, Testing Library, and ingestion dialog
-// output: ingestion dialog coverage
-// pos: ingestion dialog component tests
-// note: update this header and README.md.
 import { NextIntlClientProvider } from "next-intl";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
