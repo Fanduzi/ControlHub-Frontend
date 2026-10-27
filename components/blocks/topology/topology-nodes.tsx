@@ -95,17 +95,15 @@ export function TopologyNodeComponent({ data }: { data: TopologyNodeData }) {
         </div>
       )}
 
-      {!address && (
-        <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
-          <span>{getTypeLabel(data.resourceType)}</span>
-          {data.resourceSubtype && !isDb && (
-            <>
-              <span>·</span>
-              <span>{data.resourceSubtype}</span>
-            </>
-          )}
-        </div>
-      )}
+      <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+        <span>{getTypeLabel(data.resourceType)}</span>
+        {data.resourceSubtype && (
+          <>
+            <span>·</span>
+            <span>{data.resourceSubtype}</span>
+          </>
+        )}
+      </div>
 
       <div className="mt-1 flex gap-1">
         <StatusBadge status={data.healthStatus} tone="health" className="text-[10px]" />

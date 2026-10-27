@@ -22,8 +22,12 @@
 `topology-panel.tsx` renders a rooted topology graph only after an operator
 selects a root. Environment reads without `rootId` treat response `nodes` as
 starting CIs and do not draw an edgeless relation graph. Topology group labels
-use localized roles only when no cluster name is available.
+use localized roles only when no cluster name is available. The root-candidate
+list is locally paginated (10/page) and each row carries a database-type icon
+plus the localized resource-type and engine subtype.
 
 `environment-topology-content.tsx` accepts an explicit server-resolved
 environment for `/topology`; it falls back to the persisted environment only
-when the URL omits that parameter, never when it is invalid.
+when the URL omits that parameter, never when it is invalid. The topology API
+is single-environment only, so "all"/no selection renders an environment
+chooser that scopes the page via `?environment=<slug>`.

@@ -11,7 +11,7 @@ requests when URL state or its environment/resource scope changes.
 
 ## Members
 
-- `topology-nodes.tsx` renders localized topology nodes and cluster group labels.
+- `topology-nodes.tsx` renders localized topology nodes and cluster group labels; node cards always show the localized resource-type and engine subtype line (including nodes with ip:port addresses).
 
 ## Interfaces
 
