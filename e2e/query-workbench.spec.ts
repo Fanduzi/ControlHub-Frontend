@@ -1525,8 +1525,8 @@ test.describe("FK record navigation", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    // Step 2: Click Preview rows.
-    const previewButton = explorer.getByRole("button", { name: "Preview rows" });
+    // Step 2: Click Preview data.
+    const previewButton = explorer.getByRole("button", { name: "Preview data" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
 
     // Record initial worksheet tab count.
@@ -1620,7 +1620,7 @@ test.describe("FK record navigation", () => {
     await childTable.click();
 
     // Preview and run.
-    await explorer.getByRole("button", { name: "Preview rows" }).click();
+    await explorer.getByRole("button", { name: "Preview data" }).click();
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 
@@ -1664,7 +1664,7 @@ test.describe("FK record navigation", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const previewButton = explorer.getByRole("button", { name: "预览行" });
+    const previewButton = explorer.getByRole("button", { name: "预览数据" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
   });
 
@@ -1697,7 +1697,7 @@ test.describe("FK record navigation", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const previewButton = sheet.getByRole("button", { name: "Preview rows" });
+    const previewButton = sheet.getByRole("button", { name: "Preview data" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
     await previewButton.click();
 
@@ -1760,7 +1760,7 @@ test.describe("FK record navigation", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const previewButton = explorer.getByRole("button", { name: "预览行" });
+    const previewButton = explorer.getByRole("button", { name: "预览数据" });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
     await previewButton.click();
 
@@ -1851,11 +1851,11 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     const columnsSection = inspector.locator('[aria-label="Columns"]');
@@ -1894,11 +1894,11 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = sheet.getByRole("button", { name: "Inspect" });
+    const inspectButton = sheet.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
-    const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
     await expect(inspectorSheet).toHaveAttribute("data-side", "bottom");
 
@@ -1933,11 +1933,11 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    const inspectButton = explorer.getByRole("button", { name: "查看定义" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — 结构/ });
     await expect(inspector).toBeVisible();
 
     await expect(inspector.locator('[aria-label="列"]')).toBeVisible();
@@ -1965,15 +1965,15 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    await expect(explorer.getByRole("button", { name: "Inspect" })).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByRole("button", { name: "View definition" })).toBeVisible({ timeout: 10_000 });
 
     const requestsBefore: string[] = [];
     page.on("request", (req) => {
       requestsBefore.push(req.url());
     });
 
-    await explorer.getByRole("button", { name: "Inspect" }).click();
-    await expect(page.getByRole("dialog", { name: /Inspector/ })).toBeVisible();
+    await explorer.getByRole("button", { name: "View definition" }).click();
+    await expect(page.getByRole("dialog", { name: /Definition/ })).toBeVisible();
 
     const forbidden = requestsBefore.filter(
       (url) =>
@@ -1997,7 +1997,7 @@ test.describe("Object Inspector metadata", () => {
     const explorer = page.getByRole("complementary", { name: "Objects" });
     await expect(explorer).toBeVisible();
 
-    await expect(explorer.getByRole("button", { name: "Inspect" })).toHaveCount(0);
+    await expect(explorer.getByRole("button", { name: "View definition" })).toHaveCount(0);
   });
 
   test("desktop EN: Close inspector button restores focus to the trigger button", async ({ page }) => {
@@ -2016,11 +2016,11 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     await inspector.getByRole("button", { name: "Close inspector" }).click();
@@ -2048,12 +2048,12 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = sheet.getByRole("button", { name: "Inspect" });
+    const inspectButton = sheet.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
 
     // Test Escape key closes and restores focus
     await inspectButton.click();
-    const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspectorSheet = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
     await page.keyboard.press("Escape");
     await expect(inspectorSheet).toBeHidden();
@@ -2084,11 +2084,11 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     const viewRelButton = inspector.getByTestId("view-relationships-button");
@@ -2110,7 +2110,7 @@ test.describe("Object Inspector metadata", () => {
     await expect(inspectButton).toBeFocused({ timeout: 5_000 });
   });
 
-  test("zh-CN: Inspector close button has accessible name '关闭检查器'", async ({ page }) => {
+  test("zh-CN: inspector close button has accessible name '关闭结构'", async ({ page }) => {
     await page.context().addCookies([
       {
         name: "controlhub.locale",
@@ -2135,15 +2135,15 @@ test.describe("Object Inspector metadata", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    const inspectButton = explorer.getByRole("button", { name: "查看定义" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — 结构/ });
     await expect(inspector).toBeVisible();
 
     // Verify the close button has the correct accessible name
-    const closeButton = inspector.getByRole("button", { name: "关闭检查器" });
+    const closeButton = inspector.getByRole("button", { name: "关闭结构" });
     await expect(closeButton).toBeVisible();
 
     // Verify it's NOT named "Close" or "关闭对象面板"
@@ -2173,14 +2173,14 @@ test.describe("Object Inspector metadata", () => {
     await parentTable.click();
 
     // Get all Inspect buttons
-    const inspectButtons = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButtons = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButtons).toHaveCount(2);
 
     // Click the first Inspect button (schema_child)
     const firstInspect = inspectButtons.first();
     await firstInspect.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     // Close and verify focus returns to the first Inspect button
@@ -2252,12 +2252,12 @@ test.describe("Table definition inspector", () => {
     await childTable.click();
 
     // Click Inspect
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
     // Inspector should open
-    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /Definition/ });
     await expect(inspector).toBeVisible();
 
     // NO definition request should have been made on open
@@ -2311,12 +2311,12 @@ test.describe("Table definition inspector", () => {
     await childTable.click();
 
     // Click Inspect
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
     // Mobile Inspector opens as a sheet
-    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /Definition/ });
     await expect(inspector).toBeVisible();
 
     // Click View definition
@@ -2361,11 +2361,11 @@ test.describe("Table definition inspector", () => {
     await childTable.click();
 
     // Click Inspect (检查)
-    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    const inspectButton = explorer.getByRole("button", { name: "查看定义" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /检查器/ });
+    const inspector = page.getByRole("dialog", { name: /结构/ });
     await expect(inspector).toBeVisible();
 
     // Chinese "View definition" (查看定义) button
@@ -2507,7 +2507,7 @@ test.describe("Schema explorer search and pagination", () => {
     await expect(page2Object).toBeVisible();
     await page2Object.click();
 
-    await expect(explorer.getByRole("button", { name: "Inspect" })).toBeVisible({ timeout: 10_000 });
+    await expect(explorer.getByRole("button", { name: "View definition" })).toBeVisible({ timeout: 10_000 });
   });
 
   test("mobile English: search and Load more work in Objects Sheet at 375px", async ({ page }) => {
@@ -3069,11 +3069,11 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     const viewRelButton = inspector.getByTestId("view-relationships-button");
@@ -3113,11 +3113,11 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
     // Track ALL requests from BEFORE the click
@@ -3180,12 +3180,12 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = sheet.getByRole("button", { name: "Inspect" });
+    const inspectButton = sheet.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
     // Mobile Inspector opens as a bottom sheet
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible({ timeout: 30_000 });
     await expect(inspector).toHaveAttribute("data-side", "bottom");
 
@@ -3234,11 +3234,11 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "检查" });
+    const inspectButton = explorer.getByRole("button", { name: "查看定义" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — 检查器/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — 结构/ });
     await expect(inspector).toBeVisible({ timeout: 30_000 });
 
     const viewRelButton = inspector.getByTestId("view-relationships-button");
@@ -3276,11 +3276,11 @@ test.describe("Relationship map (Phase 38O)", () => {
     await expect(childTable).toBeVisible({ timeout: 30_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 30_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /schema_child — Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible({ timeout: 30_000 });
 
     const relMapResponse = page.waitForResponse(
@@ -4054,11 +4054,11 @@ test.describe("Governed result paging (Phase 38S)", () => {
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
 
-    const inspectButton = explorer.getByRole("button", { name: "Inspect" });
+    const inspectButton = explorer.getByRole("button", { name: "View definition" });
     await expect(inspectButton).toBeVisible({ timeout: 10_000 });
     await inspectButton.click();
 
-    const inspector = page.getByRole("dialog", { name: /Inspector/ });
+    const inspector = page.getByRole("dialog", { name: /Definition/ });
     await expect(inspector).toBeVisible();
     await inspector.getByTestId("view-definition-button").click();
 
