@@ -1,5 +1,5 @@
 // input: @/lib/schema-catalog, @/components/query/query-object-tree, query-schema fetch via catalog
-// output: QueryObjectExplorer (tree + inspector) reading schema catalog; expanded objects list their columns, and object actions (view definition / preview data) live on the row context menu, loading detail first when not yet fetched
+// output: QueryObjectExplorer (tree + inspector) reading schema catalog; expanded objects list their columns with inline inspect/preview actions, and the row context menu offers the same actions, loading detail first when not yet fetched
 // pos: object explorer UI adapter over schema catalog
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -665,6 +665,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
       );
       const columnsTruncated = detail.truncated?.columns === true;
       return (
+        <>
         <ul className="space-y-px text-xs">
           {columns.map((column) => (
             <li
@@ -696,9 +697,36 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
             <li className="text-muted-foreground">{t("schema.inspectorTruncatedColumns")}</li>
           ) : null}
         </ul>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-1"
+            data-testid="inspect-button"
+            onClick={(event) => {
+              performObjectAction(object, "inspect", detail);
+              setInspectTriggerElement(event.currentTarget);
+            }}
+          >
+            {t("schema.inspect")}
+          </Button>
+          {object.kind === "table" && onPreviewRequest ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1"
+              onClick={() => performObjectAction(object, "preview", detail)}
+            >
+              {t("schema.previewRows")}
+            </Button>
+          ) : null}
+        </div>
+        </>
       );
     },
-    [loadObjectDetail, store, t, targetId],
+    [loadObjectDetail, onPreviewRequest, performObjectAction, store, t, targetId],
   );
 
   const renderObjectMenu = useCallback(

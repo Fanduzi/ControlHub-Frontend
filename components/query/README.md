@@ -15,7 +15,7 @@ React client components for the query workbench feature.
 | query-connection-navigator-list.tsx | Target list rendering |
 | query-governance-panel.tsx | Governance and access detail panel, including disclosure-policy export status |
 | query-history-panel.tsx | Query execution history panel whose statement restore affordance follows only server-computed eligibility |
-| query-object-explorer.tsx | Schema object explorer with tree and inspector; reads schema catalog, including database search, system visibility, and metadata refresh; expanded objects list their columns (type, PK/FK badges), and object actions (view definition / preview data) live on the row context menu, loading detail first when not yet fetched |
+| query-object-explorer.tsx | Schema object explorer with tree and inspector; reads schema catalog, including database search, system visibility, and metadata refresh; expanded objects list their columns (type, PK/FK badges), with inline inspect/preview actions in the expanded detail, and the row context menu offers the same actions, loading detail first when not yet fetched |
 | query-object-inspector.tsx | Object metadata inspector (columns, indexes, FKs, definition) with localized controlled definition errors and transient-only retry |
 | query-object-quick-navigator.tsx | Cmd+P quick object search |
 | query-object-tree.tsx | Schema tree rendering (database→object; optional PostgreSQL connection→schema→object); object rows accept an optional right-click context menu via `renderObjectMenu` |
