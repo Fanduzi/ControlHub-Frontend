@@ -86,6 +86,8 @@ describe("Topbar", () => {
     searchParams.delete("eventType");
     searchParams.delete("result");
     searchParams.delete("rootId");
+    searchParams.delete("targetId");
+    searchParams.delete("database");
     searchParams.delete("topologyDepth");
     searchParams.delete("topologyExpanded");
     searchParams.set("page", "3");
@@ -127,6 +129,25 @@ describe("Topbar", () => {
 
     expect(replace).toHaveBeenCalledWith(
       "/query?page=1&q=orders&engine=mysql&pageSize=50&environment=prod",
+    );
+  });
+
+  it("drops the pinned target on environment switch at /query since targets are environment-scoped", async () => {
+    const user = userEvent.setup();
+    searchParams.set("targetId", "105");
+    searchParams.set("database", "labdb");
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Topbar pathname="/query" />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Production" }));
+
+    expect(replace).toHaveBeenCalledWith(
+      "/query?page=1&q=orders&environment=prod",
     );
   });
 

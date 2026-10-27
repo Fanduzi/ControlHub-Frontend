@@ -290,9 +290,11 @@ export async function navigateRelatedRecords(
 
 /**
  * Explain a guarded SELECT against a ready query target. Posts only
- * `statement` — never EXPLAIN prefix, engine syntax, actorUserId, role,
- * credential, DSN, or risk score. The backend owns wrapping the guarded
- * SELECT in EXPLAIN FORMAT=JSON and normalizing the raw plan.
+ * `statement` plus the target's already resolved (database, schema) scope —
+ * never EXPLAIN prefix, engine syntax, actorUserId, role, credential, DSN, or
+ * risk score. The backend owns wrapping the guarded SELECT in engine-specific
+ * syntax (MySQL EXPLAIN FORMAT=JSON, PostgreSQL EXPLAIN (FORMAT JSON)) and
+ * normalizing the raw plan.
  *
  * Rejects with a controlled `QueryExecuteError` on HTTP errors, classified by
  * Controlled Error Code the same way as `executeQueryTarget`.
@@ -302,7 +304,11 @@ export async function explainQueryTarget(
   input: ExplainRequest,
   options?: { readonly signal?: AbortSignal },
 ): Promise<ExplainResponse> {
-  const body: ExplainRequest = { statement: input.statement };
+  const body: ExplainRequest = {
+    statement: input.statement,
+    ...(input.database !== undefined ? { database: input.database } : {}),
+    ...(input.schema !== undefined ? { schema: input.schema } : {}),
+  };
   try {
     return await apiClient<ExplainResponse>(
       `/query-targets/${targetResourceId}/explain`,

@@ -194,6 +194,12 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
       params.delete("rootId");
     } else {
       params.set("page", "1");
+      if (pathname === "/query") {
+        // targetId/database pin a target belonging to the previous
+        // environment scope; they can never resolve under the new one.
+        params.delete("targetId");
+        params.delete("database");
+      }
     }
     router.replace(`${pathname}?${params.toString()}`);
   }

@@ -455,6 +455,7 @@ export class WorksheetSession {
   hydrate(
     items: readonly QueryWorkspaceWorksheet[],
     fallbackTargetId: number,
+    preferFallbackTarget = false,
   ): void {
     const maxRows = this.active.maxRows;
     const pageSize = this.active.pageSize;
@@ -493,7 +494,13 @@ export class WorksheetSession {
       activeDatabase: item.activeDatabase,
       activeSchema: item.activeSchema ?? null,
     }));
-    this.activeWorksheetId = this.worksheets[0]!.id;
+    // An explicit pinned target (deep link) wins over restore order: activate
+    // the first worksheet bound to it instead of blindly taking items[0].
+    this.activeWorksheetId = (
+      preferFallbackTarget
+        ? (this.worksheets.find((ws) => ws.targetResourceId === fallbackTargetId) ?? this.worksheets[0]!)
+        : this.worksheets[0]!
+    ).id;
     this.nextIndex = this.worksheets.length;
     this.notify();
   }
@@ -974,7 +981,11 @@ export class WorksheetSession {
       },
     });
     try {
-      const response = await this.ports.explain(targetId, { statement });
+      const response = await this.ports.explain(targetId, {
+        statement,
+        ...(worksheet.activeDatabase !== null ? { database: worksheet.activeDatabase } : {}),
+        ...(worksheet.activeSchema !== null ? { schema: worksheet.activeSchema } : {}),
+      });
       const current = this.worksheets.find((ws) => ws.id === worksheet.id);
       if (
         !current ||

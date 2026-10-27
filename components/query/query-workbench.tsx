@@ -645,6 +645,7 @@ export function QueryWorkbench({
                 targets={cachedTargets}
                 activeTarget={activeTarget}
                 targetSelectionVersion={targetSelectionVersion}
+                explicitActiveTarget={initialActiveTargetId !== undefined}
                 onActiveTargetChange={setActiveTargetFromWorksheet}
                 onActiveDatabaseChange={setActiveDatabase}
                 schemaStore={schemaStore}
