@@ -1,5 +1,5 @@
 // input: @/lib/query-object-identity, @/types/query-schema, @/components/ui/*, next-intl
-// output: QueryObjectTree explorer tree (database->object; optional PostgreSQL connection->schema->object via schemaLevel)
+// output: QueryObjectTree explorer tree (database->object; optional PostgreSQL connection->schema->object via schemaLevel); object rows expose an optional right-click context menu through renderObjectMenu
 // pos: UI component rendering the schema explorer hierarchy
 // note: schemaLevel opts into the composite PostgreSQL level; if this file changes, update header and components/query/README.md
 "use client";
@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   objectIdentityKey,
   schemaObjectGroupId,
@@ -55,6 +56,8 @@ type QueryObjectTreeProps = {
   readonly onDatabaseToggle: (database: string) => void;
   readonly onObjectToggle: (object: ObjectSummary) => void;
   readonly renderDetail: (object: ObjectSummary) => React.ReactNode;
+  /** Right-click menu content for an object row (a ContextMenuContent subtree); omitted rows get no menu. */
+  readonly renderObjectMenu?: (object: ObjectSummary) => React.ReactNode;
   readonly databasePageInfo?: PageInfo | null;
   readonly databaseLoading?: boolean;
   readonly databaseError?: boolean;
@@ -78,6 +81,7 @@ export function QueryObjectTree({
   onDatabaseToggle,
   onObjectToggle,
   renderDetail,
+  renderObjectMenu,
   onLoadMoreDatabases,
   databasePageInfo = null,
   databaseLoading = false,
@@ -174,18 +178,28 @@ export function QueryObjectTree({
                   {group.map((object) => {
                     const key = objectIdentityKey(object);
                     const objectExpanded = expandedObjects.has(key);
+                    const rowButton = (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        aria-expanded={objectExpanded}
+                        onClick={() => onObjectToggle(object)}
+                      >
+                        <ChevronRight className={`size-3 transition-transform ${objectExpanded ? "rotate-90" : ""}`} aria-hidden />
+                        <span className="truncate">{object.name}</span>
+                      </Button>
+                    );
                     return (
                       <li key={key} role="treeitem" aria-expanded={objectExpanded} aria-selected={false}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start"
-                          aria-expanded={objectExpanded}
-                          onClick={() => onObjectToggle(object)}
-                        >
-                          <ChevronRight className={`size-3 transition-transform ${objectExpanded ? "rotate-90" : ""}`} aria-hidden />
-                          <span className="truncate">{object.name}</span>
-                        </Button>
+                        {renderObjectMenu ? (
+                          <ContextMenu>
+                            <ContextMenuTrigger>{rowButton}</ContextMenuTrigger>
+                            {renderObjectMenu(object)}
+                          </ContextMenu>
+                        ) : (
+                          rowButton
+                        )}
                         {objectExpanded ? (
                           <div className="ml-5 py-1">
                             {loadingObjects.has(key) ? <p className="text-xs text-muted-foreground">{t("schema.loading")}</p> : renderDetail(object)}

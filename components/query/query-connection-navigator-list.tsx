@@ -113,16 +113,14 @@ function ConnectionTargetItem({
           <span className="text-border">·</span>
           <span>{target.connectionContext.environment}</span>
           <HostPortSnippet target={target} />
-          <span className="text-border">·</span>
-          <span
-            className={cn(
-              isReady
-                ? "text-green-600 dark:text-green-400"
-                : "text-amber-600 dark:text-amber-400",
-            )}
-          >
-            {t(readinessLabelKey(target.readiness))}
-          </span>
+          {!isReady && (
+            <>
+              <span className="text-border">·</span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {t(readinessLabelKey(target.readiness))}
+              </span>
+            </>
+          )}
         </div>
       </button>
     </li>

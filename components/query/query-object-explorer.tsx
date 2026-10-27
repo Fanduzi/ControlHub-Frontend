@@ -1,5 +1,5 @@
 // input: @/lib/schema-catalog, @/components/query/query-object-tree, query-schema fetch via catalog
-// output: QueryObjectExplorer (tree + inspector) reading schema catalog
+// output: QueryObjectExplorer (tree + inspector) reading schema catalog; expanded objects list their columns, and object actions (view definition / preview data) live on the row context menu, loading detail first when not yet fetched
 // pos: object explorer UI adapter over schema catalog
 // note: if this file changes, update header and components/query/README.md
 "use client";
@@ -14,6 +14,7 @@ import {
   type SchemaListingState,
 } from "@/components/query/query-object-tree";
 import { Button } from "@/components/ui/button";
+import { ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu";
 import {
   objectIdentityKey,
   objectKeyBelongsToScope,
@@ -56,6 +57,10 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
   const [inspectorKey, setInspectorKey] = useState<string | null>(null);
   const [inspectorDetail, setInspectorDetail] = useState<ObjectDetailResponse | null>(null);
   const [inspectTriggerElement, setInspectTriggerElement] = useState<HTMLButtonElement | null>(null);
+  const [pendingObjectAction, setPendingObjectAction] = useState<{
+    readonly object: ObjectSummary;
+    readonly action: "inspect" | "preview";
+  } | null>(null);
   const [databaseDraftQuery, setDatabaseDraftQuery] = useState("");
   const [databaseQuery, setDatabaseQuery] = useState("");
   const [includeSystem, setIncludeSystem] = useState(false);
@@ -69,6 +74,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
     setInspectorKey(null);
     setInspectorDetail(null);
     setInspectTriggerElement(null);
+    setPendingObjectAction(null);
     setDatabaseDraftQuery("");
     setDatabaseQuery("");
     setIncludeSystem(false);
@@ -329,6 +335,69 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
       if (trigger?.isConnected) trigger.focus();
     });
   }, [inspectTriggerElement]);
+
+  const performObjectAction = useCallback(
+    (object: ObjectSummary, action: "inspect" | "preview", detail: ObjectDetailResponse) => {
+      if (action === "inspect") {
+        setInspectTriggerElement(null);
+        setInspectorKey(objectIdentityKey(object));
+        setInspectorDetail(detail);
+        return;
+      }
+      onPreviewRequest?.({
+        targetId,
+        database: object.database,
+        ...(object.schema ? { schema: object.schema } : {}),
+        table: object.name,
+        kind: "table",
+        foreignKeys: detail.foreignKeys ?? [],
+        foreignKeysTruncated: detail.truncated?.foreignKeys ?? true,
+      });
+    },
+    [onPreviewRequest, targetId],
+  );
+
+  const runObjectAction = useCallback(
+    (object: ObjectSummary, action: "inspect" | "preview") => {
+      if (!object.database) return;
+      const state = store.getDetailState({
+        targetId,
+        database: object.database,
+        schema: object.schema ?? "",
+        kind: object.kind,
+        name: object.name,
+      });
+      if (state.status === "ready" && state.data) {
+        performObjectAction(object, action, state.data);
+        return;
+      }
+      if (state.status !== "loading") loadObjectDetail(object);
+      setPendingObjectAction({ object, action });
+    },
+    [loadObjectDetail, performObjectAction, store, targetId],
+  );
+
+  // Object rows carry a right-click menu whose actions need the loaded detail
+  // (columns for the inspector, foreign keys for preview provenance). When the
+  // detail is not yet fetched, the menu item queues a pending action that this
+  // effect discharges once the catalog reports ready/error.
+  useEffect(() => {
+    if (!pendingObjectAction) return;
+    const { object, action } = pendingObjectAction;
+    const state = store.getDetailState({
+      targetId,
+      database: object.database ?? "",
+      schema: object.schema ?? "",
+      kind: object.kind,
+      name: object.name,
+    });
+    if (state.status === "ready" && state.data) {
+      performObjectAction(object, action, state.data);
+      setPendingObjectAction(null);
+    } else if (state.status === "error") {
+      setPendingObjectAction(null);
+    }
+  }, [catalogVersion, pendingObjectAction, performObjectAction, store, targetId]);
 
   const updateDraftQuery = useCallback((scope: string, draft: string) => {
     cancelObjectWork(scope);
@@ -591,56 +660,61 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
       }
       const detail = state.data;
       const columns = detail.columns ?? [];
-      const indexes = detail.indexes ?? [];
-      const foreignKeys = detail.foreignKeys ?? [];
-      const foreignKeysTruncated = detail.truncated?.foreignKeys ?? true;
+      const foreignKeyColumns = new Set(
+        (detail.foreignKeys ?? []).flatMap((foreignKey) => foreignKey.columns),
+      );
+      const columnsTruncated = detail.truncated?.columns === true;
       return (
-        <div className="space-y-2 text-xs text-muted-foreground">
-          <p>{t("schema.detailColumns", { count: columns.length })}</p>
-          <p>{t("schema.detailKeys", { count: columns.filter((column) => column.primaryKey).length })}</p>
-          <p>{t("schema.detailIndexes", { count: indexes.length })}</p>
-          <p>{t("schema.detailForeignKeys", { count: foreignKeys.length })}</p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-1"
-              data-testid="inspect-button"
-              onClick={(event) => {
-                setInspectTriggerElement(event.currentTarget);
-                setInspectorKey(objectIdentityKey(object));
-                setInspectorDetail(detail);
-              }}
+        <ul className="space-y-px text-xs">
+          {columns.map((column) => (
+            <li
+              key={column.name}
+              className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-muted-foreground hover:bg-muted/60"
             >
-              {t("schema.inspect")}
-            </Button>
-            {object.kind === "table" && onPreviewRequest ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-1"
-                onClick={() =>
-                  onPreviewRequest({
-                    targetId,
-                    database: object.database,
-                    ...(object.schema ? { schema: object.schema } : {}),
-                    table: object.name,
-                    kind: "table",
-                    foreignKeys,
-                    foreignKeysTruncated,
-                  })
-                }
-              >
-                {t("schema.previewRows")}
-              </Button>
-            ) : null}
-          </div>
-        </div>
+              <span className="truncate font-medium text-foreground">
+                {column.name}
+              </span>
+              {column.primaryKey ? (
+                <span className="rounded-sm bg-primary/10 px-1 text-[10px] font-semibold leading-4 text-primary">
+                  PK
+                </span>
+              ) : null}
+              {foreignKeyColumns.has(column.name) ? (
+                <span className="rounded-sm bg-amber-500/15 px-1 text-[10px] font-semibold leading-4 text-amber-700 dark:text-amber-400">
+                  FK
+                </span>
+              ) : null}
+              <span className="ml-auto shrink-0 font-mono text-[10px]">
+                {column.databaseType}
+              </span>
+            </li>
+          ))}
+          {columns.length === 0 ? (
+            <li className="text-muted-foreground">{t("schema.inspectorEmptyColumns")}</li>
+          ) : null}
+          {columnsTruncated ? (
+            <li className="text-muted-foreground">{t("schema.inspectorTruncatedColumns")}</li>
+          ) : null}
+        </ul>
       );
     },
-    [loadObjectDetail, onPreviewRequest, store, t, targetId],
+    [loadObjectDetail, store, t, targetId],
+  );
+
+  const renderObjectMenu = useCallback(
+    (object: ObjectSummary) => (
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => runObjectAction(object, "inspect")}>
+          {t("schema.inspect")}
+        </ContextMenuItem>
+        {object.kind === "table" && onPreviewRequest ? (
+          <ContextMenuItem onClick={() => runObjectAction(object, "preview")}>
+            {t("schema.previewRows")}
+          </ContextMenuItem>
+        ) : null}
+      </ContextMenuContent>
+    ),
+    [onPreviewRequest, runObjectAction, t],
   );
 
   const databaseLoading = databaseListing.status === "idle" || databaseListing.status === "loading";
@@ -717,6 +791,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
             onDatabaseToggle={toggleDatabase}
             onObjectToggle={toggleObject}
             renderDetail={renderDetail}
+            renderObjectMenu={renderObjectMenu}
             databasePageInfo={databaseListing.pageInfo}
             databaseLoading={databaseListing.status === "loading"}
             databaseError={databaseError}

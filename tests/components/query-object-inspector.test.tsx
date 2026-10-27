@@ -2,7 +2,7 @@
 // output: definition error, retry, localization, and no-leakage coverage
 // pos: Vitest/Testing Library tests for the query object inspector surface
 // note: if this file changes, update this header and module README.md.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -153,10 +153,11 @@ async function openInspector(detail: ObjectDetailResponse = buildDetail(), local
   const tableButton = await screen.findByRole("button", { name: "test_table" });
   await user.click(tableButton);
 
-  const inspectButton = await screen.findByRole("button", {
-    name: locale === "zh-CN" ? "检查" : "Inspect",
+  fireEvent.contextMenu(tableButton);
+  const inspectItem = await screen.findByRole("menuitem", {
+    name: locale === "zh-CN" ? "查看定义" : "View definition",
   });
-  await user.click(inspectButton);
+  await user.click(inspectItem);
 
   return { user };
 }
@@ -169,7 +170,7 @@ describe("QueryObjectInspector", () => {
   it("renders columns, indexes, and foreign keys from loaded detail", async () => {
     await openInspector();
 
-    expect(screen.getByText("test_table — Inspector")).toBeVisible();
+    expect(screen.getByText("test_table — Definition")).toBeVisible();
 
     const columnsSection = screen.getByLabelText("Columns");
     expect(within(columnsSection).getByText("id")).toBeVisible();
@@ -195,9 +196,10 @@ describe("QueryObjectInspector", () => {
     });
     await openInspector(detail);
 
-    expect(screen.getByText("No columns found.")).toBeVisible();
-    expect(screen.getByText("No indexes found.")).toBeVisible();
-    expect(screen.getByText("No foreign keys found.")).toBeVisible();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("No columns found.")).toBeVisible();
+    expect(within(dialog).getByText("No indexes found.")).toBeVisible();
+    expect(within(dialog).getByText("No foreign keys found.")).toBeVisible();
   });
 
   it("shows truncation notices independently per section", async () => {
@@ -235,12 +237,13 @@ describe("QueryObjectInspector", () => {
     await user.click(dbButton);
     const tableButton = await screen.findByRole("button", { name: "test_table" });
     await user.click(tableButton);
-    await screen.findByText("Inspect");
+    await screen.findByText("varchar(255)");
 
     const callsAfterDetail = mockGetObjectDetails.mock.calls.length;
 
-    await user.click(screen.getByRole("button", { name: "Inspect" }));
-    await screen.findByText("test_table — Inspector");
+    fireEvent.contextMenu(tableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
+    await screen.findByText("test_table — Definition");
 
     expect(mockGetObjectDetails.mock.calls.length).toBe(callsAfterDetail);
   });
@@ -248,29 +251,30 @@ describe("QueryObjectInspector", () => {
   it("closes on Escape and returns focus to the trigger", async () => {
     const { user } = await openInspector();
 
-    const inspector = screen.getByText("test_table — Inspector");
+    const inspector = screen.getByText("test_table — Definition");
     expect(inspector).toBeVisible();
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
+    expect(screen.queryByText("test_table — Definition")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "test_table" })).toHaveFocus();
   });
 
-  it("close button has localized accessible name 'Close inspector'", async () => {
+  it("close button has localized accessible name 'Close definition'", async () => {
     await openInspector();
 
-    const closeButton = screen.getByRole("button", { name: "Close inspector" });
+    const closeButton = screen.getByRole("button", { name: "Close definition" });
     expect(closeButton).toBeVisible();
   });
 
-  it("focuses trigger element even if component re-renders", async () => {
+  it("close after context-menu open returns focus to the object row button", async () => {
     const { user } = await openInspector();
 
     await user.keyboard("{Escape}");
 
-    const inspectButton = screen.getByRole("button", { name: "Inspect" });
-    expect(inspectButton).toHaveFocus();
+    // The context-menu trigger is unmounted after menu close, so base-ui
+    // restores focus to the contextmenu target — the object row button.
+    expect(screen.getByRole("button", { name: "test_table" })).toHaveFocus();
   });
 
   it("renders primary key and auto-increment badges with text labels", async () => {
@@ -332,12 +336,10 @@ describe("QueryObjectInspector", () => {
     const tableButton = await screen.findByRole("button", { name: "test_table" });
     await user.click(tableButton);
 
-    const inspectButton = await screen.findByRole("button", { name: "Inspect" });
-    await user.click(inspectButton);
+    fireEvent.contextMenu(tableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
 
-    expect(screen.getByText("test_table — Inspector")).toBeVisible();
-
-    const triggerButton = screen.getByTestId("inspect-button");
+    expect(screen.getByText("test_table — Definition")).toBeVisible();
 
     // Trigger: rerender with new targetId
     // State under test: inspectorKey, inspectorDetail, inspectTriggerElement
@@ -345,21 +347,18 @@ describe("QueryObjectInspector", () => {
 
     // Inspector must close
     await waitFor(() => {
-      expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+      expect(screen.queryByText("test_table — Definition")).not.toBeInTheDocument();
     });
 
     // No console errors during the close
     expect(consoleSpy).not.toHaveBeenCalled();
-
-    // Old trigger button is no longer connected (unmounted by tree re-render)
-    expect(triggerButton.isConnected).toBe(false);
 
     // New target's database loads; old object metadata does not leak
     const newDbButton = await screen.findByRole("button", { name: "other_db" });
     expect(newDbButton).toBeVisible();
     expect(screen.queryByText("test_db")).not.toBeInTheDocument();
     expect(screen.queryByText("test_table")).not.toBeInTheDocument();
-    expect(screen.queryByText("Inspect")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "View definition" })).not.toBeInTheDocument();
 
     consoleSpy.mockRestore();
   });
@@ -367,7 +366,7 @@ describe("QueryObjectInspector", () => {
   it("object collapse while Inspector open: closes, re-expand shows new Inspect, full reopen cycle proves no stale trigger", async () => {
     const { user } = await openInspector();
 
-    expect(screen.getByText("test_table — Inspector")).toBeVisible();
+    expect(screen.getByText("test_table — Definition")).toBeVisible();
 
     // Trigger: collapse the object while Inspector is open
     // State under test: inspectorKey, inspectorDetail, inspectTriggerElement
@@ -377,24 +376,21 @@ describe("QueryObjectInspector", () => {
 
     // Inspector must close
     await waitFor(() => {
-      expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
+      expect(screen.queryByText("test_table — Definition")).not.toBeInTheDocument();
     });
 
     // Re-expand the object
     await user.click(tableButton);
 
-    // New Inspect button must appear (old trigger state was cleared)
-    const newInspectButton = await screen.findByRole("button", { name: "Inspect" });
-    expect(newInspectButton).toBeVisible();
+    // Reopen via the row context menu
+    fireEvent.contextMenu(tableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
+    expect(screen.getByText("test_table — Definition")).toBeVisible();
 
-    // Click new Inspect — must successfully reopen the Inspector
-    await user.click(newInspectButton);
-    expect(screen.getByText("test_table — Inspector")).toBeVisible();
-
-    // Close via Escape — focus must return to the NEW Inspect button, not a stale reference
+    // Close via Escape — focus returns to the object row button
     await user.keyboard("{Escape}");
-    expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
-    expect(newInspectButton).toHaveFocus();
+    expect(screen.queryByText("test_table — Definition")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "test_table" })).toHaveFocus();
   });
 
   // --- Table definition tests ---
@@ -694,8 +690,8 @@ describe("QueryObjectInspector", () => {
     await user.click(dbButton);
     const tableButton = await screen.findByRole("button", { name: "test_table" });
     await user.click(tableButton);
-    const inspectButton = await screen.findByRole("button", { name: "Inspect" });
-    await user.click(inspectButton);
+    fireEvent.contextMenu(tableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
 
     // Start definition request
     const viewDefButton = screen.getByTestId("view-definition-button");
@@ -747,9 +743,9 @@ describe("QueryObjectInspector", () => {
     // Close via Escape
     await user.keyboard("{Escape}");
 
-    // Inspector should close and focus should return to Inspect button
-    expect(screen.queryByText("test_table — Inspector")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
+    // Inspector should close; focus falls back to the document body
+    expect(screen.queryByText("test_table — Definition")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "test_table" })).toHaveFocus();
   });
 });
 

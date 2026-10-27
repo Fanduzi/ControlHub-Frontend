@@ -132,7 +132,7 @@ export function QueryWorkbenchNavigator({
       </Button>
 
       <Dialog open={desktopOpen} onOpenChange={setDesktopOpen}>
-        <DialogContent className="max-w-2xl p-0">
+        <DialogContent className="sm:max-w-3xl p-0">
           <DialogHeader className="border-b border-border p-4 pr-12">
             <DialogTitle>{t("connectionNavigator.title")}</DialogTitle>
           </DialogHeader>
