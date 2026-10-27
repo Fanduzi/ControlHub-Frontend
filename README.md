@@ -10,6 +10,16 @@ Phase 1 frontend for the unified resource console. The app is built with Next.js
 - Resource create/edit/detail flows manage immutable origin, aliases, and external identifiers
 - One accent color, border-led separation, minimal shadow usage
 
+## Screenshots
+
+| Governed query workbench | Environment topology |
+|---|---|
+| ![Governed PostgreSQL Explain plan](docs/screenshots/query-explain.png) | ![Environment dependency graph](docs/screenshots/topology.png) |
+| Read-only PostgreSQL worksheet with a native-style Explain plan — bounded planner vocabulary and cost estimates; relation names and predicates never leave the backend. | Dependency graph with engine-labeled nodes across entry, replica, and host layers. |
+| **Unified resource inventory** | **Operations overview** |
+| ![Unified resource list](docs/screenshots/resources.png) | ![Operations overview](docs/screenshots/overview.png) |
+| Dense list with health, completeness, and owner context across environments. | Posture counters and watch queue per environment. |
+
 ## Routes
 
 - `/login`
