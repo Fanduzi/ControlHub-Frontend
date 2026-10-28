@@ -4255,8 +4255,8 @@ describe("FK record navigation", () => {
     // Open objects pane
     await user.click(screen.getByRole("button", { name: "Objects" }));
 
-    // The preview button should not be visible until we expand a table detail
-    expect(screen.queryByRole("button", { name: "Preview rows" })).toBeNull();
+    // No preview worksheet exists before a table preview action
+    expect(screen.queryByRole("menuitem", { name: "Preview data" })).toBeNull();
   });
 
   it("related records menu does not appear for arbitrary SQL results", async () => {
@@ -4369,7 +4369,7 @@ describe("FK record navigation", () => {
     expect((zhMessages as Record<string, unknown>)["queryWorkbench"]).toBeDefined();
     const queryWorkbench = (zhMessages as Record<string, unknown>)["queryWorkbench"] as Record<string, unknown>;
     const schema = queryWorkbench["schema"] as Record<string, unknown>;
-    expect(schema["previewRows"]).toBe("预览行");
+    expect(schema["previewRows"]).toBe("预览数据");
     const result = queryWorkbench["result"] as Record<string, unknown>;
     expect(result["relatedRecords"]).toBe("关联记录");
     expect(result["closeRelatedRecords"]).toBe("关闭关联记录");
@@ -5637,6 +5637,72 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     });
     expect(mockListQueryExecutions).not.toHaveBeenCalled();
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+
+  it("renders PostgreSQL native labels, costs, and an indented text view", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(
+      buildExplainResponse({
+        engine: "postgresql",
+        nodes: [
+          {
+            id: "0",
+            operation: "sort",
+            access: "unknown",
+            label: "Sort",
+            startupCost: 0.3,
+            totalCost: 19.37,
+          },
+          {
+            id: "1",
+            parentId: "0",
+            operation: "nested_loop",
+            access: "unknown",
+            label: "Nested Loop",
+            startupCost: 0.3,
+            totalCost: 13.58,
+            estimatedRows: 150,
+          },
+          {
+            id: "2",
+            parentId: "1",
+            operation: "container",
+            access: "unknown",
+            label: "Memoize",
+            totalCost: 0.5,
+          },
+        ],
+      }),
+    );
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+
+    // Cards view: native label primary, translated operation secondary, no
+    // access badge on container nodes, cost shown when present.
+    const nodes = screen.getByTestId("explain-nodes").querySelectorAll("[data-node-id]");
+    expect(nodes[0]?.textContent).toContain("Sort");
+    expect(nodes[0]?.textContent).toContain("cost=0.30..19.37");
+    const container = screen
+      .getByTestId("explain-nodes")
+      .querySelector('[data-node-operation="container"]');
+    expect(container?.textContent).toContain("Memoize");
+    expect(container?.textContent).not.toContain("Unknown");
+
+    // Text view: monospace preformatted block with native-shaped lines.
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    const text = screen.getByTestId("explain-text").innerHTML;
+    expect(screen.getByTestId("explain-text").tagName).toBe("PRE");
+    expect(text).toContain("Sort  (cost=0.30..19.37)");
+    expect(text).toContain("  Nested Loop  (cost=0.30..13.58 rows=150)");
+    expect(text).toContain("    Memoize  (cost=0.50..0.50)");
+
+    await user.click(screen.getByRole("button", { name: "Nodes" }));
+    expect(screen.queryByTestId("explain-text")).toBeNull();
+    expect(screen.getByTestId("explain-nodes")).toBeInTheDocument();
   });
 });
 

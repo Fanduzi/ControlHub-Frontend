@@ -518,7 +518,7 @@ test.describe("T13-A result contract consumption", () => {
     const childTable = explorer.getByRole("treeitem", { name: "t13_child" });
     await expect(childTable).toBeVisible({ timeout: 10_000 });
     await childTable.click();
-    await explorer.getByRole("button", { name: "Preview rows" }).click();
+    await explorer.getByRole("button", { name: "Preview data" }).click();
     await page.getByRole("button", { name: /^(run|执行)$/i }).click();
     await expect(page.getByRole("grid")).toBeVisible({ timeout: 15_000 });
 

@@ -607,8 +607,10 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     await screen.findByRole("tab", { name: "Worksheet 32" });
     await user.click(screen.getByRole("button", { name: "Objects" }));
     await user.click(await screen.findByRole("button", { name: "orders" }));
-    await user.click(await screen.findByRole("button", { name: "order_items" }));
-    await user.click(await screen.findByRole("button", { name: "Preview rows" }));
+    const orderItemsRow = await screen.findByRole("button", { name: "order_items" });
+    await user.click(orderItemsRow);
+    fireEvent.contextMenu(orderItemsRow);
+    await user.click(await screen.findByRole("menuitem", { name: "Preview data" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/at most 32 worksheets/i);
     expect(screen.queryByRole("tab", { name: "Preview: order_items" })).toBeNull();
@@ -1331,10 +1333,9 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
       expect(screen.getByRole("button", { name: "orders" })).toBeInTheDocument();
     });
     await user.click(screen.getByRole("button", { name: "orders" }));
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Preview rows" })).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole("button", { name: "Preview rows" }));
+    const ordersRow = screen.getByRole("button", { name: "orders" });
+    fireEvent.contextMenu(ordersRow);
+    await user.click(await screen.findByRole("menuitem", { name: "Preview data" }));
 
     // When: run preview, select FK cell, invoke related-record navigation
     await user.click(screen.getByRole("button", { name: /^run$/i }));

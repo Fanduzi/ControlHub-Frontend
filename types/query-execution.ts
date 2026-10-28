@@ -299,15 +299,21 @@ export type TablePreviewRequest = {
 };
 
 // ─── Phase 38N: Governed Explain ───────────────────────────────────────────
-// The browser sends only the worksheet statement to the governed Explain
-// endpoint. It never constructs EXPLAIN, engine-specific syntax, or sends
+// The browser sends only the worksheet statement plus the target's already
+// resolved (database, schema) scope to the governed Explain endpoint. It never
+// constructs EXPLAIN, engine-specific syntax, or sends
 // actor/role/credential/DSN fields. The backend owns wrapping the guarded
-// SELECT in EXPLAIN FORMAT=JSON and normalizing the raw plan into this
-// versioned, leak-free response.
+// SELECT in engine-specific syntax (MySQL EXPLAIN FORMAT=JSON, PostgreSQL
+// EXPLAIN (FORMAT JSON)) and normalizing the raw plan into this versioned,
+// leak-free response.
 
 /** Request body for POST /query-targets/{id}/explain. */
 export type ExplainRequest = {
   statement: string;
+  /** Required for PostgreSQL targets: the pinned database identity. */
+  database?: string;
+  /** Optional for PostgreSQL targets: explicit schema pin (defaults to the connection's schema). */
+  schema?: string;
 };
 
 /** Finite enum of normalized plan node operations. Matches the backend v1. */
@@ -318,6 +324,8 @@ export type ExplainNodeOperation =
   | "sort"
   | "aggregate"
   | "temporary_table"
+  /** Known plan-structure nodes (Limit, Hash, Gather, Append…) kept for tree fidelity. */
+  | "container"
   | "unknown";
 
 /** Finite enum of normalized access types. Matches the backend v1.. */
@@ -347,6 +355,11 @@ export type ExplainNode = {
   access: ExplainNodeAccess;
   estimatedRows?: number;
   usesIndex?: boolean;
+  /** Engine planner-vocabulary node name (PostgreSQL "Node Type"), never user data. */
+  label?: string;
+  /** Planner scalar cost estimates (PostgreSQL Startup/Total Cost). */
+  startupCost?: number;
+  totalCost?: number;
 };
 
 /** One backend-derived risk signal with a finite severity. */
@@ -358,7 +371,7 @@ export type ExplainRisk = {
 /** Response body for POST /query-targets/{id}/explain. Versioned, normalized, leak-free. */
 export type ExplainResponse = {
   targetResourceId: number;
-  engine: "mysql";
+  engine: "mysql" | "postgresql";
   formatVersion: number;
   nodes: ExplainNode[];
   risks: ExplainRisk[];

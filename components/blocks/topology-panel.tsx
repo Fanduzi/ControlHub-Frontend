@@ -1,5 +1,5 @@
 // input: topology services, URL state, localized messages, and graph data
-// output: URL-synchronized resource/environment topology graph presentation with stale-request protection
+// output: URL-synchronized resource/environment topology graph presentation with stale-request protection and a locally paginated root-candidate list (db icon + type/engine per row)
 // pos: reusable topology graph panel for console resource views
 // note: if this file changes, update this header and module README.md.
 "use client";
@@ -18,6 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { Button } from "@/components/ui/button";
+import { DbTypeIcon } from "@/components/blocks/db-type-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mapTopologyToFlow, type TopologyNodeData, type LayerBand } from "@/lib/topology-mapper";
 import { getEnvironmentTopology, getResourceTopology, TopologyNotAvailableError } from "@/services/topology";
@@ -234,6 +235,17 @@ function TopologyPanelInner({
     }
     return topology.nodes;
   }, [topology]);
+
+  // Candidates arrive in one response; page them locally so large
+  // environments do not render a wall of flat rows.
+  const CANDIDATE_PAGE_SIZE = 10;
+  const [candidatePage, setCandidatePage] = useState(0);
+  const candidatePageCount = Math.ceil(workspaceCandidates.length / CANDIDATE_PAGE_SIZE);
+  const activeCandidatePage = Math.min(candidatePage, Math.max(0, candidatePageCount - 1));
+  const visibleCandidates = workspaceCandidates.slice(
+    activeCandidatePage * CANDIDATE_PAGE_SIZE,
+    (activeCandidatePage + 1) * CANDIDATE_PAGE_SIZE,
+  );
 
   const flowData = useMemo(() => {
     if (!topology || isCandidateWorkspace) return null;
@@ -498,20 +510,62 @@ function TopologyPanelInner({
           {workspaceCandidates.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">{t("topology.candidateEmpty")}</p>
           ) : (
-            <ul className="mt-4 space-y-1">
-              {workspaceCandidates.map((candidate) => (
-                <li key={candidate.id}>
-                  <button
+            <>
+              <ul className="mt-4 space-y-1">
+                {visibleCandidates.map((candidate) => {
+                  const isDbCandidate =
+                    candidate.resourceType === "database_instance" ||
+                    candidate.resourceType === "database_cluster" ||
+                    candidate.resourceType === "database_proxy";
+                  return (
+                    <li key={candidate.id}>
+                      <button
+                        type="button"
+                        data-testid={`topology-candidate-${candidate.id}`}
+                        onClick={() => setRootResourceId(candidate.id)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                      >
+                        {isDbCandidate && (
+                          <DbTypeIcon subtype={candidate.resourceSubtype} className="size-4 shrink-0" />
+                        )}
+                        <span className="truncate">{candidate.displayName || candidate.name}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          {getTypeLabel(candidate.resourceType)}
+                          {candidate.resourceSubtype ? ` · ${candidate.resourceSubtype}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {candidatePageCount > 1 && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
                     type="button"
-                    data-testid={`topology-candidate-${candidate.id}`}
-                    onClick={() => setRootResourceId(candidate.id)}
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                    variant="outline"
+                    size="sm"
+                    disabled={activeCandidatePage === 0}
+                    aria-label={t("pagination.previous")}
+                    onClick={() => setCandidatePage(activeCandidatePage - 1)}
                   >
-                    {candidate.displayName || candidate.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    {t("pagination.previousShort")}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {t("pagination.page", { page: `${activeCandidatePage + 1} / ${candidatePageCount}` })}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={activeCandidatePage >= candidatePageCount - 1}
+                    aria-label={t("pagination.next")}
+                    onClick={() => setCandidatePage(activeCandidatePage + 1)}
+                  >
+                    {t("pagination.nextShort")}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

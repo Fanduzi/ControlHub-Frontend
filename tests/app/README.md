@@ -4,6 +4,7 @@ Vitest tests for the Next.js app boundary.
 
 | File | Coverage |
 |------|----------|
+| `audits-page.test.tsx` | Admin-only `/audits` renders a localized forbidden notice on 403 while real backend failures still reach the error boundary |
 | `cmdb-page.test.tsx` | Retained `/cmdb` bookmark renders a translated migration notice and accessible `/resources` link |
 | `overview-page.test.tsx` | Overview parses its environment cookie while an explicit All URL overrides stale persisted scope |
 | `not-found.test.tsx` | Generic and resource-specific 404 boundaries render localized copy and the correct recovery links |

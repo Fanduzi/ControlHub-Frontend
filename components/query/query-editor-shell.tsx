@@ -102,6 +102,8 @@ type QueryEditorShellProps = {
   targets: QueryTarget[];
   activeTarget: QueryTarget;
   targetSelectionVersion: number;
+  /** The pin came from an explicit ?targetId= deep link — hydrate must honor it over restore order. */
+  explicitActiveTarget?: boolean;
   onActiveTargetChange: (resourceId: number) => void;
   onActiveDatabaseChange?: (database: string | null) => void;
   schemaStore: SchemaCatalog;
@@ -132,7 +134,7 @@ type NavigationCapability = {
   readonly onNavigate: (foreignKey: string, localValues: readonly string[]) => void;
 };
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, explicitActiveTarget = false, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
@@ -178,6 +180,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const localWorkspaceChangedRef = useRef(false);
   const activeTargetRef = useRef(activeTarget);
   activeTargetRef.current = activeTarget;
+  // Whether THIS mount was a deep link is fixed at mount time: the URL's
+  // targetId param later flips on user-driven target switches (router.replace
+  // re-renders the server page), which must not re-arm deep-link hydration.
+  const explicitActiveTargetRef = useRef(explicitActiveTarget);
   const workspaceWorksheets = session.persistedSnapshot();
   const workspaceSignature = JSON.stringify(workspaceWorksheets);
   // Authoritative workspace version: the server only ever increases the OCC
@@ -207,8 +213,20 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         return;
       }
       if (workspace.worksheets.length > 0 || replaceEmpty) {
-        session.hydrate(workspace.worksheets, activeTargetRef.current.resourceId);
+        session.hydrate(
+          workspace.worksheets,
+          activeTargetRef.current.resourceId,
+          explicitActiveTargetRef.current,
+        );
         savedWorkspaceSignatureRef.current = JSON.stringify(session.persistedSnapshot());
+        // No restored worksheet binds the deep-linked target: open a fresh one
+        // so the explicit pin survives instead of snapping to items[0]'s target.
+        if (
+          explicitActiveTargetRef.current &&
+          session.active.targetResourceId !== activeTargetRef.current.resourceId
+        ) {
+          session.add(activeTargetRef.current.resourceId);
+        }
       } else {
         savedWorkspaceSignatureRef.current = "[]";
       }
@@ -2087,6 +2105,7 @@ function ExplainPanel({
 }) {
   const t = useTranslations("queryWorkbench");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [view, setView] = useState<"cards" | "text">("cards");
 
   useEffect(() => {
     if (state.status === "ready" || state.status === "error") {
@@ -2122,7 +2141,34 @@ function ExplainPanel({
       onKeyDown={handleKeyDown}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium text-foreground">{t("explain.title")}</h3>
+        <h3 className="text-sm font-medium text-foreground">
+          {t("explain.title")}
+          {state.status === "ready" && state.response ? (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              {state.response.engine}
+            </span>
+          ) : null}
+          {state.status === "ready" && state.response ? (
+            <span className="ml-3 inline-flex rounded-md border border-border text-xs" role="group" aria-label={t("explain.viewSwitch")}>
+              <button
+                type="button"
+                className={cn("px-2 py-0.5", view === "cards" ? "bg-muted font-medium" : "text-muted-foreground")}
+                aria-pressed={view === "cards"}
+                onClick={() => setView("cards")}
+              >
+                {t("explain.viewCards")}
+              </button>
+              <button
+                type="button"
+                className={cn("px-2 py-0.5", view === "text" ? "bg-muted font-medium" : "text-muted-foreground")}
+                aria-pressed={view === "text"}
+                onClick={() => setView("text")}
+              >
+                {t("explain.viewText")}
+              </button>
+            </span>
+          ) : null}
+        </h3>
         <Button
           ref={closeRef}
           type="button"
@@ -2195,43 +2241,94 @@ function ExplainPanel({
 
           {state.response.nodes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("explain.emptyNodes")}</p>
-          ) : (
+          ) : (() => {
+            // Nodes arrive depth-first with monotonic ids; parents always
+            // precede children, so one pass resolves every depth.
+            const depthById = new Map<string, number>();
+            for (const n of state.response.nodes) {
+              depthById.set(
+                n.id,
+                n.parentId != null ? (depthById.get(n.parentId) ?? 0) + 1 : 0,
+              );
+            }
+            if (view === "text") {
+              const lines = state.response.nodes.map((node) => {
+                const depth = depthById.get(node.id) ?? 0;
+                const name = node.label ?? t(`explain.operations.${node.operation}`);
+                const meta = [
+                  node.totalCost !== undefined
+                    ? `cost=${(node.startupCost ?? node.totalCost).toFixed(2)}..${node.totalCost.toFixed(2)}`
+                    : null,
+                  node.estimatedRows !== undefined ? `rows=${node.estimatedRows}` : null,
+                ].filter(Boolean).join(" ");
+                return `${"  ".repeat(depth)}${name}${meta ? `  (${meta})` : ""}`;
+              });
+              return (
+                <pre
+                  className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-6 text-foreground"
+                  data-testid="explain-text"
+                ><code>{lines.join("\n")}</code></pre>
+              );
+            }
+            return (
             <ul className="space-y-2" data-testid="explain-nodes">
-              {state.response.nodes.map((node) => (
-                <li
-                  key={node.id}
-                  className="rounded-md border border-border bg-background/60 px-3 py-2 text-sm"
-                  aria-label={t("explain.nodeAriaLabel", {
-                    id: node.id,
-                    operation: t(`explain.operations.${node.operation}`),
-                  })}
-                  data-node-id={node.id}
-                  data-node-operation={node.operation}
-                  data-node-access={node.access}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-foreground">
-                      {t(`explain.operations.${node.operation}`)}
-                    </span>
-                    <Badge variant="secondary">{t(`explain.access.${node.access}`)}</Badge>
-                    {node.estimatedRows !== undefined ? (
-                      <span className="text-xs text-muted-foreground">
-                        {t("explain.estimatedRowsLabel")}: {node.estimatedRows}
-                      </span>
-                    ) : null}
-                    {node.usesIndex !== undefined ? (
-                      <span className="text-xs text-muted-foreground">
-                        {t("explain.usesIndexLabel")}:{" "}
-                        {node.usesIndex
-                          ? t("explain.usesIndexTrue")
-                          : t("explain.usesIndexFalse")}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+              {state.response.nodes.map((node) => {
+                  const depth = depthById.get(node.id) ?? 0;
+                  const isContainer = node.operation === "container";
+                  return (
+                    <li
+                      key={node.id}
+                      className={cn(
+                        "rounded-md border border-border bg-background/60 px-3 py-2 text-sm",
+                        depth > 0 && "border-l-2 border-l-primary/30",
+                      )}
+                      style={{ marginLeft: depth * 20 }}
+                      aria-label={t("explain.nodeAriaLabel", {
+                        id: node.id,
+                        operation: node.label ?? t(`explain.operations.${node.operation}`),
+                      })}
+                      data-node-id={node.id}
+                      data-node-operation={node.operation}
+                      data-node-access={node.access}
+                      data-node-depth={depth}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-foreground">
+                          {node.label ?? t(`explain.operations.${node.operation}`)}
+                        </span>
+                        {node.label ? (
+                          <span className="text-xs text-muted-foreground">
+                            {t(`explain.operations.${node.operation}`)}
+                          </span>
+                        ) : null}
+                        {!isContainer ? (
+                          <Badge variant="secondary">{t(`explain.access.${node.access}`)}</Badge>
+                        ) : null}
+                        {node.totalCost !== undefined ? (
+                          <span className="text-xs text-muted-foreground">
+                            cost={(node.startupCost ?? node.totalCost).toFixed(2)}..{node.totalCost.toFixed(2)}
+                          </span>
+                        ) : null}
+                        {node.estimatedRows !== undefined ? (
+                          <span className="text-xs text-muted-foreground">
+                            {t("explain.estimatedRowsLabel")}: {node.estimatedRows}
+                          </span>
+                        ) : null}
+                        {node.usesIndex !== undefined ? (
+                          <span className="text-xs text-muted-foreground">
+                            {t("explain.usesIndexLabel")}:{" "}
+                            {node.usesIndex
+                              ? t("explain.usesIndexTrue")
+                              : t("explain.usesIndexFalse")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
             </ul>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>
@@ -2748,6 +2845,10 @@ const EXPLAIN_ERROR_COPY_CODES = new Set([
   "validation_failed",
   "query_not_allowed",
   "query_target_not_found",
+  "schema_validation_failed",
+  "query_connection_not_found",
+  "query_connection_disabled",
+  "dsn_binding_mismatch",
   "query_explain_not_supported",
   "query_result_disclosure_blocked",
   "query_timeout",

@@ -249,6 +249,80 @@ describe("WorksheetSession persisted drafts", () => {
     ]);
   });
 
+  it("activates the worksheet bound to an explicit deep-linked target, not items[0]", () => {
+    const session = createSession();
+    // The pinned target (a ?targetId= deep link) must win over restore order:
+    // otherwise the first persisted worksheet silently retargets the pin and
+    // the deep link is dropped.
+    session.hydrate(
+      [
+        {
+          id: "saved-pg",
+          name: "PG draft",
+          targetResourceId: 105,
+          statement: "select 1",
+          activeDatabase: "labdb",
+        },
+        {
+          id: "saved-mysql",
+          name: "MySQL draft",
+          targetResourceId: 104,
+          statement: "select 2",
+          activeDatabase: null,
+        },
+      ],
+      104,
+      true,
+    );
+
+    expect(session.active.id).toBe("saved-mysql");
+    expect(session.active.targetResourceId).toBe(104);
+  });
+
+  it("falls back to items[0] when no restored worksheet binds the deep-linked target", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        {
+          id: "saved-pg",
+          name: "PG draft",
+          targetResourceId: 105,
+          statement: "select 1",
+          activeDatabase: "labdb",
+        },
+      ],
+      104,
+      true,
+    );
+
+    expect(session.active.id).toBe("saved-pg");
+  });
+
+  it("keeps items[0] activation when the pin is not explicit", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        {
+          id: "saved-pg",
+          name: "PG draft",
+          targetResourceId: 105,
+          statement: "select 1",
+          activeDatabase: "labdb",
+        },
+        {
+          id: "saved-mysql",
+          name: "MySQL draft",
+          targetResourceId: 104,
+          statement: "select 2",
+          activeDatabase: null,
+        },
+      ],
+      104,
+    );
+
+    expect(session.active.id).toBe("saved-pg");
+  });
+
   it("refuses a thirty-third worksheet so persist and restore stay inside the cap", () => {
     const session = createSession();
     for (let index = 0; index < MAX_WORKSHEETS - 1; index += 1) {

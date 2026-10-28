@@ -834,7 +834,7 @@ test.describe("PG saved statement + related records + persistence", () => {
     await openQueryWorkbench(page);
     await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
 
-    // Preview rows on e2e.child through the object explorer so provenance
+    // Preview data on e2e.child through the object explorer so provenance
     // carries the FK set needed for related-record eligibility.
     await page.getByRole("button", { name: "Objects", exact: true }).click();
     const explorer = page.getByRole("complementary", { name: "Objects" });
@@ -860,7 +860,7 @@ test.describe("PG saved statement + related records + persistence", () => {
     await childNode.getByRole("button").click();
 
     const previewButton = explorer.getByRole("button", {
-      name: "Preview rows",
+      name: "Preview data",
     });
     await expect(previewButton).toBeVisible({ timeout: 10_000 });
     await previewButton.click();
@@ -922,7 +922,7 @@ test.describe("PG saved statement + related records + persistence", () => {
       .getByRole("treeitem", { name: "child", exact: true })
       .getByRole("button")
       .click();
-    await explorer.getByRole("button", { name: "Preview rows" }).click();
+    await explorer.getByRole("button", { name: "Preview data" }).click();
     await page.getByRole("button", { name: /^run$/i }).click();
     const grid = page.getByRole("grid").first();
     await expect(grid).toBeVisible({ timeout: 30_000 });

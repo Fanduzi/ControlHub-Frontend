@@ -762,7 +762,7 @@ describe("QueryObjectExplorer search and pagination", () => {
 
   // --- Later-page objects retain functionality ---
 
-  it("objects from page 2 can still be expanded and show Inspect button", async () => {
+  it("objects from page 2 can still be expanded and list their columns", async () => {
     const user = userEvent.setup();
     mockGetSchemaDatabases.mockResolvedValue({
       targetResourceId: 1, defaultDatabase: "db1",
@@ -797,8 +797,9 @@ describe("QueryObjectExplorer search and pagination", () => {
     // Expand the page 2 object
     await user.click(screen.getByRole("button", { name: "page2_table" }));
 
-    // Inspect button should be available
-    await waitFor(() => expect(screen.getByRole("button", { name: "Inspect" })).toBeVisible());
+    // Expanded detail lists the object's columns
+    await waitFor(() => expect(screen.getByText("id")).toBeVisible());
+    expect(screen.getByText("int")).toBeVisible();
   });
 
   // --- Search removes expanded object ---
@@ -831,11 +832,13 @@ describe("QueryObjectExplorer search and pagination", () => {
     await screen.findByRole("button", { name: "db1" });
     await expandDatabase(user, "db1");
 
-    // Expand visible_table and open Inspector
-    await user.click(screen.getByRole("button", { name: "visible_table" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Inspect" })).toBeVisible());
-    await user.click(screen.getByRole("button", { name: "Inspect" }));
-    await waitFor(() => expect(screen.getByText("visible_table — Inspector")).toBeVisible());
+    // Expand visible_table and open the definition dialog via its context menu
+    const visibleTableButton = screen.getByRole("button", { name: "visible_table" });
+    await user.click(visibleTableButton);
+    await waitFor(() => expect(mockGetObjectDetails).toHaveBeenCalled());
+    fireEvent.contextMenu(visibleTableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
+    await waitFor(() => expect(screen.getByText("visible_table — Definition")).toBeVisible());
 
     // Search that removes visible_table
     const searchInput = screen.getByRole("textbox", { name: /search objects in db1/i });
@@ -844,7 +847,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     // visible_table should be gone, Inspector should close
     await waitFor(() => {
       expect(screen.queryByText("visible_table")).not.toBeInTheDocument();
-      expect(screen.queryByText("visible_table — Inspector")).not.toBeInTheDocument();
+      expect(screen.queryByText("visible_table — Definition")).not.toBeInTheDocument();
     });
 
     // other_table should still be visible
@@ -1330,9 +1333,11 @@ describe("QueryObjectExplorer search and pagination", () => {
     await user.click(screen.getByRole("button", { name: "db1" }));
     await waitFor(() => expect(screen.getByText("hidden_after_search")).toBeVisible());
     await user.click(screen.getByRole("button", { name: "hidden_after_search" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Inspect" })).toBeVisible());
-    await user.click(screen.getByRole("button", { name: "Inspect" }));
-    await waitFor(() => expect(screen.getByText("hidden_after_search — Inspector")).toBeVisible());
+    const hiddenTableButton = screen.getByRole("button", { name: "hidden_after_search" });
+    await waitFor(() => expect(mockGetObjectDetails).toHaveBeenCalled());
+    fireEvent.contextMenu(hiddenTableButton);
+    await user.click(await screen.findByRole("menuitem", { name: "View definition" }));
+    await waitFor(() => expect(screen.getByText("hidden_after_search — Definition")).toBeVisible());
 
     await user.click(screen.getByRole("button", { name: "db2" }));
     await waitFor(() => expect(screen.getByText("keep_me")).toBeVisible());
@@ -1348,7 +1353,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     await waitFor(() => expect(mockGetSchemaObjects).toHaveBeenCalledTimes(3));
 
     await waitFor(() => {
-      expect(screen.queryByText("hidden_after_search — Inspector")).not.toBeInTheDocument();
+      expect(screen.queryByText("hidden_after_search — Definition")).not.toBeInTheDocument();
     });
 
     rejectSearch(new Error("network failed"));
@@ -1356,7 +1361,7 @@ describe("QueryObjectExplorer search and pagination", () => {
     await waitFor(() => {
       expect(screen.getByText(/unable to load objects/i)).toBeVisible();
     });
-    expect(screen.queryByText("hidden_after_search — Inspector")).not.toBeInTheDocument();
+    expect(screen.queryByText("hidden_after_search — Definition")).not.toBeInTheDocument();
     expect(screen.queryByText("hidden_after_search")).not.toBeInTheDocument();
     expect(screen.getByText("keep_me")).toBeVisible();
   });
@@ -1833,7 +1838,7 @@ describe("database tree search and system visibility", () => {
     await screen.findByRole("button", { name: "app" });
     await expandDatabase(user, "app");
     await user.click(screen.getByRole("button", { name: "users" }));
-    await screen.findByText("0 Columns");
+    await screen.findByText("No columns found.");
 
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 

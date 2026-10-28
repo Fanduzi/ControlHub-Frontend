@@ -1,10 +1,11 @@
 // input: explicit URL environment scope, environment provider fallback, topology panel, translations
-// output: fail-closed explicit URL scope with provider fallback and URL-owned topology controls
+// output: fail-closed explicit URL scope with provider fallback, URL-owned topology controls, and an environment chooser when no single environment is selected
 // pos: dedicated topology route client content
 // note: if this file changes, update this header and components/blocks/README.md.
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
 import { useEnvironment } from "@/components/providers/environment-provider";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,7 +20,8 @@ export function EnvironmentTopologyContent({
   environmentId,
 }: EnvironmentTopologyContentProps) {
   const t = useTranslations();
-  const { currentEnvironmentId, loading } = useEnvironment();
+  const router = useRouter();
+  const { environments, currentEnvironmentId, loading } = useEnvironment();
   const hasUrlEnvironment = environmentId !== undefined;
   const selectedEnvironmentId = hasUrlEnvironment
     ? environmentId
@@ -28,9 +30,27 @@ export function EnvironmentTopologyContent({
   if (loading) return <Skeleton className="h-[500px] w-full rounded-lg" />;
 
   if (!selectedEnvironmentId) {
+    // The topology endpoint is single-environment only; "all" has no graph.
+    // Offer the environments as explicit URL-scoped choices instead of a
+    // passive placeholder.
     return (
-      <div className="rounded-lg border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
-        {t("topology.selectEnvironment")}
+      <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10">
+        <p className="text-center text-sm text-muted-foreground">
+          {t("topology.selectEnvironment")}
+        </p>
+        <ul className="mx-auto mt-4 flex max-w-md flex-col gap-1">
+          {environments.map((environment) => (
+            <li key={environment.id}>
+              <button
+                type="button"
+                className="w-full rounded-md border border-border px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                onClick={() => router.push(`/topology?environment=${environment.slug}`)}
+              >
+                {environment.name}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }

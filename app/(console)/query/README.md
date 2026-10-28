@@ -6,7 +6,7 @@ Server route for the authenticated Query Workbench.
 
 | File | Responsibility |
 |---|---|
-| `page.tsx` | Resolves environment and target URL state, loads bounded unscoped targets for All, preserves default selection only when `targetId` is absent, and fails closed for explicit invalid or unavailable values. |
+| `page.tsx` | Resolves environment and target URL state, loads bounded unscoped targets for All, preserves default selection only when `targetId` is absent, and fails closed for explicit invalid or unavailable values. The workbench is keyed by environment scope so switching environments remounts it and a stale `targetId`/`database` pin cannot leak back into the URL. |
 
 ## Interfaces
 

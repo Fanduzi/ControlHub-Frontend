@@ -80,6 +80,10 @@ export default async function QueryWorkbenchPage({
   return (
     <div className="min-h-0">
       <QueryWorkbench
+        // Environment switches change the whole target scope; remount so a
+        // pinned target/database from the previous scope cannot leak through
+        // component state back into the URL.
+        key={environmentId ?? "all"}
         targets={targets}
         pageInfo={pageInfo}
         initialFilters={initialFilters}
