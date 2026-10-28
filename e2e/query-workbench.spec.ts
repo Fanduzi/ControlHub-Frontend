@@ -2023,7 +2023,7 @@ test.describe("Object Inspector metadata", () => {
     const inspector = page.getByRole("dialog", { name: /schema_child — Definition/ });
     await expect(inspector).toBeVisible();
 
-    await inspector.getByRole("button", { name: "Close inspector" }).click();
+    await inspector.getByRole("button", { name: "Close definition" }).click();
     await expect(inspector).toBeHidden();
     await expect(inspectButton).toBeFocused();
   });
@@ -2062,7 +2062,7 @@ test.describe("Object Inspector metadata", () => {
     // Test Close button closes and restores focus
     await inspectButton.click();
     await expect(inspectorSheet).toBeVisible({ timeout: 30_000 });
-    await inspectorSheet.getByRole("button", { name: "Close inspector" }).click();
+    await inspectorSheet.getByRole("button", { name: "Close definition" }).click();
     await expect(inspectorSheet).toBeHidden();
     await expect(inspectButton).toBeFocused();
   });
@@ -2102,7 +2102,7 @@ test.describe("Object Inspector metadata", () => {
     await backButton.click();
 
     // Immediately close without waiting for focus restoration
-    const closeButton = inspector.getByRole("button", { name: "Close inspector" });
+    const closeButton = inspector.getByRole("button", { name: "Close definition" });
     await closeButton.click();
     await expect(inspector).toBeHidden();
 
