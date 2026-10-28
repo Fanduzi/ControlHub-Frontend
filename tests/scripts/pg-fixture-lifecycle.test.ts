@@ -1,4 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Real-subprocess fixture: each test spawns bash + cc + git + python3; the
+// default 5s testTimeout is too tight for shared CI runners under load.
+vi.setConfig({ testTimeout: 30_000 });
 import {
   existsSync,
   mkdirSync,
