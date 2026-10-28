@@ -180,6 +180,10 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   const localWorkspaceChangedRef = useRef(false);
   const activeTargetRef = useRef(activeTarget);
   activeTargetRef.current = activeTarget;
+  // Whether THIS mount was a deep link is fixed at mount time: the URL's
+  // targetId param later flips on user-driven target switches (router.replace
+  // re-renders the server page), which must not re-arm deep-link hydration.
+  const explicitActiveTargetRef = useRef(explicitActiveTarget);
   const workspaceWorksheets = session.persistedSnapshot();
   const workspaceSignature = JSON.stringify(workspaceWorksheets);
   // Authoritative workspace version: the server only ever increases the OCC
@@ -212,13 +216,13 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         session.hydrate(
           workspace.worksheets,
           activeTargetRef.current.resourceId,
-          explicitActiveTarget,
+          explicitActiveTargetRef.current,
         );
         savedWorkspaceSignatureRef.current = JSON.stringify(session.persistedSnapshot());
         // No restored worksheet binds the deep-linked target: open a fresh one
         // so the explicit pin survives instead of snapping to items[0]'s target.
         if (
-          explicitActiveTarget &&
+          explicitActiveTargetRef.current &&
           session.active.targetResourceId !== activeTargetRef.current.resourceId
         ) {
           session.add(activeTargetRef.current.resourceId);
@@ -233,7 +237,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     } catch {
       setWorkspaceProblem("load");
     }
-  }, [session, applyWorkspaceVersion, explicitActiveTarget]);
+  }, [session, applyWorkspaceVersion]);
 
   useEffect(() => {
     void loadWorkspace();
