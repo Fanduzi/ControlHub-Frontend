@@ -73,6 +73,16 @@ backend's existing dirty paths and stashes were preserved.
   browser installer refused before any spec ran. With user approval, only
   `release-e2e` is fixed to supported `ubuntu-24.04`. Test commands,
   assertions, timeouts and security gates are unchanged.
+  On the pinned runner (CI run `43728912666` @ `f47e194`) the browser
+  install passed and 220 specs executed: 216 passed, 4 failed — all
+  stale-selector failures, confirmed against CI error-context artifacts
+  and the source catalog rather than product regressions. Fixed as a
+  test-only update: withheld-history preview now expects the exact
+  catalog copy `Statement content is withheld by privacy policy.` (with
+  a scoped negative assertion keeping the original privacy intent), and
+  worksheet-tab selectors follow the active locale (`/^worksheet$/i` EN
+  / `/^工作表$/` zh). This entry records the failing run and its test-only
+  correction, not a later CI conclusion.
 - **Repo hygiene**: `.gitignore` anchored entries for `/smoke-*.png` and
   `/tpl-*.png` ignore only **root-level** E2E failure/proof captures while
   still allowing nested documentation assets such as `docs/screenshots/`.

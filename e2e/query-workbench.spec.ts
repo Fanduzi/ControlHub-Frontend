@@ -559,8 +559,9 @@ test.describe("Query Workbench shell", () => {
     // Switch to history tab: the blocked attempt is recorded with the
     // literal-free withheld preview and the disclosure error code.
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("[statement withheld]").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Statement content is withheld by privacy policy.").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/query_result_disclosure_blocked/).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#section-panel-history").getByText("SHOW TABLES", { exact: true })).toHaveCount(0);
   });
 
   test("Format button visibly formats messy SQL", async ({ page }) => {
@@ -3876,7 +3877,10 @@ async function exerciseParameterizedTemplateLoad(
     })
     .first()
     .click();
-  await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+  await page
+    .getByRole("tab", { name: options.locale === "en" ? /^worksheet$/i : /^工作表$/ })
+    .first()
+    .click();
   await expect(
     page.getByLabel(options.locale === "en" ? "status value" : "status 参数值"),
   ).toBeVisible({ timeout: 10_000 });
@@ -4676,7 +4680,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("button", { name: new RegExp(`加载 ${name}`, "i") }).first().click();
-    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await page.getByRole("tab", { name: /^工作表$/ }).first().click();
     await expect(page.getByLabel("minimum_id 参数值")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("模板模式").first()).toBeVisible();
 
@@ -5099,7 +5103,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await page.getByRole("tab", { name: /已保存脚本/i }).click();
     await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: new RegExp(`加载 ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
-    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await page.getByRole("tab", { name: /^工作表$/ }).first().click();
 
     await expect(page.getByText("模板模式").first()).toBeVisible();
     const valueField = page.getByLabel("minimum_id 参数值");
