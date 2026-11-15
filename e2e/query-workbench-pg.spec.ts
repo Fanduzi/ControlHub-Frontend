@@ -1222,4 +1222,74 @@ test.describe("PG paging, key lifecycle, fault injection and invalid context", (
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBeTruthy();
   });
+
+  test("PostgreSQL Explain renders bounded nodes without misleading risks", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+
+    await clearAndType(
+      page,
+      "select id from e2e.items order by id limit 10",
+    );
+    const explainResponse = page.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        /\/query-targets\/\d+\/explain$/.test(r.url()),
+    );
+    await page.getByTestId("explain-trigger").click();
+    const res = await explainResponse;
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as {
+      engine?: string;
+      formatVersion?: number;
+      nodes?: {
+        operation?: string;
+        access?: string;
+        label?: string;
+        startupCost?: number;
+        totalCost?: number;
+      }[];
+      risks?: { code?: string }[];
+    };
+
+    expect(body.engine).toBe("postgresql");
+    expect(body.formatVersion).toBe(1);
+    expect(body.nodes?.length).toBeGreaterThan(0);
+    const finiteOps = new Set([
+      "table_access",
+      "index_access",
+      "nested_loop",
+      "hash_join",
+      "merge_join",
+      "sort",
+      "aggregate",
+      "temporary_table",
+      "container",
+      "unknown",
+    ]);
+    for (const node of body.nodes ?? []) {
+      expect(finiteOps.has(node.operation ?? "")).toBe(true);
+    }
+    const costNode = (body.nodes ?? []).find(
+      (n) => typeof n.startupCost === "number" && typeof n.totalCost === "number",
+    );
+    expect(costNode).toBeTruthy();
+    expect(
+      (body.nodes ?? []).some((n) => typeof n.label === "string" && n.label.length > 0),
+    ).toBe(true);
+
+    const riskCodes = (body.risks ?? []).map((r) => r.code);
+    expect(riskCodes).not.toContain("filesort");
+    expect(riskCodes).not.toContain("temporary_table");
+
+    const panel = page.getByTestId("explain-panel");
+    await expect(panel).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("explain-nodes")).toBeVisible();
+    await page.getByRole("button", { name: "Text" }).click();
+    await expect(page.getByTestId("explain-text")).toContainText("cost=");
+    const panelText = await panel.innerText();
+    expect(panelText).not.toMatch(/query_block|table_name|password|dsn|credential/i);
+  });
 });

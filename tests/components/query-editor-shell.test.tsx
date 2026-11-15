@@ -2215,7 +2215,7 @@ describe("Phase 38S: paging controls in result panel", () => {
 
     await user.click(screen.getByRole("tab", { name: /已保存脚本/i }));
     await user.click(await screen.findByRole("button", { name: /加载 Parameterized statement/i }));
-    await user.click(screen.getByRole("tab", { name: /^Worksheet$/i }));
+    await user.click(screen.getByRole("tab", { name: /^工作表$/i }));
 
     expect(screen.getByLabelText("status 参数值")).toBeInTheDocument();
   });
@@ -3122,6 +3122,7 @@ describe("Phase 38W-3: template execution through the governed route", () => {
       expect(screen.getByRole("tab", { name: /Worksheet 2/ })).toBeInTheDocument();
     });
 
+    await user.click(screen.getByRole("tab", { name: /Worksheet 1/ }));
     await user.click(screen.getByRole("button", { name: /Close Worksheet 1/i }));
     const confirm = await screen.findByRole("alertdialog");
     await user.click(within(confirm).getByRole("button", { name: /^Close worksheet$/i }));
@@ -3146,7 +3147,7 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     renderReady(buildReadyTarget(), zhMessages, "zh-CN");
     await user.click(screen.getByRole("tab", { name: /已保存脚本/i }));
     await user.click(await screen.findByRole("button", { name: /加载 param template/i }));
-    await user.click(screen.getByRole("tab", { name: /^Worksheet$/i }));
+    await user.click(screen.getByRole("tab", { name: /^工作表$/i }));
     await user.type(screen.getByLabelText("status 参数值"), "paid");
     await user.type(screen.getByLabelText("min_id 参数值"), "5");
     await user.click(screen.getByRole("button", { name: /^执行$/i }));
@@ -3614,5 +3615,116 @@ describe("QueryEditorShell PostgreSQL composite context", () => {
       expect(connectionSelect.value).toBe("");
     });
     expect(screen.getByRole("button", { name: /^run$/i })).toBeDisabled();
+  });
+});
+
+describe("worksheet tab structure (UX-03)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    mockGetQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 0,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockPutQueryWorkspace.mockResolvedValue({
+      worksheets: [],
+      version: 1,
+      updatedAt: "2026-08-30T00:00:00Z",
+    });
+    mockGetQueryTargets.mockResolvedValue({
+      items: [],
+      pageInfo: pageInfoFor([]),
+    });
+  });
+
+  it("keeps the tablist to tabs only, links tabs to a real panel, and keeps Add outside", async () => {
+    renderReady();
+    const tablist = await screen.findByRole("tablist", { name: "Worksheet" });
+
+    for (const child of Array.from(tablist.children)) {
+      expect(child.getAttribute("role")).toBe("tab");
+    }
+    expect(within(tablist).queryByRole("button", { name: /.*/ })).toBeNull();
+    expect(within(tablist).queryByRole("textbox")).toBeNull();
+    const tab = within(tablist).getByRole("tab", { name: /Worksheet 1/ });
+    expect(tab).toHaveAttribute("aria-controls", "worksheet-content");
+
+    const panel = document.getElementById("worksheet-content");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("role", "tabpanel");
+    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+
+    expect(within(tablist).queryByRole("button", { name: "Add worksheet" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add worksheet" })).toBeInTheDocument();
+  });
+
+  it("keeps the selected tab and panel reference while renaming", async () => {
+    const user = userEvent.setup();
+    renderReady();
+    const tab = await screen.findByRole("tab", { name: /Worksheet 1/ });
+
+    await user.dblClick(tab);
+    const input = await screen.findByRole("textbox", { name: /new name/i });
+    expect(input).toBeInTheDocument();
+    const tablist = screen.getByRole("tablist", { name: "Worksheet" });
+    expect(tablist.contains(input)).toBe(false);
+    for (const child of Array.from(tablist.children)) {
+      expect(child.getAttribute("role")).toBe("tab");
+    }
+    expect(tab).toHaveAttribute("aria-selected", "true");
+    expect(tab).toHaveAttribute("aria-controls", "worksheet-content");
+    expect(document.getElementById("worksheet-content")).toHaveAttribute("aria-labelledby", tab.id);
+  });
+
+  it("activates worksheets with arrow and Home/End keys", async () => {
+    renderReady();
+    await screen.findByRole("tab", { name: /Worksheet 1/ });
+    fireEvent.click(screen.getByRole("button", { name: "Add worksheet" }));
+    const second = screen.getByRole("tab", { name: /Worksheet 2/ });
+    expect(second).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(second, { key: "ArrowLeft" });
+    const first = screen.getByRole("tab", { name: /Worksheet 1/ });
+    expect(first).toHaveAttribute("aria-selected", "true");
+    expect(first).toHaveFocus();
+
+    fireEvent.keyDown(first, { key: "End" });
+    expect(second).toHaveAttribute("aria-selected", "true");
+    expect(second).toHaveFocus();
+
+    fireEvent.keyDown(second, { key: "Delete" });
+    await waitFor(() => {
+      expect(screen.queryByRole("tab", { name: /Worksheet 2/ })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("tab", { name: /Worksheet 1/ })).toHaveFocus();
+  });
+
+  it("moves focus with arrow and Home/End keys across section tabs", async () => {
+    renderReady();
+    const worksheetTab = await screen.findByRole("tab", { name: /^Worksheet$/ });
+    worksheetTab.focus();
+
+    fireEvent.keyDown(worksheetTab, { key: "ArrowRight" });
+    const historyTab = screen.getByRole("tab", { name: /history/i });
+    expect(historyTab).toHaveAttribute("aria-selected", "true");
+    expect(historyTab).toHaveFocus();
+
+    fireEvent.keyDown(historyTab, { key: "Home" });
+    expect(worksheetTab).toHaveAttribute("aria-selected", "true");
+    expect(worksheetTab).toHaveFocus();
+  });
+
+  it("localizes worksheet actions and generated names under zh-CN", async () => {
+    const user = userEvent.setup();
+    renderReady(buildReadyTarget(), zhMessages, "zh-CN");
+
+    expect(await screen.findByRole("tab", { name: /工作表 1/ })).toBeInTheDocument();
+    const addButton = screen.getByRole("button", { name: "新增工作表" });
+    await user.click(addButton);
+
+    expect(screen.getByRole("tab", { name: /工作表 2/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭 工作表 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重命名 工作表 2" })).toBeInTheDocument();
   });
 });

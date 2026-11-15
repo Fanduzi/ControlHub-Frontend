@@ -11,7 +11,7 @@ const ACTIVE_KEY_HEX =
 const ACTIVE_KEY_BASE64 = Buffer.from(ACTIVE_KEY_HEX, "hex").toString("base64");
 const OTHER_KEY_HEX =
   "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
-const OTHER_KEY_BASE64 = Buffer.from(OTHER_KEY_HEX, "hex").toString("base64");
+
 
 function stubBffEnv() {
   vi.stubEnv("CONTROLHUB_BFF_SESSION_KEY", ACTIVE_KEY_BASE64);

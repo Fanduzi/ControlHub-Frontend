@@ -41,6 +41,16 @@ describe("performBackendLogin", () => {
     expect(JSON.stringify(outcome)).not.toContain(TOKEN);
   });
 
+  it("maps backend 429 to rate-limited without leaking details", async () => {
+    vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://backend.test");
+    stubLoginResponse(429, { error: "login_rate_limited" });
+    const outcome = await performBackendLogin("admin@example.com", PASSWORD);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.kind).toBe("rate-limited");
+    expect(JSON.stringify(outcome)).not.toContain(PASSWORD);
+    expect(JSON.stringify(outcome)).not.toContain(TOKEN);
+  });
+
   it("maps backend 5xx to backend-unavailable without leaking details", async () => {
     vi.stubEnv("CONTROLHUB_API_BASE_URL", "http://backend.test");
     stubLoginResponse(500, { error: "mysql connection refused: 10.0.0.1:3306" });

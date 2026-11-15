@@ -70,7 +70,7 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
           <span className="sr-only">{t("governance.credentialStateLabel")}</span>
           {credentialStateLabel(t, governance.credentialState)}
         </Badge>
-        <CredentialStatusSection />
+        <CredentialStatusSection compact />
 
         <Dialog>
           <DialogTrigger
@@ -106,6 +106,13 @@ export function QueryGovernancePanel({ target }: QueryGovernancePanelProps) {
                 </ul>
               </section>
             )}
+            <section>
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t("governance.credentialStateLabel")}
+              </h3>
+              <p className="text-sm text-muted-foreground">{t("governance.credentialDescription")}</p>
+              <div className="mt-1"><CredentialStatusSection /></div>
+            </section>
             <section>
               <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {t("governance.policyChecklist")}
@@ -171,7 +178,7 @@ function PolicyBadges() {
  * Uses the shared `useAdminRole` hook which reads sessionStorage first,
  * then falls back to decoding the bearer token payload.
  */
-function CredentialStatusSection() {
+function CredentialStatusSection({ compact = false }: { compact?: boolean }) {
   const tCred = useTranslations("queryCredentialSettings");
   const isAdmin = useAdminRole();
 
@@ -191,6 +198,8 @@ function CredentialStatusSection() {
       </a>
     );
   }
+
+  if (compact) return null;
 
   return (
     <span className="text-xs text-muted-foreground">

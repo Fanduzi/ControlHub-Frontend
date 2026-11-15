@@ -294,16 +294,19 @@ export function SqlCodeEditorClient({
       );
     }
 
-    if (ariaLabel) {
-      extensions.push(EditorView.contentAttributes.of({ "aria-label": ariaLabel }));
-    }
+    extensions.push(
+      EditorView.contentAttributes.of({
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        tabindex: disabled ? "-1" : "0",
+      }),
+    );
 
     if (readOnly) {
       extensions.push(EditorView.editorAttributes.of({ "aria-readonly": "true" }));
     }
 
     return extensions;
-  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel, readOnly]);
+  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel, readOnly, disabled]);
 
   return (
     <CodeMirror

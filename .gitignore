@@ -52,7 +52,7 @@ yarn-error.log*
 .playwright-mcp/
 
 # E2E test screenshots
-smoke-*.png
+/smoke-*.png
 
 # typescript
 *.tsbuildinfo
@@ -72,7 +72,7 @@ advisor-plans/
 # Unignore the query-disclosure-policies settings route (tracked by Git)
 !app/(console)/settings/query-disclosure-policies/
 # E2E failure screenshots (Phase 38W-3 template execution)
-tpl-*.png
+/tpl-*.png
 .pi-subagents/
 
 # PG fixture run state (scripts/e2e/pg-fixture-*.sh)

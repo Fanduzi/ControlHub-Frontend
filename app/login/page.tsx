@@ -81,6 +81,10 @@ export default function LoginPage() {
           setError(t("errors.invalidCredentials"));
           return;
         }
+        if (response.status === 429) {
+          setError(t("errors.tooManyAttempts"));
+          return;
+        }
         setError(t("errors.backend"));
         return;
       }

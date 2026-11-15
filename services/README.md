@@ -25,8 +25,9 @@ the server-held credential from the HttpOnly Operator Session cookie. JSON
 error envelopes preserve `error` as `ApiError.code` and the parsed body as
 `ApiError.body`; a body that omits `error` does not invent a business code
 from HTTP status. Browser 401 responses still
-clear presentation state and redirect to login, and they keep `code` when the
-envelope carries it.
+clear presentation state and hard-navigate to the same-origin
+`/login?reason=session-expired` via `window.location.replace`, and they keep
+`code` when the envelope carries it.
 
 `query-executions.ts` and `query-saved-statements.ts` classify feature
 failures only by `ApiError.code`. For PostgreSQL targets they also carry the

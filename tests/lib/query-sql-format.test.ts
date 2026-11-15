@@ -64,7 +64,7 @@ describe("formatQueryStatement", () => {
 
   it("returns controlled error for invalid SQL", () => {
     // Use a mock that throws to test error handling
-    const result = formatQueryStatement("mysql", "select {{invalid", (stmt, opts) => {
+    const result = formatQueryStatement("mysql", "select {{invalid", () => {
       throw new Error("Parse error");
     });
     expect(result.ok).toBe(false);

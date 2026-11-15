@@ -16,7 +16,7 @@ deployment fails closed against an older backend payload.
 | `resource.ts` | Inventory resource, pagination, and structured list-filter contracts |
 | `named-inventory-view.ts` | Named-view filters, sort, columns, CRUD inputs, and responses |
 | `machine-principal.ts` | One-time credential issue plus safe reload lifecycle metadata |
-| `query-execution.ts` | Governed execution/history metadata, server-owned restore eligibility, owner-only statement response contracts, the `cellTruncated` result-matrix contract shared by execute and related-records responses, the terminal-execution/orphan-claim history union, and the PostgreSQL `database`/`schema`/`clientExecutionId` request fields |
+| `query-execution.ts` | Governed execution/history metadata, server-owned restore eligibility, owner-only statement response contracts, the `cellTruncated` result-matrix contract shared by execute and related-records responses, the terminal-execution/orphan-claim history union, the finite Explain operation union incl. distinct `hash_join`/`merge_join`, and the PostgreSQL `database`/`schema`/`clientExecutionId` request fields |
 | `query-target.ts` | Query target read model incl. composite `connections[]` rows (database, defaultSchema, engine, runtime, enabled) that drive the PostgreSQL worksheet context |
 | `query-schema.ts` | Schema catalog wire contracts (databases, schemas, objects, details, relationship map) incl. the PostgreSQL `schema` request/response fields |
 | `query-workspace.ts` | Persisted worksheet draft aggregate (incl. `activeDatabase`/`activeSchema` pins) and optimistic-concurrency request contract |

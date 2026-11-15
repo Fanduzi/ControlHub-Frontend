@@ -30,7 +30,9 @@ completion namespace identity).
 SQL edits, execute vs template routing, stale request rejection, template field
 errors.
 
-`operator-session-facade.test.ts` covers login/logout/readIdentity/authenticateCookie/gatePage.
+`operator-session-facade.test.ts` covers login/logout/readIdentity/authenticateCookie/gatePage,
+including the rate-limited login path returning a controlled 429
+`login_rate_limited` with `Retry-After: 60` and no session cookie.
 
 `query-result-envelope.test.ts` covers governed result disclosure checks.
 
@@ -41,7 +43,7 @@ Operator Session BFF tests (Phase 38X-1C):
 | `operator-session-config.test.ts` | Fail-closed configuration validation (base64-only keys, low-diversity key rejection, HTTPS-only production Origin, secure-cookie policy) |
 | `operator-session-seal.test.ts` | Sealed cookie identity round-trip, eight-hour expiry, key rotation window (15 minutes), tamper rejection |
 | `operator-session-origin.test.ts` | Console Origin guard on unsafe methods |
-| `operator-session-backend.test.ts` | Server-side backend login and generic outcome mapping |
+| `operator-session-backend.test.ts` | Server-side backend login and generic outcome mapping, incl. HTTP 429 → `rate-limited` without credential leakage |
 | `operator-session-response.test.ts` | BFF `bffJson` synthesized bodies include a snake_case Controlled Error Code on `error` |
 | `auth-role.test.ts` | Presentation-only admin gate from the trusted BFF session; browser role tampering fails closed |
 | `profile-field-registry.test.ts` | Core CI typed-profile identity flags and backend field-path mapping |

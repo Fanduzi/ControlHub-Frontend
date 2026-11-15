@@ -77,6 +77,11 @@ Table rows set `selectedResource` state → renders `ResourceDetailSheetLoader` 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
+The rules in this section apply only when a GitNexus index is actually
+available in this checkout (`.gitnexus/` present or the MCP/CLI reachable).
+When no index exists, use ordinary text search and read the callers directly;
+do not block on graph steps that cannot run.
+
 This project is indexed by GitNexus as **ControlHub-Frontend** (8394 symbols, 18411 relationships, 697 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).

@@ -229,7 +229,10 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
           value={selectedEnvironmentId === null ? "all" : String(selectedEnvironmentId)}
           onValueChange={handleEnvironmentChange}
         >
-          <SelectTrigger className="h-8 min-w-28 border-border text-xs">
+          <SelectTrigger
+            aria-label={t("shell.environmentPlaceholder")}
+            className="h-8 min-w-28 border-border text-xs"
+          >
             {hasUnknownEnvironmentSlug
               ? t("common.unknown")
               : selectedEnvironmentId !== null
@@ -293,7 +296,7 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
           }
         >
           <Avatar className="size-6 rounded-md border border-border">
-            <AvatarFallback className="rounded-md bg-primary/10 text-[11px] font-semibold text-primary">
+            <AvatarFallback className="rounded-md bg-primary/10 text-[11px] font-semibold text-foreground">
               CH
             </AvatarFallback>
           </Avatar>
@@ -365,7 +368,9 @@ export function Topbar({ pathname, onMobileMenuOpen }: TopbarProps) {
                   setSignOutFailed(true);
                   return;
                 }
-                window.location.href = "/login";
+                window.location.replace(
+                  new URL("/login", window.location.origin).href,
+                );
               })();
             }}
           >

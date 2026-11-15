@@ -45,6 +45,27 @@ describe("Operator Session facade", () => {
     expect(response.cookies.get(SESSION_COOKIE_NAME)?.httpOnly).toBe(true);
   });
 
+  it("maps backend 429 to a controlled login_rate_limited refusal without a cookie", async () => {
+    stubBffEnv();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: "login_rate_limited" }), { status: 429 }),
+      ),
+    );
+    const request = new NextRequest("http://localhost:3100/api/operator-session", {
+      method: "POST",
+      headers: { origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({ email: "admin@example.com", password: "secret123" }),
+    });
+    const response = await login(request);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body.error).toBe("login_rate_limited");
+    expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+  });
+
   it("maps missing, malformed, and tampered cookies to the same 401", () => {
     stubBffEnv();
     const missing = authenticateCookie(

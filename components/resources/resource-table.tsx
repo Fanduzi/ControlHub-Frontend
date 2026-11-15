@@ -477,6 +477,40 @@ export function ResourceTable({
     300,
   );
 
+  const hasActiveFilters =
+    search !== "" ||
+    selectedTypeValues.length > 0 ||
+    selectedSubtypeValues.length > 0 ||
+    selectedLifecycleValues.length > 0 ||
+    selectedHealthValues.length > 0 ||
+    selectedLabelValues.length > 0 ||
+    Boolean(searchParams.get("ownerId")) ||
+    archiveFilter !== "all";
+
+  const handleClearFilters = useCallback(() => {
+    debouncedSearch.cancel();
+    setSearchDraft("");
+    setLabelDraft("");
+    setSelectedLabelValues([]);
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of [
+      "q",
+      "resourceType",
+      "resourceSubtype",
+      "lifecycleStatus",
+      "healthStatus",
+      "label",
+      "ownerId",
+      "archiveFilter",
+      "includeArchived",
+      "archivedOnly",
+    ]) {
+      params.delete(key);
+    }
+    params.set("page", "1");
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [debouncedSearch, pathname, router, searchParams]);
+
   const subtypeOptions = (availableSubtypes?.length
     ? availableSubtypes
     : Array.from(
@@ -787,8 +821,28 @@ export function ResourceTable({
               <TableRow>
                 <TableCell colSpan={columns.length} className="py-6">
                   <EmptyState
-                    title={t("tables.resources.emptyTitle")}
-                    description={t("tables.resources.emptyDescription")}
+                    title={
+                      hasActiveFilters
+                        ? t("tables.resources.emptyFilterTitle")
+                        : t("tables.resources.emptyTitle")
+                    }
+                    description={
+                      hasActiveFilters
+                        ? t("tables.resources.emptyFilterDescription")
+                        : t("tables.resources.emptyDescription")
+                    }
+                    action={
+                      hasActiveFilters ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleClearFilters}
+                        >
+                          {t("tables.resources.clearFilters")}
+                        </Button>
+                      ) : undefined
+                    }
                   />
                 </TableCell>
               </TableRow>

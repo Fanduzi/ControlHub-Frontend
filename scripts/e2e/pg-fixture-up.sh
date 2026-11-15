@@ -231,6 +231,7 @@ note "fixture binary sha256=$(shasum -a 256 "$FIXTURE_EXE" | cut -d' ' -f1) vcs.
 # ── 6. Start the listener with this run's identity ──────────────────────
 env \
   CONTROLHUB_E2E_FIXTURE_MODE=1 \
+  CONTROLHUB_PG_HTTP_ENTRIES=on \
   E2E_RUN_ID="$E2E_RUN_ID" \
   DATABASE_DSN="$DATABASE_DSN" \
   JWT_SECRET="$JWT_SECRET" \

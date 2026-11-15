@@ -106,7 +106,9 @@ export async function apiClient<T>(
       window.sessionStorage.removeItem("controlhub.role");
       document.cookie = "controlhub.token=; path=/; max-age=0";
       document.cookie = "controlhub.role=; path=/; max-age=0";
-      window.location.href = "/login?reason=session-expired";
+      window.location.replace(
+        new URL("/login?reason=session-expired", window.location.origin).href,
+      );
     }
 
     throw error;

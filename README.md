@@ -49,9 +49,13 @@ rejects client-supplied `Authorization` headers, blocked prefixes such as
 accepts a valid unexpired Operator Session; forged, tampered, unknown-key, or
 expired cookies fail closed to login while preserving the protected path and
 query through re-authentication. UI sign-out is fail-closed: the console
-leaves for `/login` only after the BFF confirms the session cookie is cleared;
+leaves for `/login` only after the BFF confirms the session cookie is cleared,
+then hard-navigates there via `window.location.replace`;
 a failed logout (network or non-2xx) keeps the operator in the console with a
 controlled error instead of presenting a logged-out UI while the session survives.
+A backend login rate limit (HTTP 429) is surfaced as the controlled
+`login_rate_limited` outcome with `Retry-After: 60`, and the login page renders
+the localized too-many-attempts message.
 There is no open `/__api` rewrite to the backend; browser API access is only via `/api/proxy`.
 Admin presentation gates read the same-origin sealed-session response and do not
 trust browser storage or readable role cookies.

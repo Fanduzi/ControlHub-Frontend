@@ -58,16 +58,34 @@ type QueryHistoryPanelProps = {
 };
 
 const STATUS_TONE: Record<QueryExecutionStatus | QueryExecutionClaimStatus, string> = {
-  success: "text-emerald-600 dark:text-emerald-400",
-  rejected: "text-amber-600 dark:text-amber-400",
-  failed: "text-rose-600 dark:text-rose-400",
-  timeout: "text-amber-600 dark:text-amber-400",
+  success: "text-emerald-700 dark:text-emerald-400",
+  rejected: "text-amber-700 dark:text-amber-400",
+  failed: "text-rose-700 dark:text-rose-400",
+  timeout: "text-amber-700 dark:text-amber-400",
   cancelled: "text-muted-foreground",
-  running: "text-sky-600 dark:text-sky-400",
+  running: "text-sky-700 dark:text-sky-400",
   unknown: "text-muted-foreground",
 };
 
+const STATEMENT_WITHHELD = "[statement withheld]";
+
 const STATUS_FILTER_VALUES = ["success", "rejected", "failed", "timeout", "cancelled"] as const;
+
+function useStatementPreviewCopy() {
+  const t = useTranslations("queryWorkbench");
+  return (preview: string | null | undefined): string =>
+    !preview
+      ? t("history.emptyStatus")
+      : preview === STATEMENT_WITHHELD
+        ? t("history.statementWithheld")
+        : preview;
+}
+
+function useHistoryErrorCopy() {
+  const t = useTranslations("queryWorkbench");
+  return (code: string | null | undefined): string =>
+    code && t.has(`error.${code}`) ? t(`error.${code}`) : t("error.unavailable");
+}
 
 function formatDuration(ms: number, locale: string): string {
   if (!Number.isFinite(ms) || ms < 0) return "\u2014";
@@ -119,6 +137,8 @@ function HistoryDetailSheet({
 }) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
+  const previewCopy = useStatementPreviewCopy();
+  const errorCopy = useHistoryErrorCopy();
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // WHY: Base UI's finalFocus runs on both controlled close and unmount. An
@@ -154,7 +174,7 @@ function HistoryDetailSheet({
       >
         <SheetHeader>
           <SheetTitle>{t("history.detail.title")}</SheetTitle>
-          <SheetDescription>{execution.statementPreview || t("history.emptyStatus")}</SheetDescription>
+          <SheetDescription>{previewCopy(execution.statementPreview)}</SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-3 px-4 pb-4">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -167,7 +187,7 @@ function HistoryDetailSheet({
             <dt className="font-medium text-muted-foreground">{t("history.detail.status")}</dt>
             <dd><span className={cn("font-medium", STATUS_TONE[execution.status])}>{t(`history.status.${execution.status}`)}</span></dd>
             <dt className="font-medium text-muted-foreground">{t("history.detail.preview")}</dt>
-            <dd><code className="break-all font-mono text-xs">{execution.statementPreview || t("history.emptyStatus")}</code></dd>
+            <dd><code className="break-all font-mono text-xs">{previewCopy(execution.statementPreview)}</code></dd>
             <dt className="font-medium text-muted-foreground">{t("history.detail.rowCount")}</dt>
             <dd>{formatRowCount(execution.rowCount, locale)}</dd>
             <dt className="font-medium text-muted-foreground">{t("history.detail.duration")}</dt>
@@ -175,7 +195,12 @@ function HistoryDetailSheet({
             {(execution.errorCode || execution.errorMessage) && (
               <>
                 <dt className="font-medium text-muted-foreground">{t("history.detail.error")}</dt>
-                <dd className="text-rose-600 dark:text-rose-400">{[execution.errorCode, execution.errorMessage].filter(Boolean).join(": ")}</dd>
+                <dd className="text-rose-700 dark:text-rose-400">
+                  {errorCopy(execution.errorCode)}
+                  {execution.errorCode ? (
+                    <code className="ml-2 text-xs text-muted-foreground">{execution.errorCode}</code>
+                  ) : null}
+                </dd>
               </>
             )}
           </dl>
@@ -213,6 +238,13 @@ export function QueryHistoryPanel({
 }: QueryHistoryPanelProps) {
   const t = useTranslations("queryWorkbench");
   const locale = useLocale();
+  const previewCopy = useStatementPreviewCopy();
+  const errorCopy = useHistoryErrorCopy();
+
+  const statusItems = [
+    { value: "all", label: t("history.filter.status.all") },
+    ...STATUS_FILTER_VALUES.map((s) => ({ value: s, label: t(`history.filter.status.${s}`) })),
+  ];
 
   // WHY: the trigger element must be captured synchronously from the click or
   // keyboard activation event, before the Sheet mounts and Base UI moves focus
@@ -275,7 +307,11 @@ export function QueryHistoryPanel({
       <div className="flex flex-wrap items-end gap-2" role="group" aria-label={t("history.filter.status.label")}>
         <div className="flex flex-col gap-1">
           <label htmlFor="history-filter-status" className="text-xs text-muted-foreground">{t("history.filter.status.label")}</label>
-          <Select value={localStatus || "all"} onValueChange={(v) => setLocalStatus(!v || v === "all" ? "" : v)}>
+          <Select
+            value={localStatus || "all"}
+            items={statusItems}
+            onValueChange={(v) => setLocalStatus(!v || v === "all" ? "" : v)}
+          >
             <SelectTrigger id="history-filter-status" className="h-8 w-[140px]" aria-label={t("history.filter.status.label")}>
               <SelectValue />
             </SelectTrigger>
@@ -336,7 +372,7 @@ export function QueryHistoryPanel({
                           tabIndex: 0,
                           role: "button",
                           "aria-haspopup": "dialog" as const,
-                          "aria-label": record.statementPreview || t("history.emptyStatus"),
+                          "aria-label": previewCopy(record.statementPreview),
                         })}
                   >
                     <td className="px-3 py-2 text-xs text-muted-foreground">
@@ -355,12 +391,17 @@ export function QueryHistoryPanel({
                         </span>
                       ) : null}
                     </td>
-                    <td className="max-w-[280px] px-3 py-2 sm:max-w-[360px]"><code className="break-all font-mono text-xs text-foreground line-clamp-2">{record.statementPreview || t("history.emptyStatus")}</code></td>
+                    <td className="max-w-[280px] px-3 py-2 sm:max-w-[360px]"><code className="break-all font-mono text-xs text-foreground line-clamp-2">{previewCopy(record.statementPreview)}</code></td>
                     <td className="px-3 py-2 text-muted-foreground">{isClaim ? "—" : formatRowCount(record.rowCount, locale)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{isClaim ? "—" : formatDuration(record.durationMs, locale)}</td>
                     <td className="px-3 py-2">
                       {record.errorCode || record.errorMessage ? (
-                        <span className="text-xs text-rose-600 dark:text-rose-400">{[record.errorCode, record.errorMessage].filter(Boolean).join(": ")}</span>
+                        <span className="text-xs text-rose-700 dark:text-rose-400">
+                          {errorCopy(record.errorCode)}
+                          {record.errorCode ? (
+                            <code className="ml-1 text-muted-foreground">{record.errorCode}</code>
+                          ) : null}
+                        </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">{t("history.emptyStatus")}</span>
                       )}

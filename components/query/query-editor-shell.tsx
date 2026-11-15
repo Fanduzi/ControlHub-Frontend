@@ -120,6 +120,7 @@ const HISTORY_STATUS_OPTIONS: readonly QueryExecutionStatus[] = [
   "rejected",
   "failed",
   "timeout",
+  "cancelled",
 ];
 
 type NavigationCapability = {
@@ -150,16 +151,27 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   } | null>(null);
 
   const engineByTargetRef = useRef(new Map<number, string>());
+  const tRef = useRef(t);
+  tRef.current = t;
   const [session] = useState(
     () =>
       new WorksheetSession({
         initialTargetId: activeTarget.resourceId,
         engineFor: (targetId) => engineByTargetRef.current.get(targetId),
+        worksheetName: (index) => tRef.current("editor.worksheetName", { index }),
+        previewName: (table) => tRef.current("editor.previewName", { table }),
       }),
   );
   useWorksheetSessionVersion(session);
   const worksheets = session.list;
   const activeWorksheetId = session.activeId;
+
+  const focusActiveTabAfterCloseRef = useRef(false);
+  useEffect(() => {
+    if (!focusActiveTabAfterCloseRef.current) return;
+    focusActiveTabAfterCloseRef.current = false;
+    document.getElementById(`ws-tab-${session.activeId}`)?.focus();
+  });
   const activeWorksheet = session.active;
   const [workspaceVersion, setWorkspaceVersion] = useState<number | null>(null);
   const [workspaceProblem, setWorkspaceProblem] = useState<"load" | "save" | null>(null);
@@ -436,6 +448,8 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     localWorkspaceChangedRef.current = true;
     session.close(id);
     setCloseConfirmDialog(null);
+    setRenamingWorksheetId((current) => (current === id ? null : current));
+    focusActiveTabAfterCloseRef.current = true;
   }
 
   function renameWorksheet(id: string, newName: string) {
@@ -931,157 +945,184 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           {t("workspace.limitReached")}
         </p>
       ) : null}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 py-1" role="tablist" aria-label={t("editor.worksheetTab")}>
-        {worksheets.map((ws) => (
-          <div
-            key={ws.id}
-            className={cn(
-              "group flex items-center rounded-t-md",
-              ws.id === activeWorksheetId
-                ? "bg-background border border-border border-b-transparent"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {renamingWorksheetId === ws.id ? (
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onBlur={() => renameWorksheet(ws.id, renameValue)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    renameWorksheet(ws.id, renameValue);
-                  } else if (e.key === "Escape") {
-                    setRenamingWorksheetId(null);
-                  }
-                }}
-                className="w-24 bg-transparent px-3 py-1.5 text-sm outline-none"
-                autoFocus
-              />
-            ) : (
-              <button
-                type="button"
-                id={`ws-tab-${ws.id}`}
-                role="tab"
-                aria-selected={ws.id === activeWorksheetId}
-                aria-controls={`ws-panel-${ws.id}`}
-                tabIndex={ws.id === activeWorksheetId ? 0 : -1}
-                className="px-3 py-1.5 text-sm cursor-pointer"
-                onClick={() => {
+      <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label={t("editor.worksheetTab")}>
+          {worksheets.map((ws) => (
+            <button
+              key={ws.id}
+              type="button"
+              id={`ws-tab-${ws.id}`}
+              role="tab"
+              aria-selected={ws.id === activeWorksheetId}
+              aria-controls="worksheet-content"
+              tabIndex={ws.id === activeWorksheetId ? 0 : -1}
+              className={cn(
+                "px-3 py-1.5 text-sm cursor-pointer rounded-t-md",
+                ws.id === activeWorksheetId
+                  ? "bg-background border border-border border-b-transparent"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("[data-close-worksheet]")) {
+                  closeWorksheet(ws.id);
+                  return;
+                }
+                if (ws.id !== activeWorksheetId) {
+                  activateWorksheet(ws.id);
+                }
+              }}
+              onKeyDown={(e) => {
+                const tabs = worksheets.map((w) => w.id);
+                const currentIndex = tabs.indexOf(ws.id);
+                const focusTab = (id: string) => {
+                  activateWorksheet(id);
+                  document.getElementById(`ws-tab-${id}`)?.focus();
+                };
+                if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  focusTab(tabs[(currentIndex + 1) % tabs.length]!);
+                } else if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  focusTab(tabs[(currentIndex - 1 + tabs.length) % tabs.length]!);
+                } else if (e.key === "Home") {
+                  e.preventDefault();
+                  focusTab(tabs[0]!);
+                } else if (e.key === "End") {
+                  e.preventDefault();
+                  focusTab(tabs[tabs.length - 1]!);
+                } else if (e.key === "Delete") {
+                  e.preventDefault();
+                  closeWorksheet(ws.id);
+                } else if (e.key === "F2") {
+                  e.preventDefault();
                   if (ws.id !== activeWorksheetId) {
                     activateWorksheet(ws.id);
                   }
-                }}
-                onKeyDown={(e) => {
-                  const tabs = worksheets.map((w) => w.id);
-                  const currentIndex = tabs.indexOf(ws.id);
-                  if (e.key === "ArrowRight") {
-                    e.preventDefault();
-                    const next = tabs[(currentIndex + 1) % tabs.length]!;
-                    activateWorksheet(next);
-                  } else if (e.key === "ArrowLeft") {
-                    e.preventDefault();
-                    const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]!;
-                    activateWorksheet(prev);
-                  } else if (e.key === "Home") {
-                    e.preventDefault();
-                    activateWorksheet(tabs[0]!);
-                  } else if (e.key === "End") {
-                    e.preventDefault();
-                    activateWorksheet(tabs[tabs.length - 1]!);
-                  }
-                }}
-                onDoubleClick={() => startRename(ws.id, ws.name)}
-              >
-                {ws.name}
-                {ws.isDirty && (
-                  <span className="ml-1 text-muted-foreground" aria-label="Unsaved changes">•</span>
-                )}
-              </button>
-            )}
+                  startRename(ws.id, ws.name);
+                }
+              }}
+              onDoubleClick={() => {
+                if (ws.id !== activeWorksheetId) {
+                  activateWorksheet(ws.id);
+                }
+                startRename(ws.id, ws.name);
+              }}
+            >
+              {ws.name}
+              {ws.isDirty && (
+                <span className="ml-1 text-muted-foreground" aria-label={t("editor.unsavedChanges")}>•</span>
+              )}
+              {worksheets.length > 1 && (
+                <span data-close-worksheet aria-hidden="true" className="ml-1 text-muted-foreground">×</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addWorksheet}
+          className="ml-1 shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
+          aria-label={t("editor.addWorksheet")}
+        >
+          +
+        </button>
+        {renamingWorksheetId === null ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                if (activeWorksheet) startRename(activeWorksheet.id, activeWorksheet.name);
+              }}
+              className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
+              aria-label={t("editor.renameWorksheet", { name: activeWorksheet?.name ?? "" })}
+            >
+              ✎
+            </button>
             {worksheets.length > 1 && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeWorksheet(ws.id);
-                }}
-                className="pr-1 text-muted-foreground hover:text-foreground"
-                aria-label={`Close ${ws.name}`}
+                onClick={() => closeWorksheet(activeWorksheetId)}
+                className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label={t("editor.closeWorksheet", { name: activeWorksheet?.name ?? "" })}
               >
                 ×
               </button>
             )}
-            {renamingWorksheetId !== ws.id && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startRename(ws.id, ws.name);
-                }}
-                className="pr-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label={`Rename ${ws.name}`}
-              >
-                ✎
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addWorksheet}
-          className="ml-1 rounded p-1 text-muted-foreground hover:text-foreground"
-          aria-label="Add worksheet"
-        >
-          +
-        </button>
+          </>
+        ) : (
+          <input
+            type="text"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={() => renameWorksheet(renamingWorksheetId, renameValue)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                renameWorksheet(renamingWorksheetId, renameValue);
+              } else if (e.key === "Escape") {
+                setRenamingWorksheetId(null);
+              }
+            }}
+            aria-label={t("editor.renameWorksheetInput", { name: worksheets.find((w) => w.id === renamingWorksheetId)?.name ?? "" })}
+            className="w-28 shrink-0 bg-transparent px-2 py-1 text-sm outline-none"
+            autoFocus
+          />
+        )}
       </div>
 
+      <div
+        id="worksheet-content"
+        role="tabpanel"
+        aria-labelledby={`ws-tab-${activeWorksheetId}`}
+        className="flex min-w-0 flex-col"
+      >
       <div className="flex items-center justify-between border-b border-border bg-muted/30">
-        <ul role="tablist" aria-label={t("editor.worksheetTab")} className="flex flex-wrap">
+        <div role="tablist" aria-label={t("editor.sectionsTab")} className="flex flex-wrap">
           {WORKSHEET_TABS.map((tab, index) => {
             const active = tab.id === activeTab;
             return (
-              <li key={tab.id}>
-                <button
-                  type="button"
-                  id={`section-tab-${tab.id}`}
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls={`section-panel-${tab.id}`}
-                  tabIndex={active ? 0 : -1}
-                  onKeyDown={(e) => {
-                    const tabs = WORKSHEET_TABS;
-                    if (e.key === "ArrowRight") {
-                      e.preventDefault();
-                      selectWorksheetTab(tabs[(index + 1) % tabs.length]!.id);
-                    } else if (e.key === "ArrowLeft") {
-                      e.preventDefault();
-                      selectWorksheetTab(tabs[(index - 1 + tabs.length) % tabs.length]!.id);
-                    } else if (e.key === "Home") {
-                      e.preventDefault();
-                      selectWorksheetTab(tabs[0]!.id);
-                    } else if (e.key === "End") {
-                      e.preventDefault();
-                      selectWorksheetTab(tabs[tabs.length - 1]!.id);
-                    }
-                  }}
-                  onClick={() => selectWorksheetTab(tab.id)}
-                  className={cn(
-                    "border-b-2 px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "border-primary text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t(tab.labelKey)}
-                </button>
-              </li>
+              <button
+                key={tab.id}
+                type="button"
+                id={`section-tab-${tab.id}`}
+                role="tab"
+                aria-selected={active}
+                aria-controls={active ? `section-panel-${tab.id}` : undefined}
+                tabIndex={active ? 0 : -1}
+                onKeyDown={(e) => {
+                  const tabs = WORKSHEET_TABS;
+                  const focusTab = (id: WorksheetTab) => {
+                    selectWorksheetTab(id);
+                    document.getElementById(`section-tab-${id}`)?.focus();
+                  };
+                  if (e.key === "ArrowRight") {
+                    e.preventDefault();
+                    focusTab(tabs[(index + 1) % tabs.length]!.id);
+                  } else if (e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    focusTab(tabs[(index - 1 + tabs.length) % tabs.length]!.id);
+                  } else if (e.key === "Home") {
+                    e.preventDefault();
+                    focusTab(tabs[0]!.id);
+                  } else if (e.key === "End") {
+                    e.preventDefault();
+                    focusTab(tabs[tabs.length - 1]!.id);
+                  }
+                }}
+                onClick={() => selectWorksheetTab(tab.id)}
+                className={cn(
+                  "border-b-2 px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t(tab.labelKey)}
+              </button>
             );
           })}
-        </ul>
+        </div>
         <div className="hidden items-center gap-2 pr-3 text-xs text-muted-foreground sm:flex">
-          <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+          <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
             {t("editor.readonlyBadge")}
           </Badge>
           <span>{t("editor.timeout")}</span>
@@ -1287,7 +1328,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 {t("editor.placeholderHint")}
               </pre>
               <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                <Lock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                <Lock className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
                 <div>
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
                     {t("editor.lockTitle")}
@@ -1354,6 +1395,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
           />
         </div>
       ) : null}
+      </div>
 
       {/* Retarget confirmation dialog */}
       {retargetDialog?.open && (
@@ -1397,7 +1439,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                   {targetsById.get(retargetDialog.newTargetId)?.connectionContext.environment} • {targetsById.get(retargetDialog.newTargetId)?.connectionContext.engine} • {targetsById.get(retargetDialog.newTargetId)?.connectionContext.host}
                 </p>
                 {targetsById.get(retargetDialog.newTargetId)?.connectionContext.environment === "production" && (
-                  <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                     {t("retarget.productionWarning")}
                   </p>
                 )}
@@ -1526,7 +1568,7 @@ function WorksheetParameterInputs({
                 )}
               </div>
               {errorText ? (
-                <p id={errorId} role="alert" className="pl-[8.5rem] text-xs text-rose-600 dark:text-rose-400">
+                <p id={errorId} role="alert" className="pl-[8.5rem] text-xs text-rose-700 dark:text-rose-400">
                   {errorText}
                 </p>
               ) : null}
@@ -1733,7 +1775,7 @@ function ReadyWorksheet({
             className="h-8 w-20"
           />
           {!draftResult.valid && (
-            <p id="max-rows-range-error" role="alert" className="ml-1 text-xs text-rose-600 dark:text-rose-400">
+            <p id="max-rows-range-error" role="alert" className="ml-1 text-xs text-rose-700 dark:text-rose-400">
               {t("editor.maxRowsRangeError")}
             </p>
           )}
@@ -1993,7 +2035,7 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef,
         <dd>{t("result.rowCount", { count: safeResult.rowCount })}</dd>
         <dd>{t("result.durationMs", { count: safeResult.durationMs })}</dd>
         <dd>{t("result.limitApplied", { limit: safeResult.limitApplied })}</dd>
-        {safeResult.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.truncated")}</dd> : null}
+        {safeResult.truncated ? <dd className="font-medium text-amber-700 dark:text-amber-400">{t("result.truncated")}</dd> : null}
         <dd>
           {t("result.executionIdLabel")} {safeResult.executionId}
         </dd>
@@ -2073,7 +2115,7 @@ function RelatedRecordsPanel({
             <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
               <dd>{t("result.rowCount", { count: safeResponse.rowCount })}</dd>
               <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
-              {safeResponse.truncated ? <dd className="font-medium text-amber-600 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
+              {safeResponse.truncated ? <dd className="font-medium text-amber-700 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
             </dl>
             <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} cellTruncated={safeResponse.cellTruncated} exportEnabled={false} />
           </>
@@ -2203,7 +2245,7 @@ function ExplainPanel({
       {state.status === "ready" && state.response && (
         <div className="space-y-3" data-testid="explain-ready">
           {state.response.truncated ? (
-            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
               {t("explain.truncated")}
             </p>
           ) : null}
@@ -2270,7 +2312,6 @@ function ExplainPanel({
             <ul className="space-y-2" data-testid="explain-nodes">
               {state.response.nodes.map((node) => {
                   const depth = depthById.get(node.id) ?? 0;
-                  const isContainer = node.operation === "container";
                   return (
                     <li
                       key={node.id}
@@ -2297,7 +2338,9 @@ function ExplainPanel({
                             {t(`explain.operations.${node.operation}`)}
                           </span>
                         ) : null}
-                        {!isContainer ? (
+                        {node.access !== "unknown" ||
+                        node.operation === "table_access" ||
+                        node.operation === "index_access" ? (
                           <Badge variant="secondary">{t(`explain.access.${node.access}`)}</Badge>
                         ) : null}
                         {node.totalCost !== undefined ? (
@@ -2705,8 +2748,8 @@ function ResultTable({
             className={cn(
               "text-xs font-medium",
               copyFeedback.type === "success"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-rose-600 dark:text-rose-400",
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-rose-700 dark:text-rose-400",
             )}
           >
             {copyFeedback.type === "success" ? (

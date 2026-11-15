@@ -6,7 +6,7 @@ Shared React lifecycle hooks.
 
 | File | Responsibility |
 |---|---|
-| `use-debounce.ts` | Returns a stable delayed callback, replacing pending calls and cancelling pending work when its owner unmounts |
+| `use-debounce.ts` | Returns a stable delayed callback, replacing pending calls and cancelling pending work when its owner unmounts or when `cancel()` is invoked (e.g. a Clear filters action racing a pending keystroke) |
 
 ## Interfaces
 

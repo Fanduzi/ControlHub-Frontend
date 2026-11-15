@@ -80,4 +80,25 @@ describe("LoginPage email validation", () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith(expected));
   });
+
+  it("shows the localized too-many-attempts message on a 429", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 429 }),
+    );
+
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={messages}>
+        <LoginPage />
+      </NextIntlClientProvider>,
+    );
+
+    await user.type(screen.getByLabelText("邮箱"), "qa@controlhub.local");
+    await user.type(screen.getByLabelText("密码"), "secret");
+    await user.click(screen.getByRole("button", { name: "进入控制台" }));
+
+    expect(await screen.findByText("登录尝试次数过多，请稍后再试。")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
 });

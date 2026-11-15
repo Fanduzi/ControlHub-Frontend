@@ -733,8 +733,8 @@ function QueryContextBar({
 
   if (!target) {
     return (
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
-        <span className="flex-1" />
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-1">
+        <span className="min-w-0 flex-1" />
         {navigator}
       </div>
     );
@@ -747,78 +747,80 @@ function QueryContextBar({
     : target.displayName;
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
-      <span
-        className="max-w-[200px] truncate text-sm font-medium text-foreground"
-        title={target.displayName}
-      >
-        {truncatedName}
-      </span>
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-muted/30 px-3 py-1">
+      <div className="flex min-w-0 flex-1 basis-56 flex-wrap items-center gap-2">
+        <span
+          className="max-w-[200px] truncate text-sm font-medium text-foreground"
+          title={target.displayName}
+        >
+          {truncatedName}
+        </span>
 
-      {activeDatabase && (
-        <Badge variant="secondary" className="gap-1 text-xs">
-          <Database className="size-3" aria-hidden />
-          <span className="max-w-[120px] truncate">{activeDatabase}</span>
+        {activeDatabase && (
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <Database className="size-3" aria-hidden />
+            <span className="max-w-[120px] truncate">{activeDatabase}</span>
+          </Badge>
+        )}
+
+        <Badge
+          variant="secondary"
+          className={cn(
+            "text-xs",
+            isProduction && "border-amber-500/30 text-amber-700 dark:text-amber-300",
+          )}
+        >
+          {target.connectionContext.environment}
         </Badge>
-      )}
 
-      <Badge
-        variant="secondary"
-        className={cn(
-          "text-xs",
-          isProduction && "border-amber-500/30 text-amber-700 dark:text-amber-300",
-        )}
-      >
-        {target.connectionContext.environment}
-      </Badge>
+        <Badge
+          variant="secondary"
+          className={cn(
+            "text-xs",
+            isReady
+              ? "border-green-500/30 text-green-800 dark:text-green-300"
+              : "border-amber-500/30 text-amber-700 dark:text-amber-300",
+          )}
+        >
+          {isReady ? (
+            <Check className="size-3" aria-hidden />
+          ) : (
+            <TriangleAlert className="size-3" aria-hidden />
+          )}
+          {t(readinessLabelKey(target.readiness))}
+        </Badge>
+      </div>
 
-      <Badge
-        variant="secondary"
-        className={cn(
-          "text-xs",
-          isReady
-            ? "border-green-500/30 text-green-700 dark:text-green-300"
-            : "border-amber-500/30 text-amber-700 dark:text-amber-300",
-        )}
-      >
-        {isReady ? (
-          <Check className="size-3" aria-hidden />
-        ) : (
-          <TriangleAlert className="size-3" aria-hidden />
-        )}
-        {t(readinessLabelKey(target.readiness))}
-      </Badge>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {/* Desktop objects toggle — accessible name from localized visible text. */}
+        <Button
+          type="button"
+          variant={objectsOpen ? "secondary" : "ghost"}
+          size="sm"
+          className="hidden h-7 gap-1.5 text-xs lg:inline-flex"
+          onClick={onObjectsToggle}
+          aria-pressed={objectsOpen}
+        >
+          <ListTree className="size-3.5" aria-hidden />
+          {t("schema.objectsLabel")}
+        </Button>
 
-      <span className="flex-1" />
+        {/* Mobile objects toggle — focus returns here when the sheet closes. */}
+        <Button
+          ref={mobileObjectsTriggerRef}
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs lg:hidden"
+          onClick={() => onMobileObjectsOpenChange(true)}
+          aria-label={t("schema.openObjects")}
+        >
+          <ListTree className="size-3.5" aria-hidden />
+          {t("schema.objectsLabel")}
+        </Button>
 
-      {/* Desktop objects toggle — accessible name from localized visible text. */}
-      <Button
-        type="button"
-        variant={objectsOpen ? "secondary" : "ghost"}
-        size="sm"
-        className="hidden h-7 gap-1.5 text-xs lg:inline-flex"
-        onClick={onObjectsToggle}
-        aria-pressed={objectsOpen}
-      >
-        <ListTree className="size-3.5" aria-hidden />
-        {t("schema.objectsLabel")}
-      </Button>
-
-      {/* Mobile objects toggle — focus returns here when the sheet closes. */}
-      <Button
-        ref={mobileObjectsTriggerRef}
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 text-xs lg:hidden"
-        onClick={() => onMobileObjectsOpenChange(true)}
-        aria-label={t("schema.openObjects")}
-      >
-        <ListTree className="size-3.5" aria-hidden />
-        {t("schema.objectsLabel")}
-      </Button>
-
-      {navigator}
+        {navigator}
+      </div>
     </div>
   );
 }

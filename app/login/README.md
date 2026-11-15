@@ -12,3 +12,7 @@ namespace.
 After authentication, the page returns to a `from` value only when it is a
 root-relative in-console path. Missing, protocol-relative, and external values
 fall back to `/overview`.
+
+A backend HTTP 429 from `/api/operator-session` renders the localized
+too-many-attempts message instead of a generic failure; the raw backend
+detail is never surfaced.

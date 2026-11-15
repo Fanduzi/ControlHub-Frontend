@@ -1,11 +1,20 @@
 <!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
+
+The rules in this section apply only when a GitNexus index is actually
+available in this checkout (`.gitnexus/` present or the MCP/CLI reachable).
+When no index exists, use ordinary text search and read the callers directly;
+do not block on graph steps that cannot run.
 
 This project is indexed by GitNexus as **ControlHub-Frontend** (8394 symbols, 18411 relationships, 697 execution flows).
 
@@ -80,10 +89,8 @@ Use me for: classification, drafting, summarization, extraction.
 Do NOT use me for: routing, retries, deterministic transforms.
 If code can answer, code answers.
 
-## Rule 6 — Token budgets are not advisory
-Per-task: 4,000 tokens. Per-session: 30,000 tokens.
-If approaching budget, summarize and start fresh.
-Surface the breach. Do not silently overrun.
+## Rule 6 — Bounded work packets
+Use small, bounded work packets and checkpoint after meaningful changes. Before context becomes crowded, save verified state, evidence paths, unresolved blockers and the next action. Do not stop or claim completion solely because of an unverifiable token estimate.
 
 ## Rule 7 — Surface conflicts, don't average them
 If two patterns contradict, pick one (more recent / more tested).
