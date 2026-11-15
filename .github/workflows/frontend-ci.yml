@@ -74,7 +74,7 @@ jobs:
 
   release-e2e:
     name: release-e2e
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The full real-Chromium suite needs ~23-25 min on shared runners (prior
     # green runs took ~23 min at a 25-min cap). 45 min gives headroom for
     # Playwright-browser download stalls and runner contention without masking
@@ -295,7 +295,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
-      # ubuntu-latest already ships Chromium's OS dependencies; --with-deps only
+      # ubuntu-24.04 already ships Chromium's OS dependencies; --with-deps only
       # runs an apt-get update that flakily hangs on Azure Ubuntu mirrors and
       # cancelled the job before any E2E test ran. Install the browser alone.
       - name: Install Playwright browsers

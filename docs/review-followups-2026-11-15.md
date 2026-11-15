@@ -68,7 +68,11 @@ backend's existing dirty paths and stashes were preserved.
   `npm ci` (frontend-ci.yml); Schemathesis install pinned to
   `schemathesis==4.15.2`, `hypothesis-jsonschema==0.23.2`,
   `hypothesis==6.170.15` after the exact compatibility probe passed locally
-  (array-generation PASS).
+  (array-generation PASS). During delivery, GitHub's `ubuntu-latest`
+  resolved to Ubuntu 26.04, unsupported by pinned Playwright 1.59.1; the
+  browser installer refused before any spec ran. With user approval, only
+  `release-e2e` is fixed to supported `ubuntu-24.04`. Test commands,
+  assertions, timeouts and security gates are unchanged.
 - **Repo hygiene**: `.gitignore` anchored entries for `/smoke-*.png` and
   `/tpl-*.png` ignore only **root-level** E2E failure/proof captures while
   still allowing nested documentation assets such as `docs/screenshots/`.
