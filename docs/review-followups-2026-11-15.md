@@ -1,14 +1,16 @@
 # Review follow-ups — 2026-11-15
 
-Local review follow-up record for the `fix/review-followups-20261115` work
-packets (frontend worktree `/tmp/chub-fix-fe`, backend companion pin
-`4fb3e9bd00445711dd991b68326ec13e5bfa7005` / tree
-`7e0471c70d8feb29deeef3d8579a193f358143f5` — a local commit on
-`fix/review-followups-20261115`, immutable main-descendant E2E pin).
+Review follow-up record for `fix/review-followups-20261115` (frontend
+worktree `/tmp/chub-fix-fe`). The frontend companion now pins backend main
+merge `a94afd7a1cdeeda5924c6f358f9650b2654e660a` / tree
+`7e0471c70d8feb29deeef3d8579a193f358143f5`, from backend PR #151. Its tree
+is identical to reviewed implementation `4fb3e9bd00445711dd991b68326ec13e5bfa7005`.
 
-**Status: ready for human review — local candidates, not pushed, not merged,
-not CI-validated.** Both repositories use `fix/review-followups-20261115`;
-no remote CI claim is made below.
+The implementation evidence below was captured before publication. Backend
+PR #151 is merged; the paired frontend is prepared for remote validation.
+Backend PR CI passed both `release-local-gates` and `release-docker-gates`:
+https://github.com/Fanduzi/ControlHub-Backend/actions/runs/43719087871
+Backend PR: https://github.com/Fanduzi/ControlHub-Backend/pull/151
 
 Base refs: backend `0fa8c43c8223da6b83dbb34856f0bd7160a860e9`, frontend
 `897d5c93e82aeb3c49a3a27fb701cb3e8f904cef`. Root `main` checkouts and the
