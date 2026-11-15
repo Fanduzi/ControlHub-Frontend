@@ -17,7 +17,7 @@ Vitest component tests for React UI components.
 | Test | Component under test |
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates |
-| query-workbench.test.tsx | QueryWorkbench — unavailable-target recovery, scoped/All search, fallback/retry, engine filtering, server-authorized history fixtures, and formula-safe CSV export (masked/blocked/disclosure-gated pages refuse export rather than emitting placeholders) |
+| query-workbench.test.tsx | QueryWorkbench — unavailable-target recovery, scoped/All search, fallback/retry, engine filtering, server-authorized history fixtures, formula-safe CSV export (masked/blocked/disclosure-gated pages refuse export rather than emitting placeholders), and Explain rendering incl. distinct hash/merge-join labels, no unknown-access badge on non-access operators, and Unknown access preserved on a table_access Function Scan |
 | query-editor-shell.test.tsx | QueryEditorShell — tabs, template mode, lifecycle, serialized workspace OCC/hydration with conflict reconcile re-read, scoped/All persisted-target recovery, unavailable-target locking, navigator-safe worksheet limits, execution routing, server-authorized history restore, blocked-result redaction, and whole-page CSV eligibility gating |
 | query-connection-navigator.test.tsx | Connection navigator |
 | query-credential-settings.test.tsx | Query credential settings (composite per-connection addressing) |
@@ -52,7 +52,7 @@ Vitest component tests for React UI components.
 | sidebar.test.tsx | App sidebar, including canonical environment-scoped Topology navigation |
 | machine-principal-settings.test.tsx | Machine-principal lifecycle list, explicit rotation scopes, expiry, mutation guards, copy feedback, and localization |
 | machine-principal-entry.test.tsx | Admin-only Settings route discoverability |
-| topbar.test.tsx | App topbar, including explicit environment/All URL selection, scoped Query/audit/disclosure/Topology state, and fail-closed sign-out |
+| topbar.test.tsx | App topbar, including explicit environment/All URL selection, scoped Query/audit/disclosure/Topology state, fail-closed sign-out, and the history-replacing same-origin `/login` navigation on success |
 | topbar-operator-identity.test.tsx | Topbar identity/role rendering and stale-identity clearing from the BFF session response |
 | theme-toggle.test.tsx | Theme toggle |
 | accent-switcher.test.tsx | Accent color switcher |

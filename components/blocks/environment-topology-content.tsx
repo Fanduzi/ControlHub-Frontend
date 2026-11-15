@@ -34,6 +34,9 @@ export function EnvironmentTopologyContent({
         <p className="text-center text-sm text-muted-foreground">
           {t("topology.selectEnvironment")}
         </p>
+        <p className="mx-auto mt-2 max-w-md text-center text-xs text-muted-foreground">
+          {t("topology.scopeNote")}
+        </p>
         <ul className="mx-auto mt-4 flex max-w-md flex-col gap-1">
           {environments.map((environment) => (
             <li key={environment.id}>

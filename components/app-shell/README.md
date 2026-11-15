@@ -8,9 +8,13 @@ session read fails or returns unauthenticated.
 
 The topbar uses the trusted BFF session role to hide resource-creation affordances
 for non-admin users; it never trusts browser storage or readable role cookies.
+The identity initials use foreground text on the tinted avatar so the
+contrast stays above the WCAG threshold in the light theme.
 Sign-out calls `DELETE /api/operator-session`; it is fail-closed — if the BFF logout fails
 (network or non-2xx), the console stays put with a controlled error instead of
 presenting a logged-out UI while the HttpOnly Operator Session cookie survives.
+A successful sign-out hard-navigates to the same-origin `/login` via
+`window.location.replace`, clearing the console URL from browser history.
 
 The command palette keeps page navigation, workspace, and theme commands in its
 empty-query state. A nonblank query searches the unified inventory through the

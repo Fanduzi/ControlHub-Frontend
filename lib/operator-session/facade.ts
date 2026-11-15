@@ -62,6 +62,11 @@ export async function login(request: NextRequest): Promise<NextResponse> {
 
   const outcome = await performBackendLogin(email, password);
   if (!outcome.ok) {
+    if (outcome.kind === "rate-limited") {
+      const limited = bffJson(429, "login-rate-limited");
+      limited.headers.set("Retry-After", "60");
+      return limited;
+    }
     return outcome.kind === "invalid-credentials"
       ? bffJson(401, "unauthorized")
       : bffJson(503, "service-unavailable");

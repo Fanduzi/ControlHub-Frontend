@@ -8,10 +8,10 @@ Server-side Operator Session boundary for the Console BFF (Phase 38X-1C).
 | `config.ts` | Fail-closed BFF configuration: sealing keys, Console Origin, secure-cookie policy |
 | `seal.ts` | AES-256-GCM sealed session cookie that round-trips trusted email/display name and role (active key + short previous-key rotation window) |
 | `origin.ts` | Same-origin guard: unsafe methods require the exact configured Console Origin |
-| `backend.ts` | Server-side backend login call with generic outcome mapping |
+| `backend.ts` | Server-side backend login call with generic outcome mapping, incl. HTTP 429 → `rate-limited` |
 | `session-cookie.ts` | Shared Operator Session cookie set/clear helpers (HttpOnly, SameSite=Strict, Path, Secure policy) |
 | `response.ts` | Controlled BFF JSON outcomes `{ error, message }` with `Cache-Control: no-store`; `error` is the snake_case Controlled Error Code |
-| `facade.ts` | login, logout, readIdentity, authenticateCookie, gatePage — HTTP routes are adapters |
+| `facade.ts` | login, logout, readIdentity, authenticateCookie, gatePage — HTTP routes are adapters; a rate-limited backend login becomes a controlled 429 `login_rate_limited` with `Retry-After: 60` and no session cookie |
 
 ## Configuration
 

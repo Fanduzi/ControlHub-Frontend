@@ -1452,3 +1452,105 @@ describe("WorksheetSession PostgreSQL context", () => {
     }
   });
 });
+
+describe("WorksheetSession generated naming", () => {
+  it("resumes after the largest generated suffix on sparse hydrate", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        { id: "worksheet-10-a", name: "Worksheet 10", targetResourceId: 1, statement: "select 1", activeDatabase: null },
+        { id: "worksheet-12-b", name: "Worksheet 12", targetResourceId: 1, statement: "select 2", activeDatabase: null },
+      ],
+      1,
+    );
+
+    expect(session.add(1)?.name).toBe("Worksheet 13");
+  });
+
+  it("does not collide with a custom title that resembles a generated name", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        { id: "saved-abc", name: "Worksheet 13", targetResourceId: 1, statement: "select 1", activeDatabase: null },
+      ],
+      1,
+    );
+
+    expect(session.add(1)?.name).toBe("Worksheet 14");
+    expect(new Set(session.list.map((ws) => ws.name)).size).toBe(session.list.length);
+  });
+
+  it("does not collide when only the generated id suffix is high", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        { id: "worksheet-13-xyz", name: "Custom draft", targetResourceId: 1, statement: "select 1", activeDatabase: null },
+      ],
+      1,
+    );
+
+    expect(session.add(1)?.name).toBe("Worksheet 14");
+  });
+
+  it("keeps the counter monotonic after closing a worksheet", () => {
+    const session = createSession();
+    const second = session.add(1)!;
+    const third = session.add(1)!;
+    expect(second.name).toBe("Worksheet 2");
+    expect(third.name).toBe("Worksheet 3");
+
+    session.close(third.id);
+    expect(session.add(1)?.name).toBe("Worksheet 4");
+  });
+
+  it("honors injected localized worksheet and preview name callbacks", () => {
+    const session = new WorksheetSession({
+      initialTargetId: 1,
+      createId: (() => { let n = 0; return () => `id-${++n}`; })(),
+      worksheetName: (index) => `工作表 ${index}`,
+      previewName: (table) => `预览：${table}`,
+    });
+
+    expect(session.active.name).toBe("工作表 1");
+    expect(session.add(1)?.name).toBe("工作表 2");
+
+    session.openPreview({
+      targetId: 1,
+      database: "labdb",
+      table: "orders",
+      foreignKeys: [],
+      foreignKeysTruncated: false,
+    });
+    expect(session.active.name).toBe("预览：orders");
+  });
+
+  it("never rewrites persisted or user-entered names", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        { id: "saved-abc", name: "My custom sheet", targetResourceId: 1, statement: "select 1", activeDatabase: null },
+      ],
+      1,
+    );
+    expect(session.active.name).toBe("My custom sheet");
+
+    session.rename(session.active.id, "Renamed sheet");
+    expect(session.active.name).toBe("Renamed sheet");
+  });
+
+  it("ignores an unsafe-integer custom title when seeding the counter", () => {
+    const session = createSession();
+    session.hydrate(
+      [
+        { id: "custom-huge", name: "Worksheet 99999999999999999999", targetResourceId: 1, statement: "select 1", activeDatabase: null },
+      ],
+      1,
+    );
+    expect(session.active.name).toBe("Worksheet 99999999999999999999");
+
+    const added = session.add(1);
+    expect(added).not.toBeNull();
+    expect(added!.name).toBe("Worksheet 2");
+    expect(session.list.some((ws) => ws.name === "Worksheet 99999999999999999999")).toBe(true);
+  });
+});

@@ -7,6 +7,7 @@ export type LoginOutcome =
       displayName?: string;
     }
   | { ok: false; kind: "invalid-credentials" }
+  | { ok: false; kind: "rate-limited" }
   | { ok: false; kind: "backend-unavailable" };
 
 const BACKEND_LOGIN_TIMEOUT_MS = 10_000;
@@ -47,6 +48,9 @@ export async function performBackendLogin(
 
   if (response.status === 401) {
     return { ok: false, kind: "invalid-credentials" };
+  }
+  if (response.status === 429) {
+    return { ok: false, kind: "rate-limited" };
   }
   if (!response.ok) {
     return { ok: false, kind: "backend-unavailable" };

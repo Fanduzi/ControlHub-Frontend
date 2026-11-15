@@ -717,3 +717,77 @@ describe("ResourceTable", () => {
     expect(badges.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("ResourceTable filtered empty state", () => {
+  beforeEach(() => {
+    replace.mockClear();
+    refresh.mockClear();
+    previewBulkResourceMutation.mockReset();
+    confirmBulkResourceMutation.mockReset();
+    isAdmin = true;
+  });
+
+  function renderEmptyTable() {
+    return render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResourceTable
+          resources={[]}
+          pageInfo={{
+            page: 3,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          }}
+          resourceTypes={[]}
+          lifecycleStatuses={lifecycleStatuses}
+          healthStatuses={healthStatuses}
+          environments={[]}
+          owners={[]}
+          availableSubtypes={[]}
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("distinguishes a filtered-empty list and offers a Clear filters action", async () => {
+    setResourceTableQuery("environmentId=1&page=3&q=zzz&pageSize=50&sort=name");
+    const user = userEvent.setup();
+    renderEmptyTable();
+
+    expect(screen.getByText("No matching resources")).toBeInTheDocument();
+    expect(screen.getByText("No resources match the current filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No resources are registered in this view yet.")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(replace).toHaveBeenLastCalledWith("/resources?environmentId=1&page=1&pageSize=50&sort=name");
+  });
+
+  it("cancels a pending debounced search so it cannot re-apply after Clear", async () => {
+    setResourceTableQuery("environmentId=1&page=3&q=zzz");
+    const user = userEvent.setup();
+    renderEmptyTable();
+
+    await user.type(
+      screen.getByPlaceholderText("Search resource, owner, hostname, IP, or ID"),
+      "late",
+    );
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/resources?environmentId=1&page=1");
+    }, { timeout: 2000 });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the inventory-empty message when no filters are active", () => {
+    setResourceTableQuery("environmentId=1&page=1");
+    renderEmptyTable();
+
+    expect(screen.getByText("No resources in this view yet")).toBeInTheDocument();
+    expect(screen.getByText("No resources are registered in this view yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+});

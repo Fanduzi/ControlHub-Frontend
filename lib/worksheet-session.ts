@@ -208,6 +208,22 @@ function invalidateExplainState(explain: ExplainState): ExplainState {
   };
 }
 
+function maxGeneratedNameSuffix(items: readonly { id: string; name: string }[]): number {
+  let max = 0;
+  for (const item of items) {
+    for (const candidate of [item.name, item.id]) {
+      const match =
+        /^(?:Worksheet|工作表)\s*(\d+)$/.exec(candidate) ??
+        /^worksheet-(\d+)-/.exec(candidate);
+      if (match) {
+        const suffix = Number(match[1]);
+        if (Number.isSafeInteger(suffix)) max = Math.max(max, suffix);
+      }
+    }
+  }
+  return max;
+}
+
 function createWorksheetRecord(
   id: string,
   name: string,
@@ -356,6 +372,8 @@ export class WorksheetSession {
   private readonly navInflight = new Map<string, NavAttempt>();
   private readonly probes = new Map<string, ProbeAttempt>();
   private nextIndex: number;
+  private readonly worksheetName: (index: number) => string;
+  private readonly previewName: (table: string) => string;
 
   constructor(options: {
     readonly initialTargetId: number;
@@ -368,16 +386,20 @@ export class WorksheetSession {
     readonly engineFor?: (targetId: number) => string | undefined;
     readonly initialMaxRows?: number;
     readonly initialPageSize?: number;
+    readonly worksheetName?: (index: number) => string;
+    readonly previewName?: (table: string) => string;
   }) {
     this.ports = { ...defaultPorts, ...options.ports };
     this.createId = options.createId ?? (() => crypto.randomUUID());
     this.engineFor = options.engineFor ?? (() => undefined);
+    this.worksheetName = options.worksheetName ?? ((index) => `Worksheet ${index}`);
+    this.previewName = options.previewName ?? ((table) => `Preview: ${table}`);
     this.nextIndex = 1;
     this.activeWorksheetId = INITIAL_WORKSHEET_ID;
     this.worksheets = [
       createWorksheetRecord(
         INITIAL_WORKSHEET_ID,
-        "Worksheet 1",
+        this.worksheetName(1),
         options.initialTargetId,
         "req-initial",
         options.initialMaxRows ?? DEFAULT_QUERY_MAX_ROWS,
@@ -422,11 +444,16 @@ export class WorksheetSession {
 
   add(targetResourceId: number): Worksheet | null {
     if (this.worksheets.length >= MAX_WORKSHEETS) return null;
-    this.nextIndex += 1;
+    let name: string;
+    do {
+      this.nextIndex += 1;
+      if (!Number.isSafeInteger(this.nextIndex)) this.nextIndex = 0;
+      name = this.worksheetName(this.nextIndex);
+    } while (this.worksheets.some((ws) => ws.name === name));
     const unique = this.createId();
     const worksheet = createWorksheetRecord(
       `worksheet-${this.nextIndex}-${unique}`,
-      `Worksheet ${this.nextIndex}`,
+      name,
       targetResourceId,
       `req-${unique}`,
       this.active.maxRows,
@@ -459,7 +486,7 @@ export class WorksheetSession {
       this.worksheets = [
         createWorksheetRecord(
           INITIAL_WORKSHEET_ID,
-          "Worksheet 1",
+          this.worksheetName(1),
           fallbackTargetId,
           "req-initial",
           maxRows,
@@ -497,7 +524,7 @@ export class WorksheetSession {
         ? (this.worksheets.find((ws) => ws.targetResourceId === fallbackTargetId) ?? this.worksheets[0]!)
         : this.worksheets[0]!
     ).id;
-    this.nextIndex = this.worksheets.length;
+    this.nextIndex = Math.max(this.worksheets.length, maxGeneratedNameSuffix(items));
     this.notify();
   }
 
@@ -830,7 +857,7 @@ export class WorksheetSession {
     const worksheet = this.add(input.targetId);
     if (!worksheet) return;
     this.patch(worksheet.id, {
-      name: `Preview: ${input.table}`,
+      name: this.previewName(input.table),
       statement,
       ...(pg
         ? {

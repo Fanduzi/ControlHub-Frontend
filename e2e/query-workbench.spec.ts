@@ -276,6 +276,40 @@ test.describe("Query Workbench shell", () => {
     await expect(connectionSheet).toBeHidden();
   });
 
+  test("opening/closing the connection drawer does not displace the page horizontally (UX-06)", async ({ page }) => {
+    await loginViaUI(page);
+    await page.goto("/query");
+    await expect(page).toHaveURL(/\/query/);
+
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+
+      for (let cycle = 0; cycle < 2; cycle += 1) {
+        const dialog = await openConnectionNavigator(page);
+        await page.keyboard.press("Escape");
+        await expect(dialog).toBeHidden();
+
+        const { mobileTrigger } = getConnectionOpenTriggers(page);
+        await expect(mobileTrigger).toBeVisible();
+
+        const geometry = await page.evaluate(() => {
+          const main = document.querySelector("main");
+          const header = document.querySelector("header");
+          return {
+            mainX: main?.getBoundingClientRect().x ?? null,
+            headerX: header?.getBoundingClientRect().x ?? null,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        });
+        expect(geometry.mainX).not.toBeNull();
+        expect(geometry.headerX).not.toBeNull();
+        expect(Math.abs(geometry.mainX ?? 0)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.headerX ?? 0)).toBeLessThanOrEqual(1);
+        expect(geometry.overflow).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
   test("Chinese query intro keeps the read-only credential phrase on one line", async ({ page }) => {
     await page.setViewportSize({ width: 640, height: 844 });
     await page.context().addCookies([
@@ -525,8 +559,9 @@ test.describe("Query Workbench shell", () => {
     // Switch to history tab: the blocked attempt is recorded with the
     // literal-free withheld preview and the disclosure error code.
     await page.getByRole("tab", { name: /query history/i }).click();
-    await expect(page.getByText("[statement withheld]").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Statement content is withheld by privacy policy.").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/query_result_disclosure_blocked/).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("#section-panel-history").getByText("SHOW TABLES", { exact: true })).toHaveCount(0);
   });
 
   test("Format button visibly formats messy SQL", async ({ page }) => {
@@ -2881,19 +2916,6 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await expect(explainTrigger).toBeVisible({ timeout: 10_000 });
   }
 
-  async function historyItemCount(page: Page): Promise<number> {
-    await page.getByRole("tab", { name: /query history/i }).click();
-    await page.waitForTimeout(500);
-    const empty = page.getByText(/no (query )?history|empty/i);
-    if (await empty.isVisible().catch(() => false)) {
-      await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
-      return 0;
-    }
-    const rows = page.locator("#section-panel-history").getByRole("button");
-    const count = await rows.count();
-    await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
-    return count;
-  }
 
   test("desktop EN: Explain shows normalized risk, no history growth, focus restores", async ({ page }) => {
     await openExplainableTarget(page);
@@ -3855,7 +3877,10 @@ async function exerciseParameterizedTemplateLoad(
     })
     .first()
     .click();
-  await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+  await page
+    .getByRole("tab", { name: options.locale === "en" ? /^worksheet$/i : /^工作表$/ })
+    .first()
+    .click();
   await expect(
     page.getByLabel(options.locale === "en" ? "status value" : "status 参数值"),
   ).toBeVisible({ timeout: 10_000 });
@@ -4655,7 +4680,7 @@ test.describe("Phase 38W-3: governed template execution", () => {
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("button", { name: new RegExp(`加载 ${name}`, "i") }).first().click();
-    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await page.getByRole("tab", { name: /^工作表$/ }).first().click();
     await expect(page.getByLabel("minimum_id 参数值")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("模板模式").first()).toBeVisible();
 
@@ -5078,7 +5103,7 @@ test.describe("Saved statements shared template affordance (Issue #5)", () => {
     await page.getByRole("tab", { name: /已保存脚本/i }).click();
     await expect(page.getByText(SHARED_PARAM_TEMPLATE_NAME).first()).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: new RegExp(`加载 ${SHARED_PARAM_TEMPLATE_NAME}`, "i") }).first().click();
-    await page.getByRole("tab", { name: /^worksheet$/i }).first().click();
+    await page.getByRole("tab", { name: /^工作表$/ }).first().click();
 
     await expect(page.getByText("模板模式").first()).toBeVisible();
     const valueField = page.getByLabel("minimum_id 参数值");

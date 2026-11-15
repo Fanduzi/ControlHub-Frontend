@@ -2112,20 +2112,25 @@ describe("QueryWorkbench credential status (Phase 38A)", () => {
     auth.isAdmin = false;
   });
 
-  it("renders contact administrator message for non-admin users", () => {
+  it("renders contact administrator message for non-admin users inside governance details", async () => {
+    const user = userEvent.setup();
     window.sessionStorage.setItem("controlhub.role", "viewer");
     renderWithCredentialState("missing_readonly_credential");
 
+    expect(screen.queryByText(/Credential configuration is managed by administrators/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: /governance.*details/i }));
     expect(screen.getByText(/Credential configuration is managed by administrators/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /open credential settings/i })).toBeNull();
 
     window.sessionStorage.removeItem("controlhub.role");
   });
 
-  it("renders contact administrator message when no role is stored", () => {
+  it("renders contact administrator message when no role is stored inside governance details", async () => {
+    const user = userEvent.setup();
     window.sessionStorage.removeItem("controlhub.role");
     renderWithCredentialState("missing_readonly_credential");
 
+    await user.click(screen.getByRole("button", { name: /governance.*details/i }));
     expect(screen.getByText(/Credential configuration is managed by administrators/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /open credential settings/i })).toBeNull();
   });
@@ -2195,10 +2200,12 @@ describe("QueryGovernancePanel hydration safety", () => {
   });
 
   it("shows contact administrator message for non-admin after role confirmation", async () => {
+    const user = userEvent.setup();
     window.sessionStorage.setItem("controlhub.role", "viewer");
 
     renderWithCredentialState("missing_readonly_credential");
 
+    await user.click(screen.getByRole("button", { name: /governance.*details/i }));
     await waitFor(() => {
       expect(
         screen.getByText(/Credential configuration is managed by administrators/),
@@ -2212,8 +2219,10 @@ describe("QueryGovernancePanel hydration safety", () => {
   });
 
   it("shows contact administrator message when no role is stored", async () => {
+    const user = userEvent.setup();
     renderWithCredentialState("missing_readonly_credential");
 
+    await user.click(screen.getByRole("button", { name: /governance.*details/i }));
     await waitFor(() => {
       expect(
         screen.getByText(/Credential configuration is managed by administrators/),
@@ -2617,13 +2626,9 @@ describe("QueryWorkbench keyboard shortcuts", () => {
       expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
     });
 
-    // Close the dirty worksheet (tab accessible name includes "Unsaved changes").
-    const dirtyTab = screen.getByRole("tab", { name: /unsaved changes/i });
-    const closeDirty = within(dirtyTab.parentElement as HTMLElement).getByRole(
-      "button",
-      { name: /^close /i },
-    );
-    await user.click(closeDirty);
+    // Close the dirty worksheet (it is the active tab, so the toolbar close
+    // control names it).
+    await user.click(screen.getByRole("button", { name: /^close worksheet 2/i }));
 
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
@@ -5272,6 +5277,70 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
     expect(screen.queryByText(/actorUserId/i)).toBeNull();
     expect(screen.queryByText(/^9001$/)).toBeNull();
   });
+
+  it("shows a localized status filter label instead of the raw value under zh-CN", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(emptyHistory());
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /查询历史/i }));
+    const trigger = await screen.findByRole("combobox", { name: /状态/i });
+    expect(trigger).toHaveTextContent("全部状态");
+  });
+
+  it("renders localized error copy and withheld statements, never raw server text, under zh-CN", async () => {
+    const user = userEvent.setup();
+    mockListQueryExecutions.mockResolvedValue(
+      buildCursorPage(
+        [
+          buildHistoryRecord({ id: 9001, status: "cancelled", statementPreview: "select 1", errorCode: "query_cancelled", errorMessage: "query canceled" }),
+          buildHistoryRecord({ id: 9002, status: "timeout", statementPreview: "select 2", errorCode: "query_timeout", errorMessage: "query exceeded time limit" }),
+          buildHistoryRecord({ id: 9003, status: "failed", statementPreview: "select 3", errorCode: "backend_surprise", errorMessage: "raw server surprise" }),
+          buildHistoryRecord({ id: 9004, statementPreview: "[statement withheld]" }),
+        ],
+        null,
+      ),
+    );
+    render(
+      <NextIntlClientProvider locale="zh-CN" messages={zhMessages}>
+        <QueryWorkbench
+          targets={[buildReadyTarget()]}
+          pageInfo={pageInfoFor([buildReadyTarget()])}
+          initialFilters={EMPTY_FILTERS}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /查询历史/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("查询已取消")).toBeInTheDocument();
+      expect(screen.getByText("查询超时")).toBeInTheDocument();
+      expect(screen.getByText("查询未能完成")).toBeInTheDocument();
+    });
+    expect(screen.getByText("query_cancelled")).toBeInTheDocument();
+    expect(screen.getByText("query_timeout")).toBeInTheDocument();
+    expect(screen.getByText("backend_surprise")).toBeInTheDocument();
+    expect(screen.getByText("语句内容已按隐私策略保留未显示。")).toBeInTheDocument();
+
+    expect(screen.queryByText(/query canceled/i)).toBeNull();
+    expect(screen.queryByText(/query exceeded time limit/i)).toBeNull();
+    expect(screen.queryByText(/raw server surprise/i)).toBeNull();
+    expect(screen.queryByText(/\[statement withheld\]/i)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^select 2$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /执行详情/i });
+    expect(within(dialog).getByText("查询超时")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/query exceeded time limit/i)).toBeNull();
+  });
 });
 
 describe("QueryWorkbench Explain (Phase 38N)", () => {
@@ -5699,6 +5768,71 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     await user.click(screen.getByRole("button", { name: "Nodes" }));
     expect(screen.queryByTestId("explain-text")).toBeNull();
     expect(screen.getByTestId("explain-nodes")).toBeInTheDocument();
+  });
+
+  it("labels hash/merge joins and Memoize without misleading access badges", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(
+      buildExplainResponse({
+        engine: "postgresql",
+        nodes: [
+          {
+            id: "0",
+            operation: "hash_join",
+            access: "unknown",
+            label: "Hash Join",
+            totalCost: 42.0,
+          },
+          {
+            id: "1",
+            parentId: "0",
+            operation: "merge_join",
+            access: "unknown",
+            label: "Merge Join",
+            totalCost: 30.0,
+          },
+          {
+            id: "2",
+            parentId: "0",
+            operation: "container",
+            access: "unknown",
+            label: "Memoize",
+            totalCost: 0.5,
+          },
+          {
+            id: "3",
+            parentId: "1",
+            operation: "index_access",
+            access: "index",
+            label: "Index Scan",
+            usesIndex: true,
+          },
+          {
+            id: "4",
+            parentId: "1",
+            operation: "table_access",
+            access: "unknown",
+            label: "Function Scan",
+          },
+        ],
+      }),
+    );
+    renderExplainable();
+
+    await user.click(await screen.findByTestId("explain-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("explain-ready")).toBeInTheDocument();
+    });
+
+    const nodes = screen.getByTestId("explain-nodes");
+    expect(nodes.querySelector('[data-node-operation="hash_join"]')?.textContent).toContain("Hash join");
+    expect(nodes.querySelector('[data-node-operation="merge_join"]')?.textContent).toContain("Merge join");
+    expect(nodes.querySelector('[data-node-operation="container"]')?.textContent).toContain("Memoize");
+    for (const op of ["hash_join", "merge_join", "container"]) {
+      expect(nodes.querySelector(`[data-node-operation="${op}"]`)?.textContent).not.toContain("Unknown access");
+    }
+    expect(nodes.querySelector('[data-node-operation="index_access"]')?.textContent).toContain("Index");
+    expect(nodes.querySelector('[data-node-operation="table_access"]')?.textContent).toContain("Unknown access");
   });
 });
 

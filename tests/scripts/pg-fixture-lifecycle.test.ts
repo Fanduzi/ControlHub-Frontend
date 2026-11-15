@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
+import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -86,7 +87,26 @@ const runLib = (
   }
 };
 
-beforeEach(() => {
+function pickFreePorts(): Promise<[string, string]> {
+  const open = (): Promise<Server> =>
+    new Promise((resolve, reject) => {
+      const s = createServer();
+      s.once("error", reject);
+      s.listen(0, "127.0.0.1", () => resolve(s));
+    });
+  return Promise.all([open(), open()]).then(async ([a, b]) => {
+    const pa = (a.address() as { port: number }).port;
+    const pb = (b.address() as { port: number }).port;
+    await Promise.all([
+      new Promise<void>((r) => a.close(() => r())),
+      new Promise<void>((r) => b.close(() => r())),
+    ]);
+    if (pa === pb) throw new Error("allocated duplicate fixture ports");
+    return [String(pa), String(pb)];
+  });
+}
+
+beforeEach(async () => {
   const dir = mkdtempSync(join(tmpdir(), "pgfix-life-"));
   mkdirSync(join(dir, "bin"));
   const backendDir = join(dir, "backend");
@@ -104,6 +124,7 @@ beforeEach(() => {
     encoding: "utf8",
   }).trim();
 
+  const [pgPort, appPort] = await pickFreePorts();
   const stateBase = join(dir, "state");
   const evidenceDir = join(dir, "evidence");
   const callLog = join(dir, "calls.log");
@@ -133,8 +154,8 @@ beforeEach(() => {
       BACKEND_DIR: backendDir,
       DATABASE_DSN: DSN,
       JWT_SECRET: "x".repeat(40),
-      PG_HOST_PORT: "55439",
-      APP_PORT: "18099",
+      PG_HOST_PORT: pgPort,
+      APP_PORT: appPort,
       CALL_LOG: callLog,
       STUB_BACKEND_DIR: backendDir,
       GITHUB_ACTIONS: "",

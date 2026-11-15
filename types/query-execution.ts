@@ -317,6 +317,8 @@ export type ExplainNodeOperation =
   | "table_access"
   | "index_access"
   | "nested_loop"
+  | "hash_join"
+  | "merge_join"
   | "sort"
   | "aggregate"
   | "temporary_table"

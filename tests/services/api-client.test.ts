@@ -223,7 +223,10 @@ describe("apiClient", () => {
   });
 
   it("redirects browser 401 to login and clears presentation state", async () => {
-    const hrefOwner = { href: "http://localhost:3100/overview" };
+    const hrefOwner = {
+      origin: "http://localhost:3100",
+      replace: vi.fn(),
+    };
     const removeItem = vi.fn();
     vi.stubGlobal("window", {
       sessionStorage: { getItem: () => "admin", removeItem },
@@ -244,7 +247,9 @@ describe("apiClient", () => {
       message: "unauthorized",
       code: "unauthorized",
     });
-    expect(hrefOwner.href).toBe("/login?reason=session-expired");
+    expect(hrefOwner.replace).toHaveBeenCalledWith(
+      "http://localhost:3100/login?reason=session-expired",
+    );
     expect(removeItem).toHaveBeenCalledWith("controlhub.role");
   });
 });

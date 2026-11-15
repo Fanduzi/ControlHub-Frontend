@@ -30,4 +30,5 @@ plus the localized resource-type and engine subtype.
 environment for `/topology`; it falls back to the persisted environment only
 when the URL omits that parameter, never when it is invalid. The topology API
 is single-environment only, so "all"/no selection renders an environment
-chooser that scopes the page via `?environment=<slug>`.
+chooser that scopes the page via `?environment=<slug>` and notes that the
+in-page choices share the same scope as the header environment selector.

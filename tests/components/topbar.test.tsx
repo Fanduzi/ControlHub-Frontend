@@ -293,7 +293,11 @@ describe("Topbar", () => {
   });
 
   describe("sign-out", () => {
-    const locationMock = { href: "http://localhost:3100/overview" };
+    const locationMock = {
+      href: "http://localhost:3100/overview",
+      origin: "http://localhost:3100",
+      replace: vi.fn(),
+    };
     let fetchMock: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
@@ -309,6 +313,7 @@ describe("Topbar", () => {
         if (name) document.cookie = `${name}=; path=/; max-age=0`;
       });
       locationMock.href = "http://localhost:3100/overview";
+      locationMock.replace.mockClear();
     });
 
     afterEach(() => {
@@ -339,7 +344,9 @@ describe("Topbar", () => {
           method: "DELETE",
           cache: "no-store",
         });
-        expect(locationMock.href).toBe("/login");
+        expect(locationMock.replace).toHaveBeenCalledWith(
+          "http://localhost:3100/login",
+        );
       });
       expect(screen.queryByRole("alert")).toBeNull();
     });
