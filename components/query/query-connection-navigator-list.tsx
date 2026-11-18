@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 
 import type { QueryTarget } from "@/types/query-target";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   formatHostPortLabel,
   readinessLabelKey,
@@ -17,6 +18,9 @@ type ConnectionTargetGroupsProps = {
   groups: TargetGroup[];
   onSelect: (resourceId: number) => void;
   suppressEmptyState?: boolean;
+  /** True when the workbench is scoped to one environment (not "all"). */
+  environmentScoped?: boolean;
+  onShowAllEnvironments?: () => void;
 };
 
 export function ConnectionTargetGroups({
@@ -24,6 +28,8 @@ export function ConnectionTargetGroups({
   groups,
   onSelect,
   suppressEmptyState = false,
+  environmentScoped = false,
+  onShowAllEnvironments,
 }: ConnectionTargetGroupsProps) {
   const t = useTranslations("queryWorkbench");
 
@@ -57,7 +63,20 @@ export function ConnectionTargetGroups({
       ))}
       {groups.length === 0 && !suppressEmptyState && (
         <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-          {t("connectionNavigator.noMatches")}
+          <p>{t("connectionNavigator.noMatches")}</p>
+          {environmentScoped && onShowAllEnvironments ? (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-xs">{t("connectionNavigator.environmentEmpty")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onShowAllEnvironments}
+              >
+                {t("connectionNavigator.showAllEnvironments")}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

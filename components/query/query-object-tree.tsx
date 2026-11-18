@@ -2,6 +2,8 @@
 
 import { ChevronRight, Database, FolderTree, Search, Table2, Trash2, View } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { controlledErrorCopy } from "@/lib/controlled-error-copy";
 import { Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,12 +22,14 @@ export type ObjectListingState = {
   readonly items: readonly ObjectSummary[];
   readonly pageInfo: PageInfo | null;
   readonly status: "idle" | "loading" | "ready" | "error";
+  readonly errorCode?: string;
   readonly generation: number;
 };
 
 export type SchemaListingState = {
   readonly items: readonly string[];
   readonly status: "idle" | "loading" | "ready" | "error";
+  readonly errorCode?: string;
 };
 
 /**
@@ -65,6 +69,8 @@ type QueryObjectTreeProps = {
   readonly onLoadMoreObjects?: (scope: string) => void;
   readonly onRetryObjects?: (scope: string) => void;
   readonly onDraftQueryChange?: (scope: string, query: string) => void;
+  /** Double-click / "插入名称" — insert the object's identifier into the editor. */
+  readonly onInsertName?: (object: ObjectSummary) => void;
 };
 
 export function QueryObjectTree({
@@ -88,8 +94,16 @@ export function QueryObjectTree({
   onLoadMoreObjects,
   onRetryObjects,
   onDraftQueryChange,
+  onInsertName,
 }: QueryObjectTreeProps) {
   const t = useTranslations("queryWorkbench");
+  const tErrors = useTranslations("errors");
+
+  // Controlled schema-load codes get their localized description; anything
+  // else falls back to the context's generic message — raw backend text is
+  // never rendered.
+  const schemaErrorMessage = (code: string | undefined, fallbackKey: string) =>
+    code ? controlledErrorCopy(tErrors, { code }) : t(fallbackKey);
 
   const handleInputChange = (scope: string, value: string) => {
     onDraftQueryChange?.(scope, value);
@@ -141,7 +155,7 @@ export function QueryObjectTree({
         {isLoading ? <p className="py-2 text-xs text-muted-foreground">{t("schema.loadingObjects")}</p> : null}
         {isError ? (
           <div className="space-y-2 py-2 text-xs">
-            <p className="text-destructive">{t("schema.objectsLoadError")}</p>
+            <p className="text-destructive">{schemaErrorMessage(listing?.errorCode, "schema.objectsLoadError")}</p>
             {onRetryObjects ? (
               <Button
                 type="button"
@@ -180,7 +194,15 @@ export function QueryObjectTree({
                         size="sm"
                         className="w-full justify-start"
                         aria-expanded={objectExpanded}
-                        onClick={() => onObjectToggle(object)}
+                        // detail >= 2 means a double-click is in progress — the
+                        // dblclick handler inserts the name, so the second click
+                        // must not toggle the node back.
+                        onClick={(event) => {
+                          if (event.detail <= 1) onObjectToggle(object);
+                        }}
+                        onDoubleClick={
+                          onInsertName ? () => onInsertName(object) : undefined
+                        }
                       >
                         <ChevronRight className={`size-3 transition-transform ${objectExpanded ? "rotate-90" : ""}`} aria-hidden />
                         <span className="truncate">{object.name}</span>
@@ -240,7 +262,7 @@ export function QueryObjectTree({
         ) : null}
         {!schemaLevel?.disabled.has(database) && status === "error" ? (
           <div className="space-y-2 py-2 text-xs">
-            <p className="text-destructive">{t("schema.schemasLoadError")}</p>
+            <p className="text-destructive">{schemaErrorMessage(listing?.errorCode, "schema.schemasLoadError")}</p>
             <Button
               type="button"
               variant="outline"

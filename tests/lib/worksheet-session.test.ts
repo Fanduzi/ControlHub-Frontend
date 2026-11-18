@@ -49,6 +49,26 @@ function createSession(ports: ConstructorParameters<typeof WorksheetSession>[0][
   });
 }
 
+describe("WorksheetSession openForTarget", () => {
+  it("is a no-op when the active worksheet already binds the target", () => {
+    const session = createSession();
+    const opened = session.openForTarget(1);
+    // Re-selecting the active target must not grow another worksheet.
+    expect(opened).toBe(session.active);
+    expect(session.list).toHaveLength(1);
+  });
+
+  it("activates the existing worksheet bound to the target instead of adding", () => {
+    const session = createSession();
+    session.add(31); // worksheet 2 on target 31 becomes active
+    expect(session.list).toHaveLength(2);
+    const opened = session.openForTarget(1);
+    expect(opened?.targetResourceId).toBe(1);
+    expect(session.active.targetResourceId).toBe(1);
+    expect(session.list).toHaveLength(2);
+  });
+});
+
 describe("WorksheetSession template mode", () => {
   it("enters template mode only when the loaded statement has parameters", () => {
     const session = createSession();

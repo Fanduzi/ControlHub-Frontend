@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { QueryObjectInspector } from "@/components/query/query-object-inspector";
+import { controlledErrorCopy } from "@/lib/controlled-error-copy";
 import {
   QueryObjectTree,
   type ObjectListingState,
@@ -39,10 +40,13 @@ type QueryObjectExplorerProps = {
    * layout is unchanged.
    */
   readonly connections?: readonly QueryTargetConnection[];
+  /** Insert the object's identifier into the worksheet editor (dblclick / button). */
+  readonly onInsertObject?: (object: ObjectSummary) => void;
 };
 
-export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connections }: QueryObjectExplorerProps) {
+export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connections, onInsertObject }: QueryObjectExplorerProps) {
   const t = useTranslations("queryWorkbench");
+  const tErrors = useTranslations("errors");
   const catalogVersion = useSchemaCatalogVersion(store);
 
   const isPostgres = (connections?.length ?? 0) > 0;
@@ -492,7 +496,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
     if (!isPostgres) return next;
     for (const database of pgDatabases) {
       const listing = store.getSchemas(targetId, database);
-      next.set(database, { items: listing.items, status: listing.status });
+      next.set(database, { items: listing.items, status: listing.status, errorCode: listing.errorCode });
     }
     return next;
   }, [isPostgres, pgDatabases, store, targetId]);
@@ -508,6 +512,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
         items: objects.items,
         pageInfo: objects.pageInfo,
         status: objects.status === "idle" ? "idle" : objects.status,
+        errorCode: objects.errorCode,
         generation: 0,
       });
     };
@@ -718,11 +723,23 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
               {t("schema.previewRows")}
             </Button>
           ) : null}
+          {onInsertObject ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1"
+              data-testid="insert-name-button"
+              onClick={() => onInsertObject(object)}
+            >
+              {t("schema.insertName")}
+            </Button>
+          ) : null}
         </div>
         </>
       );
     },
-    [loadObjectDetail, onPreviewRequest, performObjectAction, store, t, targetId],
+    [loadObjectDetail, onInsertObject, onPreviewRequest, performObjectAction, store, t, targetId],
   );
 
   const renderObjectMenu = useCallback(
@@ -743,6 +760,9 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
 
   const databaseLoading = databaseListing.status === "idle" || databaseListing.status === "loading";
   const databaseError = databaseListing.status === "error";
+  const databaseErrorMessage = databaseListing.errorCode
+    ? controlledErrorCopy(tErrors, { code: databaseListing.errorCode })
+    : t("schema.loadError");
 
   return (
     <>
@@ -790,7 +810,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
       ) : null}
       {databaseError && databaseListing.items.length === 0 ? (
         <div className="space-y-2 p-4">
-          <p className="text-sm text-destructive">{t("schema.loadError")}</p>
+          <p className="text-sm text-destructive">{databaseErrorMessage}</p>
           <Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button>
         </div>
       ) : null}
@@ -801,7 +821,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
         <>
           {databaseError ? (
             <div className="space-y-2 p-4">
-              <p className="text-sm text-destructive">{t("schema.loadError")}</p>
+              <p className="text-sm text-destructive">{databaseErrorMessage}</p>
               <Button variant="outline" size="sm" onClick={retryDatabases}>{t("schema.retry")}</Button>
             </div>
           ) : null}
@@ -841,6 +861,7 @@ export function QueryObjectExplorer({ targetId, store, onPreviewRequest, connect
             onLoadMoreObjects={loadMoreObjects}
             onRetryObjects={retryObjects}
             onDraftQueryChange={updateDraftQuery}
+            onInsertName={onInsertObject}
           />
         </>
       ) : null}

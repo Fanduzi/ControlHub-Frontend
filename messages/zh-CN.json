@@ -1,6 +1,7 @@
 {
   "common": {
     "brand": "ControlHub",
+    "close": "关闭",
     "loading": "加载中...",
     "notSet": "未设置",
     "fieldRequired": "此字段为必填项",
@@ -212,7 +213,7 @@
     },
     "query": {
       "title": "查询工作台",
-      "description": "受治理的查询工作台外壳 · 仅对已就绪目标运行"
+      "description": "受治理的只读查询 · 仅对已就绪目标运行"
     },
     "audits": {
       "title": "审计",
@@ -230,7 +231,7 @@
   "shell": {
     "title": "统一资源控制台",
     "description": "平台资源上下文、负责人和审计可见性。",
-    "baseline": "基线阶段：手动登记、关系维护和审计流。",
+    "baseline": "手动登记、关系维护和审计流。",
     "subtitle": "面向资源可见性、负责人上下文和变更痕迹的共享工作台。",
     "searchPlaceholder": "搜索资源、负责人、主机名、IP、ID",
     "environmentPlaceholder": "环境",
@@ -384,13 +385,13 @@
       "resource_not_found": "未找到该资源。",
       "result_contract_upgrade_required": "查询已执行，但由于客户端缺少所需的结果合同，结果未交付。请更新控制台客户端后重新运行查询。",
       "saved_statement_not_found": "未找到该已保存查询。",
-      "schema_backend_error": "模式后端无法完成该请求。",
+      "schema_backend_error": "无法连接目标数据库或读取元数据失败，请确认数据库可用后重试。",
       "schema_definition_not_supported": "该目标不支持表定义。",
       "schema_not_allowed": "不允许该模式请求。",
       "schema_not_found": "未找到该模式。",
       "schema_object_not_found": "未找到该模式对象。",
       "schema_target_not_found": "未找到该模式目标。",
-      "schema_timeout": "模式请求超时。",
+      "schema_timeout": "读取元数据超时，请稍后重试。",
       "schema_validation_failed": "模式校验失败。",
       "service_unavailable": "服务暂时不可用。",
       "unauthorized": "认证失败。请重新登录。",
@@ -431,9 +432,9 @@
         "title": "资源态势",
         "description": "按健康和状态分类的资源计数。",
         "total": "托管资源总数",
-        "degraded": "降级",
         "warning": "告警",
-        "pending": "待处理"
+        "pending": "待处理",
+        "critical": "严重"
       },
       "environmentSummary": {
         "title": "环境概览",
@@ -1362,7 +1363,7 @@
       "placeholderRedis": "连接 Schema 元数据后，将出现 key 模式与只读命令占位。",
       "placeholderMongo": "连接 Schema 元数据后，将出现数据库 / 集合 / 字段占位。",
       "placeholderDefault": "连接元数据后，将出现 Schema 占位。",
-      "locked": "Schema 已锁定 — 本阶段不做实时探测。",
+      "locked": "该目标暂不支持浏览 Schema。",
       "empty": "该目标暂无可用 Schema 元数据。",
       "objects": "对象",
       "openObjects": "打开对象",
@@ -1388,6 +1389,7 @@
       "detailLoadError": "无法加载对象详情",
       "previewRows": "预览数据",
       "inspect": "查看定义",
+      "insertName": "插入名称",
       "inspectorTitle": "{name} — 结构",
       "inspectorColumns": "列",
       "inspectorIndexes": "索引",
@@ -1472,7 +1474,9 @@
       "connectionPlaceholder": "选择连接数据库",
       "schemaLabel": "Schema",
       "schemaDefault": "默认（{schema}）",
-      "schemaMissingOption": "{schema}（缺失）"
+      "schemaMissingOption": "{schema}（缺失）",
+      "mysqlDatabase": "执行数据库：{database}",
+      "mysqlDatabaseHint": "访问其他库请使用 库名.表名"
     },
     "navigator": {
       "title": "快速导航",
@@ -1502,10 +1506,10 @@
       "maxRows": "最大行数 100",
       "lockTitle": "编辑器被策略锁定",
       "lockDescription": "需要只读凭据、语句 guard、审计记录、超时和行数限制全部就绪后才能执行。",
-      "placeholderHint": "只读 SQL 计划在后续阶段启用。",
-      "savedSheetsPlaceholder": "已保存脚本不可用 — 本阶段未启用脚本存储。",
+      "placeholderHint": "该目标暂不能执行查询。",
+      "savedSheetsPlaceholder": "该目标暂不支持已保存脚本。",
       "historyPlaceholder": "查询历史不可用 — 尚未执行任何查询。",
-      "accessPlaceholder": "访问授权不可用 — 访问流程计划在后续阶段实现。",
+      "accessPlaceholder": "暂不支持在此申请访问授权。",
       "statementLabel": "语句",
       "statementPlaceholder": "输入一条只读 SQL 语句（如 SELECT … 或 SHOW TABLES）",
       "maxRowsLabel": "最大行数",
@@ -1534,6 +1538,7 @@
       "targetUnavailable": "此工作表保存的目标不可用。请先选择新目标，再使用执行或 Schema 操作。",
       "unavailableTargetLabel": "不可用目标 #{id}",
       "retargetTo": "将目标更改为 {target}",
+      "chooseTarget": "选择目标",
       "retry": "重试"
     },
     "actions": {
@@ -1553,7 +1558,7 @@
       "masking": "脱敏",
       "notExecuted": "0 行 · 未执行",
       "lockTitle": "结果区已锁定",
-      "lockDescription": "本阶段只确认目标、权限缺口和治理策略。真实结果网格、JSON 查看器和 Explain 计划将在只读沙箱阶段启用。",
+      "lockDescription": "该目标尚未满足执行条件，结果网格、JSON 查看器和 Explain 暂不可用。",
       "lastQuery": "最近查询",
       "lastQueryValue": "暂无查询历史",
       "copyExport": "复制 / 导出",
@@ -1695,9 +1700,9 @@
       "executionDescriptionLocked": "该目标尚未准备好执行查询。解决阻塞项后可启用执行。",
       "credentialDescription": "该目标的凭据状态。",
       "auditTitle": "需要审计",
-      "auditDescription": "从沙箱阶段起，每次执行都必须记录用户、目标、语句摘要、耗时、结果规模和风险策略。",
+      "auditDescription": "每次执行都会记录用户、目标、语句摘要、耗时、结果规模和风险策略。",
       "jitTitle": "JIT 访问规划中",
-      "jitDescription": "本阶段只显示权限缺口与入口 — 暂不做审批流。",
+      "jitDescription": "这里仅显示权限缺口，暂不支持在线审批。",
       "targetFacts": "目标事实",
       "policyChecklist": "策略清单",
       "missingFields": "缺失配置",
@@ -1790,6 +1795,8 @@
       "ready": "就绪",
       "locked": "已锁定",
       "noMatches": "没有匹配的目标。",
+      "environmentEmpty": "当前环境没有匹配的目标，其他环境可能有就绪目标。",
+      "showAllEnvironments": "查看全部环境",
       "filters": "筛选",
       "allEngines": "全部引擎",
       "allModes": "全部类型",

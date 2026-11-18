@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 
+import { ApiError } from "@/services/api-client";
 import {
   getObjectDetails,
   getSchemaDatabases,
@@ -79,6 +80,7 @@ export type DatabaseListing = {
   readonly defaultDatabase: string | null;
   readonly pageInfo: PageInfo | null;
   readonly status: SchemaListStatus;
+  readonly errorCode?: string;
 };
 
 /** PostgreSQL namespace list for one connection (targetId, database). */
@@ -86,12 +88,14 @@ export type SchemaListing = {
   readonly items: readonly string[];
   readonly pageInfo: PageInfo | null;
   readonly status: SchemaListStatus;
+  readonly errorCode?: string;
 };
 
 export type ObjectListing = {
   readonly items: readonly ObjectSummary[];
   readonly pageInfo: PageInfo | null;
   readonly status: SchemaListStatus;
+  readonly errorCode?: string;
 };
 
 const POSITIVE_TTL_MS = 5 * 60 * 1000;
@@ -123,6 +127,7 @@ type DatabaseEntry = {
   defaultDatabase: string | null;
   pageInfo: PageInfo | null;
   status: SchemaListStatus;
+  errorCode?: string;
   generation: number;
 };
 
@@ -130,6 +135,7 @@ type SchemaEntry = {
   items: string[];
   pageInfo: PageInfo | null;
   status: SchemaListStatus;
+  errorCode?: string;
   generation: number;
 };
 
@@ -141,6 +147,7 @@ type ObjectEntry = {
   items: ObjectSummary[];
   pageInfo: PageInfo | null;
   status: SchemaListStatus;
+  errorCode?: string;
   generation: number;
 };
 
@@ -242,6 +249,7 @@ export class SchemaCatalog {
       defaultDatabase: entry.defaultDatabase,
       pageInfo: entry.pageInfo,
       status: entry.status,
+      errorCode: entry.errorCode,
     };
   }
 
@@ -265,6 +273,7 @@ export class SchemaCatalog {
       items: entry.items,
       pageInfo: entry.pageInfo,
       status: entry.status,
+      errorCode: entry.errorCode,
     };
   }
 
@@ -281,6 +290,7 @@ export class SchemaCatalog {
       items: entry.items,
       pageInfo: entry.pageInfo,
       status: entry.status,
+      errorCode: entry.errorCode,
     };
   }
 
@@ -360,9 +370,10 @@ export class SchemaCatalog {
       entry.defaultDatabase = response.defaultDatabase;
       entry.status = "ready";
       this.notify();
-    } catch {
+    } catch (error) {
       if (options.signal?.aborted || generation !== entry.generation) return;
       entry.status = "error";
+      entry.errorCode = error instanceof ApiError ? error.code : undefined;
       this.notify();
     }
   }
@@ -415,9 +426,10 @@ export class SchemaCatalog {
       entry.pageInfo = pageInfo;
       entry.status = "ready";
       this.notify();
-    } catch {
+    } catch (error) {
       if (options.signal?.aborted || generation !== entry.generation) return;
       entry.status = "error";
+      entry.errorCode = error instanceof ApiError ? error.code : undefined;
       this.notify();
     }
   }
@@ -479,9 +491,10 @@ export class SchemaCatalog {
       entry.pageInfo = response.pageInfo;
       entry.status = "ready";
       this.notify();
-    } catch {
+    } catch (error) {
       if (options.signal?.aborted || generation !== entry.generation) return;
       entry.status = "error";
+      entry.errorCode = error instanceof ApiError ? error.code : undefined;
       this.notify();
     }
   }

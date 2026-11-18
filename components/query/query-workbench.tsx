@@ -8,6 +8,7 @@ import { Check, Database, ListTree, TriangleAlert, XCircle } from "lucide-react"
 import type { QueryTarget } from "@/types/query-target";
 import type { PageInfo } from "@/types/resource";
 import type { TablePreviewRequest } from "@/types/query-execution";
+import type { ObjectSummary } from "@/types/query-schema";
 import { EmptyState } from "@/components/blocks/empty-state";
 import {
   EMPTY_FILTERS,
@@ -89,6 +90,11 @@ export function QueryWorkbench({
   const [allEngines, setAllEngines] = useState<string[] | null>(null);
   const [enginesLoading, setEnginesLoading] = useState(false);
   const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
+  const [navigatorOpenRequest, setNavigatorOpenRequest] = useState(0);
+  const [pendingInsertEvent, setPendingInsertEvent] = useState<{
+    id: number;
+    object: ObjectSummary;
+  } | null>(null);
   const [activeTargetId, setActiveTargetId] = useState<number | null>(
     initialActiveTargetId === undefined
       ? getInitialActiveTargetId(targets)
@@ -506,9 +512,26 @@ export function QueryWorkbench({
     }
   }, [activeTargetId, setActiveTargetFromWorksheet, targetsById]);
 
+  function showAllEnvironments() {
+    // The topbar syncs the stored environment preference from the URL, so
+    // switching scope is a navigation — same params as the header selector.
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("environmentId");
+    params.set("environment", "all");
+    params.set("page", "1");
+    params.delete("targetId");
+    params.delete("database");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
   function handlePreviewRequest(request: TablePreviewRequest) {
     previewGeneration.current += 1;
     setPendingPreviewEvent({ id: previewGeneration.current, request });
+  }
+
+  function handleInsertObject(object: ObjectSummary) {
+    previewGeneration.current += 1;
+    setPendingInsertEvent({ id: previewGeneration.current, object });
   }
 
   return (
@@ -536,6 +559,9 @@ export function QueryWorkbench({
             onObjectsToggle={() => setObjectsOpen((prev) => !prev)}
             onMobileObjectsOpenChange={setMobileObjectsOpen}
             mobileObjectsTriggerRef={mobileObjectsTriggerRef}
+            environmentScoped={typeof environmentId === "number"}
+            onShowAllEnvironments={showAllEnvironments}
+            navigatorOpenRequest={navigatorOpenRequest}
           />
           {activeTarget ? (
             <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
@@ -569,6 +595,7 @@ export function QueryWorkbench({
                         store={schemaStore}
                         connections={activeTarget.connectionContext.engine === "postgresql" ? activeTarget.connections : undefined}
                         onPreviewRequest={handlePreviewRequest}
+                        onInsertObject={handleInsertObject}
                       />
                     ) : (
                       <p className="p-2 text-sm text-muted-foreground">{t("schema.locked")}</p>
@@ -628,6 +655,7 @@ export function QueryWorkbench({
                       store={schemaStore}
                       connections={activeTarget.connectionContext.engine === "postgresql" ? activeTarget.connections : undefined}
                       onPreviewRequest={handlePreviewRequest}
+                      onInsertObject={handleInsertObject}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{t("schema.locked")}</p>
@@ -647,6 +675,9 @@ export function QueryWorkbench({
                 schemaStore={schemaStore}
                 pendingPreviewEvent={pendingPreviewEvent}
                 onPreviewConsumed={() => setPendingPreviewEvent(null)}
+                pendingInsertEvent={pendingInsertEvent}
+                onInsertConsumed={() => setPendingInsertEvent(null)}
+                onChooseTarget={() => setNavigatorOpenRequest((v) => v + 1)}
               />
             </div>
             </div>
@@ -687,6 +718,9 @@ type QueryContextBarProps = {
   onObjectsToggle: () => void;
   onMobileObjectsOpenChange: (open: boolean) => void;
   mobileObjectsTriggerRef: RefObject<HTMLButtonElement | null>;
+  environmentScoped: boolean;
+  onShowAllEnvironments: () => void;
+  navigatorOpenRequest: number;
 };
 
 function QueryContextBar({
@@ -710,6 +744,9 @@ function QueryContextBar({
   onObjectsToggle,
   onMobileObjectsOpenChange,
   mobileObjectsTriggerRef,
+  environmentScoped,
+  onShowAllEnvironments,
+  navigatorOpenRequest,
 }: QueryContextBarProps) {
   const t = useTranslations("queryWorkbench");
   const navigator = (
@@ -728,6 +765,9 @@ function QueryContextBar({
       targetLoadError={targetLoadError}
       searchError={searchError}
       onRetrySearch={onRetrySearch}
+      environmentScoped={environmentScoped}
+      onShowAllEnvironments={onShowAllEnvironments}
+      openRequest={navigatorOpenRequest}
     />
   );
 
