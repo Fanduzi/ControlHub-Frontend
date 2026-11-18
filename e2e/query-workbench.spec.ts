@@ -2830,7 +2830,13 @@ test.describe("Query History cursor-based pagination, filters, and detail", () =
     const detailSheet = page.getByRole("dialog", { name: /执行详情/i });
     await expect(detailSheet).toBeVisible({ timeout: 10_000 });
     await expect(detailSheet.getByText("执行人")).toBeVisible();
-    await expect(detailSheet.getByText("关闭")).toBeVisible();
+    // The footer "关闭" button specifically — the sheet's X affordance also
+    // carries a localized sr-only close label.
+    await expect(
+      detailSheet.locator('button:not([data-slot="sheet-close"])', {
+        hasText: "关闭",
+      }),
+    ).toBeVisible();
 
     await page.keyboard.press("Escape");
     await expect(detailSheet).toBeHidden();
@@ -2950,7 +2956,12 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await expect(page.getByTestId("explain-ready")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
     await expect(page.locator('[data-node-access="full_scan"]')).toBeVisible();
-    await expect(panel.getByText(/query_block|table_name|qe_explain_big|possible_keys/i)).toHaveCount(0);
+    // D-01: bounded relation/index names are intentionally disclosed, so the
+    // accessed table IS visible — raw plan keys and free-form fields stay out.
+    await expect(panel.getByText("qe_explain_big").first()).toBeVisible();
+    await expect(
+      panel.getByText(/query_block|table_name|possible_keys|used_columns|cost_info/i),
+    ).toHaveCount(0);
 
     await page.getByTestId("explain-close").click();
     await expect(panel).toBeHidden();

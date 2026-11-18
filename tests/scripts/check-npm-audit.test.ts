@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error — plain .mjs helper without type declarations
 import { collectBlockingAdvisories } from "../../scripts/check-npm-audit.mjs";
 
 const ADVISORY = {
