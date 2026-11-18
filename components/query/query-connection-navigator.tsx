@@ -28,6 +28,8 @@ export type QueryConnectionNavigatorProps = {
   searchError?: boolean;
   onRetrySearch?: () => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
+  environmentScoped?: boolean;
+  onShowAllEnvironments?: () => void;
 };
 
 export function QueryConnectionNavigator({
@@ -46,6 +48,8 @@ export function QueryConnectionNavigator({
   searchError,
   onRetrySearch,
   searchInputRef,
+  environmentScoped = false,
+  onShowAllEnvironments,
 }: QueryConnectionNavigatorProps) {
   const t = useTranslations("queryWorkbench");
   const common = useTranslations("common");
@@ -93,6 +97,8 @@ export function QueryConnectionNavigator({
       searchError={searchError}
       onRetrySearch={onRetrySearch}
       searchInputRef={searchInputRef}
+      environmentScoped={environmentScoped}
+      onShowAllEnvironments={onShowAllEnvironments}
     />
   );
 }

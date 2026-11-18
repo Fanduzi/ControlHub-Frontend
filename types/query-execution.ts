@@ -345,7 +345,7 @@ export type ExplainRiskCode =
 /** Finite enum of risk severities. Matches the backend v1. */
 export type ExplainRiskSeverity = "info" | "warning" | "critical";
 
-/** One normalized plan node. No free-form engine strings leave the backend. */
+/** One normalized plan node. Only bounded identifiers leave the backend — no predicates or literals. */
 export type ExplainNode = {
   id: string;
   parentId?: string | null;
@@ -355,6 +355,10 @@ export type ExplainNode = {
   usesIndex?: boolean;
   /** Engine planner-vocabulary node name (PostgreSQL "Node Type"), never user data. */
   label?: string;
+  /** Relation/table the node accesses (backend-bounded identifier, decision D-01). */
+  relation?: string;
+  /** Index the node uses (backend-bounded identifier, decision D-01). */
+  index?: string;
   /** Planner scalar cost estimates (PostgreSQL Startup/Total Cost). */
   startupCost?: number;
   totalCost?: number;

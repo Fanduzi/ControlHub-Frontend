@@ -60,6 +60,8 @@ function renderNavigator(
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
     onLoadMore: () => void;
+    environmentScoped: boolean;
+    onShowAllEnvironments: () => void;
   }> = {},
 ) {
   return render(renderNavigatorElement(props));
@@ -82,6 +84,8 @@ function renderNavigatorElement(
     onSelect: (resourceId: number) => void;
     onFilterChange: (patch: Partial<WorkbenchFilters>) => void;
     onLoadMore: () => void;
+    environmentScoped: boolean;
+    onShowAllEnvironments: () => void;
   }> = {},
   messages: Record<string, unknown> = enMessages,
   locale = "en",
@@ -91,7 +95,11 @@ function renderNavigatorElement(
     <NextIntlClientProvider locale={locale} messages={messages}>
       <QueryConnectionNavigator
         targets={targets}
-        activeTargetId={props.activeTargetId ?? targets[0]!.resourceId}
+        activeTargetId={
+          props.activeTargetId !== undefined
+            ? props.activeTargetId
+            : (targets[0]?.resourceId ?? null)
+        }
         filters={props.filters ?? EMPTY_FILTERS}
         engines={props.engines ?? ["clickhouse", "mysql"]}
         pageInfo={props.pageInfo ?? {
@@ -105,6 +113,8 @@ function renderNavigatorElement(
         onSelect={props.onSelect ?? vi.fn()}
         onFilterChange={props.onFilterChange ?? vi.fn()}
         onLoadMore={props.onLoadMore}
+        environmentScoped={props.environmentScoped}
+        onShowAllEnvironments={props.onShowAllEnvironments}
       />
     </NextIntlClientProvider>
   );
@@ -257,5 +267,35 @@ describe("QueryConnectionNavigator", () => {
     });
 
     expect(screen.getByText("Showing 1 of 1 target")).toBeInTheDocument();
+  });
+
+  it("offers switching to all environments when an environment scope has no matches", async () => {
+    const onShowAllEnvironments = vi.fn();
+    const user = userEvent.setup();
+
+    renderNavigator({
+      targets: [],
+      activeTargetId: null,
+      environmentScoped: true,
+      onShowAllEnvironments,
+    });
+
+    expect(screen.getByText("No targets match your filters.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/No targets match in the current environment/i),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Show all environments" }),
+    );
+    expect(onShowAllEnvironments).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the all-environments hint in the unscoped environment view", () => {
+    renderNavigator({ targets: [], activeTargetId: null, environmentScoped: false });
+
+    expect(screen.getByText("No targets match your filters.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show all environments" }),
+    ).not.toBeInTheDocument();
   });
 });

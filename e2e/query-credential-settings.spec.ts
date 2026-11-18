@@ -269,7 +269,7 @@ test.describe("Query credential settings", () => {
 
     // The empty state should appear.
     await expect(
-      page.getByText(/No targets match/),
+      page.getByText("No targets match your filters."),
     ).toBeVisible();
   });
 

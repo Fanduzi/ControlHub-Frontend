@@ -415,7 +415,7 @@ describe("QueryWorkbench", () => {
     // Locked targets must not issue schema requests — show the locked copy instead.
     await waitFor(() => {
       expect(
-        screen.getByText(/Schema is locked — no live introspection in this phase/i),
+        screen.getByText(/This target does not support browsing the schema/i),
       ).toBeInTheDocument();
     });
     expect(mockGetSchemaDatabases).not.toHaveBeenCalled();
@@ -5220,7 +5220,8 @@ describe("QueryWorkbench cursor-based history (Phase 38M)", () => {
     const dialog = screen.getByRole("dialog", { name: /执行详情/i });
     expect(within(dialog).getAllByText("执行人").length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).getByText("引擎")).toBeInTheDocument();
-    expect(within(dialog).getByText("关闭")).toBeInTheDocument();
+    // The localized dialog X affordance adds a second sr-only "关闭" label.
+    expect(within(dialog).getAllByText("关闭").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders filter controls with localized labels in EN", async () => {

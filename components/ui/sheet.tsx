@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -84,6 +85,7 @@ function SheetContent({
   showCloseButton?: boolean;
   onOverlayClick?: () => void;
 }) {
+  const t = useTranslations("common");
   const isRight = side === "right";
   const popupRef = React.useRef<HTMLDivElement>(null);
   const [sheetWidth, setSheetWidth] = React.useState(DEFAULT_SHEET_WIDTH);
@@ -181,7 +183,7 @@ function SheetContent({
             }
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t("close")}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

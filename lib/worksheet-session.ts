@@ -835,10 +835,18 @@ export class WorksheetSession {
   }
 
   openForTarget(targetId: number): Worksheet | null {
+    // Re-selecting the bound target is a no-op; a different worksheet already
+    // bound to it is activated instead of growing another tab.
+    if (this.active.targetResourceId === targetId) return this.active;
     const previousActiveId = this.activeWorksheetId;
     this.worksheets = this.worksheets.map((ws) =>
       ws.id === previousActiveId ? { ...ws, explain: invalidateExplainState(ws.explain) } : ws,
     );
+    const existing = this.worksheets.find((ws) => ws.targetResourceId === targetId);
+    if (existing) {
+      this.activate(existing.id);
+      return existing;
+    }
     return this.add(targetId);
   }
 

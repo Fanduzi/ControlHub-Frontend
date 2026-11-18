@@ -168,7 +168,7 @@ export function OverviewContent({
           </div>
           <div className="bg-background px-4 py-4 border-l-2 border-l-rose-500">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              {t("pages.overview.posture.degraded")}
+              {t("pages.overview.posture.critical")}
             </p>
             <p className={`mt-1 text-2xl font-semibold ${HEALTH_METRIC_TEXT.critical}`}>
               {metrics.critical}

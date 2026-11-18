@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ListTree } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -37,6 +37,10 @@ type QueryWorkbenchNavigatorProps = {
   readonly targetLoadError?: string | null;
   readonly searchError?: boolean;
   readonly onRetrySearch?: () => void;
+  readonly environmentScoped?: boolean;
+  readonly onShowAllEnvironments?: () => void;
+  /** Increment to request opening the drawer (e.g. "选择目标" empty-target CTA). */
+  readonly openRequest?: number;
 };
 
 export function QueryWorkbenchNavigator({
@@ -54,11 +58,24 @@ export function QueryWorkbenchNavigator({
   targetLoadError,
   searchError,
   onRetrySearch,
+  environmentScoped = false,
+  onShowAllEnvironments,
+  openRequest = 0,
 }: QueryWorkbenchNavigatorProps) {
   const t = useTranslations("queryWorkbench");
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const desktopTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (openRequest === 0) return;
+    const trigger = window.matchMedia("(min-width: 768px)").matches
+      ? desktopTriggerRef
+      : mobileTriggerRef;
+    trigger.current?.click();
+  }, [openRequest]);
 
   function selectTarget(resourceId: number) {
     onSelect(resourceId);
@@ -82,6 +99,8 @@ export function QueryWorkbenchNavigator({
       targetLoadError={targetLoadError}
       searchError={searchError}
       onRetrySearch={onRetrySearch}
+      environmentScoped={environmentScoped}
+      onShowAllEnvironments={onShowAllEnvironments}
     />
   );
   const mobileNavigator = (
@@ -101,12 +120,15 @@ export function QueryWorkbenchNavigator({
       searchError={searchError}
       onRetrySearch={onRetrySearch}
       searchInputRef={mobileSearchInputRef}
+      environmentScoped={environmentScoped}
+      onShowAllEnvironments={onShowAllEnvironments}
     />
   );
 
   return (
     <>
       <Button
+        ref={desktopTriggerRef}
         type="button"
         variant="outline"
         className="hidden md:inline-flex"
@@ -117,6 +139,7 @@ export function QueryWorkbenchNavigator({
         {t("connectionNavigator.title")}
       </Button>
       <Button
+        ref={mobileTriggerRef}
         type="button"
         variant="outline"
         className="md:hidden"

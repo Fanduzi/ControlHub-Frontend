@@ -77,7 +77,7 @@ import {
   useSchemaCatalogVersion,
   type SchemaCatalog,
 } from "@/lib/schema-catalog";
-import type { ForeignKeyDetail } from "@/types/query-schema";
+import type { ForeignKeyDetail, ObjectSummary } from "@/types/query-schema";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
@@ -105,6 +105,11 @@ type QueryEditorShellProps = {
   schemaStore: SchemaCatalog;
   pendingPreviewEvent?: { id: number; request: TablePreviewRequest } | null;
   onPreviewConsumed?: () => void;
+  /** Opens the connection drawer so the user can pick a runnable target. */
+  onChooseTarget?: () => void;
+  /** Object-tree insert-name requests routed through the workbench. */
+  pendingInsertEvent?: { id: number; object: ObjectSummary } | null;
+  onInsertConsumed?: () => void;
 };
 
 type WorksheetTab = "worksheet" | "history" | "savedStatements";
@@ -131,7 +136,7 @@ type NavigationCapability = {
   readonly onNavigate: (foreignKey: string, localValues: readonly string[]) => void;
 };
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, explicitActiveTarget = false, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed }: QueryEditorShellProps) {
+export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, explicitActiveTarget = false, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed, onChooseTarget, pendingInsertEvent, onInsertConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
@@ -560,7 +565,15 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
       return;
     }
     lastSeenVersionRef.current = targetSelectionVersion;
-    if (session.list.length >= MAX_WORKSHEETS) {
+    // Already bound to the selection: picking the same target must not grow a
+    // new worksheet (or mark the workspace changed).
+    if (session.active.targetResourceId === activeTarget.resourceId) {
+      return;
+    }
+    const canActivateBound = session.list.some(
+      (ws) => ws.targetResourceId === activeTarget.resourceId,
+    );
+    if (!canActivateBound && session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
@@ -620,6 +633,33 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   // Resolved schema: explicit pin, otherwise the connection's default schema.
   const resolvedSchema =
     activeWorksheet.activeSchema ?? activeConnection?.defaultSchema ?? null;
+
+  const lastInsertIdRef = useRef(0);
+  useEffect(() => {
+    if (!pendingInsertEvent || pendingInsertEvent.id === lastInsertIdRef.current) {
+      return;
+    }
+    lastInsertIdRef.current = pendingInsertEvent.id;
+    onInsertConsumed?.();
+    const view = editorViewRef.current;
+    if (!view) return;
+    const { database, name, schema } = pendingInsertEvent.object;
+    const text = objectIdentifier({
+      database,
+      name,
+      activeDatabase: activeWorksheet.activeDatabase,
+      schema,
+      activeSchema: resolvedSchema,
+      dialect: isPostgresTarget ? "postgresql" : "mysql",
+    });
+    insertIdentifierAtSelection(view, text);
+  }, [
+    pendingInsertEvent,
+    onInsertConsumed,
+    activeWorksheet.activeDatabase,
+    resolvedSchema,
+    isPostgresTarget,
+  ]);
   const activeSchemaListing =
     isPostgresTarget && activeWorksheet.activeDatabase
       ? schemaStore.getSchemas(activeWorksheet.targetResourceId, activeWorksheet.activeDatabase)
@@ -1228,23 +1268,39 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
                 </label>
               ) : null}
             </div>
+          ) : effectiveCompletionDatabase ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground" data-testid="mysql-context-bar">
+              <span>{t("schema.mysqlDatabase", { database: effectiveCompletionDatabase })}</span>
+              <span>{t("schema.mysqlDatabaseHint")}</span>
+            </div>
           ) : null}
         </>
       ) : (
         <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
           <span>{t("workspace.targetUnavailable")}</span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setRetargetDialog({
-              open: true,
-              worksheetId: activeWorksheet.id,
-              newTargetId: activeTarget.resourceId,
-            })}
-          >
-            {t("workspace.retargetTo", { target: activeTarget.displayName })}
-          </Button>
+          {activeTarget.availableActions.run === true ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRetargetDialog({
+                open: true,
+                worksheetId: activeWorksheet.id,
+                newTargetId: activeTarget.resourceId,
+              })}
+            >
+              {t("workspace.retargetTo", { target: activeTarget.displayName })}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onChooseTarget}
+            >
+              {t("workspace.chooseTarget")}
+            </Button>
+          )}
         </div>
       )}
 
@@ -1301,7 +1357,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               error={activeWorksheet.error}
               schemaStore={schemaStore}
               targetId={activeWorksheet.targetResourceId}
-              activeDatabase={activeWorksheet.activeDatabase}
+              activeDatabase={effectiveCompletionDatabase}
               activeSchema={resolvedSchema}
               metadataError={metadataError}
               onRetryMetadata={retryMetadata}
@@ -2293,13 +2349,18 @@ function ExplainPanel({
               const lines = state.response.nodes.map((node) => {
                 const depth = depthById.get(node.id) ?? 0;
                 const name = node.label ?? t(`explain.operations.${node.operation}`);
+                // Planner-vocabulary labels read "Index Scan on t using i";
+                // translated operations read "索引访问 t (i)".
+                const ref = node.label
+                  ? `${node.relation ? ` on ${node.relation}` : ""}${node.index ? ` using ${node.index}` : ""}`
+                  : `${node.relation ? ` ${node.relation}` : ""}${node.index ? ` (${node.index})` : ""}`;
                 const meta = [
                   node.totalCost !== undefined
                     ? `cost=${(node.startupCost ?? node.totalCost).toFixed(2)}..${node.totalCost.toFixed(2)}`
                     : null,
                   node.estimatedRows !== undefined ? `rows=${node.estimatedRows}` : null,
                 ].filter(Boolean).join(" ");
-                return `${"  ".repeat(depth)}${name}${meta ? `  (${meta})` : ""}`;
+                return `${"  ".repeat(depth)}${name}${ref}${meta ? `  (${meta})` : ""}`;
               });
               return (
                 <pre
@@ -2336,6 +2397,16 @@ function ExplainPanel({
                         {node.label ? (
                           <span className="text-xs text-muted-foreground">
                             {t(`explain.operations.${node.operation}`)}
+                          </span>
+                        ) : null}
+                        {node.relation ? (
+                          <span className="font-mono text-xs text-foreground">
+                            {node.relation}
+                          </span>
+                        ) : null}
+                        {node.index ? (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {node.index}
                           </span>
                         ) : null}
                         {node.access !== "unknown" ||

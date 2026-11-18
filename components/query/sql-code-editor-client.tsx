@@ -40,14 +40,16 @@ export type SqlCodeEditorProps = {
   columnFetcher?: TableColumnFetcher;
 };
 
-function createSqlCompletionSource(
+export function createSqlCompletionSource(
   ns: SchemaNamespace | undefined,
   fetcher: TableColumnFetcher | undefined,
 ): (ctx: CompletionContext) => CompletionResult | Promise<CompletionResult | null> | null {
   return (ctx: CompletionContext) => {
-    const dotMatch = ctx.matchBefore(/[\w`]+\./);
+    const dotMatch = ctx.matchBefore(/[\w`]+\.[\w`]*/);
     if (dotMatch) {
-      const prefix = dotMatch.text.slice(0, -1).replace(/`/g, "");
+      const lastDot = dotMatch.text.lastIndexOf(".");
+      const prefix = dotMatch.text.slice(0, lastDot).replace(/`/g, "");
+      const from = ctx.pos - (dotMatch.text.length - lastDot - 1);
       const stmt = parseActiveStatement(ctx.state.doc.toString(), ctx.pos);
       const aliases = extractTableAliases(stmt);
 
@@ -55,19 +57,19 @@ function createSqlCompletionSource(
       const loaded = ns?.loadedColumns?.[tableName];
       if (loaded) {
         return {
-          from: dotMatch.to,
+          from,
           options: loaded.map((col) => ({ label: col, type: "field" })),
           validFor: /[\w`]*/,
         };
       }
 
       if (!fetcher || !ns) {
-        return { from: dotMatch.to, options: [], validFor: /[\w`]*/ };
+        return { from, options: [], validFor: /[\w`]*/ };
       }
 
       return buildColumnCompletionsForDot(prefix, ns, fetcher, aliases).then(
         (cols) => ({
-          from: dotMatch.to,
+          from,
           options: cols as import("@codemirror/autocomplete").Completion[],
           validFor: /[\w`]*/,
         }),
@@ -83,7 +85,12 @@ function createSqlCompletionSource(
 
     options.push(...buildKeywordCompletions());
 
-    return { from: ctx.pos, options, validFor: /[\w`]*/ };
+    const word = ctx.matchBefore(/[\w`]*/);
+    if (!word || (word.text === "" && !ctx.explicit)) {
+      return null;
+    }
+
+    return { from: word.from, options, validFor: /[\w`]*/ };
   };
 }
 

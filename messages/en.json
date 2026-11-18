@@ -1,6 +1,7 @@
 {
   "common": {
     "brand": "ControlHub",
+    "close": "Close",
     "loading": "Loading...",
     "notSet": "Not set",
     "fieldRequired": "This field is required",
@@ -212,7 +213,7 @@
     },
     "query": {
       "title": "Query Workbench",
-      "description": "Governed query workspace shell · runs only against ready targets"
+      "description": "Governed read-only queries · runs only against ready targets"
     },
     "audits": {
       "title": "Audits",
@@ -230,7 +231,7 @@
   "shell": {
     "title": "Unified Resource Console",
     "description": "Platform resource context, ownership, and auditability.",
-    "baseline": "Baseline phase: manual registration, relations, and audit feeds.",
+    "baseline": "Manual registration, relations, and audit feeds.",
     "subtitle": "Shared shell for resource visibility, ownership context, and change traces.",
     "searchPlaceholder": "Search resources, owners, hostname, IP, IDs",
     "environmentPlaceholder": "Environment",
@@ -289,7 +290,7 @@
     "description": "Manual resource registration, owner alignment, environment context, and baseline auditing.",
     "cards": {
       "shell": {
-        "label": "Shell",
+        "label": "Console",
         "description": "Shared navigation, search, and environment controls"
       },
       "resourceModel": {
@@ -384,13 +385,13 @@
       "resource_not_found": "That resource was not found.",
       "result_contract_upgrade_required": "The query ran, but results were not delivered because this client lacks the required result contract. Update the console client and run the query again.",
       "saved_statement_not_found": "That saved query was not found.",
-      "schema_backend_error": "The schema backend could not complete this request.",
+      "schema_backend_error": "Could not reach the target database or read its metadata. Check that the database is available and retry.",
       "schema_definition_not_supported": "Table definition is not supported for this target.",
       "schema_not_allowed": "This schema request is not allowed.",
       "schema_not_found": "The schema was not found.",
       "schema_object_not_found": "That schema object was not found.",
       "schema_target_not_found": "That schema target was not found.",
-      "schema_timeout": "The schema request timed out.",
+      "schema_timeout": "Reading metadata timed out. Try again shortly.",
       "schema_validation_failed": "Schema validation failed.",
       "service_unavailable": "The service is temporarily unavailable.",
       "unauthorized": "Authentication failed. Please sign in again.",
@@ -431,9 +432,9 @@
         "title": "Resource posture",
         "description": "Resource counts by health and status.",
         "total": "Total managed resources",
-        "degraded": "Degraded",
         "warning": "Warning",
-        "pending": "Pending"
+        "pending": "Pending",
+        "critical": "Critical"
       },
       "environmentSummary": {
         "title": "Environment overview",
@@ -1362,7 +1363,7 @@
       "placeholderRedis": "Key pattern and read-command placeholders appear once schema metadata is connected.",
       "placeholderMongo": "Database / collection / field placeholders appear once schema metadata is connected.",
       "placeholderDefault": "Schema placeholders appear once metadata is connected.",
-      "locked": "Schema is locked — no live introspection in this phase.",
+      "locked": "This target does not support browsing the schema.",
       "empty": "No schema metadata available for this target yet.",
       "objects": "Objects",
       "openObjects": "Open objects",
@@ -1388,6 +1389,7 @@
       "detailLoadError": "Could not load object details",
       "previewRows": "Preview data",
       "inspect": "View definition",
+      "insertName": "Insert name",
       "inspectorTitle": "{name} — Definition",
       "inspectorColumns": "Columns",
       "inspectorIndexes": "Indexes",
@@ -1472,7 +1474,9 @@
       "connectionPlaceholder": "Select a connection database",
       "schemaLabel": "Schema",
       "schemaDefault": "Default ({schema})",
-      "schemaMissingOption": "{schema} (missing)"
+      "schemaMissingOption": "{schema} (missing)",
+      "mysqlDatabase": "Execution database: {database}",
+      "mysqlDatabaseHint": "Use db.table to query other databases"
     },
     "navigator": {
       "title": "Quick navigator",
@@ -1502,10 +1506,10 @@
       "maxRows": "Max rows 100",
       "lockTitle": "Editor locked by policy",
       "lockDescription": "Read-only credential, statement guard, audit record, timeout, and row limit must all be in place before execution.",
-      "placeholderHint": "Read-only SQL is planned for a later phase.",
-      "savedSheetsPlaceholder": "Saved sheets are unavailable — sheet storage is not enabled in this phase.",
+      "placeholderHint": "This target cannot run queries.",
+      "savedSheetsPlaceholder": "This target does not support saved sheets.",
       "historyPlaceholder": "Query history is unavailable — no queries have been executed.",
-      "accessPlaceholder": "Access grants are unavailable — the access workflow is planned for a later phase.",
+      "accessPlaceholder": "Access requests are not supported here.",
       "statementLabel": "Statement",
       "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",
@@ -1534,6 +1538,7 @@
       "targetUnavailable": "The saved target for this worksheet is unavailable. Choose a new target before using execution or schema actions.",
       "unavailableTargetLabel": "Unavailable target #{id}",
       "retargetTo": "Change target to {target}",
+      "chooseTarget": "Choose target",
       "retry": "Retry"
     },
     "actions": {
@@ -1553,7 +1558,7 @@
       "masking": "Masking",
       "notExecuted": "0 rows · not executed",
       "lockTitle": "Result area is locked",
-      "lockDescription": "This phase only confirms targets, access gaps, and governance policy. The real result grid, JSON viewer, and explain plan arrive with the read-only sandbox.",
+      "lockDescription": "This target does not meet execution requirements yet; the result grid, JSON viewer, and Explain are unavailable.",
       "lastQuery": "Last query",
       "lastQueryValue": "No query history yet",
       "copyExport": "Copy / export",
@@ -1695,9 +1700,9 @@
       "executionDescriptionLocked": "This target is not ready to execute queries. Resolve the blocker to enable execution.",
       "credentialDescription": "Credential state for this target.",
       "auditTitle": "Audit required",
-      "auditDescription": "From the sandbox phase, every execution must record user, target, statement digest, duration, result size, and risk policy.",
+      "auditDescription": "Every execution records the user, target, statement digest, duration, result size, and risk policy.",
       "jitTitle": "JIT access planned",
-      "jitDescription": "This phase only shows the access gap and entry point — no approval flow yet.",
+      "jitDescription": "Only the access gap is shown here; online approval is not supported.",
       "targetFacts": "Target facts",
       "policyChecklist": "Policy checklist",
       "missingFields": "Missing configuration",
@@ -1790,6 +1795,8 @@
       "ready": "Ready",
       "locked": "Locked",
       "noMatches": "No targets match your filters.",
+      "environmentEmpty": "No targets match in the current environment. Other environments may have ready targets.",
+      "showAllEnvironments": "Show all environments",
       "filters": "Filters",
       "allEngines": "All engines",
       "allModes": "All kinds",

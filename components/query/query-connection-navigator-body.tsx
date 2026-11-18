@@ -45,6 +45,8 @@ type NavigatorBodyProps = {
   searchError?: boolean;
   onRetrySearch?: () => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
+  environmentScoped?: boolean;
+  onShowAllEnvironments?: () => void;
 };
 
 export function NavigatorBody({
@@ -64,6 +66,8 @@ export function NavigatorBody({
   searchError = false,
   onRetrySearch,
   searchInputRef,
+  environmentScoped = false,
+  onShowAllEnvironments,
 }: NavigatorBodyProps) {
   const t = useTranslations("queryWorkbench");
 
@@ -136,6 +140,8 @@ export function NavigatorBody({
           groups={groupedTargets}
           onSelect={onSelect}
           suppressEmptyState={searchError}
+          environmentScoped={environmentScoped}
+          onShowAllEnvironments={onShowAllEnvironments}
         />
       </div>
 
