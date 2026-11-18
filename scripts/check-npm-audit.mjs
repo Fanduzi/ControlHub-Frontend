@@ -6,14 +6,7 @@ import { execFileSync } from "node:child_process";
  * is reimplemented here: every high/critical advisory still fails CI except
  * the IDs below. Each entry must carry a reason and a recheck trigger.
  */
-const ALLOWLIST = [
-  {
-    id: "GHSA-fc5q-39xc-vjpf",
-    reason:
-      "picomatch ReDoS, no patched version upstream; prod path is next-intl → @parcel/watcher (dev-time watcher), no user input reaches picomatch",
-    recheck: "remove once picomatch publishes a fix",
-  },
-];
+const ALLOWLIST = [];
 
 const GHSA_PATTERN = /GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/i;
 const FAILING_SEVERITIES = new Set(["high", "critical"]);

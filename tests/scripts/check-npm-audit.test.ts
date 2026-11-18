@@ -31,19 +31,23 @@ function audit(via: unknown[]) {
 }
 
 describe("collectBlockingAdvisories", () => {
-  it("passes when only allowlisted advisories are present", () => {
+  it("blocks high advisories even for the formerly exempt ID", () => {
     const { blocking, exempted } = collectBlockingAdvisories(audit([ADVISORY]));
-    expect(blocking).toEqual([]);
-    expect(exempted).toHaveLength(1);
+    expect(blocking).toEqual([
+      expect.objectContaining({ pkg: "picomatch", id: "GHSA-fc5q-39xc-vjpf" }),
+    ]);
+    expect(exempted).toEqual([]);
   });
 
-  it("fails when a non-exempt high advisory is also present", () => {
-    const { blocking } = collectBlockingAdvisories(audit([ADVISORY, OTHER_ADVISORY]));
+  it("blocks critical advisories", () => {
+    const { blocking } = collectBlockingAdvisories(
+      audit([{ ...OTHER_ADVISORY, severity: "critical" }]),
+    );
     expect(blocking).toHaveLength(1);
     expect(blocking[0]).toMatchObject({ pkg: "picomatch", id: "GHSA-aaaa-bbbb-cccc" });
   });
 
-  it("ignores non-exempt advisories below high severity", () => {
+  it("ignores advisories below high severity", () => {
     const { blocking, exempted } = collectBlockingAdvisories(
       audit([{ ...OTHER_ADVISORY, severity: "moderate" }]),
     );
