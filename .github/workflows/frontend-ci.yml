@@ -68,7 +68,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Check dependency vulnerabilities
-        run: npm audit --audit-level=high --registry=https://registry.npmjs.org
+        run: npm run check:audit
       - name: Run frontend local release gates
         run: npm run release:local
 
