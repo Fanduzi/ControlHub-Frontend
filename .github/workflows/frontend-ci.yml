@@ -301,6 +301,12 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: Verify ClickHouse preview and daily counts in Chromium
+        working-directory: ${{ env.BACKEND_DIR }}
+        env:
+          CONTROLHUB_CH_BROWSER_CHECKOUT: ${{ github.workspace }}
+        run: go test -tags=integration -count=1 -v -run '^TestClickHousePreviewHTTP$' ./internal/integration
+
       - name: Run frontend E2E release gates
         env:
           E2E_FIXTURE_ADMIN_EMAIL: ${{ steps.provision.outputs.admin_email }}

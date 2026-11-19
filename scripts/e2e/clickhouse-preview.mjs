@@ -68,7 +68,9 @@ try {
     name: /ClickHouse table preview|ClickHouse 表预览/,
   });
   await expect(panel).toBeVisible({ timeout: 30000 });
-  await panel.getByRole("combobox").selectOption("sample");
+  await panel
+    .getByRole("combobox", { name: /^Table$|^表$/ })
+    .selectOption("sample");
   const response = page.waitForResponse(
     (r) =>
       r.request().method() === "POST" &&
@@ -95,6 +97,43 @@ try {
   await expect(
     panel.getByRole("columnheader", { name: "secret", exact: true }),
   ).toHaveCount(0);
+  await panel
+    .getByRole("combobox", { name: /^Table$|^表$/ })
+    .selectOption("events");
+  await panel.getByRole("button", { name: /Preview rows|预览数据/ }).click();
+  await expect(
+    panel
+      .getByRole("cell", { name: "18446744073709551615", exact: true })
+      .first(),
+  ).toBeVisible();
+  const axis = panel.getByRole("combobox", { name: /Time column|时间列/ });
+  expect(await axis.locator("option").allTextContents()).toEqual([
+    "observed_at",
+    "request_date",
+  ]);
+  await axis.selectOption("observed_at");
+  const countResponse = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      r.url().endsWith("/clickhouse-preview"),
+  );
+  await panel
+    .getByRole("button", { name: /Count rows by day|按日统计行数/ })
+    .click();
+  const count = await (await countResponse).json();
+  expect(count.rows).toHaveLength(7);
+  expect(
+    count.rows.every(
+      ([day, n]) => /^\d{4}-\d{2}-\d{2}$/.test(day) && typeof n === "string",
+    ),
+  ).toBe(true);
+  await expect(
+    panel.getByRole("columnheader", { name: "count", exact: true }),
+  ).toBeVisible();
+  await expect(panel.locator("tbody tr")).toHaveCount(7);
+  console.log(
+    "PASS seven UTC daily counts and lossless UInt64 through the real workbench",
+  );
   console.log(
     "PASS real Chromium login → workbench → selected ClickHouse columns → masked result and NULL",
   );
