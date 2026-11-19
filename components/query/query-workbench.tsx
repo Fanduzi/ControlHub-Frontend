@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ClickHousePreview } from "@/components/query/clickhouse-preview";
 import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
 import { QueryObjectExplorer } from "@/components/query/query-object-explorer";
@@ -563,7 +564,9 @@ export function QueryWorkbench({
             onShowAllEnvironments={showAllEnvironments}
             navigatorOpenRequest={navigatorOpenRequest}
           />
-          {activeTarget ? (
+          {activeTarget?.availableActions.clickHousePreview ? (
+            <ClickHousePreview key={activeTarget.resourceId} targetId={activeTarget.resourceId} />
+          ) : activeTarget ? (
             <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
             {/* Desktop objects pane — only mount explorer when open so locked
                 targets never issue unsolicited schema requests. */}
