@@ -57,6 +57,7 @@ export type QueryExecutePaginationResponse = {
  * omitted from the wire body when not supplied, as is `pagination`.
  */
 export type QueryExecuteRequest = {
+  clickHouseGeneration?: string;
   statement: string;
   /**
    * PostgreSQL connection database. Required non-empty for postgresql targets;

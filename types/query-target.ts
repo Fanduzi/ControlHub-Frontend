@@ -98,6 +98,7 @@ export type QueryTargetConnection = {
 
 /** Read-only query capability context for one database resource. */
 export type QueryTarget = {
+  clickHouseGeneration?: string;
   resourceId: number;
   resourceName: string;
   displayName: string;

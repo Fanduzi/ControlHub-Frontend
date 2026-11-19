@@ -27,7 +27,7 @@ page-gate surface; HTTP routes are adapters.
 details, and SQL completion namespace keyed by 库身份. Object explorer,
 worksheet completion, and Cmd+P read it.
 
-`worksheet-session.ts` is the query workbench 工作表 session: run, paging,
+`worksheet-session.ts` sends the approved generation on ClickHouse worksheet Run and uses its single bounded result without a pagination request. It is the query workbench 工作表 session: run, paging,
 template enter/exit, explain, related records, history, and persisted drafts.
 Typing uses `editStatement`; load/replace still use `replaceStatement`.
 

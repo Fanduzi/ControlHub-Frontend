@@ -155,6 +155,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     worksheetId: string;
   } | null>(null);
 
+  const generationByTargetRef = useRef(new Map<number, string | undefined>());
   const engineByTargetRef = useRef(new Map<number, string>());
   const tRef = useRef(t);
   tRef.current = t;
@@ -162,6 +163,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     () =>
       new WorksheetSession({
         initialTargetId: activeTarget.resourceId,
+        generationFor: (targetId) => generationByTargetRef.current.get(targetId),
         engineFor: (targetId) => engineByTargetRef.current.get(targetId),
         worksheetName: (index) => tRef.current("editor.worksheetName", { index }),
         previewName: (table) => tRef.current("editor.previewName", { table }),
@@ -392,6 +394,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
   );
 
   useEffect(() => {
+    generationByTargetRef.current = new Map(targets.map(t => [t.resourceId, t.clickHouseGeneration]));
     engineByTargetRef.current = new Map(
       targets.map((t) => [t.resourceId, t.connectionContext.engine]),
     );
@@ -681,7 +684,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
 
   useEffect(() => {
     const targetId = activeWorksheet.targetResourceId;
-    if (!worksheetTarget?.availableActions.run) return;
+    if (!worksheetTarget?.availableActions.run || worksheetTarget.connectionContext.engine === "clickhouse") return;
     if (isPostgresTarget) {
       // Composite targets enumerate connections from the target row; schemas
       // load lazily once a connection is selected.
@@ -714,6 +717,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     isPostgresTarget,
     metadataRetryKey,
     schemaStore,
+    worksheetTarget?.connectionContext.engine,
     worksheetTarget?.availableActions.run,
   ]);
 
@@ -744,7 +748,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
     schemaStore,
   ]);
 
-  const effectiveCompletionDatabase = isPostgresTarget
+  const effectiveCompletionDatabase = worksheetTarget?.connectionContext.engine === "clickhouse" ? null : isPostgresTarget
     ? activeWorksheet.activeDatabase
     : activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
 

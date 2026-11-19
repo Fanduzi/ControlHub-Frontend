@@ -163,6 +163,7 @@ export async function executeQueryTarget(
 ): Promise<QueryExecuteResponse> {
   const body: QueryExecuteRequest = {
     statement: input.statement,
+    ...(input.clickHouseGeneration ? { clickHouseGeneration: input.clickHouseGeneration } : {}),
     capabilities: RESULT_CONTRACT_CAPABILITIES,
     ...(input.database !== undefined && input.database !== ""
       ? { database: input.database }

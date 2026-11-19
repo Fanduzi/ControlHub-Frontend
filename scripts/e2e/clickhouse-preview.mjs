@@ -64,6 +64,71 @@ try {
   await page.locator("button[type=submit]").click();
   await page.waitForURL((url) => url.pathname !== "/login");
   await page.goto(`${origin}/query?targetId=${target}&environmentId=2`);
+  const editor = page.locator(".cm-content").first();
+  const run = page.getByRole("button", { name: /^(Run|执行)$/i });
+  async function executeSQL(statement, status) {
+    await editor.click();
+    await editor.press("ControlOrMeta+a");
+    await page.keyboard.insertText(statement);
+    const received = page.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        r.url().endsWith(`/query-targets/${target}/execute`),
+    );
+    await run.click();
+    const response = await received;
+    expect(response.status()).toBe(status);
+    return response.json();
+  }
+  const executions = [];
+  for (const id of ["42", "43"]) {
+    const result = await executeSQL(
+      `SELECT request_id FROM events WHERE request_id = ${id} LIMIT 10`,
+      200,
+    );
+    executions.push(result.executionId);
+    expect(result.rows).toEqual([[id]]);
+    await expect(
+      page.getByRole("gridcell", { name: id, exact: true }),
+    ).toBeVisible();
+  }
+  expect(executions[0]).not.toBe(executions[1]);
+  const history = await (
+    await page.request.get(
+      `${origin}/api/proxy/query-targets/${target}/executions?pageSize=20`,
+    )
+  ).json();
+  for (const id of executions)
+    expect(history.items).toContainEqual(
+      expect.objectContaining({
+        id,
+        status: "success",
+        engine: "clickhouse",
+        rowCount: 1,
+      }),
+    );
+  const grouped = await executeSQL(
+    "SELECT request_id, count() AS hits FROM events GROUP BY request_id ORDER BY hits DESC LIMIT 1",
+    200,
+  );
+  expect(grouped.rows).toEqual([["18446744073709551615", "6"]]);
+  await expect(
+    page.getByRole("gridcell", { name: "6", exact: true }),
+  ).toBeVisible();
+  const denied = await executeSQL(
+    "SELECT request_id FROM events WHERE private_time = '2026-11-19T00:00:00Z'",
+    403,
+  );
+  expect(denied.error).toBe("query_result_disclosure_blocked");
+  expect(denied.rows).toBeUndefined();
+  await expect(page.getByRole("grid")).toHaveCount(0);
+  console.log(
+    "PASS user-authored ClickHouse SQL in shared worksheet: edit 42 to 43, aggregate, reject unauthorized predicate",
+  );
+  await page
+    .locator("summary")
+    .filter({ hasText: /ClickHouse table preview|ClickHouse 表预览/ })
+    .click();
   const panel = page.getByRole("region", {
     name: /ClickHouse table preview|ClickHouse 表预览/,
   });
