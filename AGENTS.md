@@ -8,6 +8,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Query engine integration
+
+When planning, implementing or reviewing an engine in `/query`, start with the [shared workbench goal and ClickHouse acceptance](https://github.com/Fanduzi/ControlHub-Backend/blob/main/docs/superpowers/specs/2026-06-20-query-workbench-roadmap.md#engine-integration-acceptance). For SQL engines, verify in the existing worksheet that a developer can type a query, run it, edit it and see the changed result. Use example analyses as browser test cases. The [PostgreSQL workbench E2E](e2e/query-workbench-pg.spec.ts) exercises the reference path.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
