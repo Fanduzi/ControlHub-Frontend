@@ -115,6 +115,34 @@ try {
   await expect(
     page.getByRole("gridcell", { name: "6", exact: true }),
   ).toBeVisible();
+  const daily = (start) =>
+    `SELECT request_date, count() AS requests FROM http_log WHERE request_date >= '${start}' AND request_date < '2026-11-20' GROUP BY request_date ORDER BY request_date`;
+  const full = await executeSQL(daily("2026-11-13"), 200);
+  expect(full.rows).toEqual([
+    ["2026-11-13", "2"],
+    ["2026-11-19", "1"],
+  ]);
+  await expect(
+    page.getByRole("gridcell", { name: "2026-11-13", exact: true }),
+  ).toBeVisible();
+  const narrowed = await executeSQL(daily("2026-11-14"), 200);
+  expect(narrowed.rows).toEqual([["2026-11-19", "1"]]);
+  await expect(
+    page.getByRole("gridcell", { name: "2026-11-13", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("gridcell", { name: "2026-11-19", exact: true }),
+  ).toBeVisible();
+  const blocked = await executeSQL(
+    "SELECT service FROM http_log WHERE service='api' OR (request_date >= '2026-11-13' AND private_label='test')",
+    403,
+  );
+  expect(blocked.error).toBe("query_result_disclosure_blocked");
+  expect(blocked.rows).toBeUndefined();
+  await expect(page.getByRole("grid")).toHaveCount(0);
+  console.log(
+    "PASS ClickHouse dialect AST: edited half-open date range changes the worksheet grid; nested masked predicate refused",
+  );
   const denied = await executeSQL(
     "SELECT request_id FROM events WHERE private_time = '2026-11-19T00:00:00Z'",
     403,
