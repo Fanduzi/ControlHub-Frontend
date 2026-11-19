@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { apiClient } from "@/services/api-client";
 import { Button } from "@/components/ui/button";
 
-type Table = { name: string; columns: string[] };
+type Table = { name: string; columns: string[]; dailyCountColumns?: string[] };
 type Result = {
   columns: { name: string; copyAllowed: boolean }[];
   rows: (number | string | null)[][];
@@ -19,6 +19,7 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
   const [name, setName] = useState("");
   const [columns, setColumns] = useState<string[]>([]);
   const [limit, setLimit] = useState(10);
+  const [timeColumn, setTimeColumn] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -27,12 +28,15 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    apiClient<{ generation: string; tables: Table[] }>(path, { signal: controller.signal })
+    apiClient<{ generation: string; tables: Table[] }>(path, {
+      signal: controller.signal,
+    })
       .then(({ generation, tables }) => {
         if (controller.signal.aborted) return;
         setGeneration(generation);
         setTables(tables);
         setName(tables[0]?.name ?? "");
+        setTimeColumn(tables[0]?.dailyCountColumns?.[0] ?? "");
         setColumns(tables[0]?.columns.slice(0, 8) ?? []);
       })
       .catch(() => {
@@ -44,7 +48,7 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
     };
   }, [path]);
 
-  async function preview() {
+  async function preview(daily: boolean) {
     const controller = new AbortController();
     active.current?.abort();
     active.current = controller;
@@ -55,7 +59,11 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
       const data = await apiClient<Result>(path, {
         method: "POST",
         signal: controller.signal,
-        body: JSON.stringify({ generation, table: name, columns, limit }),
+        body: JSON.stringify(
+          daily
+            ? { generation, table: name, dailyCountColumn: timeColumn }
+            : { generation, table: name, columns, limit },
+        ),
       });
       if (!controller.signal.aborted) setResult(data);
     } catch {
@@ -67,7 +75,9 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
   return (
     <section className="space-y-3 border-b p-4" aria-label={t("title")}>
       <h2 className="text-sm font-semibold">{t("title")}</h2>
-      {!table && !failed && <p role="status">{generation ? t("noTables") : t("loading")}</p>}
+      {!table && !failed && (
+        <p role="status">{generation ? t("noTables") : t("loading")}</p>
+      )}
       {table && (
         <>
           <fieldset
@@ -83,6 +93,7 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
                     (item) => item.name === e.target.value,
                   );
                   setName(e.target.value);
+                  setTimeColumn(next?.dailyCountColumns?.[0] ?? "");
                   setColumns(next?.columns.slice(0, 8) ?? []);
                   setResult(null);
                   setFailed(false);
@@ -141,7 +152,7 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
             </Button>
           ) : (
             <Button
-              onClick={preview}
+              onClick={() => preview(false)}
               disabled={
                 !columns.length ||
                 !Number.isInteger(limit) ||
@@ -152,6 +163,28 @@ export function ClickHousePreview({ targetId }: { targetId: number }) {
               {t("run")}
             </Button>
           )}
+          {!busy && table.dailyCountColumns?.length ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label>
+                {t("timeColumn")}{" "}
+                <select
+                  value={timeColumn}
+                  onChange={(e) => {
+                    setTimeColumn(e.target.value);
+                    setResult(null);
+                    setFailed(false);
+                  }}
+                >
+                  {table.dailyCountColumns.map((col) => (
+                    <option key={col}>{col}</option>
+                  ))}
+                </select>
+              </label>
+              <Button variant="outline" onClick={() => preview(true)}>
+                {t("dailyCount")}
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
       {failed && <p role="alert">{t("failed")}</p>}

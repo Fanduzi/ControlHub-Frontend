@@ -1327,6 +1327,7 @@
   },
   "queryWorkbench": {
     "clickHousePreview": {
+      "timeColumn": "Time column (UTC)", "dailyCount": "Count rows by day · Last 7 days",
       "title": "ClickHouse table preview", "loading": "Loading approved tables…", "noTables": "No columns are available for preview.", "table": "Table", "columns": "Columns", "rows": "Row limit",
       "run": "Preview rows", "cancel": "Cancel preview", "failed": "Could not load the preview.", "empty": "No rows returned."
     },
