@@ -1326,6 +1326,10 @@
     }
   },
   "queryWorkbench": {
+    "clickHousePreview": {
+      "title": "ClickHouse table preview", "loading": "Loading approved tables…", "noTables": "No columns are available for preview.", "table": "Table", "columns": "Columns", "rows": "Row limit",
+      "run": "Preview rows", "cancel": "Cancel preview", "failed": "Could not load the preview.", "empty": "No rows returned."
+    },
     "banner": {
       "title": "Governed query execution",
       "description": "This workbench runs queries only against ready targets with configured read-only credentials. The backend enforces statement guards, audit logging, and result limits."

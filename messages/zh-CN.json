@@ -1326,6 +1326,10 @@
     }
   },
   "queryWorkbench": {
+    "clickHousePreview": {
+      "title": "ClickHouse 表预览", "loading": "正在读取已授权的表…", "noTables": "当前没有可预览的列。", "table": "表", "columns": "列", "rows": "行数上限",
+      "run": "预览数据", "cancel": "取消预览", "failed": "无法加载预览。", "empty": "没有返回行。"
+    },
     "banner": {
       "title": "受治理的查询执行",
       "description": "该工作台仅对已就绪且配置只读凭据的目标执行查询。后端强制语句 guard、审计日志和结果限制。"

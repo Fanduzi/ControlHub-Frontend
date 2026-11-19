@@ -1,5 +1,7 @@
 # scripts/e2e
 
+`clickhouse-preview.mjs` is launched by the companion backend's `TestClickHousePreviewHTTP` when `CONTROLHUB_CH_BROWSER_CHECKOUT` points to this checkout. It opens a real Chromium session against an isolated Next.js/BFF instance and checks disclosure and column reselection.
+
 Disposable PostgreSQL E2E fixture scripts.
 
 | Script | Purpose |
