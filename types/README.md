@@ -52,6 +52,8 @@ transport fields.
 
 ## Interfaces
 
+`QueryTarget.clickHouseGeneration` is echoed by the ordinary `QueryExecuteRequest` for ClickHouse worksheets.
+
 `QueryTargetAvailableActions.clickHousePreview` is optional. Older backends and default-closed deployments leave it absent.
 
 - Exported types are compile-time transport contracts; they have no runtime behavior.

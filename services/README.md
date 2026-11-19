@@ -7,6 +7,8 @@ Frontend API service modules.
 
 ## Files
 
+`executeQueryTarget` forwards the ClickHouse worksheet's generation on the ordinary Run route.
+
 | File | Responsibility |
 |------|----------------|
 | `api-client.ts` | Same-origin BFF JSON transport and controlled errors |

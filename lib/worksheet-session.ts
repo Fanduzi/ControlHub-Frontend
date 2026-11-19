@@ -367,6 +367,7 @@ export class WorksheetSession {
   private version = 0;
   private readonly ports: WorksheetSessionPorts;
   private readonly createId: () => string;
+  private readonly generationFor: (targetId: number) => string | undefined;
   private readonly engineFor: (targetId: number) => string | undefined;
   private readonly inflight = new Map<string, InflightAttempt>();
   private readonly navInflight = new Map<string, NavAttempt>();
@@ -383,6 +384,7 @@ export class WorksheetSession {
      * Resolves a worksheet's target engine. Unknown/absent resolves to the
      * non-PostgreSQL path: no connection fields, no idempotency key.
      */
+    readonly generationFor?: (targetId: number) => string | undefined;
     readonly engineFor?: (targetId: number) => string | undefined;
     readonly initialMaxRows?: number;
     readonly initialPageSize?: number;
@@ -391,6 +393,7 @@ export class WorksheetSession {
   }) {
     this.ports = { ...defaultPorts, ...options.ports };
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    this.generationFor = options.generationFor ?? (() => undefined);
     this.engineFor = options.engineFor ?? (() => undefined);
     this.worksheetName = options.worksheetName ?? ((index) => `Worksheet ${index}`);
     this.previewName = options.previewName ?? ((table) => `Preview: ${table}`);
@@ -1660,15 +1663,16 @@ export class WorksheetSession {
         { ...(database !== undefined ? { database } : {}), signal },
       );
     }
+    const clickHouseGeneration = this.engineFor(targetId) === "clickhouse" ? this.generationFor(targetId) : undefined;
     return this.ports.execute(
       targetId,
       {
         statement: worksheet.statement,
+        ...(clickHouseGeneration ? { clickHouseGeneration } : { pagination: { page, pageSize } }),
         ...(database !== undefined ? { database } : {}),
         ...(schema !== undefined ? { schema } : {}),
         ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
         maxRows,
-        pagination: { page, pageSize },
       },
       { signal },
     );

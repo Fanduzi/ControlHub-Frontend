@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ClickHouseWorksheetObjects } from "@/components/query/clickhouse-worksheet-objects";
 import { ClickHousePreview } from "@/components/query/clickhouse-preview";
 import { QueryEditorShell } from "@/components/query/query-editor-shell";
 import { QueryWorkbenchNavigator } from "@/components/query/query-workbench-navigator";
@@ -30,7 +31,7 @@ import { SchemaCatalog } from "@/lib/schema-catalog";
 
 /** Schema introspection requires a ready target with run permission. */
 function canBrowseSchema(target: QueryTarget): boolean {
-  return target.availableActions.run === true;
+  return target.availableActions.run === true && target.connectionContext.engine !== "clickhouse";
 }
 
 type QueryWorkbenchProps = {
@@ -564,7 +565,7 @@ export function QueryWorkbench({
             onShowAllEnvironments={showAllEnvironments}
             navigatorOpenRequest={navigatorOpenRequest}
           />
-          {activeTarget?.availableActions.clickHousePreview ? (
+          {activeTarget?.availableActions.clickHousePreview && !activeTarget.availableActions.run ? (
             <ClickHousePreview key={activeTarget.resourceId} targetId={activeTarget.resourceId} />
           ) : activeTarget ? (
             <div data-testid="query-workbench-grid" className="flex min-h-0 min-w-0 flex-1">
@@ -591,7 +592,9 @@ export function QueryWorkbench({
                     </button>
                   </div>
                   <div className="p-2">
-                    {canBrowseSchema(activeTarget) ? (
+                    {activeTarget.clickHouseGeneration ? (
+                      <ClickHouseWorksheetObjects key={activeTarget.clickHouseGeneration} targetId={activeTarget.resourceId} generation={activeTarget.clickHouseGeneration} />
+                    ) : canBrowseSchema(activeTarget) ? (
                       <QueryObjectExplorer
                         key={activeTarget.resourceId}
                         targetId={activeTarget.resourceId}
@@ -651,7 +654,9 @@ export function QueryWorkbench({
                   </button>
                 </SheetHeader>
                 <div className="min-w-0 px-4 pb-4">
-                  {canBrowseSchema(activeTarget) ? (
+                  {activeTarget.clickHouseGeneration ? (
+                    <ClickHouseWorksheetObjects key={activeTarget.clickHouseGeneration} targetId={activeTarget.resourceId} generation={activeTarget.clickHouseGeneration} />
+                  ) : canBrowseSchema(activeTarget) ? (
                     <QueryObjectExplorer
                       key={activeTarget.resourceId}
                       targetId={activeTarget.resourceId}
@@ -668,6 +673,7 @@ export function QueryWorkbench({
             </Sheet>
 
             <div className="min-w-0 flex-1">
+              {activeTarget.availableActions.clickHousePreview && <details className="border-b p-2"><summary className="cursor-pointer text-sm">{t("clickHousePreview.title")}</summary><ClickHousePreview key={activeTarget.resourceId} targetId={activeTarget.resourceId} /></details>}
               <QueryEditorShell
                 targets={cachedTargets}
                 activeTarget={activeTarget}
