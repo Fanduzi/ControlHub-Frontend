@@ -4,6 +4,8 @@ Vitest unit tests for frontend library modules.
 
 ## Interfaces
 
+ClickHouse completion tests cover table and unqualified column positions, quoted source tables, statement isolation, and ambiguous sources. Catalog hook tests cover target changes, approval generations, late and denied responses, and exclusion of preview-only tables.
+
 Worksheet session tests cover approval-generation pinning across ClickHouse page turns and compatibility with older single-result servers.
 
 - Tests exercise exported library functions with literal input/output contracts.

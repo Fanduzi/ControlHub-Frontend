@@ -78,6 +78,8 @@ import {
   type SchemaCatalog,
 } from "@/lib/schema-catalog";
 import type { ForeignKeyDetail, ObjectSummary } from "@/types/query-schema";
+import type { ClickHouseWorksheetCatalog } from "@/lib/use-clickhouse-worksheet-catalog";
+import type { SchemaNamespace } from "@/lib/query-sql-completion";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
@@ -95,6 +97,7 @@ import {
 } from "@/lib/worksheet-session";
 
 type QueryEditorShellProps = {
+  clickHouseCatalog?: ClickHouseWorksheetCatalog;
   targets: QueryTarget[];
   activeTarget: QueryTarget;
   targetSelectionVersion: number;
@@ -136,7 +139,7 @@ type NavigationCapability = {
   readonly onNavigate: (foreignKey: string, localValues: readonly string[]) => void;
 };
 
-export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion, explicitActiveTarget = false, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed, onChooseTarget, pendingInsertEvent, onInsertConsumed }: QueryEditorShellProps) {
+export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, targetSelectionVersion, explicitActiveTarget = false, onActiveTargetChange, onActiveDatabaseChange, schemaStore, pendingPreviewEvent, onPreviewConsumed, onChooseTarget, pendingInsertEvent, onInsertConsumed }: QueryEditorShellProps) {
   const t = useTranslations("queryWorkbench");
   const { resolvedTheme, theme } = useTheme();
   const [activeTab, setActiveTab] = useState<WorksheetTab>("worksheet");
@@ -1315,6 +1318,7 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
         canExecute ? (
           <div id="section-panel-worksheet" role="tabpanel" aria-labelledby="section-tab-worksheet">
             <ReadyWorksheet
+              key={worksheetTarget?.clickHouseGeneration && `${worksheetTarget.resourceId}:${worksheetTarget.clickHouseGeneration}`}
               worksheetId={activeWorksheet.id}
               statement={activeWorksheet.statement}
               onStatementChange={(value) => {
@@ -1355,6 +1359,11 @@ export function QueryEditorShell({ targets, activeTarget, targetSelectionVersion
               onFormat={handleFormat}
               onEditorView={(view) => { editorViewRef.current = view; }}
               formatError={activeWorksheet.formatError}
+              clickHouseNamespace={
+                clickHouseCatalog && worksheetTarget?.resourceId === clickHouseCatalog.identity.targetId &&
+                worksheetTarget.clickHouseGeneration === clickHouseCatalog.identity.generation
+                  ? clickHouseCatalog.namespace : undefined
+              }
               engine={targetsById.get(activeWorksheet.targetResourceId)?.connectionContext.engine}
               themePreference={editorThemePreference}
               editorHeight={editorHeight}
@@ -1669,6 +1678,7 @@ function ReadyWorksheet({
   onEditorView,
   formatError,
   engine,
+  clickHouseNamespace,
   themePreference,
   editorHeight,
   onEditorResizePointerDown,
@@ -1718,6 +1728,7 @@ function ReadyWorksheet({
   onEditorView?: (view: EditorView) => void;
   formatError: string | null;
   engine?: string;
+  clickHouseNamespace?: SchemaNamespace;
   themePreference: QueryEditorThemePreference;
   editorHeight: number;
   onEditorResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -1910,8 +1921,8 @@ function ReadyWorksheet({
           disabled={isExecuting || explainLoading}
           themePreference={themePreference}
           height={editorHeight}
-          schemaNamespace={namespace}
-          columnFetcher={columnFetcher}
+          schemaNamespace={engine === "clickhouse" ? clickHouseNamespace : namespace}
+          columnFetcher={engine === "clickhouse" ? undefined : columnFetcher}
         />
         <button
           type="button"
