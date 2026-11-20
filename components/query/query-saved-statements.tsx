@@ -67,6 +67,8 @@ function useIsDesktop(): boolean {
 }
 
 type QuerySavedStatementsProps = {
+  clickHouse?: boolean;
+  clickHouseGeneration?: string;
   targetResourceId: number;
   /** PostgreSQL connection selector; omitted for MySQL/TiDB whose statements
    * are stored under the legacy empty database scope. */
@@ -111,6 +113,8 @@ type DeleteDialogState = {
 } | null;
 
 export function QuerySavedStatements({
+  clickHouse = false,
+  clickHouseGeneration,
   targetResourceId,
   database,
   schema,
@@ -231,9 +235,10 @@ export function QuerySavedStatements({
   const [createParameters, setCreateParameters] = useState<readonly QuerySavedStatementParameterDefinition[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const canWrite = !clickHouse || Boolean(clickHouseGeneration);
   const createHasDeclarationErrors = hasDeclarationErrors(createParameters);
   const createSubmitDisabled =
-    createHasDeclarationErrors || createName.trim().length === 0;
+    !canWrite || createHasDeclarationErrors || createName.trim().length === 0;
 
   const handleCreateOpen = useCallback(
     (
@@ -260,6 +265,7 @@ export function QuerySavedStatements({
   );
 
   const handleCreateSubmit = useCallback(async () => {
+    if (!canWrite) return;
     const requestTarget = targetResourceId;
     const requestTargetGeneration = targetGenerationRef.current;
     setCreateError(null);
@@ -268,6 +274,7 @@ export function QuerySavedStatements({
         name: createName.trim(),
         statement: createStatement.trim(),
         scope: createDialog.scope,
+        ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
         database,
         schema,
         parameters: createParameters,
@@ -300,6 +307,8 @@ export function QuerySavedStatements({
     createParameters,
     createDialog.scope,
     createDialog.triggerRef,
+    canWrite,
+    clickHouseGeneration,
     targetResourceId,
     database,
     schema,
@@ -390,7 +399,7 @@ export function QuerySavedStatements({
   }, [targetResourceId]);
 
   const editHasDeclarationErrors = hasDeclarationErrors(editParameters);
-  const editSubmitDisabled = editHasDeclarationErrors || editName.trim().length === 0;
+  const editSubmitDisabled = !canWrite || editHasDeclarationErrors || editName.trim().length === 0;
 
   const handleEditOpen = useCallback(
     (
@@ -417,7 +426,7 @@ export function QuerySavedStatements({
   );
 
   const handleEditSave = useCallback(async () => {
-    if (!editDialog) return;
+    if (!editDialog || !canWrite) return;
     const requestTarget = targetResourceId;
     const requestTargetGeneration = targetGenerationRef.current;
     setEditError(null);
@@ -425,6 +434,7 @@ export function QuerySavedStatements({
       await updateSavedStatement(requestTarget, editDialog.item.id, {
         name: editName.trim(),
         statement: editStatement.trim(),
+        ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
         parameters: editParameters,
       });
       if (
@@ -450,7 +460,7 @@ export function QuerySavedStatements({
         setEditError(t("error.updateFailed"));
       }
     }
-  }, [editDialog, editName, editStatement, editParameters, targetResourceId, fetchStatements, state.page, restoreFocus, t]);
+  }, [editDialog, editName, editStatement, editParameters, canWrite, clickHouseGeneration, targetResourceId, fetchStatements, state.page, restoreFocus, t]);
 
   // Load statement into editor
   const handleLoad = useCallback(
@@ -487,14 +497,14 @@ export function QuerySavedStatements({
           ref={createPersonalRef}
           variant="outline"
           size="sm"
-          disabled={state.status !== "ready"}
+          disabled={!canWrite || state.status !== "ready"}
           onClick={() => handleCreateOpen("personal", createPersonalRef)}
           aria-label={t("createPersonalAriaLabel")}
         >
           <Plus className="mr-1 h-4 w-4" />
           {t("createPersonal")}
         </Button>
-        {state.canManageSharedTemplates && (
+        {!clickHouse && state.canManageSharedTemplates && (
           <Button
             ref={createSharedRef}
             variant="outline"
@@ -651,6 +661,7 @@ export function QuerySavedStatements({
             <DialogDescription>{t("createDescription")}</DialogDescription>
           </DialogHeader>
           <CreateEditForm
+            hideParameters={clickHouse}
             name={createName}
             onNameChange={setCreateName}
             statement={createStatement}
@@ -683,6 +694,7 @@ export function QuerySavedStatements({
             <SheetDescription>{t("createDescription")}</SheetDescription>
           </SheetHeader>
           <CreateEditForm
+            hideParameters={clickHouse}
             name={createName}
             onNameChange={setCreateName}
             statement={createStatement}
@@ -726,6 +738,7 @@ export function QuerySavedStatements({
             <DialogDescription>{t("editDescription")}</DialogDescription>
           </DialogHeader>
           <CreateEditForm
+            hideParameters={clickHouse}
             name={editName}
             onNameChange={setEditName}
             statement={editStatement}
@@ -764,6 +777,7 @@ export function QuerySavedStatements({
             <SheetDescription>{t("editDescription")}</SheetDescription>
           </SheetHeader>
           <CreateEditForm
+            hideParameters={clickHouse}
             name={editName}
             onNameChange={setEditName}
             statement={editStatement}
@@ -880,6 +894,7 @@ function SavedStatementRow({
 
 /** Shared form for create and edit dialogs. */
 function CreateEditForm({
+  hideParameters,
   name,
   onNameChange,
   statement,
@@ -890,6 +905,7 @@ function CreateEditForm({
   error,
   t,
 }: {
+  hideParameters: boolean;
   name: string;
   onNameChange: (value: string) => void;
   statement: string;
@@ -929,11 +945,9 @@ function CreateEditForm({
           aria-label={t("statementAriaLabel")}
         />
       </div>
-      <ParameterDeclarationsForm
-        parameters={parameters}
-        onParametersChange={onParametersChange}
-        t={t}
-      />
+      {!hideParameters && (
+        <ParameterDeclarationsForm parameters={parameters} onParametersChange={onParametersChange} t={t} />
+      )}
       <div className="text-xs text-muted-foreground">
         {t("scopeLabel")}:{" "}
         <span className="font-medium">

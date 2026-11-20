@@ -97,6 +97,7 @@ export async function createSavedStatement(
   input: QuerySavedStatementCreateRequest,
 ): Promise<QuerySavedStatementRecord> {
   const body: QuerySavedStatementCreateRequest = {
+    ...(input.clickHouseGeneration ? { clickHouseGeneration: input.clickHouseGeneration } : {}),
     name: input.name,
     statement: input.statement,
     scope: input.scope,
@@ -132,6 +133,7 @@ export async function updateSavedStatement(
   input: QuerySavedStatementUpdateRequest,
 ): Promise<void> {
   const body: QuerySavedStatementUpdateRequest = {
+    ...(input.clickHouseGeneration ? { clickHouseGeneration: input.clickHouseGeneration } : {}),
     name: input.name,
     statement: input.statement,
     parameters: sanitizeParameterDefinitions(input.parameters),

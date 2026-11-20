@@ -67,6 +67,7 @@ export type QuerySavedStatementListResponse = {
  * Never send actor, owner, role, credentials, DSNs, or browser state.
  */
 export type QuerySavedStatementCreateRequest = {
+  readonly clickHouseGeneration?: string;
   readonly name: string;
   readonly statement: string;
   readonly scope: QuerySavedStatementScope;
@@ -82,6 +83,7 @@ export type QuerySavedStatementCreateRequest = {
  * Scope is immutable and never accepted on update.
  */
 export type QuerySavedStatementUpdateRequest = {
+  readonly clickHouseGeneration?: string;
   readonly name: string;
   readonly statement: string;
   readonly parameters: readonly QuerySavedStatementParameterDefinition[];
