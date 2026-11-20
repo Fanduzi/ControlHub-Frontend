@@ -1940,7 +1940,7 @@ describe("Phase 38S: paging controls in result panel", () => {
     });
   });
 
-  it("renders page-size selector with values [10, 25, 50, 100]", async () => {
+  it("renders page-size selector with values [5, 10, 25, 50, 100]", async () => {
     const user = userEvent.setup();
     mockExecuteQueryTarget.mockResolvedValueOnce({
       ...buildExecuteResponse(),
@@ -1959,6 +1959,7 @@ describe("Phase 38S: paging controls in result panel", () => {
 
     await user.click(pageSizeTrigger);
     await waitFor(() => {
+      expect(screen.getByRole("option", { name: "5" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "10" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "25" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "50" })).toBeInTheDocument();

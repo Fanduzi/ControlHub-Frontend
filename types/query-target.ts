@@ -67,6 +67,7 @@ export type QueryTargetGovernance = {
 /** Locked/unlocked action flags. All false in Phase 36. */
 export type QueryTargetAvailableActions = {
   clickHousePreview?: boolean;
+  clickHousePaging?: boolean;
   run: boolean;
   explain: boolean;
   export: boolean;

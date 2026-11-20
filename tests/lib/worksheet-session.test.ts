@@ -49,6 +49,29 @@ function createSession(ports: ConstructorParameters<typeof WorksheetSession>[0][
   });
 }
 
+describe("ClickHouse worksheet paging", () => {
+  it("keeps the original approval generation for navigation and picks up a new one on Run", async () => {
+    let generation = "first";
+    const execute = vi.fn().mockResolvedValue(emptyResult({ engine: "clickhouse", pagination: { page: 1, pageSize: 5, hasNextPage: true, hasPreviousPage: false } }));
+    const session = new WorksheetSession({initialTargetId: 1, initialPageSize: 5, engineFor: () => "clickhouse", generationFor: () => generation, clickHousePagingFor: () => true, ports: {execute}});
+    session.editStatement("SELECT request_id FROM events ORDER BY request_id LIMIT 12");
+    await session.run();
+    generation = "second";
+    await session.nextPage();
+    expect(execute.mock.calls[1][1]).toMatchObject({clickHouseGeneration: "first",pagination:{page:2,pageSize:5}});
+    session.editStatement("SELECT request_id FROM events ORDER BY request_id LIMIT 3");
+    expect(session.active.resultPagination).toBeNull();
+    await session.run();
+    expect(execute.mock.calls[2][1]).toMatchObject({clickHouseGeneration: "second",pagination:{page:1,pageSize:5}});
+  });
+  it("uses a single response for a ClickHouse backend without the paging capability",async()=>{
+    const execute=vi.fn().mockResolvedValue(emptyResult({engine:"clickhouse"}));
+    const session=new WorksheetSession({initialTargetId:1,engineFor:()=>"clickhouse",generationFor:()=>"old",ports:{execute}});
+    session.editStatement("SELECT request_id FROM events");await session.run();
+    expect(execute.mock.calls[0][1]).not.toHaveProperty("pagination");
+  });
+});
+
 describe("WorksheetSession openForTarget", () => {
   it("is a no-op when the active worksheet already binds the target", () => {
     const session = createSession();

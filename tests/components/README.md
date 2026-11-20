@@ -14,6 +14,8 @@ Vitest component tests for React UI components.
 
 ## Tests
 
+Editor-shell paging tests cover the shared 5-row page size while retaining the default of 10.
+
 | Test | Component under test |
 |------|---------------------|
 | query-saved-statements.test.tsx | QuerySavedStatements — terminal list generations, terminal delete state machine, CRUD, shared-template gate, templates |

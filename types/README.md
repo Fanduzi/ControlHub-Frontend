@@ -52,6 +52,8 @@ transport fields.
 
 ## Interfaces
 
+The optional `QueryTargetAvailableActions.clickHousePaging` controls sending page requests to a ClickHouse worksheet backend.
+
 `QueryTarget.clickHouseGeneration` is echoed by the ordinary `QueryExecuteRequest` for ClickHouse worksheets.
 
 `QueryTargetAvailableActions.clickHousePreview` is optional. Older backends and default-closed deployments leave it absent.

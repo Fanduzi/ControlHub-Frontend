@@ -107,6 +107,96 @@ try {
         rowCount: 1,
       }),
     );
+  const pagingSql =
+    "SELECT request_id FROM page_events ORDER BY request_id LIMIT ";
+  const next = page.getByRole("button", { name: /^(Next page|下一页)$/i });
+  const previous = page.getByRole("button", {
+    name: /^(Previous page|上一页)$/i,
+  });
+  async function pageAction(action, status = 200) {
+    const received = page.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        r.url().endsWith(`/query-targets/${target}/execute`),
+    );
+    await action();
+    const response = await received;
+    expect(response.status()).toBe(status);
+    return response.json();
+  }
+  async function checkPage(data, pageNumber, first, size, hasNext) {
+    const ids = Array.from({ length: size }, (_, i) => String(first + i));
+    expect(data.rows).toEqual(ids.map((id) => [id]));
+    expect(data.pagination).toEqual({
+      page: pageNumber,
+      pageSize: 5,
+      hasPreviousPage: pageNumber > 1,
+      hasNextPage: hasNext,
+    });
+    await expect(page.getByRole("gridcell")).toHaveText(ids);
+    if (hasNext) await expect(next).toBeEnabled();
+    else await expect(next).toBeDisabled();
+    if (pageNumber > 1) await expect(previous).toBeEnabled();
+    else await expect(previous).toBeDisabled();
+  }
+  await executeSQL(pagingSql + "12", 200);
+  await page.getByRole("combobox", { name: /^(Page size|每页行数)$/i }).click();
+  const first = await pageAction(() =>
+    page.getByRole("option", { name: "5", exact: true }).click(),
+  );
+  await checkPage(first, 1, 1, 5, true);
+  const second = await pageAction(() => next.click());
+  await checkPage(second, 2, 6, 5, true);
+  const third = await pageAction(() => next.click());
+  await checkPage(third, 3, 11, 2, false);
+  const back = await pageAction(() => previous.click());
+  await checkPage(back, 2, 6, 5, true);
+  expect(
+    new Set([first, second, third, back].map((x) => x.executionId)).size,
+  ).toBe(4);
+  await checkPage(await executeSQL(pagingSql + "3", 200), 1, 1, 3, false);
+  await checkPage(await executeSQL(pagingSql + "12", 200), 1, 1, 5, true);
+  // Update the actual fixture's disclosure policy through the admin API between two browser reads.
+  const adminLogin = await fetch(`${backend}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "preview-admin@example.com",
+      password: "secret123",
+    }),
+  });
+  expect(adminLogin.status).toBe(200);
+  const { token: adminToken } = await adminLogin.json();
+  async function setPolicy(mode) {
+    const res = await fetch(`${backend}/query-disclosure-policies`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        targetResourceId: Number(target),
+        databaseName: "g2",
+        objectName: "page_events",
+        columnName: "request_id",
+        mode,
+      }),
+    });
+    expect(res.status).toBe(204);
+  }
+  await setPolicy("masked_no_copy");
+  try {
+    const refusal = await pageAction(() => next.click(), 403);
+    expect(refusal.error).toBe("query_result_disclosure_blocked");
+    expect(refusal.rows).toBeUndefined();
+    await expect(page.getByRole("grid")).toHaveCount(0);
+    await expect(next).toHaveCount(0);
+  } finally {
+    await setPolicy("raw_copy_allowed");
+  }
+  console.log(
+    "PASS ClickHouse worksheet paging: 5/5/2, previous, edited LIMIT and live policy revocation",
+  );
   const grouped = await executeSQL(
     "SELECT request_id, count() AS hits FROM events GROUP BY request_id ORDER BY hits DESC LIMIT 1",
     200,
