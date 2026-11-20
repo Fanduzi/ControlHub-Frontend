@@ -1,6 +1,6 @@
 # scripts/e2e
 
-`clickhouse-preview.mjs` is launched by the companion backend's `TestClickHousePreviewHTTP` when `CONTROLHUB_CH_BROWSER_CHECKOUT` points to this checkout. It opens a real Chromium session against an isolated Next.js/BFF instance and checks developer-authored SQL in the shared editor (edit, rerun, half-open date ranges, grouped counts, 5/5/2 page navigation with live policy revocation, nested policy refusals and history), disclosure, column reselection, exact UInt64 display and UTC daily counts.
+`clickhouse-preview.mjs` is launched by the companion backend's `TestClickHousePreviewHTTP` when `CONTROLHUB_CH_BROWSER_CHECKOUT` points to this checkout. It opens a real Chromium session against an isolated Next.js/BFF instance and checks developer-authored SQL in the shared editor (edit, rerun, half-open date ranges, grouped counts, 5/5/2 page navigation with live policy revocation, exact current-page CSV downloads and refusal on masked projections, nested policy refusals and history), disclosure, column reselection, exact UInt64 display and UTC daily counts.
 
 Disposable PostgreSQL E2E fixture scripts.
 

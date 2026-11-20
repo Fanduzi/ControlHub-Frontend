@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
+import { parse as parseCsv } from "csv-parse/sync";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect } from "@playwright/test";
 
@@ -80,6 +82,17 @@ try {
     expect(response.status()).toBe(status);
     return response.json();
   }
+  const csvButton = page.getByTestId("export-csv");
+  async function assertDownloadedPage(expectedRecords) {
+    await expect(csvButton).toBeEnabled();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      csvButton.click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("query-results.csv");
+    const csv = await readFile(await download.path(), "utf8");
+    expect(parseCsv(csv)).toEqual(expectedRecords);
+  }
   const executions = [];
   for (const id of ["42", "43"]) {
     const result = await executeSQL(
@@ -147,6 +160,14 @@ try {
   await checkPage(first, 1, 1, 5, true);
   const second = await pageAction(() => next.click());
   await checkPage(second, 2, 6, 5, true);
+  await assertDownloadedPage([
+    ["request_id"],
+    ["6"],
+    ["7"],
+    ["8"],
+    ["9"],
+    ["10"],
+  ]);
   const third = await pageAction(() => next.click());
   await checkPage(third, 3, 11, 2, false);
   const back = await pageAction(() => previous.click());
@@ -205,6 +226,21 @@ try {
   await expect(
     page.getByRole("gridcell", { name: "6", exact: true }),
   ).toBeVisible();
+  await assertDownloadedPage([
+    ["request_id", "hits"],
+    ["18446744073709551615", "6"],
+  ]);
+  await executeSQL(
+    "SELECT request_id, private_time FROM events WHERE request_id = 42",
+    200,
+  );
+  await expect(
+    page.getByRole("gridcell", { name: "[MASKED]", exact: true }),
+  ).toBeVisible();
+  await expect(csvButton).toBeDisabled();
+  console.log(
+    "PASS ClickHouse current-page CSV: only page 2, exact UInt64, whole-page refusal on a masked column",
+  );
   const daily = (start) =>
     `SELECT request_date, count() AS requests FROM http_log WHERE request_date >= '${start}' AND request_date < '2026-11-20' GROUP BY request_date ORDER BY request_date`;
   const full = await executeSQL(daily("2026-11-13"), 200);

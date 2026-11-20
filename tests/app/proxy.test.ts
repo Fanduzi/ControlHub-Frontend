@@ -81,7 +81,9 @@ describe("proxy Operator Session gate", () => {
       sessionConfig(),
     );
     const parts = sealed.split(".");
-    parts[3] = `${parts[3].slice(0, -2)}AA`;
+    const ciphertext = Buffer.from(parts[3], "base64url");
+    ciphertext[0] ^= 1;
+    parts[3] = ciphertext.toString("base64url");
     const response = proxy(
       requestWithCookies({ [SESSION_COOKIE_NAME]: parts.join(".") }),
     );
