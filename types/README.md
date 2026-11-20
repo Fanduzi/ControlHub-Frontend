@@ -52,6 +52,8 @@ transport fields.
 
 ## Interfaces
 
+ClickHouse personal saved-query create and update requests carry `clickHouseGeneration` from the active target.
+
 The Explain v1 model supports ClickHouse `filter` nodes and optional `primaryKeyGranules` counts for the read step.
 
 The optional `QueryTargetAvailableActions.clickHousePaging` controls sending page requests to a ClickHouse worksheet backend.

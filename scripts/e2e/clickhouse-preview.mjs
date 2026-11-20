@@ -461,6 +461,76 @@ try {
   console.log(
     "PASS seven UTC daily counts and lossless UInt64 through the real workbench",
   );
+  const savedSql = daily("2026-11-13");
+  await executeSQL(savedSql, 200);
+  const savedTab = page.getByRole("tab", {
+    name: /^(Saved sheets|已保存脚本)$/i,
+  });
+  const savedName = "ClickHouse browser date range";
+  await savedTab.click();
+  await page
+    .getByRole("button", {
+      name: /^(Save current statement as personal|将当前语句保存为个人查询)$/i,
+    })
+    .click();
+  const form = page.getByRole("dialog");
+  await expect(
+    form.getByRole("textbox", { name: /^(SQL statement|SQL 语句)$/i }),
+  ).toHaveValue(savedSql);
+  await expect(
+    form.getByRole("button", { name: /^(Add parameter|添加参数)$/i }),
+  ).toHaveCount(0);
+  await form
+    .getByRole("textbox", { name: /^(Statement name|语句名称)$/i })
+    .fill(savedName);
+  const written = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      r.url().endsWith(`/query-targets/${target}/saved-statements`),
+  );
+  await form.getByRole("button", { name: /^(Create|创建)$/i }).click();
+  expect((await written).status()).toBe(201);
+  const loadSaved = page.getByRole("button", {
+    name: new RegExp(`^(Load|加载) ${savedName}$`),
+  });
+  await expect(loadSaved).toBeVisible();
+  await page.reload();
+  await savedTab.click();
+  await loadSaved.click();
+  await expect(editor).toHaveText(savedSql);
+  const editedSaved = await executeSQL(daily("2026-11-14"), 200);
+  expect(editedSaved.rows).toEqual([["2026-11-19", "1"]]);
+  await expect(
+    page.getByRole("gridcell", { name: "2026-11-19", exact: true }),
+  ).toBeVisible();
+  const updateDatePolicy = async (mode) => {
+    const r = await fetch(`${backend}/query-disclosure-policies`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        targetResourceId: Number(target),
+        databaseName: "g2",
+        objectName: "http_log",
+        columnName: "request_date",
+        mode,
+      }),
+    });
+    expect(r.status).toBe(204);
+  };
+  await updateDatePolicy("masked_no_copy");
+  try {
+    const deniedSaved = await executeSQL(daily("2026-11-14"), 403);
+    expect(deniedSaved.error).toBe("query_result_disclosure_blocked");
+    await expect(page.getByRole("grid")).toHaveCount(0);
+  } finally {
+    await updateDatePolicy("raw_copy_allowed");
+  }
+  console.log(
+    "PASS ClickHouse personal saved query: save, refresh, load, edit date, Run and reject after policy revocation",
+  );
   console.log(
     "PASS real Chromium login → workbench → selected ClickHouse columns → masked result and NULL",
   );

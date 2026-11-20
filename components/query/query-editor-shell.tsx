@@ -428,8 +428,10 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   }
 
   function loadSavedStatement(item: QuerySavedStatementRecord) {
+    if (item.targetResourceId !== session.active.targetResourceId) return;
     localWorkspaceChangedRef.current = true;
     session.loadSavedStatement(item);
+    if (worksheetTarget?.connectionContext.engine === "clickhouse") setActiveTab("worksheet");
   }
 
   function addWorksheet() {
@@ -1451,6 +1453,8 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
       ) : activeTab === "savedStatements" && worksheetTarget ? (
         <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
           <QuerySavedStatements
+            clickHouse={worksheetTarget.connectionContext.engine === "clickhouse"}
+            clickHouseGeneration={worksheetTarget.availableActions.saveSheet ? worksheetTarget.clickHouseGeneration : undefined}
             targetResourceId={activeWorksheet.targetResourceId}
             database={
               isPostgresTarget
