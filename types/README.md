@@ -52,6 +52,8 @@ transport fields.
 
 ## Interfaces
 
+The Explain v1 model supports ClickHouse `filter` nodes and optional `primaryKeyGranules` counts for the read step.
+
 The optional `QueryTargetAvailableActions.clickHousePaging` controls sending page requests to a ClickHouse worksheet backend.
 
 `QueryTarget.clickHouseGeneration` is echoed by the ordinary `QueryExecuteRequest` for ClickHouse worksheets.

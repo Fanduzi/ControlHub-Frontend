@@ -146,6 +146,61 @@ try {
   console.log(
     "PASS real ClickHouse worksheet: complete ev → events, req → request_id, Run → 42",
   );
+  async function explainSQL(statement, expectedStatus) {
+    await editor.click();
+    await editor.press("ControlOrMeta+a");
+    await page.keyboard.insertText(statement);
+    const received = page.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        r.url().endsWith(`/query-targets/${target}/explain`),
+    );
+    await page.getByTestId("explain-trigger").click();
+    const r = await received;
+    expect(r.status()).toBe(expectedStatus);
+    return r.json();
+  }
+  const aggregate = "SELECT request_date, count() AS hits FROM plan_events";
+  const ordered = " GROUP BY request_date ORDER BY hits DESC";
+  const allPlan = await explainSQL(aggregate + ordered, 200);
+  expect(allPlan.engine).toBe("clickhouse");
+  const all = allPlan.nodes.find(
+    (n) => n.primaryKeyGranules,
+  )?.primaryKeyGranules;
+  expect(all.selected).toBe(all.initial);
+  expect(all.initial).toBeGreaterThan(1);
+  const panelPlan = page.getByTestId("explain-panel");
+  const granulesText = (pair) =>
+    new RegExp(`${pair.selected}\\s*(of|/)\\s*${pair.initial}`);
+  await expect(panelPlan.getByText(granulesText(all))).toBeVisible();
+  const filtered = await explainSQL(
+    aggregate +
+      " WHERE request_date >= '2026-02-01' AND request_date < '2026-02-08'" +
+      ordered,
+    200,
+  );
+  const pruned = filtered.nodes.find(
+    (n) => n.primaryKeyGranules,
+  )?.primaryKeyGranules;
+  expect(pruned.initial).toBe(all.initial);
+  expect(pruned.selected).toBeLessThan(all.selected);
+  await expect(panelPlan.getByText(granulesText(pruned))).toBeVisible();
+  await panelPlan.getByRole("button", { name: /^(Text|文本视图)$/i }).click();
+  await expect(page.getByTestId("explain-text")).toContainText(
+    granulesText(pruned),
+  );
+  const refused = await explainSQL(
+    "SELECT id FROM plan_events WHERE private_label = 'fixture-private'",
+    403,
+  );
+  expect(refused.error).toBe("query_result_disclosure_blocked");
+  expect(refused.nodes).toBeUndefined();
+  await expect(page.getByTestId("explain-error")).toBeVisible();
+  await expect(page.getByTestId("explain-ready")).toHaveCount(0);
+  await page.getByTestId("explain-close").click();
+  console.log(
+    `PASS governed ClickHouse Explain: primary-key granules ${all.selected}/${all.initial} → ${pruned.selected}/${pruned.initial}; masked predicate clears previous plan`,
+  );
   const executions = [];
   for (const id of ["42", "43"]) {
     const result = await executeSQL(

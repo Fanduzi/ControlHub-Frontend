@@ -303,6 +303,9 @@ export async function explainQueryTarget(
 ): Promise<ExplainResponse> {
   const body: ExplainRequest = {
     statement: input.statement,
+    ...(input.maxRows !== undefined ? { maxRows: input.maxRows } : {}),
+    ...(input.pagination ? { pagination: input.pagination } : {}),
+    ...(input.clickHouseGeneration ? { clickHouseGeneration: input.clickHouseGeneration } : {}),
     ...(input.database !== undefined ? { database: input.database } : {}),
     ...(input.schema !== undefined ? { schema: input.schema } : {}),
   };

@@ -306,6 +306,9 @@ export type TablePreviewRequest = {
 
 /** Request body for POST /query-targets/{id}/explain. */
 export type ExplainRequest = {
+  maxRows?: number;
+  pagination?: QueryExecutePaginationRequest;
+  clickHouseGeneration?: string;
   statement: string;
   /** Required for PostgreSQL targets: the pinned database identity. */
   database?: string;
@@ -321,6 +324,7 @@ export type ExplainNodeOperation =
   | "hash_join"
   | "merge_join"
   | "sort"
+  | "filter"
   | "aggregate"
   | "temporary_table"
   /** Known plan-structure nodes (Limit, Hash, Gather, Append…) kept for tree fidelity. */
@@ -348,6 +352,7 @@ export type ExplainRiskSeverity = "info" | "warning" | "critical";
 
 /** One normalized plan node. Only bounded identifiers leave the backend — no predicates or literals. */
 export type ExplainNode = {
+  primaryKeyGranules?: { selected: number; initial: number };
   id: string;
   parentId?: string | null;
   operation: ExplainNodeOperation;
@@ -374,7 +379,7 @@ export type ExplainRisk = {
 /** Response body for POST /query-targets/{id}/explain. Versioned, normalized, leak-free. */
 export type ExplainResponse = {
   targetResourceId: number;
-  engine: "mysql" | "postgresql";
+  engine: "mysql" | "postgresql" | "clickhouse";
   formatVersion: number;
   nodes: ExplainNode[];
   risks: ExplainRisk[];
