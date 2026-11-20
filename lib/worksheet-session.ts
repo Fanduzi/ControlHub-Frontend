@@ -1025,10 +1025,15 @@ export class WorksheetSession {
       },
     });
     try {
+      const generation = this.engineFor(targetId) === "clickhouse"
+        ? this.generationFor(targetId) : undefined;
       const response = await this.ports.explain(targetId, {
         statement,
-        ...(worksheet.activeDatabase !== null ? { database: worksheet.activeDatabase } : {}),
-        ...(worksheet.activeSchema !== null ? { schema: worksheet.activeSchema } : {}),
+        ...(generation ? { clickHouseGeneration: generation, maxRows: worksheet.maxRows } : {}),
+        ...(generation && this.clickHousePagingFor(targetId)
+          ? { pagination: { page: 1, pageSize: worksheet.pageSize } } : {}),
+        ...(!generation && worksheet.activeDatabase !== null ? { database: worksheet.activeDatabase } : {}),
+        ...(!generation && worksheet.activeSchema !== null ? { schema: worksheet.activeSchema } : {}),
       });
       const current = this.worksheets.find((ws) => ws.id === worksheet.id);
       if (

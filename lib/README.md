@@ -113,6 +113,8 @@ Resource name, alias, and external-identifier conflicts each have a distinct cod
 
 ## Interfaces
 
+ClickHouse Explain sends the current worksheet approval generation; PostgreSQL continues to use its database/schema selection.
+
 - `parseResourceListSearchParams` preserves the structured Inventory search contract while dropping pagination snapshots from saved views.
 - `parseAuditListSearchParams` normalizes audit pagination, environment URL state, and repeated filters.
 - `parsePositiveDecimalInteger` accepts only safe positive decimal URL IDs.

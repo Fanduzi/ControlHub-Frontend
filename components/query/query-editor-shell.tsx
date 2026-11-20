@@ -2376,6 +2376,7 @@ function ExplainPanel({
                   node.totalCost !== undefined
                     ? `cost=${(node.startupCost ?? node.totalCost).toFixed(2)}..${node.totalCost.toFixed(2)}`
                     : null,
+                  node.primaryKeyGranules ? t("explain.primaryKeyGranules", node.primaryKeyGranules) : null,
                   node.estimatedRows !== undefined ? `rows=${node.estimatedRows}` : null,
                 ].filter(Boolean).join(" ");
                 return `${"  ".repeat(depth)}${name}${ref}${meta ? `  (${meta})` : ""}`;
@@ -2437,6 +2438,9 @@ function ExplainPanel({
                             cost={(node.startupCost ?? node.totalCost).toFixed(2)}..{node.totalCost.toFixed(2)}
                           </span>
                         ) : null}
+                        {node.primaryKeyGranules && (
+                          <span className="text-xs text-muted-foreground">{t("explain.primaryKeyGranules", node.primaryKeyGranules)}</span>
+                        )}
                         {node.estimatedRows !== undefined ? (
                           <span className="text-xs text-muted-foreground">
                             {t("explain.estimatedRowsLabel")}: {node.estimatedRows}

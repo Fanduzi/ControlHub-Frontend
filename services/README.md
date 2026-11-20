@@ -7,6 +7,8 @@ Frontend API service modules.
 
 ## Files
 
+`explainQueryTarget` forwards the ClickHouse generation to the governed Explain route.
+
 `executeQueryTarget` forwards the ClickHouse worksheet's generation on the ordinary Run route.
 
 | File | Responsibility |
