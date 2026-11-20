@@ -52,9 +52,9 @@ export function parseStoredEditorHeight(value: string | null): number | null {
 }
 
 export const QUERY_RESULT_PAGE_SIZE_STORAGE_KEY = "controlhub.query.result-page-size";
-export const QUERY_RESULT_PAGE_SIZES = [10, 25, 50, 100] as const;
+export const QUERY_RESULT_PAGE_SIZES = [5, 10, 25, 50, 100] as const;
 
-const DEFAULT_PAGE_SIZE = QUERY_RESULT_PAGE_SIZES[0];
+export const DEFAULT_PAGE_SIZE = 10;
 const VALID_PAGE_SIZES = new Set<number>(QUERY_RESULT_PAGE_SIZES);
 
 export function getPageSize(): number {

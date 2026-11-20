@@ -65,7 +65,7 @@ describe("Phase 38S: page-size localStorage persistence", () => {
     expect(localStorage.length).toBe(1);
   });
 
-  it("validates stored page size against allowed values [10, 25, 50, 100]", () => {
+  it("validates stored page size against allowed values [5, 10, 25, 50, 100]", () => {
     for (const value of QUERY_RESULT_PAGE_SIZES) {
       setPageSize(value);
       expect(getPageSize()).toBe(value);

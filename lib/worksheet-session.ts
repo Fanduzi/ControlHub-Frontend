@@ -11,6 +11,7 @@ import {
 import { executeSavedStatementTemplate } from "@/services/query-saved-statements";
 import {
   DEFAULT_QUERY_MAX_ROWS,
+  DEFAULT_PAGE_SIZE,
   QUERY_RESULT_PAGE_SIZES,
 } from "@/lib/query-editor-preferences";
 import type {
@@ -153,6 +154,8 @@ export type Worksheet = {
   currentPage: number;
   pageSize: number;
   resultPagination: QueryExecutePaginationResponse | null;
+  /** Approval under which this result was obtained. Page navigation stays on that generation. */
+  resultGeneration?: string;
 };
 
 export type WorksheetSessionPorts = {
@@ -367,6 +370,7 @@ export class WorksheetSession {
   private version = 0;
   private readonly ports: WorksheetSessionPorts;
   private readonly createId: () => string;
+  private readonly clickHousePagingFor: (targetId: number) => boolean;
   private readonly generationFor: (targetId: number) => string | undefined;
   private readonly engineFor: (targetId: number) => string | undefined;
   private readonly inflight = new Map<string, InflightAttempt>();
@@ -384,6 +388,7 @@ export class WorksheetSession {
      * Resolves a worksheet's target engine. Unknown/absent resolves to the
      * non-PostgreSQL path: no connection fields, no idempotency key.
      */
+    readonly clickHousePagingFor?: (targetId: number) => boolean;
     readonly generationFor?: (targetId: number) => string | undefined;
     readonly engineFor?: (targetId: number) => string | undefined;
     readonly initialMaxRows?: number;
@@ -393,6 +398,7 @@ export class WorksheetSession {
   }) {
     this.ports = { ...defaultPorts, ...options.ports };
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    this.clickHousePagingFor = options.clickHousePagingFor ?? (() => false);
     this.generationFor = options.generationFor ?? (() => undefined);
     this.engineFor = options.engineFor ?? (() => undefined);
     this.worksheetName = options.worksheetName ?? ((index) => `Worksheet ${index}`);
@@ -406,7 +412,7 @@ export class WorksheetSession {
         options.initialTargetId,
         "req-initial",
         options.initialMaxRows ?? DEFAULT_QUERY_MAX_ROWS,
-        options.initialPageSize ?? QUERY_RESULT_PAGE_SIZES[0],
+        options.initialPageSize ?? DEFAULT_PAGE_SIZE,
       ),
     ];
   }
@@ -590,6 +596,7 @@ export class WorksheetSession {
       statement,
       isDirty: true,
       formatError: null,
+      ...(worksheet.resultGeneration ? { resultPagination: null, resultGeneration: undefined, currentPage: 1 } : {}),
       ...(exitingTemplate
         ? {
             parameters: [],
@@ -941,6 +948,7 @@ export class WorksheetSession {
       worksheet.pageSize,
       worksheet.maxRows,
       worksheet.templateStatementId,
+      worksheet.resultGeneration,
     );
   }
 
@@ -964,6 +972,7 @@ export class WorksheetSession {
       worksheet.pageSize,
       worksheet.maxRows,
       worksheet.templateStatementId,
+      worksheet.resultGeneration,
     );
   }
 
@@ -990,6 +999,7 @@ export class WorksheetSession {
       pageSize,
       worksheet.maxRows,
       worksheet.templateStatementId,
+      worksheet.resultGeneration,
     );
   }
 
@@ -1644,6 +1654,8 @@ export class WorksheetSession {
     maxRows: number,
     signal: AbortSignal,
     clientExecutionId: string | undefined,
+    clickHouseGeneration: string | undefined,
+    includePagination: boolean,
   ): Promise<QueryExecuteResponse | null> {
     const pg = this.isPostgres(targetId);
     const database = pg ? (worksheet.activeDatabase ?? undefined) : undefined;
@@ -1663,12 +1675,12 @@ export class WorksheetSession {
         { ...(database !== undefined ? { database } : {}), signal },
       );
     }
-    const clickHouseGeneration = this.engineFor(targetId) === "clickhouse" ? this.generationFor(targetId) : undefined;
     return this.ports.execute(
       targetId,
       {
         statement: worksheet.statement,
-        ...(clickHouseGeneration ? { clickHouseGeneration } : { pagination: { page, pageSize } }),
+        ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
+        ...(includePagination ? { pagination: { page, pageSize } } : {}),
         ...(database !== undefined ? { database } : {}),
         ...(schema !== undefined ? { schema } : {}),
         ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
@@ -1686,6 +1698,7 @@ export class WorksheetSession {
     pageSize: number,
     maxRows: number,
     templateStatementId: number | null,
+    pageGeneration?: string,
   ): Promise<void> {
     const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
     if (!worksheet || worksheet.requestId !== requestId) return;
@@ -1701,6 +1714,7 @@ export class WorksheetSession {
       controller,
     });
     try {
+      const generation = pageGeneration ?? (this.engineFor(targetId) === "clickhouse" ? this.generationFor(targetId) : undefined);
       const response = await this.executePage(
         worksheet,
         targetId,
@@ -1709,6 +1723,8 @@ export class WorksheetSession {
         maxRows,
         controller.signal,
         clientExecutionId,
+        generation,
+        !generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId),
       );
       if (!response) return;
       // Fail closed on a context echo that mismatches the request binding —
@@ -1735,6 +1751,7 @@ export class WorksheetSession {
         result: response,
         currentPage: response.pagination?.page ?? page,
         resultPagination: response.pagination ?? null,
+        resultGeneration: response.pagination ? generation : undefined,
       });
     } catch (caught) {
       if (isAbortError(caught) || controller.signal.aborted) {
@@ -1771,6 +1788,7 @@ export class WorksheetSession {
       }
       this.guardedPatch(worksheetId, requestId, {
         result: null,
+        resultPagination: null,
         error: templateError,
         ...(templateStatementId !== null ? { templateFieldErrors: templateError?.details ?? {} } : {}),
       });
