@@ -9,6 +9,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { Prec, type Extension } from "@codemirror/state";
 import { tags } from "@lezer/highlight";
 
+import { clickHouseEditorDialect, clickHouseCompletions } from "@/lib/clickhouse-completion";
 import { cn } from "@/lib/utils";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import {
@@ -252,8 +253,10 @@ export function SqlCodeEditorClient({
   }, [onEditorView]);
 
   const sqlCompletionSource = useCallback(
-    (ctx: CompletionContext) => createSqlCompletionSource(schemaNamespace, columnFetcher)(ctx),
-    [schemaNamespace, columnFetcher],
+    (ctx: CompletionContext) => engine === "clickhouse"
+      ? clickHouseCompletions(ctx, schemaNamespace)
+      : createSqlCompletionSource(schemaNamespace, columnFetcher)(ctx),
+    [engine, schemaNamespace, columnFetcher],
   );
 
   const extensions = useMemo(() => {
@@ -261,7 +264,7 @@ export function SqlCodeEditorClient({
     const dialect =
       normalizedEngine === "mysql" || normalizedEngine === "tidb"
         ? MySQL
-        : StandardSQL;
+        : normalizedEngine === "clickhouse" ? clickHouseEditorDialect : StandardSQL;
 
     const extensions: Extension[] = [
       sql({ dialect }),

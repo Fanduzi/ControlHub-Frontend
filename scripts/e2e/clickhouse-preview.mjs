@@ -93,6 +93,59 @@ try {
     const csv = await readFile(await download.path(), "utf8");
     expect(parseCsv(csv)).toEqual(expectedRecords);
   }
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await page.keyboard.insertText("SELECT  FROM ");
+  await editor.press("Control+Space");
+  const suggestions = page.locator(".cm-tooltip-autocomplete");
+  await expect(
+    suggestions.getByRole("option", { name: "events", exact: true }),
+  ).toBeVisible();
+  await expect(
+    suggestions.getByRole("option", { name: "sample", exact: true }),
+  ).toHaveCount(0);
+  await editor.press("Escape");
+  await page.keyboard.type("ev");
+  await suggestions
+    .getByRole("option", { name: "events", exact: true })
+    .click();
+  await expect(editor).toHaveText("SELECT  FROM events");
+  await editor.press("Home");
+  for (let i = 0; i < "SELECT ".length; i++) await editor.press("ArrowRight");
+  await editor.press("Control+Space");
+  await expect(
+    suggestions.getByRole("option", { name: "request_id", exact: true }),
+  ).toBeVisible();
+  await expect(
+    suggestions.getByRole("option", { name: "missing_date", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    suggestions.getByRole("option", { name: "service", exact: true }),
+  ).toHaveCount(0);
+  await editor.press("Escape");
+  await page.keyboard.type("req");
+  await suggestions
+    .getByRole("option", { name: "request_id", exact: true })
+    .click();
+  await editor.press("End");
+  await page.keyboard.insertText(" WHERE request_id = 42 LIMIT 10");
+  const completed = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      r.url().endsWith(`/query-targets/${target}/execute`),
+  );
+  await run.click();
+  const executed = await completed;
+  expect(executed.request().postDataJSON().statement).toBe(
+    "SELECT request_id FROM events WHERE request_id = 42 LIMIT 10",
+  );
+  expect(executed.status()).toBe(200);
+  await expect(
+    page.getByRole("gridcell", { name: "42", exact: true }),
+  ).toBeVisible();
+  console.log(
+    "PASS real ClickHouse worksheet: complete ev → events, req → request_id, Run → 42",
+  );
   const executions = [];
   for (const id of ["42", "43"]) {
     const result = await executeSQL(
