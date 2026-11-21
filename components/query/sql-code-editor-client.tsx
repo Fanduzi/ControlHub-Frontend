@@ -267,8 +267,11 @@ export function SqlCodeEditorClient({
         : normalizedEngine === "clickhouse" ? clickHouseEditorDialect : StandardSQL;
 
     const redis = normalizedEngine === "redis";
-    const extensions: Extension[] = [layoutTheme, syntaxThemes[resolvedTheme]];
-    if (!redis) extensions.push(sql({ dialect }));
+    const extensions: Extension[] = [
+      ...(redis ? [] : [sql({ dialect })]),
+      layoutTheme,
+      syntaxThemes[resolvedTheme],
+    ];
 
     if (!readOnly) {
       extensions.push(
