@@ -475,7 +475,10 @@ describe("QueryWorkbench", () => {
 
   it("narrows the target list with search in the connection navigator", async () => {
     const user = userEvent.setup();
-    renderWorkbench();
+    const targets = buildTargets();
+    const matches = targets.filter((target) => target.capability.queryKind === "redis");
+    mockGetQueryTargets.mockResolvedValue({ items: matches, pageInfo: pageInfoFor(matches) });
+    renderWorkbench(targets);
     openConnections();
 
     expect(
@@ -489,13 +492,17 @@ describe("QueryWorkbench", () => {
     await user.type(searchInput, "redis");
 
     await waitFor(() => {
+      expect(mockGetQueryTargets).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "redis" }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
       expect(
         screen.getByRole("button", { name: "Payment Redis Cache" }),
       ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
+      ).not.toBeInTheDocument();
     });
-    expect(
-      screen.queryByRole("button", { name: "Analytics ClickHouse Node 01" }),
-    ).not.toBeInTheDocument();
   });
 
   it("does not render the removed safety education banner under the zh-CN locale", () => {

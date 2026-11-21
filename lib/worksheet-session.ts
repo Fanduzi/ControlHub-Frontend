@@ -234,12 +234,13 @@ function createWorksheetRecord(
   requestId: string,
   maxRows: number,
   pageSize: number,
+  statement = DEFAULT_STATEMENT,
 ): Worksheet {
   return {
     id,
     name,
     targetResourceId,
-    statement: DEFAULT_STATEMENT,
+    statement,
     parameters: [],
     parameterValues: {},
     templateStatementId: null,
@@ -424,6 +425,7 @@ export class WorksheetSession {
         "req-initial",
         options.initialMaxRows ?? DEFAULT_QUERY_MAX_ROWS,
         options.initialPageSize ?? DEFAULT_PAGE_SIZE,
+        this.defaultStatementFor(options.initialTargetId),
       ),
     ];
   }
@@ -478,6 +480,7 @@ export class WorksheetSession {
       `req-${unique}`,
       this.active.maxRows,
       this.active.pageSize,
+      this.defaultStatementFor(targetResourceId),
     );
     this.worksheets = [...this.worksheets, worksheet];
     this.activate(worksheet.id);
@@ -511,6 +514,7 @@ export class WorksheetSession {
           "req-initial",
           maxRows,
           pageSize,
+          this.defaultStatementFor(fallbackTargetId),
         ),
       ];
       this.activeWorksheetId = INITIAL_WORKSHEET_ID;
@@ -714,6 +718,9 @@ export class WorksheetSession {
     this.patch(worksheetId, {
       ...this.contextResetPatch(worksheet),
       targetResourceId: newTargetId,
+      ...(worksheet.statement === this.defaultStatementFor(worksheet.targetResourceId)
+        ? { statement: this.defaultStatementFor(newTargetId) }
+        : {}),
       activeDatabase: null,
       activeSchema: null,
       formatError: null,
@@ -914,8 +921,8 @@ export class WorksheetSession {
   async run(): Promise<void> {
     const worksheet = this.active;
     if (worksheet.isExecuting || worksheet.statement.trim() === "") return;
-    const clickHouse = this.engineFor(worksheet.targetResourceId) === "clickhouse";
-    if (worksheet.templateStatementId !== null && !buildTemplateValues(worksheet, clickHouse)) return;
+    const engine = this.engineFor(worksheet.targetResourceId);
+    if (worksheet.templateStatementId !== null && !buildTemplateValues(worksheet, engine === "clickhouse")) return;
     // PostgreSQL requires a selected composite connection; refuse to send a
     // contextless request (the UI gates the same condition on the Run button).
     if (this.isPostgres(worksheet.targetResourceId) && !worksheet.activeDatabase) return;
@@ -939,6 +946,7 @@ export class WorksheetSession {
       },
       explain: invalidateExplainState(worksheet.explain),
       ...(statementChanged ? { previewProvenance: null } : {}),
+      ...(engine === "redis" ? { result: null, resultPagination: null } : {}),
     });
     await this.applyPage(worksheet.id, requestId, worksheet.targetResourceId, 1, worksheet.pageSize, worksheet.maxRows, worksheet.templateStatementId);
   }
@@ -1662,6 +1670,10 @@ export class WorksheetSession {
     );
   }
 
+  private defaultStatementFor(targetId: number): string {
+    return this.engineFor(targetId) === "redis" ? "" : DEFAULT_STATEMENT;
+  }
+
   private isPostgres(targetId: number): boolean {
     return this.engineFor(targetId) === "postgresql";
   }
@@ -1677,11 +1689,12 @@ export class WorksheetSession {
     clickHouseGeneration: string | undefined,
     includePagination: boolean,
   ): Promise<QueryExecuteResponse | null> {
-    const pg = this.isPostgres(targetId);
+    const engine = this.engineFor(targetId);
+    const pg = engine === "postgresql";
     const database = pg ? (worksheet.activeDatabase ?? undefined) : undefined;
     const schema = pg ? (worksheet.activeSchema ?? undefined) : undefined;
     if (worksheet.templateStatementId !== null) {
-      const values = buildTemplateValues(worksheet, this.engineFor(targetId) === "clickhouse");
+      const values = buildTemplateValues(worksheet, engine === "clickhouse");
       if (!values) return null;
       return this.ports.executeTemplate(
         targetId,
@@ -1705,7 +1718,7 @@ export class WorksheetSession {
         ...(database !== undefined ? { database } : {}),
         ...(schema !== undefined ? { schema } : {}),
         ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
-        maxRows,
+        ...(engine === "redis" ? {} : { maxRows }),
       },
       { signal },
     );
@@ -1735,7 +1748,8 @@ export class WorksheetSession {
       controller,
     });
     try {
-      const generation = pageGeneration ?? (this.engineFor(targetId) === "clickhouse" ? this.generationFor(targetId) : undefined);
+      const engine = this.engineFor(targetId);
+      const generation = pageGeneration ?? (engine === "clickhouse" ? this.generationFor(targetId) : undefined);
       const response = await this.executePage(
         worksheet,
         targetId,
@@ -1745,7 +1759,7 @@ export class WorksheetSession {
         controller.signal,
         clientExecutionId,
         generation,
-        !generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId),
+        engine !== "redis" && (!generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId)),
       );
       if (!response) return;
       // Fail closed on a context echo that mismatches the request binding —

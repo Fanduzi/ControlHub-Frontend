@@ -23,5 +23,7 @@ React client components for the query workbench feature.
 | query-object-tree.tsx | Schema tree rendering (database→object; optional PostgreSQL connection→schema→object); object rows accept an optional right-click context menu via `renderObjectMenu` |
 | query-relationship-map.tsx | FK relationship map dialog with localized controlled errors and transient-only retry |
 | query-schema-browser.tsx | Mobile schema browser sheet |
-| sql-code-editor.tsx | Lazy-loaded CodeMirror SQL editor |
-| sql-code-editor-client.tsx | Client-side CodeMirror SQL editor with engine-specific completions (ClickHouse resolves bare columns against its single approved FROM table); declares `.cm-content` keyboard entry explicitly (`tabindex` 0, or -1 while disabled) |
+| sql-code-editor.tsx | Lazy-loaded CodeMirror worksheet editor |
+| sql-code-editor-client.tsx | Client-side CodeMirror editor with engine-specific SQL extensions and completions. Redis uses native command text in the same editor. Declares `.cm-content` keyboard entry explicitly (`tabindex` 0, or -1 while disabled). |
+
+Approved Redis keys appear in the existing Objects pane. The command editor, Run, result grid and history are shared across engines.

@@ -93,6 +93,10 @@ try {
     const csv = await readFile(await download.path(), "utf8");
     expect(parseCsv(csv)).toEqual(expectedRecords);
   }
+  const objectsToggle = page.getByRole("button", { name: /^(Objects|对象)$/i });
+  await objectsToggle.click();
+  await expect(page.getByRole("complementary", { name: /^(Objects|对象)$/i }).getByText("events", { exact: true })).toBeVisible();
+  await objectsToggle.click();
   await editor.click();
   await editor.press("ControlOrMeta+a");
   await page.keyboard.insertText("SELECT  FROM ");

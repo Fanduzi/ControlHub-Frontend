@@ -160,7 +160,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
 
   const pagingTargetsRef = useRef(new Set<number>());
   const generationByTargetRef = useRef(new Map<number, string | undefined>());
-  const engineByTargetRef = useRef(new Map<number, string>());
+  const engineByTargetRef = useRef(new Map([[activeTarget.resourceId, activeTarget.connectionContext.engine]]));
   const tRef = useRef(t);
   tRef.current = t;
   const [session] = useState(
@@ -412,8 +412,12 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? null;
   const actions = worksheetTarget?.availableActions;
   const canExecute = actions?.run === true;
+  const isRedisTarget = worksheetTarget?.capability.editorMode === "redis";
+  const worksheetTabs = isRedisTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
+  const displayedTab = isRedisTarget && activeTab === "savedStatements" ? "worksheet" : activeTab;
 
   function activeMaxRowsDraftIsValid(): boolean {
+    if (isRedisTarget) return true;
     const tracked = activeMaxRowsDraftValidityRef.current;
     return tracked.worksheetId !== activeWorksheetId || tracked.valid;
   }
@@ -453,7 +457,8 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     if (worksheets.length <= 1) return;
     const worksheet = worksheets.find((ws) => ws.id === id);
     if (!worksheet) return;
-    if (worksheet.statement.trim() !== DEFAULT_STATEMENT.trim() || worksheet.isDirty) {
+    const redis = targetsById.get(worksheet.targetResourceId)?.capability.editorMode === "redis";
+    if (worksheet.statement.trim() !== (redis ? "" : DEFAULT_STATEMENT) || worksheet.isDirty) {
       setCloseConfirmDialog({ open: true, worksheetId: id });
     } else {
       executeCloseWorksheet(id);
@@ -692,7 +697,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
 
   useEffect(() => {
     const targetId = activeWorksheet.targetResourceId;
-    if (!worksheetTarget?.availableActions.run || worksheetTarget.connectionContext.engine === "clickhouse") return;
+    if (!worksheetTarget?.availableActions.run || worksheetTarget.capability.queryKind !== "sql" || worksheetTarget.connectionContext.engine === "clickhouse") return;
     if (isPostgresTarget) {
       // Composite targets enumerate connections from the target row; schemas
       // load lazily once a connection is selected.
@@ -725,6 +730,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     isPostgresTarget,
     metadataRetryKey,
     schemaStore,
+    worksheetTarget?.capability.queryKind,
     worksheetTarget?.connectionContext.engine,
     worksheetTarget?.availableActions.run,
   ]);
@@ -756,7 +762,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     schemaStore,
   ]);
 
-  const effectiveCompletionDatabase = worksheetTarget?.connectionContext.engine === "clickhouse" ? null : isPostgresTarget
+  const effectiveCompletionDatabase = isRedisTarget || worksheetTarget?.connectionContext.engine === "clickhouse" ? null : isPostgresTarget
     ? activeWorksheet.activeDatabase
     : activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
 
@@ -1130,8 +1136,8 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
       >
       <div className="flex items-center justify-between border-b border-border bg-muted/30">
         <div role="tablist" aria-label={t("editor.sectionsTab")} className="flex flex-wrap">
-          {WORKSHEET_TABS.map((tab, index) => {
-            const active = tab.id === activeTab;
+          {worksheetTabs.map((tab, index) => {
+            const active = tab.id === displayedTab;
             return (
               <button
                 key={tab.id}
@@ -1142,7 +1148,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
                 aria-controls={active ? `section-panel-${tab.id}` : undefined}
                 tabIndex={active ? 0 : -1}
                 onKeyDown={(e) => {
-                  const tabs = WORKSHEET_TABS;
+                  const tabs = worksheetTabs;
                   const focusTab = (id: WorksheetTab) => {
                     selectWorksheetTab(id);
                     document.getElementById(`section-tab-${id}`)?.focus();
@@ -1178,15 +1184,14 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
           <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
             {t("editor.readonlyBadge")}
           </Badge>
-          <span>{t("editor.timeout")}</span>
-          <span>{t("editor.maxRows")}</span>
+          {!isRedisTarget && <><span>{t("editor.timeout")}</span><span>{t("editor.maxRows")}</span></>}
         </div>
       </div>
 
       {worksheetTarget ? (
         <>
           <QueryGovernancePanel target={worksheetTarget} />
-          <QueryObjectQuickNavigator
+          {!isRedisTarget && <QueryObjectQuickNavigator
             catalog={schemaStore}
             targetId={activeWorksheet.targetResourceId}
             activeDatabase={activeWorksheet.activeDatabase}
@@ -1217,7 +1222,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
               });
               insertIdentifierAtSelection(view, text);
             }}
-          />
+          />}
           {isPostgresTarget ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2" data-testid="pg-context-bar">
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -1317,7 +1322,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
         </div>
       )}
 
-      {activeTab === "worksheet" ? (
+      {displayedTab === "worksheet" ? (
         canExecute ? (
           <div id="section-panel-worksheet" role="tabpanel" aria-labelledby="section-tab-worksheet">
             <ReadyWorksheet
@@ -1359,7 +1364,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
               explainState={activeWorksheet.explain}
               onExplain={handleExplain}
               onCloseExplain={handleCloseExplain}
-              onFormat={handleFormat}
+              onFormat={isRedisTarget ? undefined : handleFormat}
               onEditorView={(view) => { editorViewRef.current = view; }}
               formatError={activeWorksheet.formatError}
               clickHouseNamespace={
@@ -1416,7 +1421,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
             <LockedResult />
           </div>
         )
-      ) : activeTab === "history" && canExecute ? (
+      ) : displayedTab === "history" && canExecute ? (
         <div id="section-panel-history" role="tabpanel" aria-labelledby="section-tab-history">
           <QueryHistoryPanel
             status={activeWorksheet.history.replaceStatus}
@@ -1451,7 +1456,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
             restoreBlocked={worksheets.length >= MAX_WORKSHEETS}
           />
         </div>
-      ) : activeTab === "savedStatements" && worksheetTarget ? (
+      ) : displayedTab === "savedStatements" && worksheetTarget ? (
         <div id="section-panel-savedStatements" role="tabpanel" aria-labelledby="section-tab-savedStatements">
           <QuerySavedStatements
             clickHouse={worksheetTarget.connectionContext.engine === "clickhouse"}
@@ -1729,7 +1734,7 @@ function ReadyWorksheet({
   explainState: ExplainState;
   onExplain: () => void;
   onCloseExplain: () => void;
-  onFormat: () => void;
+  onFormat?: () => void;
   onEditorView?: (view: EditorView) => void;
   formatError: string | null;
   engine?: string;
@@ -1787,7 +1792,9 @@ function ReadyWorksheet({
   }
 
   const draftResult = parseMaxRowsDraft(maxRowsDraft);
-  const canRun = runEnabled && draftResult.valid;
+  const redis = engine === "redis";
+  const canRun = runEnabled && (redis || draftResult.valid);
+  const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
 
   return (
     <div className="flex flex-col">
@@ -1823,16 +1830,18 @@ function ReadyWorksheet({
             {explainLoading ? t("explain.loading") : t("explain.trigger")}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onFormat}
-          disabled={isExecuting || explainLoading}
-        >
-          {t("editor.format")}
-        </Button>
-        <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+        {onFormat && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onFormat}
+            disabled={isExecuting || explainLoading}
+          >
+            {t("editor.format")}
+          </Button>
+        )}
+        {!redis && <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span>{t("editor.maxRowsLabel")}</span>
           <Input
             type="number"
@@ -1858,7 +1867,7 @@ function ReadyWorksheet({
               {t("editor.maxRowsRangeError")}
             </p>
           )}
-        </label>
+        </label>}
         <span className="ml-auto text-xs text-muted-foreground">
           {isExecuting ? t("editor.runReady") : t("editor.ready")}
         </span>
@@ -1894,7 +1903,7 @@ function ReadyWorksheet({
 
       <div className="border-b border-border bg-muted/20 p-3">
         <label className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {t("editor.statementLabel")}
+          {statementLabel}
         </label>
         {metadataError ? (
           <div
@@ -1922,7 +1931,7 @@ function ReadyWorksheet({
           onRun={canRun ? onRun : undefined}
           onFormat={onFormat}
           onEditorView={onEditorView}
-          ariaLabel={t("editor.statementLabel")}
+          ariaLabel={statementLabel}
           disabled={isExecuting || explainLoading}
           themePreference={themePreference}
           height={editorHeight}
@@ -1998,7 +2007,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {error ? (
-          <ExecuteErrorPanel error={error} onRetry={onRun} />
+          <ExecuteErrorPanel error={error} onRetry={onRun} redis={redis} />
         ) : result ? (
           <>
             <ExecuteResult
@@ -3004,9 +3013,11 @@ function explainErrorCopyCode(code: string | null): string {
 function ExecuteErrorPanel({
   error,
   onRetry,
+  redis,
 }: {
   error: QueryExecuteError;
   onRetry: () => void;
+  redis: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
   const copyCode = executeErrorCopyCode(error.code);
@@ -3019,7 +3030,7 @@ function ExecuteErrorPanel({
     >
       <p className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
         <TriangleAlert className="size-4 shrink-0" aria-hidden />
-        {t(`error.${copyCode}`)}
+        {redis && copyCode === "validation_failed" ? t("editor.redisValidationFailed") : t(`error.${copyCode}`)}
       </p>
       {showRetry ? (
         <Button type="button" size="sm" variant="outline" onClick={onRetry}>
