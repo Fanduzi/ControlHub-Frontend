@@ -29,7 +29,7 @@ page-gate surface; HTTP routes are adapters.
 details, and SQL completion namespace keyed by 库身份. Object explorer,
 worksheet completion, and Cmd+P read it.
 
-`worksheet-session.ts` sends the approved generation on ClickHouse Run and reuses it for page navigation when the server advertises `clickHousePaging`. Earlier servers receive the single-result request. The shared page size defaults to 10 and also offers 5. It is the query workbench 工作表 session: run, paging,
+`worksheet-session.ts` sends the approved generation on ordinary and saved ClickHouse Run and reuses it for page navigation. Editing a ClickHouse template value clears the previous result and cancels its in-flight request. Older servers receive a single-result request for ordinary SQL. The shared page size defaults to 10 and also offers 5. It is the query workbench 工作表 session: run, paging,
 template enter/exit, explain, related records, history, and persisted drafts.
 Typing uses `editStatement`; load/replace still use `replaceStatement`.
 

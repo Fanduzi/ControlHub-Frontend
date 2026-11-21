@@ -52,7 +52,7 @@ transport fields.
 
 ## Interfaces
 
-ClickHouse personal saved-query create and update requests carry `clickHouseGeneration` from the active target.
+ClickHouse personal saved-query create, update and execute requests carry `clickHouseGeneration` from the worksheet.
 
 The Explain v1 model supports ClickHouse `filter` nodes and optional `primaryKeyGranules` counts for the read step.
 

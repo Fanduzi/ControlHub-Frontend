@@ -7,7 +7,7 @@ Frontend API service modules.
 
 ## Files
 
-`query-saved-statements.ts` forwards the current ClickHouse generation on personal create/update requests.
+`query-saved-statements.ts` forwards the ClickHouse approval generation on personal create, update, Run and page requests.
 
 `explainQueryTarget` forwards the ClickHouse generation to the governed Explain route.
 

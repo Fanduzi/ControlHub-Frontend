@@ -276,19 +276,30 @@ function toRFC3339To(dateStr: string): string {
 
 function buildTemplateValues(
   worksheet: Worksheet,
+  clickHouse = false,
 ): Readonly<Record<string, QuerySavedStatementParameterValue>> | null {
   const values: Record<string, QuerySavedStatementParameterValue> = {};
   for (const parameter of worksheet.parameters) {
     const raw = (worksheet.parameterValues[parameter.name] ?? "").trim();
-    if (raw === "") return null;
+    if (raw === "") {
+      if (clickHouse) continue;
+      return null;
+    }
     switch (parameter.type) {
-      case "integer":
-        values[parameter.name] = Number(raw);
+      case "integer": {
+        const integer = Number(raw);
+        // NaN serializes as null so the server returns the usual invalid-value error.
+        values[parameter.name] = clickHouse && (!/^\d+$/.test(raw) || !Number.isSafeInteger(integer))
+          ? NaN
+          : integer;
         break;
+      }
       case "boolean":
         values[parameter.name] = raw === "true";
         break;
       case "string":
+        values[parameter.name] = clickHouse ? worksheet.parameterValues[parameter.name] : raw;
+        break;
       case "decimal":
         values[parameter.name] = raw;
         break;
@@ -684,7 +695,10 @@ export class WorksheetSession {
       });
       return;
     }
+    const clickHouse = this.engineFor(ws.targetResourceId) === "clickhouse";
+    if (clickHouse) this.abortInflight(ws.id);
     this.patch(ws.id, {
+      ...(clickHouse ? { result: null, resultPagination: null, currentPage: 1, resultGeneration: undefined } : {}),
       parameterValues: { ...ws.parameterValues, [name]: value },
       templateFieldErrors,
       requestId: this.createId(),
@@ -900,7 +914,8 @@ export class WorksheetSession {
   async run(): Promise<void> {
     const worksheet = this.active;
     if (worksheet.isExecuting || worksheet.statement.trim() === "") return;
-    if (worksheet.templateStatementId !== null && !buildTemplateValues(worksheet)) return;
+    const clickHouse = this.engineFor(worksheet.targetResourceId) === "clickhouse";
+    if (worksheet.templateStatementId !== null && !buildTemplateValues(worksheet, clickHouse)) return;
     // PostgreSQL requires a selected composite connection; refuse to send a
     // contextless request (the UI gates the same condition on the Run button).
     if (this.isPostgres(worksheet.targetResourceId) && !worksheet.activeDatabase) return;
@@ -1666,13 +1681,14 @@ export class WorksheetSession {
     const database = pg ? (worksheet.activeDatabase ?? undefined) : undefined;
     const schema = pg ? (worksheet.activeSchema ?? undefined) : undefined;
     if (worksheet.templateStatementId !== null) {
-      const values = buildTemplateValues(worksheet);
+      const values = buildTemplateValues(worksheet, this.engineFor(targetId) === "clickhouse");
       if (!values) return null;
       return this.ports.executeTemplate(
         targetId,
         worksheet.templateStatementId,
         {
           values,
+          ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
           ...(clientExecutionId !== undefined ? { clientExecutionId } : {}),
           maxRows,
           pagination: { page, pageSize },
