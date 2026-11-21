@@ -32,7 +32,7 @@ import { SchemaCatalog } from "@/lib/schema-catalog";
 
 /** Schema introspection requires a ready target with run permission. */
 function canBrowseSchema(target: QueryTarget): boolean {
-  return target.availableActions.run === true && target.connectionContext.engine !== "clickhouse";
+  return target.availableActions.run === true && target.capability.queryKind === "sql" && target.connectionContext.engine !== "clickhouse";
 }
 
 type QueryWorkbenchProps = {
@@ -599,6 +599,8 @@ export function QueryWorkbench({
                   <div className="p-2">
                     {activeTarget.clickHouseGeneration ? (
                       <ClickHouseWorksheetObjects catalog={chCatalog} />
+                    ) : activeTarget.capability.queryKind === "redis" && activeTarget.availableActions.run ? (
+                      <RedisObjects target={activeTarget} label={t("schema.redisKeys")} />
                     ) : canBrowseSchema(activeTarget) ? (
                       <QueryObjectExplorer
                         key={activeTarget.resourceId}
@@ -661,6 +663,8 @@ export function QueryWorkbench({
                 <div className="min-w-0 px-4 pb-4">
                   {activeTarget.clickHouseGeneration ? (
                     <ClickHouseWorksheetObjects catalog={chCatalog} />
+                  ) : activeTarget.capability.queryKind === "redis" && activeTarget.availableActions.run ? (
+                    <RedisObjects target={activeTarget} label={t("schema.redisKeys")} />
                   ) : canBrowseSchema(activeTarget) ? (
                     <QueryObjectExplorer
                       key={activeTarget.resourceId}
@@ -709,6 +713,16 @@ export function QueryWorkbench({
         <EmptyState title={t("empty.title")} description={t("empty.description")} />
       )}
     </div>
+  );
+}
+
+function RedisObjects({ target, label }: { target: QueryTarget; label: string }) {
+  return (
+    <ul aria-label={label} className="space-y-1 p-2 font-mono text-xs">
+      {target.schemaPreview.filter((node) => node.kind === "redis_key").map((node) => (
+        <li key={node.name} className="break-all">{node.name}</li>
+      ))}
+    </ul>
   );
 }
 

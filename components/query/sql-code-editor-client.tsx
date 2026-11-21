@@ -266,11 +266,9 @@ export function SqlCodeEditorClient({
         ? MySQL
         : normalizedEngine === "clickhouse" ? clickHouseEditorDialect : StandardSQL;
 
-    const extensions: Extension[] = [
-      sql({ dialect }),
-      layoutTheme,
-      syntaxThemes[resolvedTheme],
-    ];
+    const redis = normalizedEngine === "redis";
+    const extensions: Extension[] = [layoutTheme, syntaxThemes[resolvedTheme]];
+    if (!redis) extensions.push(sql({ dialect }));
 
     if (!readOnly) {
       extensions.push(
@@ -287,7 +285,8 @@ export function SqlCodeEditorClient({
             {
               key: "Mod-Shift-f",
               run: () => {
-                onFormat?.();
+                if (!onFormat) return false;
+                onFormat();
                 return true;
               },
               preventDefault: true,
@@ -295,6 +294,8 @@ export function SqlCodeEditorClient({
           ]),
         ),
       );
+    }
+    if (!readOnly && !redis) {
       extensions.push(
         autocompletion({
           override: [sqlCompletionSource],
