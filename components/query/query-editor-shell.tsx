@@ -820,6 +820,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const templateMode = activeWorksheet.templateStatementId !== null;
   const templateValuesReady =
     !templateMode ||
+    worksheetTarget?.connectionContext.engine === "clickhouse" ||
     activeWorksheet.parameters.every(
       (parameter) => (activeWorksheet.parameterValues[parameter.name] ?? "").trim() !== "",
     );

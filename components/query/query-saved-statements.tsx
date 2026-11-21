@@ -661,7 +661,7 @@ export function QuerySavedStatements({
             <DialogDescription>{t("createDescription")}</DialogDescription>
           </DialogHeader>
           <CreateEditForm
-            hideParameters={clickHouse}
+            clickHouse={clickHouse}
             name={createName}
             onNameChange={setCreateName}
             statement={createStatement}
@@ -694,7 +694,7 @@ export function QuerySavedStatements({
             <SheetDescription>{t("createDescription")}</SheetDescription>
           </SheetHeader>
           <CreateEditForm
-            hideParameters={clickHouse}
+            clickHouse={clickHouse}
             name={createName}
             onNameChange={setCreateName}
             statement={createStatement}
@@ -738,7 +738,7 @@ export function QuerySavedStatements({
             <DialogDescription>{t("editDescription")}</DialogDescription>
           </DialogHeader>
           <CreateEditForm
-            hideParameters={clickHouse}
+            clickHouse={clickHouse}
             name={editName}
             onNameChange={setEditName}
             statement={editStatement}
@@ -777,7 +777,7 @@ export function QuerySavedStatements({
             <SheetDescription>{t("editDescription")}</SheetDescription>
           </SheetHeader>
           <CreateEditForm
-            hideParameters={clickHouse}
+            clickHouse={clickHouse}
             name={editName}
             onNameChange={setEditName}
             statement={editStatement}
@@ -894,7 +894,7 @@ function SavedStatementRow({
 
 /** Shared form for create and edit dialogs. */
 function CreateEditForm({
-  hideParameters,
+  clickHouse,
   name,
   onNameChange,
   statement,
@@ -905,7 +905,7 @@ function CreateEditForm({
   error,
   t,
 }: {
-  hideParameters: boolean;
+  clickHouse: boolean;
   name: string;
   onNameChange: (value: string) => void;
   statement: string;
@@ -945,9 +945,12 @@ function CreateEditForm({
           aria-label={t("statementAriaLabel")}
         />
       </div>
-      {!hideParameters && (
-        <ParameterDeclarationsForm parameters={parameters} onParametersChange={onParametersChange} t={t} />
-      )}
+      <ParameterDeclarationsForm
+        clickHouse={clickHouse}
+        parameters={parameters}
+        onParametersChange={onParametersChange}
+        t={t}
+      />
       <div className="text-xs text-muted-foreground">
         {t("scopeLabel")}:{" "}
         <span className="font-medium">
@@ -983,10 +986,12 @@ function hasDeclarationErrors(parameters: readonly QuerySavedStatementParameterD
 }
 
 function ParameterDeclarationsForm({
+  clickHouse,
   parameters,
   onParametersChange,
   t,
 }: {
+  clickHouse: boolean;
   parameters: readonly QuerySavedStatementParameterDefinition[];
   onParametersChange: (value: readonly QuerySavedStatementParameterDefinition[]) => void;
   t: (key: string, values?: Record<string, string>) => string;
@@ -1115,7 +1120,7 @@ function ParameterDeclarationsForm({
               aria-label={t("parameterTypeLabel")}
               className="h-8 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {PARAMETER_TYPE_OPTIONS.map((opt) => (
+              {PARAMETER_TYPE_OPTIONS.filter((type) => !clickHouse || type === "string" || type === "integer").map((opt) => (
                 <option key={opt} value={opt}>
                   {t(`parameterType${opt.charAt(0).toUpperCase()}${opt.slice(1)}`)}
                 </option>

@@ -174,6 +174,7 @@ export async function executeSavedStatementTemplate(
 ): Promise<QueryExecuteResponse> {
   const body: QuerySavedStatementExecuteRequest = {
     values: input.values,
+    ...(input.clickHouseGeneration ? { clickHouseGeneration: input.clickHouseGeneration } : {}),
     capabilities: RESULT_CONTRACT_CAPABILITIES,
     ...(input.clientExecutionId !== undefined && input.clientExecutionId !== ""
       ? { clientExecutionId: input.clientExecutionId }

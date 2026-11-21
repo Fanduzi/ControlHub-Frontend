@@ -461,8 +461,10 @@ try {
   console.log(
     "PASS seven UTC daily counts and lossless UInt64 through the real workbench",
   );
-  const savedSql = daily("2026-11-13");
-  await executeSQL(savedSql, 200);
+  const savedSql = "SELECT request_date, count() AS count FROM plan_events WHERE request_date >= :start_date AND request_date < :end_date GROUP BY request_date ORDER BY request_date";
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await page.keyboard.insertText(savedSql);
   const savedTab = page.getByRole("tab", {
     name: /^(Saved sheets|已保存脚本)$/i,
   });
@@ -477,9 +479,12 @@ try {
   await expect(
     form.getByRole("textbox", { name: /^(SQL statement|SQL 语句)$/i }),
   ).toHaveValue(savedSql);
-  await expect(
-    form.getByRole("button", { name: /^(Add parameter|添加参数)$/i }),
-  ).toHaveCount(0);
+  const addParameter = form.getByRole("button", { name: /^(Add parameter|添加参数)$/i });
+  for (const [index, name] of ["start_date", "end_date"].entries()) {
+    await addParameter.click();
+    await form.getByTestId(`parameter-row-${index}`)
+      .getByRole("textbox", { name: /^(Name|名称)$/i }).fill(name);
+  }
   await form
     .getByRole("textbox", { name: /^(Statement name|语句名称)$/i })
     .fill(savedName);
@@ -498,11 +503,38 @@ try {
   await savedTab.click();
   await loadSaved.click();
   await expect(editor).toHaveText(savedSql);
-  const editedSaved = await executeSQL(daily("2026-11-14"), 200);
-  expect(editedSaved.rows).toEqual([["2026-11-19", "1"]]);
-  await expect(
-    page.getByRole("gridcell", { name: "2026-11-19", exact: true }),
-  ).toBeVisible();
+  const startDate = page.getByRole("textbox", { name: /^(start_date value|start_date 参数值)$/i });
+  const endDate = page.getByRole("textbox", { name: /^(end_date value|end_date 参数值)$/i });
+  await expect(startDate).toHaveValue("");
+  await expect(endDate).toHaveValue("");
+  async function runTemplate(action, status = 200) {
+    const pending = page.waitForResponse((r) => r.request().method() === "POST" &&
+      r.url().includes(`/query-targets/${target}/saved-statements/`) && r.url().endsWith("/execute"));
+    await action();
+    const response = await pending;
+    expect(response.status()).toBe(status);
+    return response.json();
+  }
+  await startDate.fill("2026-11-12");
+  expect((await runTemplate(() => run.click(), 400)).details).toEqual({ end_date: "missing" });
+  await expect(page.getByRole("grid")).toHaveCount(0);
+  await endDate.fill("2026-11-14");
+  expect((await runTemplate(() => run.click())).rows).toEqual([["2026-11-12", "1"], ["2026-11-13", "1"]]);
+  await expect(page.getByRole("gridcell", { name: "2026-11-13", exact: true })).toBeVisible();
+  await endDate.fill("2026-11-31");
+  expect((await runTemplate(() => run.click(), 400)).details).toEqual({ end_date: "invalid" });
+  await expect(page.getByRole("grid")).toHaveCount(0);
+  await startDate.fill("2026-11-19");
+  await endDate.fill("2026-11-27");
+  const range = await runTemplate(() => run.click());
+  expect(range.rows[0]).toEqual(["2026-11-19", "1"]);
+  await page.getByRole("combobox", { name: /^(Page size|每页行数)$/i }).click();
+  const templateFirst = await runTemplate(() => page.getByRole("option", { name: "5", exact: true }).click());
+  expect(templateFirst.rows.map((row) => row[0])).toEqual(["2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23"]);
+  const templateSecond = await runTemplate(() => next.click());
+  expect(templateSecond.pagination.page).toBe(2);
+  expect(templateSecond.rows.map((row) => row[0])).toEqual(["2026-11-24", "2026-11-25", "2026-11-26"]);
+  await runTemplate(() => previous.click());
   const updateDatePolicy = async (mode) => {
     const r = await fetch(`${backend}/query-disclosure-policies`, {
       method: "PUT",
@@ -513,7 +545,7 @@ try {
       body: JSON.stringify({
         targetResourceId: Number(target),
         databaseName: "g2",
-        objectName: "http_log",
+        objectName: "plan_events",
         columnName: "request_date",
         mode,
       }),
@@ -522,14 +554,20 @@ try {
   };
   await updateDatePolicy("masked_no_copy");
   try {
-    const deniedSaved = await executeSQL(daily("2026-11-14"), 403);
+    const deniedSaved = await runTemplate(() => next.click(), 403);
     expect(deniedSaved.error).toBe("query_result_disclosure_blocked");
     await expect(page.getByRole("grid")).toHaveCount(0);
+    await expect(next).toHaveCount(0);
   } finally {
     await updateDatePolicy("raw_copy_allowed");
   }
+  await page.reload();
+  await savedTab.click();
+  await loadSaved.click();
+  await expect(startDate).toHaveValue("");
+  await expect(endDate).toHaveValue("");
   console.log(
-    "PASS ClickHouse personal saved query: save, refresh, load, edit date, Run and reject after policy revocation",
+    "PASS ClickHouse personal template: save, refresh, load, Run two ranges, page and reject missing values, invalid dates and revoked policy",
   );
   console.log(
     "PASS real Chromium login → workbench → selected ClickHouse columns → masked result and NULL",

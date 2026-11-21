@@ -106,6 +106,7 @@ export type QuerySavedStatementParameterValue = string | number | boolean;
  * re-reads and authorizes the latest saved statement for every execution.
  */
 export type QuerySavedStatementExecuteRequest = {
+  readonly clickHouseGeneration?: string;
   readonly values: Readonly<Record<string, QuerySavedStatementParameterValue>>;
   /** Idempotency key; required non-empty for PostgreSQL statements. */
   readonly clientExecutionId?: string;
