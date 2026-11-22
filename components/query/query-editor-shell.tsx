@@ -2976,6 +2976,7 @@ const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
   "result_contract_upgrade_required",
   "query_timeout",
   "query_backend_error",
+  "query_rate_limited",
   "internal_error",
   "service_unavailable",
   "forbidden",
