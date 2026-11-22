@@ -105,10 +105,23 @@ try {
   await expect(worksheet.getByRole("gridcell", { name: "shipped", exact: true }).first()).toBeVisible();
   await expect(worksheet.getByRole("gridcell", { name: "open", exact: true })).toHaveCount(0);
 
-  // Unindexed filter, scripting, and masked-field filter each refuse with
-  // controlled copy and a cleared grid.
+  // Index-provided sort: the compound order arrives through the index, so the
+  // grid renders the exact descending then ascending order.
+  const sorted = await execute('db.orders.find({"orderNo": {"$gte": 100, "$lt": 105}}, {"orderNo": 1}).sort({"orderNo": -1})');
+  expect(sorted.rows.map((row) => row[0])).toEqual([104, 103, 102, 101, 100]);
+  const firstCell = worksheet.getByRole("gridcell").first();
+  await expect(firstCell).toHaveText("104");
+  await expect(worksheet.getByRole("gridcell").last()).toHaveText("100");
+  const ascended = await execute('db.orders.find({"orderNo": {"$gte": 100, "$lt": 105}}, {"orderNo": 1}).sort({"orderNo": 1})');
+  expect(ascended.rows.map((row) => row[0])).toEqual([100, 101, 102, 103, 104]);
+  await expect(firstCell).toHaveText("100");
+
+  // Unindexed filter, blocking sort, scripting, and masked-field filter each
+  // refuse with controlled copy and a cleared grid.
   expect((await execute('db.orders.find({"region": "cn-east"})', 400)).error).toBe("query_index_required");
   await expect(worksheet.getByRole("alert")).toContainText(/This query must use an index|查询必须走索引/);
+  expect((await execute('db.orders.find({"status": "open"}).sort({"region": 1})', 400)).error).toBe("query_index_required");
+  await expect(worksheet.getByRole("alert")).toContainText(/Filter or sort|筛选或排序/);
   expect((await execute('db.orders.find({"$where": "true"})', 400)).error).toBe("validation_failed");
   await expect(worksheet.getByRole("alert")).toContainText(/db\.<collection>\.find|db\.<集合>\.find/);
   expect((await execute('db.orders.find({"customer": "x"})', 403)).error).toBe("query_result_disclosure_blocked");
@@ -160,7 +173,7 @@ try {
   for (const leak of ["orders", "open", "shipped", "cn-east", "$where", "region", "customer"]) {
     expect(evidence).not.toContain(leak);
   }
-  console.log("PASS MongoDB worksheet: approved collections in Objects, find with edit and rerun, index-required/validation/disclosure clear the grid, truncated and masked cells, revocation and audit failure, throttled 429, evidence labels");
+  console.log("PASS MongoDB worksheet: approved collections in Objects, find with edit and rerun, index-provided sort both directions, index-required/validation/disclosure clear the grid, truncated and masked cells, revocation and audit failure, throttled 429, evidence labels");
 } finally {
   await browser?.close();
   server.kill("SIGTERM");

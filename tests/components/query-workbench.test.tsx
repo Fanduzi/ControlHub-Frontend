@@ -941,7 +941,7 @@ describe("QueryWorkbench execution (ready target)", () => {
     await user.click(screen.getByRole("button", { name: /^run$/i }));
 
     expect(
-      await screen.findByText(/This query must use an index\. Filter on an indexed field\./i),
+      await screen.findByText(/This query must use an index\. Filter or sort on an indexed field\./i),
     ).toBeInTheDocument();
     // The refused run leaves no stale rows behind.
     expect(screen.queryByText("open")).not.toBeInTheDocument();
