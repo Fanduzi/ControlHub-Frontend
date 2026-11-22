@@ -45,6 +45,13 @@ pretty-printer: exact indentation output, verbatim number lexemes, duplicate
 keys, order and escapes, and null for malformed, scalar, over-depth, and
 over-length input.
 
+`query-result-export.test.ts` covers the shared whole-page export gate and the
+JSON serializer: verbatim `{columns, rows}` output preserving duplicate column
+names and delivered scalar/text values exactly (no formula guard in JSON), and
+table-driven refusals shared by JSON and CSV for masked/blocked/disallowed
+columns, truncated cells, missing/sparse matrices, row-width mismatches, empty
+column names, and non-finite numbers.
+
 `query-result-range.test.ts` covers the rectangular selection helper: reversed
 corners normalize, TSV serializes row-major without headers, SQL NULL and
 empty text both emit empty fields, negative numbers stay verbatim,

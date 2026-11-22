@@ -10,7 +10,8 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs and the explicit `all` sentinel to unscoped params |
 | `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
-| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV behind a fail-closed whole-page eligibility gate (per-column raw+copy permission, structurally valid truncation matrix, no disclosure-blocked or truncated cell) |
+| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV behind the shared fail-closed whole-page eligibility gate in `query-result-export.ts` (per-column raw+copy permission, structurally valid truncation matrix, no disclosure-blocked or truncated cell) |
+| `query-result-export.ts` | Shared whole-page export gate (mirroring the backend DecideCSVExport contract — copyable columns, boolean-aligned truncation matrix, JSON-scalar finite cells) plus the JSON serializer emitting `{columns, rows}` verbatim for the current authorized page |
 | `schema-catalog.ts` | Query workbench schema catalog: lists, table details, schema listing, and SQL completion namespace keyed by database (and PostgreSQL schema scope) |
 | `clickhouse-completion.ts` | Resolves the active SQL statement's FROM slot and direct column references using CodeMirror syntax nodes and the authorized ClickHouse namespace. |
 | `use-clickhouse-worksheet-catalog.ts` | Supplies both the object pane and completion from one active target and approval generation; ignores mismatched or superseded responses. |
@@ -59,16 +60,23 @@ from shareable list URLs. Resource labels retain valid unknown `key` or
 blank, malformed, and overlong values. `parsePositiveDecimalInteger` is the
 shared strict parser for URL IDs.
 
-`query-result-csv.ts` emits the current visible result page only and owns the
-whole-page export eligibility decision at runtime: every column needs both
-`raw_copy_allowed` and `copyAllowed`, the `cellTruncated` matrix must be a
-present, fully boolean, row/column-exact structure, rows must match the column
-count exactly (a missing cell is a refusal, never a SQL NULL, and extra cells
-are never dropped), and any truncated or disclosure-blocked cell refuses the
-page — `[masked]`/`[blocked]` placeholders are never serialized. Direct calls
-fail closed on malformed input; TypeScript types are not the gate.
-Values/headers beginning with a spreadsheet formula prefix are emitted as
-literal text.
+`query-result-export.ts` owns the shared whole-page export eligibility
+decision at runtime, used by both CSV and JSON serializers: every column
+needs both `raw_copy_allowed` and `copyAllowed`, the `cellTruncated` matrix
+must be a present, fully boolean, row/column-exact structure, rows must match
+the column count exactly (a missing cell is a refusal, never a SQL NULL, and
+extra cells are never dropped), and any truncated or disclosure-blocked cell
+refuses the page — `[masked]`/`[blocked]` placeholders are never serialized.
+Direct calls fail closed on malformed input; TypeScript types are not the
+gate.
+
+`query-result-csv.ts` emits the current visible result page only under that
+shared gate; values/headers beginning with a spreadsheet formula prefix are
+emitted as literal text. `serializeQueryResultJson` in `query-result-export.ts`
+emits `{columns, rows}` verbatim — positional column order preserves duplicate
+aliases, SQL `null` stays `null` (distinct from `""` and the literal text
+`NULL`), delivered JSON and large-integer text stay strings, and no formula
+guard or metadata is applied.
 
 `query-result-range.ts` emits a selected rectangular range only and owns the
 rectangle eligibility decision at runtime: every column in the rectangle needs

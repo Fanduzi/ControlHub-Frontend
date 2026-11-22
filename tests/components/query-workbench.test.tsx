@@ -3724,7 +3724,6 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     expect(screen.queryByRole("button", { name: /copy all/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /json/i })).toBeNull();
 
     const createObjectURL = vi.fn(() => "blob:query-results");
     const revokeObjectURL = vi.fn();
@@ -3737,6 +3736,33 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(click).toHaveBeenCalledOnce();
       const anchor = click.mock.instances[0] as HTMLAnchorElement;
       expect(anchor).toMatchObject({ download: "query-results.csv", href: "blob:query-results" });
+      expect(document.body.contains(anchor)).toBe(false);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:query-results");
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("downloads the current result page as JSON with delivered values unchanged", async () => {
+    await renderWithResult();
+
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:query-results");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      await userEvent.setup().click(screen.getByRole("button", { name: "Export JSON" }));
+
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalledOnce();
+      const blob = createObjectURL.mock.calls[0]![0] as Blob;
+      expect(JSON.parse(await blob.text())).toEqual({
+        columns: ["id", "name", "active"],
+        rows: [[1, "orders-api", true], [2, null, false]],
+      });
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor).toMatchObject({ download: "query-results.json", href: "blob:query-results" });
       expect(document.body.contains(anchor)).toBe(false);
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:query-results");
     } finally {
@@ -3769,9 +3795,11 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
     try {
-      const exportButton = screen.getByTestId("export-csv");
-      expect(exportButton).toBeDisabled();
-      await userEvent.setup().click(exportButton);
+      for (const testId of ["export-csv", "export-json"]) {
+        const exportButton = screen.getByTestId(testId);
+        expect(exportButton).toBeDisabled();
+        await userEvent.setup().click(exportButton);
+      }
       expect(createObjectURL).not.toHaveBeenCalled();
       expect(click).not.toHaveBeenCalled();
     } finally {
@@ -3801,6 +3829,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     // WHY: export permission belongs to the active target returned by the
     // server, so a browser-only result must not bypass that decision.
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export JSON" })).toBeNull();
   });
 
   it("does not render Export CSV for an empty current result page", async () => {
@@ -3821,6 +3850,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(screen.getAllByText("0 rows")).toHaveLength(2);
     });
     expect(screen.queryByRole("button", { name: /export csv/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /export json/i })).toBeNull();
   });
 
   it("keeps disclosure-policy export copy present in both locales", () => {

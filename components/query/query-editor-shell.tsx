@@ -82,7 +82,8 @@ import type { ClickHouseWorksheetCatalog } from "@/lib/use-clickhouse-worksheet-
 import type { SchemaNamespace } from "@/lib/query-sql-completion";
 import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
-import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
+import { serializeQueryResultCsv } from "@/lib/query-result-csv";
+import { isQueryResultExportable, serializeQueryResultJson } from "@/lib/query-result-export";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
 import {
   isColumnCopyable,
@@ -2585,7 +2586,7 @@ function ResultTable({
 
   // Whole-page eligibility mirrors the serializer boundary: a non-copyable
   // column or corrupt matrix disables the control, not only truncation.
-  const csvExportable = isQueryResultCsvExportable(columns, rows, cellTruncated);
+  const pageExportable = isQueryResultExportable(columns, rows, cellTruncated);
 
   // The current selection normalized to one rectangle. Multi-cell ranges are
   // copy-only: single-cell affordances (viewer, related records) stay bound to
@@ -2725,21 +2726,21 @@ function ResultTable({
     }
   }
 
-  function handleExportCsv() {
-    if (!exportEnabled || !csvExportable) return;
-    let csv: string;
+  function handleExport(format: "csv" | "json") {
+    if (!exportEnabled || !pageExportable) return;
+    let text: string;
     try {
-      csv = serializeQueryResultCsv(columns, rows, cellTruncated);
+      const serialize = format === "csv" ? serializeQueryResultCsv : serializeQueryResultJson;
+      text = serialize(columns, rows, cellTruncated);
     } catch {
-      showFeedback(t("result.exportCsvBlocked"), "error");
+      showFeedback(t(format === "csv" ? "result.exportCsvBlocked" : "result.exportJsonBlocked"), "error");
       return;
     }
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8" }),
-    );
+    const mime = format === "csv" ? "text/csv;charset=utf-8" : "application/json;charset=utf-8";
+    const url = URL.createObjectURL(new Blob([text], { type: mime }));
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "query-results.csv";
+    anchor.download = `query-results.${format}`;
     document.body.append(anchor);
     try {
       anchor.click();
@@ -2831,14 +2832,27 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          onClick={handleExportCsv}
-          disabled={!csvExportable}
-          title={!csvExportable ? t("result.exportCsvBlocked") : undefined}
-          aria-label={!csvExportable ? t("result.exportCsvBlocked") : undefined}
+          onClick={() => handleExport("csv")}
+          disabled={!pageExportable}
+          title={!pageExportable ? t("result.exportCsvBlocked") : undefined}
+          aria-label={!pageExportable ? t("result.exportCsvBlocked") : undefined}
           data-testid="export-csv"
         >
           <Download className="size-3.5" aria-hidden />
           {t("result.exportCsv")}
+        </Button>}
+        {exportEnabled && <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => handleExport("json")}
+          disabled={!pageExportable}
+          title={!pageExportable ? t("result.exportJsonBlocked") : undefined}
+          aria-label={!pageExportable ? t("result.exportJsonBlocked") : undefined}
+          data-testid="export-json"
+        >
+          <Download className="size-3.5" aria-hidden />
+          {t("result.exportJson")}
         </Button>}
         {eligibleFKs.length > 0 && (
           <DropdownMenu>

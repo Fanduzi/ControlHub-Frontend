@@ -333,6 +333,75 @@ test.describe("T13-A result contract consumption", () => {
     expect(rowFor(String(T13_CELLS.csvNewline))?.[2]).toBe("line1\nline2");
   });
 
+  test("downloads only the current page as JSON without changing delivered values", async ({
+    page,
+  }) => {
+    await openReady(page);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Default page of 10 under `id desc`: ids 15→6 are clean; page 2 (ids
+    // 5→1) carries the oversized pads, so only page 1 may serialize.
+    await runSql(
+      page,
+      `select id, pad, note from query_e2e_aux.t13_cells order by id desc`,
+    );
+
+    await expect(
+      page.getByRole("button", { name: /next page/i }),
+    ).toBeEnabled();
+    const exportButton = page.getByTestId("export-json");
+    await expect(exportButton).toBeEnabled();
+
+    const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
+    await exportButton.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("query-results.json");
+    const path = await download.path();
+    if (!path) throw new Error("download produced no file path");
+
+    const fs = await import("node:fs/promises");
+    const payload = JSON.parse(await fs.readFile(path, "utf8")) as {
+      columns: string[];
+      rows: (string | number | boolean | null)[][];
+    };
+    expect(payload).toEqual({
+      columns: ["id", "pad", "note"],
+      rows: [
+        ["15", "page2-e", "p2"],
+        ["14", "page2-d", "p2"],
+        ["13", "page2-c", "p2"],
+        ["12", "page2-b", "p2"],
+        ["11", '{"orderNo":9007199254740993,"status":"open"}', "p2"],
+        ["10", "plain2", "line1\nline2"],
+        ["9", "plain", 'x,"y'],
+        ["8", "NULL", "text-null"],
+        ["7", null, "sql-null"],
+        ["6", "", "empty-str"],
+      ],
+    });
+
+    // The download is a local serialization: exactly one execute happened.
+    expect(executeRequests).toBe(1);
+
+    // Page 2 contains truncated cells — the shared whole-page gate disables
+    // JSON export exactly like CSV. Paging is the second (and last) execute.
+    await page.getByRole("button", { name: /next page/i }).click();
+    await expect(page.getByTestId("truncated-page-notice")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+    expect(executeRequests).toBe(2);
+  });
+
   test("a page with a masked column produces zero download events", async ({
     page,
   }) => {
@@ -349,9 +418,11 @@ test.describe("T13-A result contract consumption", () => {
 
     const downloadEvents: string[] = [];
     page.on("download", (d) => downloadEvents.push(d.suggestedFilename()));
-    const exportButton = page.getByTestId("export-csv");
-    await expect(exportButton).toBeDisabled();
-    await exportButton.click({ force: true });
+    for (const testId of ["export-csv", "export-json"]) {
+      const exportButton = page.getByTestId(testId);
+      await expect(exportButton).toBeDisabled();
+      await exportButton.click({ force: true });
+    }
     await page.waitForTimeout(500);
     expect(downloadEvents).toHaveLength(0);
   });
@@ -542,6 +613,8 @@ test.describe("T13-A result contract consumption", () => {
     await expect(
       relatedPanel.getByTestId("cell-truncated-badge"),
     ).toHaveCount(1);
+    // The related-records grid never offers either export format.
+    await expect(relatedPanel.getByTestId("export-json")).toHaveCount(0);
     const padCell = relatedPanel
       .getByRole("row")
       .filter({ has: page.getByRole("gridcell", { name: "T13_P1", exact: true }) })
@@ -654,6 +727,7 @@ test.describe("T13-A result contract consumption", () => {
       await expect(alert).toBeVisible({ timeout: 15_000 });
       await expect(page.getByRole("grid")).toHaveCount(0);
       await expect(page.getByTestId("export-csv")).toHaveCount(0);
+      await expect(page.getByTestId("export-json")).toHaveCount(0);
     } finally {
       await page.unroute("**/query-targets/*/execute");
     }
