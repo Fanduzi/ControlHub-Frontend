@@ -20,7 +20,8 @@ import type {
   TablePreviewRequest,
 } from "@/types/query-execution";
 import type { QuerySavedStatementParameterDefinition, QuerySavedStatementRecord } from "@/types/query-saved-statement";
-import { QueryExecuteError, getQueryExecutionStatement, isRetryableControlledErrorCode } from "@/services/query-executions";
+import { ApiError } from "@/services/api-client";
+import { QueryExecuteError, getQueryExecutionStatement, isAbortError, isRetryableControlledErrorCode } from "@/services/query-executions";
 import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
 import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
 import { Badge } from "@/components/ui/badge";
@@ -358,10 +359,22 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
           persistWorkspace(queued.signature, queued.worksheets);
         }
       },
-      () => {
+      (error: unknown) => {
         queuedWorkspaceSaveRef.current = null;
         workspaceSaveInFlightRef.current = false;
         if (!persistAliveRef.current) return;
+        // A re-read can only help when the outcome is genuinely unknown (a
+        // dropped response or a 409). An aborted save was deliberately torn
+        // down, and a 401 means the session is gone: the reconcile GET would
+        // be a second unauthenticated request failing identically, which the
+        // logout race surfaces as a stray 401 before navigation finishes.
+        if (isAbortError(error)) return;
+        if (
+          (error instanceof ApiError || error instanceof QueryExecuteError) &&
+          error.status === 401
+        ) {
+          return;
+        }
         void reconcileWorkspaceSaveFailure(signature);
       },
     );

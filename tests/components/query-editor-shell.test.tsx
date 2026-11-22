@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryResultColumn } from "@/types/query-execution";
+import { ApiError } from "@/services/api-client";
 import { QueryExecuteError } from "@/services/query-executions";
 import { DEFAULT_QUERY_MAX_ROWS } from "@/lib/query-editor-preferences";
 import * as querySqlFormat from "@/lib/query-sql-format";
@@ -452,6 +453,74 @@ describe("QueryEditorShell workspace persistence and history restore", () => {
     });
 
     expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reconcile a workspace save refused by a 401 logout race", async () => {
+    // The sign-out race can surface an in-flight persist's 401 while the shell
+    // is still mounted. A reconcile GET would be a second unauthenticated
+    // request failing identically — the saved workspace survives until the
+    // next login's fresh load.
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      }],
+    });
+    const firstSave = Promise.withResolvers<Awaited<ReturnType<typeof putQueryWorkspace>>>();
+    mockPutQueryWorkspace.mockReturnValueOnce(firstSave.promise);
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Orders draft" });
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select first_draft");
+    await waitFor(() => expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1));
+
+    const hydrateCalls = mockGetQueryWorkspace.mock.calls.length;
+    await act(async () => {
+      firstSave.reject(new ApiError(401, "unauthorized"));
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(mockGetQueryWorkspace).toHaveBeenCalledTimes(hydrateCalls);
+  });
+
+  it("does not reconcile a workspace save whose request was aborted", async () => {
+    mockGetQueryWorkspace.mockResolvedValueOnce({
+      version: 3,
+      updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [{
+        id: "saved-orders",
+        name: "Orders draft",
+        targetResourceId: 30,
+        statement: "select 1",
+        activeDatabase: null,
+      }],
+    });
+    const firstSave = Promise.withResolvers<Awaited<ReturnType<typeof putQueryWorkspace>>>();
+    mockPutQueryWorkspace.mockReturnValueOnce(firstSave.promise);
+    const user = userEvent.setup();
+    renderReady();
+
+    await screen.findByRole("tab", { name: "Orders draft" });
+    const statement = screen.getByRole("textbox", { name: /statement/i });
+    await user.clear(statement);
+    await user.type(statement, "select first_draft");
+    await waitFor(() => expect(mockPutQueryWorkspace).toHaveBeenCalledTimes(1));
+
+    const hydrateCalls = mockGetQueryWorkspace.mock.calls.length;
+    await act(async () => {
+      firstSave.reject(new DOMException("aborted", "AbortError"));
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(mockGetQueryWorkspace).toHaveBeenCalledTimes(hydrateCalls);
   });
 
   it("refuses to add a thirty-third worksheet", async () => {
