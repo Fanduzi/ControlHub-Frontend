@@ -4211,6 +4211,25 @@ describe("QueryWorkbench result contract (cellTruncated)", () => {
     expect(screen.queryByRole("grid")).toBeNull();
     expect(screen.queryByTestId("export-csv")).toBeNull();
   });
+
+  it("shows the rate-limit copy for a 429 query_rate_limited and clears the stale grid", async () => {
+    const user = userEvent.setup();
+    // First run succeeds so a stale result exists that must be cleared.
+    await renderWithResult();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(429, "query_rate_limited", "raw server message must not surface"),
+    );
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/too many runs/i)).toBeInTheDocument();
+    expect(screen.queryByText(/raw server message/)).toBeNull();
+    expect(screen.queryByRole("grid")).toBeNull();
+  });
 });
 
 describe("serializeQueryResultCsv result-contract gate", () => {

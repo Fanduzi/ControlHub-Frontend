@@ -133,6 +133,15 @@ try {
   } finally {
     await control("restore-audit");
   }
+
+  // Final step: throttle the editor's minute bucket to 1 — the first Run is
+  // admitted, the next is refused with 429 and the grid stays cleared.
+  await control("throttle");
+  await show("HGET demo:order:101 status", "open");
+  const limited = await execute(null, 429);
+  expect(limited.error).toBe("query_rate_limited");
+  await expect(worksheet.getByRole("alert")).toContainText(/too many runs|运行过于频繁/i);
+
   const history = await (await page.request.get(`${origin}/api/proxy/query-targets/${target}/executions?pageSize=20`)).json();
   for (const [id, preview] of [[first, "Redis GET"], [second, "Redis GET"], [hgetFirst, "Redis HGET"]]) {
     expect(history.items).toContainEqual(expect.objectContaining({ id, engine: "redis", status: "success", statementPreview: preview, canRestore: false }));
@@ -141,7 +150,7 @@ try {
   expect(evidence).not.toContain("demo:order:");
   expect(evidence).not.toContain("open");
   expect(evidence).not.toContain("cn-east");
-  console.log("PASS Redis worksheet: GET and HGET on approved keys and fields, edit and rerun, hash fields in Objects, refused/blocked/too-large clears the grid, revocation and audit failure, evidence labels");
+  console.log("PASS Redis worksheet: GET and HGET on approved keys and fields, edit and rerun, hash fields in Objects, refused/blocked/too-large clears the grid, revocation and audit failure, throttled 429 clears the grid, evidence labels");
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
