@@ -55,6 +55,10 @@ import { QueryGovernancePanel } from "@/components/query/query-governance-panel"
 import { QuerySavedStatements } from "@/components/query/query-saved-statements";
 import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
+  resolveWorksheetRunScope,
+  type WorksheetRunScope,
+} from "@/lib/sql-run-scope";
+import {
   clampEditorHeight,
   DEFAULT_QUERY_EDITOR_HEIGHT,
   normalizeEditorTheme,
@@ -919,11 +923,21 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     session.refreshCancellation();
   }
 
+  // Run/Explain share one scope: an editor selection, else the statement
+  // under the cursor for SQL engines (whole document for native commands).
+  // Template-bound worksheets ignore editor scope and run as before.
+  function editorRunScopeText(): string | undefined {
+    if (templateMode) return undefined;
+    const view = editorViewRef.current;
+    if (!view) return undefined;
+    return resolveWorksheetRunScope(view.state, worksheetTarget?.connectionContext.engine).text;
+  }
+
   async function handleRun() {
     if (!runEnabled || !activeMaxRowsDraftIsValid()) {
       return;
     }
-    await session.run();
+    await session.run(editorRunScopeText());
     void refreshHistory(session.activeId);
   }
 
@@ -947,7 +961,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
 
   async function handleExplain() {
     if (actions?.explain !== true) return;
-    await session.explain();
+    await session.explain(editorRunScopeText());
   }
 
   function handleCloseExplain() {
@@ -1798,11 +1812,30 @@ function ReadyWorksheet({
   const mongo = engine === "mongodb";
   const canRun = runEnabled && (redis || draftResult.valid);
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
+  const [runScope, setRunScope] = useState<WorksheetRunScope>("document");
+  // Template-bound runs ignore selection/cursor and send the draft as before,
+  // so the Run description stays the unscoped one in that mode.
+  const effectiveScope = templateMode ? "document" : runScope;
+  const runScopeLabel = t(
+    effectiveScope === "selection"
+      ? "editor.runScopeSelection"
+      : effectiveScope === "statement"
+        ? "editor.runScopeStatement"
+        : "editor.runScopeDocument",
+  );
 
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-        <Button ref={runButtonRef} type="button" size="sm" disabled={!canRun} onClick={onRun}>
+        <Button
+          ref={runButtonRef}
+          type="button"
+          size="sm"
+          disabled={!canRun}
+          onClick={onRun}
+          title={runScopeLabel}
+          aria-description={runScopeLabel}
+        >
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
         </Button>
@@ -1940,6 +1973,7 @@ function ReadyWorksheet({
           height={editorHeight}
           schemaNamespace={engine === "clickhouse" ? clickHouseNamespace : namespace}
           columnFetcher={engine === "clickhouse" ? undefined : columnFetcher}
+          onRunScopeChange={setRunScope}
         />
         <button
           type="button"

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { sqlWorksheetState } from "@/lib/sql-run-scope";
 import {
   APPROVED_KEYWORDS,
   FORBIDDEN_KEYWORDS,
@@ -265,7 +266,7 @@ describe("buildColumnCompletionsForDot", () => {
 
 describe("parseActiveStatement", () => {
   it("returns the full text for a single statement", () => {
-    const result = parseActiveStatement("SELECT * FROM users", 5);
+    const result = parseActiveStatement(sqlWorksheetState("SELECT * FROM users", "mysql"), 5);
     expect(result).toBe("SELECT * FROM users");
   });
 
@@ -273,18 +274,24 @@ describe("parseActiveStatement", () => {
     const text = "SELECT 1;\nSELECT * FROM orders;\nSELECT 2;";
     // Cursor at position inside "SELECT * FROM orders"
     const secondStmtStart = text.indexOf("SELECT * FROM orders");
-    const result = parseActiveStatement(text, secondStmtStart + 5);
-    expect(result).toBe("SELECT * FROM orders");
+    const result = parseActiveStatement(sqlWorksheetState(text, "mysql"), secondStmtStart + 5);
+    expect(result).toBe("SELECT * FROM orders;");
   });
 
   it("returns empty string for empty input", () => {
-    expect(parseActiveStatement("", 0)).toBe("");
+    expect(parseActiveStatement(sqlWorksheetState("", "mysql"), 0)).toBe("");
   });
 
   it("handles cursor at statement boundary", () => {
     const text = "SELECT 1;\nSELECT 2";
-    const result = parseActiveStatement(text, text.length);
+    const result = parseActiveStatement(sqlWorksheetState(text, "mysql"), text.length);
     expect(result).toBe("SELECT 2");
+  });
+
+  it("does not split on semicolons inside strings", () => {
+    const text = "SELECT 'a;b' AS s;\nSELECT 2";
+    const result = parseActiveStatement(sqlWorksheetState(text, "mysql"), 9);
+    expect(result).toBe("SELECT 'a;b' AS s;");
   });
 });
 

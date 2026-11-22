@@ -11,6 +11,12 @@
  */
 
 import type { Completion } from "@codemirror/autocomplete";
+import type { EditorState } from "@codemirror/state";
+
+import {
+  sqlStatementAtPosition,
+  sqlStatementRanges,
+} from "@/lib/sql-run-scope";
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -129,42 +135,13 @@ export async function buildColumnCompletionsForDot(
 /**
  * Parse the active statement from multi-statement input.
  * Returns the statement containing the cursor position.
- * Conservative: splits on `;` boundaries only.
+ * Boundaries come from the shared lang-sql splitter, so `;` inside strings,
+ * comments, quoted identifiers or dollar-quoted bodies never splits.
  */
-export function parseActiveStatement(text: string, cursorPos: number): string {
-  if (!text) return "";
-
-  // Split on semicolons, tracking positions
-  const statements: Array<{ start: number; end: number; text: string }> = [];
-  let current = 0;
-
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === ";") {
-      const stmt = text.slice(current, i).trim();
-      if (stmt) {
-        statements.push({ start: current, end: i, text: stmt });
-      }
-      current = i + 1;
-    }
-  }
-
-  // Last statement (may not end with semicolon)
-  const last = text.slice(current).trim();
-  if (last) {
-    statements.push({ start: current, end: text.length, text: last });
-  }
-
-  if (statements.length === 0) return "";
-
-  // Find statement containing cursor
-  for (const stmt of statements) {
-    if (cursorPos >= stmt.start && cursorPos <= stmt.end) {
-      return stmt.text;
-    }
-  }
-
-  // Default to last statement
-  return statements[statements.length - 1].text;
+export function parseActiveStatement(state: EditorState, cursorPos: number): string {
+  const range = sqlStatementAtPosition(sqlStatementRanges(state), cursorPos);
+  if (!range) return "";
+  return state.sliceDoc(range.from, range.to).trim();
 }
 
 // ────────────────────────────────────────────────────────────

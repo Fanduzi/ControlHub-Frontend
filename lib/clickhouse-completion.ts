@@ -3,18 +3,15 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete";
 import { ensureSyntaxTree } from "@codemirror/language";
-import { SQLDialect, StandardSQL } from "@codemirror/lang-sql";
 import {
   buildTableCompletions,
   type SchemaNamespace,
 } from "@/lib/query-sql-completion";
+import { clickHouseEditorDialect } from "@/lib/sql-run-scope";
 
-// CodeMirror supplies token boundaries (including quoted identifiers, strings and comments).
-// ClickHouse execution and disclosure decisions remain on the backend.
-export const clickHouseEditorDialect = SQLDialect.define({
-  ...StandardSQL.spec,
-  identifierQuotes: '`"',
-});
+// The dialect lives with the shared run-scope splitter so editor
+// highlighting and statement boundaries stay on identical rules.
+export { clickHouseEditorDialect };
 const keywords = [
   "SELECT",
   "FROM",

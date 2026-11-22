@@ -2,14 +2,20 @@
 
 import { useCallback, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { sql, MySQL, StandardSQL } from "@codemirror/lang-sql";
+import { sql } from "@codemirror/lang-sql";
 import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorView, keymap } from "@codemirror/view";
-import { Prec, type Extension } from "@codemirror/state";
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { Decoration, EditorView, keymap, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { Prec, RangeSetBuilder, type Extension } from "@codemirror/state";
 import { tags } from "@lezer/highlight";
 
-import { clickHouseEditorDialect, clickHouseCompletions } from "@/lib/clickhouse-completion";
+import { clickHouseCompletions } from "@/lib/clickhouse-completion";
+import {
+  isNativeCommandEngine,
+  resolveWorksheetRunScope,
+  sqlDialectForEngine,
+  type WorksheetRunScope,
+} from "@/lib/sql-run-scope";
 import { cn } from "@/lib/utils";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import {
@@ -39,6 +45,8 @@ export type SqlCodeEditorProps = {
   height?: number;
   schemaNamespace?: SchemaNamespace;
   columnFetcher?: TableColumnFetcher;
+  /** Reports what Run would execute (selection/current statement/document). */
+  onRunScopeChange?: (scope: WorksheetRunScope) => void;
 };
 
 export function createSqlCompletionSource(
@@ -51,7 +59,7 @@ export function createSqlCompletionSource(
       const lastDot = dotMatch.text.lastIndexOf(".");
       const prefix = dotMatch.text.slice(0, lastDot).replace(/`/g, "");
       const from = ctx.pos - (dotMatch.text.length - lastDot - 1);
-      const stmt = parseActiveStatement(ctx.state.doc.toString(), ctx.pos);
+      const stmt = parseActiveStatement(ctx.state, ctx.pos);
       const aliases = extractTableAliases(stmt);
 
       const tableName = aliases[prefix] ?? prefix;
@@ -97,6 +105,52 @@ export function createSqlCompletionSource(
 
 type ResolvedEditorTheme = Exclude<QueryEditorThemePreference, "system">;
 
+const runScopeMark = Decoration.mark({ class: "cm-runscope" });
+
+// Subtly marks the statement Run will execute when the editor holds ≥2
+// statements and nothing is selected, and reports the resolved scope upward
+// for the Run control's tooltip.
+function runScopeExtension(
+  engine: string | undefined,
+  onScopeChange?: (scope: WorksheetRunScope) => void,
+): Extension {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet = Decoration.none;
+      private lastScope: WorksheetRunScope | null = null;
+
+      constructor(view: EditorView) {
+        this.recompute(view);
+      }
+
+      update(update: ViewUpdate) {
+        const reparsed = syntaxTree(update.state) !== syntaxTree(update.startState);
+        if (update.docChanged || update.selectionSet || reparsed) {
+          this.recompute(update.view);
+        }
+      }
+
+      private recompute(view: EditorView) {
+        const resolved = resolveWorksheetRunScope(view.state, engine);
+        const builder = new RangeSetBuilder<Decoration>();
+        const range = resolved.scope === "statement" ? resolved.statementRange : null;
+        if (range && range.from < range.to) {
+          builder.add(range.from, range.to, runScopeMark);
+        }
+        this.decorations = builder.finish();
+        // Report after the update cycle: calling React state synchronously
+        // inside a transaction can recurse through prop-driven view updates.
+        if (onScopeChange && resolved.scope !== this.lastScope) {
+          this.lastScope = resolved.scope;
+          const scope = resolved.scope;
+          queueMicrotask(() => onScopeChange(scope));
+        }
+      }
+    },
+    { decorations: (value) => value.decorations },
+  );
+}
+
 const lightEditorTheme = EditorView.theme(
   {
     "&": { backgroundColor: "#ffffff", color: "#1f2937" },
@@ -112,6 +166,7 @@ const lightEditorTheme = EditorView.theme(
       color: "#64748b",
     },
     ".cm-activeLine": { backgroundColor: "#eff6ff" },
+    ".cm-runscope": { backgroundColor: "rgba(37, 99, 235, 0.08)" },
     ".cm-activeLineGutter": { backgroundColor: "#e0f2fe", color: "#0f172a" },
     ".cm-lineNumbers .cm-gutterElement": { padding: "0 8px 0 4px" },
   },
@@ -133,6 +188,7 @@ const darkEditorTheme = EditorView.theme(
       color: "#94a3b8",
     },
     ".cm-activeLine": { backgroundColor: "#1e293b" },
+    ".cm-runscope": { backgroundColor: "rgba(147, 197, 253, 0.12)" },
     ".cm-activeLineGutter": { backgroundColor: "#1e293b", color: "#e2e8f0" },
     ".cm-lineNumbers .cm-gutterElement": { padding: "0 8px 0 4px" },
   },
@@ -157,6 +213,7 @@ const highContrastEditorTheme = EditorView.theme(
       color: "#ffffff",
     },
     ".cm-activeLine": { backgroundColor: "#1f2937" },
+    ".cm-runscope": { backgroundColor: "rgba(250, 204, 21, 0.18)" },
     ".cm-activeLineGutter": { backgroundColor: "#1f2937", color: "#ffffff" },
     ".cm-lineNumbers .cm-gutterElement": { padding: "0 8px 0 4px" },
   },
@@ -243,6 +300,7 @@ export function SqlCodeEditorClient({
   height,
   schemaNamespace,
   columnFetcher,
+  onRunScopeChange,
 }: SqlCodeEditorProps) {
   const viewRef = useRef<EditorView | null>(null);
   const resolvedTheme = resolveEditorTheme(themePreference);
@@ -260,15 +318,9 @@ export function SqlCodeEditorClient({
   );
 
   const extensions = useMemo(() => {
-    const normalizedEngine = engine?.trim().toLowerCase();
-    const dialect =
-      normalizedEngine === "mysql" || normalizedEngine === "tidb"
-        ? MySQL
-        : normalizedEngine === "clickhouse" ? clickHouseEditorDialect : StandardSQL;
-
-    const nativeCommand = normalizedEngine === "redis" || normalizedEngine === "mongodb";
+    const nativeCommand = isNativeCommandEngine(engine);
     const extensions: Extension[] = [
-      ...(nativeCommand ? [] : [sql({ dialect })]),
+      ...(nativeCommand ? [] : [sql({ dialect: sqlDialectForEngine(engine) })]),
       layoutTheme,
       syntaxThemes[resolvedTheme],
     ];
@@ -307,6 +359,9 @@ export function SqlCodeEditorClient({
         }),
       );
     }
+    if (!readOnly) {
+      extensions.push(runScopeExtension(engine, onRunScopeChange));
+    }
 
     extensions.push(
       EditorView.contentAttributes.of({
@@ -320,7 +375,7 @@ export function SqlCodeEditorClient({
     }
 
     return extensions;
-  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel, readOnly, disabled]);
+  }, [engine, onRun, onFormat, resolvedTheme, sqlCompletionSource, ariaLabel, readOnly, disabled, onRunScopeChange]);
 
   return (
     <CodeMirror

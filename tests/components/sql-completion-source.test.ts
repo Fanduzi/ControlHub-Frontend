@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CompletionContext } from "@codemirror/autocomplete";
-import { EditorState } from "@codemirror/state";
 
 import { createSqlCompletionSource } from "@/components/query/sql-code-editor-client";
 import type { SchemaNamespace } from "@/lib/query-sql-completion";
+import { sqlWorksheetState } from "@/lib/sql-run-scope";
 
 // The completion source must anchor suggestions at the typed word so
 // CodeMirror's own filtering narrows the list: `ord` narrows the table/keyword
@@ -16,7 +16,9 @@ describe("createSqlCompletionSource", () => {
   };
 
   function contextFor(doc: string, pos = doc.length, explicit = false) {
-    return new CompletionContext(EditorState.create({ doc }), pos, explicit);
+    // Completion runs on the worksheet dialect's syntax tree, so the state
+    // must carry the same sql() extension the editor configures.
+    return new CompletionContext(sqlWorksheetState(doc, "mysql"), pos, explicit);
   }
 
   it("anchors non-dot suggestions at the typed word start", () => {

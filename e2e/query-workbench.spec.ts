@@ -407,6 +407,46 @@ test.describe("Query Workbench shell", () => {
     });
   });
 
+  test("Run executes the statement under the cursor and a selection runs verbatim", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+
+    const readyIndex = await findReadyOptionIndex(page);
+    test.skip(readyIndex === null, "no ready query target seeded (dev credential seed not run)");
+    if (readyIndex === null) return;
+    await selectConnectionTarget(page, readyIndex);
+    const executeUrl = await exactExecuteUrlForActiveTarget(page);
+
+    const postedBodies: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url() === executeUrl) {
+        postedBodies.push(req.postData() ?? "");
+      }
+    });
+
+    // Cursor ends inside the second statement after typing — Run executes it.
+    await clearAndType(page, "SELECT 1 AS a;\nSELECT 2 AS b;");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^2$/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect.poll(() => postedBodies.length).toBe(1);
+    expect(JSON.parse(postedBodies[0]!).statement).toBe("SELECT 2 AS b;");
+
+    // Focus left the editor on the Run click; click into the first line and
+    // select it whole — Run sends exactly the selection.
+    await page.locator(".cm-line").first().click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(page.locator("td").filter({ hasText: /^1$/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect.poll(() => postedBodies.length).toBe(2);
+    expect(JSON.parse(postedBodies[1]!).statement).toBe("SELECT 1 AS a;");
+  });
+
   test("SHOW TABLES is blocked by disclosure policy", async ({ page }) => {
     await openQueryWorkbench(page);
 

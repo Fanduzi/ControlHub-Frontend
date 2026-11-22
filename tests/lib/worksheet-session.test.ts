@@ -1597,3 +1597,82 @@ describe("WorksheetSession generated naming", () => {
     expect(session.list.some((ws) => ws.name === "Worksheet 99999999999999999999")).toBe(true);
   });
 });
+
+describe("WorksheetSession run scope", () => {
+  it("sends the resolved scope instead of the whole draft", async () => {
+    const execute = vi.fn().mockResolvedValue(emptyResult());
+    const session = createSession({ execute });
+    session.editStatement("SELECT 1;\nSELECT 2;");
+    await session.run("SELECT 2;");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0][1].statement).toBe("SELECT 2;");
+    // WHY: executedStatement is the scope Run resolved; the draft is the
+    // editor's content and stays untouched.
+    expect(session.active.executedStatement).toBe("SELECT 2;");
+    expect(session.active.statement).toBe("SELECT 1;\nSELECT 2;");
+  });
+
+  it("sends a scope-free run byte-identically to the draft", async () => {
+    const execute = vi.fn().mockResolvedValue(emptyResult());
+    const session = createSession({ execute });
+    session.editStatement("  SELECT 1;  ");
+    await session.run();
+    expect(execute.mock.calls[0][1].statement).toBe("  SELECT 1;  ");
+    expect(session.active.executedStatement).toBe("  SELECT 1;  ");
+  });
+
+  it("re-sends the executed statement on nextPage even after the draft is edited", async () => {
+    const execute = vi.fn().mockResolvedValue(emptyResult());
+    const session = createSession({ execute });
+    session.editStatement("SELECT 1;\nSELECT 2;");
+    await session.run("SELECT 2;");
+    session.patchActive({
+      resultPagination: { page: 1, pageSize: 10, hasNextPage: true, hasPreviousPage: false },
+    });
+    session.editStatement("SELECT 9;\nSELECT 2;");
+    await session.nextPage();
+    // WHY: paging continues the original execution; the edited draft must not
+    // leak into a paged request.
+    expect(execute.mock.calls[1][1].statement).toBe("SELECT 2;");
+    expect(execute.mock.calls[1][1].pagination).toEqual({ page: 2, pageSize: 10 });
+  });
+
+  it("clears the executed statement when the worksheet content is replaced", async () => {
+    const execute = vi.fn().mockResolvedValue(emptyResult());
+    const session = createSession({ execute });
+    session.editStatement("SELECT 1;\nSELECT 2;");
+    await session.run("SELECT 2;");
+    session.replaceStatement("SELECT 3");
+    expect(session.active.executedStatement).toBeNull();
+  });
+
+  it("explains the resolved scope, not the whole draft", async () => {
+    const explain = vi.fn().mockResolvedValue({
+      targetResourceId: 1,
+      engine: "mysql",
+      formatVersion: 1,
+      nodes: [],
+      risks: [],
+      truncated: false,
+    });
+    const session = createSession({ explain });
+    session.editStatement("SELECT 1;\nSELECT 2;");
+    await session.explain("SELECT 2;");
+    expect(explain).toHaveBeenCalledTimes(1);
+    expect(explain.mock.calls[0][1].statement).toBe("SELECT 2;");
+    expect(session.active.explain.statementIdentity).toBe("SELECT 2;");
+  });
+
+  it("routes a template-bound run through the template port regardless of an editor scope", async () => {
+    const execute = vi.fn();
+    const executeTemplate = vi.fn().mockResolvedValue(emptyResult());
+    const session = createSession({ execute, executeTemplate });
+    session.loadSavedStatement(savedStatement());
+    session.setParameterValue("status", "open");
+    // The shell resolves no scope for template-bound worksheets; even if a
+    // caller passed one, execution must stay on the template route.
+    await session.run("SELECT arbitrary");
+    expect(executeTemplate).toHaveBeenCalledTimes(1);
+    expect(execute).not.toHaveBeenCalled();
+  });
+});

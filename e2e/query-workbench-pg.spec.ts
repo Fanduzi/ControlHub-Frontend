@@ -362,7 +362,7 @@ test.describe("PG workbench context + ad hoc execution", () => {
     await expect(page.getByRole("grid")).not.toBeVisible();
   });
 
-  test("a multi-statement payload is rejected with a controlled error", async ({
+  test("a multi-statement selection is sent verbatim and rejected with a controlled error", async ({
     page,
   }) => {
     await openQueryWorkbench(page);
@@ -376,7 +376,12 @@ test.describe("PG workbench context + ad hoc execution", () => {
       (r) => r.url().endsWith(`/query-targets/${pgTargetResourceId}/execute`) && r.request().method() === "POST",
       { timeout: 15_000 },
     );
-    await runStatement(page, "select 1; select 2");
+    await clearAndType(page, "select 1; select 2");
+    // Run sends a selection verbatim — selecting the whole draft is how a
+    // multi-statement payload reaches the backend's single-statement guard.
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.getByRole("button", { name: /^run$/i }).click();
     expect((await respPromise).status()).toBe(403);
     await expect(
       page.getByRole("alert").filter({ hasText: /execution not allowed/i }),
@@ -1051,6 +1056,66 @@ test.describe("PG paging, key lifecycle, fault injection and invalid context", (
     const grid = page.getByRole("grid");
     await expect(grid).toBeVisible({ timeout: 30_000 });
     await expect(grid).toContainText("a;b");
+  });
+
+  test("Run executes the statement under the cursor, a selection runs verbatim, and history records the scoped text", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+
+    const executePath = `/query-targets/${pgTargetResourceId}/execute`;
+    const postedBodies: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().endsWith(executePath)) {
+        postedBodies.push(req.postData() ?? "");
+      }
+    });
+
+    // Typing leaves the cursor at the end of the second statement — Run
+    // executes that statement alone, not the whole draft.
+    await clearAndType(page, "select 1 as a;\nselect 2 as b;");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const grid = page.getByRole("grid");
+    await expect(grid).toBeVisible({ timeout: 30_000 });
+    await expect(grid).toContainText("b");
+    await expect.poll(() => postedBodies.length).toBe(1);
+    expect(JSON.parse(postedBodies[0]!).statement).toBe("select 2 as b;");
+
+    // Clicking Run moved focus off the editor; click into the first line to
+    // place the cursor there, then select the whole line — Run sends exactly
+    // the selected text.
+    await page.locator(".cm-line").first().click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(grid).toContainText("a", { timeout: 30_000 });
+    await expect.poll(() => postedBodies.length).toBe(2);
+    expect(JSON.parse(postedBodies[1]!).statement).toBe("select 1 as a;");
+
+    // History records what the backend received: the scoped text only, shown
+    // as a literal-masked digest — `a` is present, the second statement never.
+    await page.getByRole("tab", { name: /query history/i }).click();
+    const historyPanel = page.getByRole("tabpanel", { name: /query history/i });
+    const lastRun = historyPanel.locator("tbody tr").first();
+    await expect(lastRun).toContainText("as a", { timeout: 15_000 });
+    await expect(lastRun).not.toContainText("as b");
+  });
+
+  test("a string containing a semicolon runs intact inside a multi-statement draft", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+
+    // The `;` inside 'x;y' is not a boundary: the cursor's statement must run
+    // whole rather than splitting mid-literal.
+    await clearAndType(page, "select 'x;y' as s;\nselect 2");
+    await page.keyboard.press("ArrowUp");
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const grid = page.getByRole("grid");
+    await expect(grid).toBeVisible({ timeout: 30_000 });
+    await expect(grid).toContainText("x;y");
   });
 
   test("a repeated click sends one keyed request and a new statement mints a new key", async ({

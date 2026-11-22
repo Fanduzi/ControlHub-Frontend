@@ -60,6 +60,8 @@ vi.mock("@/lib/clipboard", () => ({
 
 // Imported after mock so tests can assert schema is not requested for locked targets.
 
+let capturedRunScopeChange: ((scope: string) => void) | undefined;
+
 vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
     value,
@@ -70,6 +72,7 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     disabled,
     themePreference,
     height,
+    onRunScopeChange,
   }: {
     value: string;
     onChange: (v: string) => void;
@@ -79,7 +82,10 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     disabled?: boolean;
     themePreference?: string;
     height?: number;
-  }) => (
+    onRunScopeChange?: (scope: string) => void;
+  }) => {
+    capturedRunScopeChange = onRunScopeChange;
+    return (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -99,7 +105,8 @@ vi.mock("@/components/query/sql-code-editor", () => ({
       data-editor-height={height}
       rows={4}
     />
-  ),
+    );
+  },
 }));
 
 vi.mock("next-themes", () => ({
@@ -810,6 +817,24 @@ describe("QueryWorkbench execution (ready target)", () => {
     renderReady();
 
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
+  });
+
+  it("describes the resolved run scope on the Run button without changing its name", async () => {
+    renderReady();
+    const run = screen.getByRole("button", { name: /^run$/i });
+    // Accessible name stays "Run" — the scope rides on the tooltip only.
+    expect(run).toHaveAttribute("title", "Run");
+    expect(run).toHaveAttribute("aria-description", "Run");
+    expect(capturedRunScopeChange).toBeTypeOf("function");
+
+    await act(async () => capturedRunScopeChange!("statement"));
+    expect(run).toHaveAttribute("title", "Run current statement");
+
+    await act(async () => capturedRunScopeChange!("selection"));
+    expect(run).toHaveAttribute("title", "Run selection");
+
+    await act(async () => capturedRunScopeChange!("document"));
+    expect(run).toHaveAttribute("title", "Run");
   });
 
   it("shows only implemented primary actions in the worksheet toolbar", () => {

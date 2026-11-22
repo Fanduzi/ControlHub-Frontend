@@ -128,6 +128,13 @@ export type Worksheet = {
   name: string;
   targetResourceId: number;
   statement: string;
+  /**
+   * The resolved text the last Run actually sent (editor selection or the
+   * cursor's statement — may differ from the draft). Ephemeral: never
+   * persisted to the workspace draft. Paging re-sends this, not the live
+   * editor text; null until the first Run.
+   */
+  executedStatement: string | null;
   parameters: readonly QuerySavedStatementParameterDefinition[];
   parameterValues: Record<string, string>;
   templateStatementId: number | null;
@@ -241,6 +248,7 @@ function createWorksheetRecord(
     name,
     targetResourceId,
     statement,
+    executedStatement: null,
     parameters: [],
     parameterValues: {},
     templateStatementId: null,
@@ -650,6 +658,7 @@ export class WorksheetSession {
     this.abortNavAttempt(worksheet.id);
     this.patch(worksheet.id, {
       statement,
+      executedStatement: null,
       parameters: [...parameters],
       parameterValues: {},
       templateStatementId: null,
@@ -918,7 +927,7 @@ export class WorksheetSession {
     });
   }
 
-  async run(): Promise<void> {
+  async run(scopedStatement?: string): Promise<void> {
     const worksheet = this.active;
     if (worksheet.isExecuting || worksheet.statement.trim() === "") return;
     const engine = this.engineFor(worksheet.targetResourceId);
@@ -927,9 +936,15 @@ export class WorksheetSession {
     // contextless request (the UI gates the same condition on the Run button).
     if (this.isPostgres(worksheet.targetResourceId) && !worksheet.activeDatabase) return;
 
+    // The shell resolves the editor run scope (selection or cursor statement)
+    // and passes it in; template/parameterized runs and callers without an
+    // editor fall back to the draft, matching the previous behavior exactly.
+    const executedStatement =
+      worksheet.templateStatementId !== null ? worksheet.statement : (scopedStatement ?? worksheet.statement);
+    if (executedStatement.trim() === "") return;
     const requestId = this.createId();
     const provenance = worksheet.previewProvenance;
-    const statementChanged = provenance !== null && worksheet.statement !== provenance.statement;
+    const statementChanged = provenance !== null && executedStatement !== provenance.statement;
     // A new execution is a context change for the related-records panel: an
     // in-flight navigation is superseded, so its request is released too.
     this.abortNavAttempt(worksheet.id);
@@ -940,6 +955,7 @@ export class WorksheetSession {
       templateFieldErrors: {},
       requestId,
       isDirty: false,
+      executedStatement,
       relatedRecords: {
         status: "idle",
         generation: worksheet.relatedRecords.generation + 1,
@@ -1026,9 +1042,10 @@ export class WorksheetSession {
     );
   }
 
-  async explain(): Promise<void> {
+  async explain(scopedStatement?: string): Promise<void> {
     const worksheet = this.active;
-    const statement = worksheet.statement.trim();
+    // Same scope resolution as Run: the plan explains what would execute.
+    const statement = (scopedStatement ?? worksheet.statement).trim();
     if (worksheet.templateStatementId !== null || statement === "" || worksheet.isExecuting || worksheet.explain.status === "loading") {
       return;
     }
@@ -1581,6 +1598,7 @@ export class WorksheetSession {
   private contextResetPatch(worksheet: Worksheet): Partial<Worksheet> {
     return {
       cancellation: { phase: "idle" },
+      executedStatement: null,
       result: null,
       error: null,
       isExecuting: false,
@@ -1713,7 +1731,9 @@ export class WorksheetSession {
     return this.ports.execute(
       targetId,
       {
-        statement: worksheet.statement,
+        // Paging re-sends the statement the original Run resolved, not the
+        // live draft — edits after a run never change paged requests.
+        statement: worksheet.executedStatement ?? worksheet.statement,
         ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
         ...(includePagination ? { pagination: { page, pageSize } } : {}),
         ...(database !== undefined ? { database } : {}),
