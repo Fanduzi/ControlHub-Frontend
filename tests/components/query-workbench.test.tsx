@@ -462,6 +462,50 @@ describe("QueryWorkbench", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders approved Redis hash fields nested under their key in the Objects pane", async () => {
+    const redisTarget = buildQueryTarget({
+      resourceId: 41,
+      displayName: "Approved Redis Worksheet",
+      resourceName: "approved-redis-worksheet",
+      connectionContext: {
+        engine: "redis",
+        host: "redis.internal",
+        port: 6379,
+        clusterName: "Approved Redis Worksheet",
+      },
+      capability: {
+        queryKind: "redis",
+        editorMode: "redis",
+        languageLabel: "Redis command",
+      },
+      readiness: "ready",
+      availableActions: { run: true },
+      schemaPreview: [
+        {
+          kind: "redis_key",
+          name: "demo:order:101",
+          children: [
+            { kind: "redis_hash_field", name: "region" },
+            { kind: "redis_hash_field", name: "status" },
+          ],
+        },
+        { kind: "redis_key", name: "demo:order:note:101" },
+      ],
+    });
+    renderWorkbench([redisTarget]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    const keys = await screen.findByRole("list", { name: "Approved Redis keys" });
+    expect(within(keys).getByText("demo:order:note:101")).toBeInTheDocument();
+    const nested = within(keys).getAllByRole("list");
+    expect(nested).toHaveLength(1);
+    expect(within(nested[0]).getByText("status")).toBeInTheDocument();
+    expect(within(nested[0]).getByText("region")).toBeInTheDocument();
+    // Only the hash key carries a field list; plain keys stay flat.
+    expect(within(nested[0]).queryByText("demo:order:101")).not.toBeInTheDocument();
+  });
+
   it("renders query history when that tab is opened", async () => {
     const user = userEvent.setup();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());

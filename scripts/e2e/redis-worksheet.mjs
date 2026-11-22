@@ -51,8 +51,13 @@ try {
   await expect(editor).toHaveText("");
   await page.getByRole("button", { name: /^(Objects|对象)$/i, exact: true }).click();
   const keys = page.getByRole("list", { name: /^(Approved Redis keys|已批准的 Redis 键)$/i });
-  await expect(keys.getByText("demo:order:101", { exact: true })).toBeVisible();
-  await expect(keys.getByText("demo:order:102", { exact: true })).toBeVisible();
+  const hashKey = keys.locator("> li", { hasText: "demo:order:101" });
+  await expect(hashKey).toBeVisible();
+  await expect(hashKey.getByRole("list").getByText("status", { exact: true })).toBeVisible();
+  await expect(hashKey.getByRole("list").getByText("region", { exact: true })).toBeVisible();
+  await expect(keys.locator("> li", { hasText: "demo:order:note:101" })).toBeVisible();
+  await expect(keys.locator("> li", { hasText: "demo:order:note:102" })).toBeVisible();
+  await expect(keys.getByText("secret", { exact: true })).toHaveCount(0);
   await expect(keys.getByText("demo:private:101", { exact: true })).toHaveCount(0);
 
   const control = async (action) => {
@@ -89,22 +94,39 @@ try {
     return result.executionId;
   }
 
-  const first = await show("GET demo:order:101", "fixture-open");
-  const second = await show("GET demo:order:102", "fixture-shipped");
+  const first = await show("GET demo:order:note:101", "fixture-open");
+  const second = await show("GET demo:order:note:102", "fixture-shipped");
   expect(second).not.toBe(first);
   const worksheet = page.getByTestId("query-workbench-grid");
   await expect(worksheet.getByRole("button", { name: /^(Format|格式化)$/i })).toHaveCount(0);
   expect((await execute("GET demo:private:101", 403)).error).toBe("query_result_disclosure_blocked");
-  await show("GET demo:order:101", "fixture-open");
-  expect((await execute("SET demo:order:101 changed", 400)).error).toBe("validation_failed");
-  await show("GET demo:order:101", "fixture-open");
+  expect((await execute("SET demo:order:note:101 changed", 400)).error).toBe("validation_failed");
+
+  const hgetFirst = await show("HGET demo:order:101 status", "open");
+  await show("HGET demo:order:101 region", "cn-east");
+  await expect(page.getByRole("gridcell", { name: "open", exact: true })).toHaveCount(0);
+  expect((await execute("HGET demo:order:101 secret", 403)).error).toBe("query_result_disclosure_blocked");
+  expect((await execute("HGET demo:order:101 large", 400)).error).toBe("validation_failed");
+
+  const empty = await execute("HGET demo:order:101 empty");
+  expect(empty.rows).toEqual([[""]]);
+  const cells = page.getByRole("gridcell");
+  await expect(cells).toHaveCount(1);
+  await expect(cells).toHaveText(/^$/);
+  await expect(page.getByRole("grid").getByText("NULL", { exact: true })).toHaveCount(0);
+
+  const missing = await execute("HGET demo:order:101 missing");
+  expect(missing.rows).toEqual([[null]]);
+  await expect(page.getByRole("gridcell")).toHaveText("NULL");
+
+  await show("HGET demo:order:101 status", "open");
   await control("revoke");
   try {
     expect((await execute(null, 403)).error).toBe("query_result_disclosure_blocked");
   } finally {
     await control("restore");
   }
-  await show("GET demo:order:101", "fixture-open");
+  await show(null, "open");
   await control("break-audit");
   try {
     expect((await execute(null, 502)).error).toBe("query_backend_error");
@@ -112,11 +134,14 @@ try {
     await control("restore-audit");
   }
   const history = await (await page.request.get(`${origin}/api/proxy/query-targets/${target}/executions?pageSize=20`)).json();
-  for (const id of [first, second]) {
-    expect(history.items).toContainEqual(expect.objectContaining({ id, engine: "redis", status: "success", statementPreview: "Redis GET", canRestore: false }));
+  for (const [id, preview] of [[first, "Redis GET"], [second, "Redis GET"], [hgetFirst, "Redis HGET"]]) {
+    expect(history.items).toContainEqual(expect.objectContaining({ id, engine: "redis", status: "success", statementPreview: preview, canRestore: false }));
   }
-  expect(JSON.stringify(history)).not.toContain("demo:order:");
-  console.log("PASS Redis worksheet: type GET, edit the key and rerun, verify evidence, refuse writes, denied and revoked keys, and audit failure");
+  const evidence = JSON.stringify(history);
+  expect(evidence).not.toContain("demo:order:");
+  expect(evidence).not.toContain("open");
+  expect(evidence).not.toContain("cn-east");
+  console.log("PASS Redis worksheet: GET and HGET on approved keys and fields, edit and rerun, hash fields in Objects, refused/blocked/too-large clears the grid, revocation and audit failure, evidence labels");
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
