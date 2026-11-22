@@ -8,6 +8,8 @@ ClickHouse completion tests cover table and unqualified column positions, quoted
 
 Worksheet session tests cover approval-generation pinning across ClickHouse page turns and compatibility with older single-result servers.
 
+The SQL run-scope tests cover dialect-specific statement boundaries and selection/cursor behavior. Worksheet session coverage pins paging to the last delivered statement, including after an edit or a cancelled replacement Run.
+
 - Tests exercise exported library functions with literal input/output contracts.
 - `worksheet-session`/`schema-catalog` tests cover the PostgreSQL composite context: connection/schema pinning, keyed execution, abort-then-reconcile cancellation, and the terminal+claim history union.
 - `worksheet-session` navigation coverage includes single in-flight intent dedup, supersession aborting the old attempt, context-teardown abort, `execution_already_exists` replay via keyed state read, `client_execution_id_conflict` hard stop, late-response dropping, and cancellation probes sharing one total budget (abortable backoff, hanging GET consumed by the deadline → `unknown` — never stale `running`, while a deadline-interrupted wait keeps the last completed read, newer-probe ownership replacement, no stuck `requested` state).

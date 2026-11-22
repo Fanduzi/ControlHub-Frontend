@@ -1637,6 +1637,50 @@ describe("WorksheetSession run scope", () => {
     expect(execute.mock.calls[1][1].pagination).toEqual({ page: 2, pageSize: 10 });
   });
 
+  it("keeps the delivered statement for paging when a newer Run is cancelled", async () => {
+    const pageOne = emptyResult({
+      executionId: 11,
+      pagination: { page: 1, pageSize: 10, hasNextPage: true, hasPreviousPage: false },
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(pageOne)
+      .mockImplementationOnce(
+        (_id: number, _req: unknown, opts?: { signal?: AbortSignal }) =>
+          new Promise<QueryExecuteResponse>((_resolve, reject) =>
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("The operation was aborted.", "AbortError")),
+            ),
+          ),
+      )
+      .mockResolvedValueOnce(
+        emptyResult({
+          executionId: 12,
+          pagination: { page: 2, pageSize: 10, hasNextPage: false, hasPreviousPage: true },
+        }),
+      );
+    const session = createSession({ execute });
+    session.editStatement("SELECT 1;\nSELECT 2;");
+
+    await session.run("SELECT 1;");
+    expect(session.active.result?.executionId).toBe(11);
+
+    // Run B resolves a different scope but is cancelled before delivery: its
+    // statement must not replace the one bound to the result still on screen.
+    const runB = session.run("SELECT 2;");
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    session.cancel();
+    await runB;
+
+    expect(session.active.result?.executionId).toBe(11);
+    expect(session.active.executedStatement).toBe("SELECT 1;");
+
+    await session.nextPage();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute.mock.calls[2][1].statement).toBe("SELECT 1;");
+    expect(execute.mock.calls[2][1].pagination).toEqual({ page: 2, pageSize: 10 });
+  });
+
   it("clears the executed statement when the worksheet content is replaced", async () => {
     const execute = vi.fn().mockResolvedValue(emptyResult());
     const session = createSession({ execute });

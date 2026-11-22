@@ -8,7 +8,7 @@
  */
 
 import { EditorState } from "@codemirror/state";
-import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree } from "@codemirror/language";
 import {
   sql,
   MySQL,
@@ -36,6 +36,7 @@ const worksheetMySQLDialect = SQLDialect.define({
 export const clickHouseEditorDialect = SQLDialect.define({
   ...StandardSQL.spec,
   identifierQuotes: '`"',
+  backslashEscapes: true,
 });
 
 /** The SQL dialect the worksheet editor configures for an engine. */
@@ -71,7 +72,10 @@ function isExecutableStatement(state: EditorState, range: SqlStatementRange): bo
  * the cursor rule must not resolve to them.
  */
 export function sqlStatementRanges(state: EditorState): SqlStatementRange[] {
-  const tree = ensureSyntaxTree(state, state.doc.length, 100) ?? syntaxTree(state);
+  // Never split on a partial parse: a prefix-only tree would pick a fragment
+  // as the "current" statement, so fall back to the whole-document behavior.
+  const tree = ensureSyntaxTree(state, state.doc.length, 100);
+  if (!tree || tree.length !== state.doc.length) return [];
   const ranges: SqlStatementRange[] = [];
   for (let node = tree.topNode.firstChild; node; node = node.nextSibling) {
     if (node.name !== "Statement") continue;

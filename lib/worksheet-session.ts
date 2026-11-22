@@ -129,10 +129,10 @@ export type Worksheet = {
   targetResourceId: number;
   statement: string;
   /**
-   * The resolved text the last Run actually sent (editor selection or the
+   * The resolved text of the last delivered result (editor selection or the
    * cursor's statement — may differ from the draft). Ephemeral: never
    * persisted to the workspace draft. Paging re-sends this, not the live
-   * editor text; null until the first Run.
+   * editor text; null until a result is delivered.
    */
   executedStatement: string | null;
   parameters: readonly QuerySavedStatementParameterDefinition[];
@@ -955,7 +955,6 @@ export class WorksheetSession {
       templateFieldErrors: {},
       requestId,
       isDirty: false,
-      executedStatement,
       relatedRecords: {
         status: "idle",
         generation: worksheet.relatedRecords.generation + 1,
@@ -964,7 +963,7 @@ export class WorksheetSession {
       ...(statementChanged ? { previewProvenance: null } : {}),
       ...(engine === "redis" || engine === "mongodb" ? { result: null, resultPagination: null } : {}),
     });
-    await this.applyPage(worksheet.id, requestId, worksheet.targetResourceId, 1, worksheet.pageSize, worksheet.maxRows, worksheet.templateStatementId);
+    await this.applyPage(worksheet.id, requestId, worksheet.targetResourceId, 1, worksheet.pageSize, worksheet.maxRows, worksheet.templateStatementId, undefined, executedStatement);
   }
 
   async nextPage(): Promise<void> {
@@ -1707,6 +1706,7 @@ export class WorksheetSession {
     clientExecutionId: string | undefined,
     clickHouseGeneration: string | undefined,
     includePagination: boolean,
+    statement: string,
   ): Promise<QueryExecuteResponse | null> {
     const engine = this.engineFor(targetId);
     const pg = engine === "postgresql";
@@ -1731,9 +1731,7 @@ export class WorksheetSession {
     return this.ports.execute(
       targetId,
       {
-        // Paging re-sends the statement the original Run resolved, not the
-        // live draft — edits after a run never change paged requests.
-        statement: worksheet.executedStatement ?? worksheet.statement,
+        statement,
         ...(clickHouseGeneration ? { clickHouseGeneration } : {}),
         ...(includePagination ? { pagination: { page, pageSize } } : {}),
         ...(database !== undefined ? { database } : {}),
@@ -1754,9 +1752,13 @@ export class WorksheetSession {
     maxRows: number,
     templateStatementId: number | null,
     pageGeneration?: string,
+    statementOverride?: string,
   ): Promise<void> {
     const worksheet = this.worksheets.find((ws) => ws.id === worksheetId);
     if (!worksheet || worksheet.requestId !== requestId) return;
+    // Paging re-sends the statement bound to the delivered result, not the
+    // live draft — edits or a cancelled later Run never change paged requests.
+    const statement = statementOverride ?? worksheet.executedStatement ?? worksheet.statement;
     const pg = this.isPostgres(targetId);
     const clientExecutionId = pg ? this.createId() : undefined;
     const controller = new AbortController();
@@ -1781,6 +1783,7 @@ export class WorksheetSession {
         clientExecutionId,
         generation,
         engine !== "redis" && engine !== "mongodb" && (!generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId)),
+        statement,
       );
       if (!response) return;
       // Fail closed on a context echo that mismatches the request binding —
@@ -1808,6 +1811,9 @@ export class WorksheetSession {
         currentPage: response.pagination?.page ?? page,
         resultPagination: response.pagination ?? null,
         resultGeneration: response.pagination ? generation : undefined,
+        // The statement bound to a delivered result — only now does it become
+        // what paging re-sends. Template runs leave no ad-hoc statement.
+        executedStatement: templateStatementId === null ? statement : null,
       });
     } catch (caught) {
       if (isAbortError(caught) || controller.signal.aborted) {

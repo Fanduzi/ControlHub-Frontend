@@ -70,3 +70,5 @@ Editor-shell paging tests cover the shared 5-row page size while retaining the d
 `environment-provider.test.tsx` verifies the single authenticated BFF
 environments probe does not trust browser role state; persisted selection uses
 the Topbar's single route replacement to refresh Server Components.
+
+Run-scope coverage checks editor highlighting, Run descriptions, and scoped requests. Workspace persistence tests verify that aborted or unauthorized saves do not trigger a reconcile read.

@@ -23,6 +23,8 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 | settings.spec.ts | Settings page |
 | topology.spec.ts | Topology view |
 
+The MySQL and PostgreSQL workbench specs also verify executing a selection and the statement at the cursor. PostgreSQL coverage checks scoped history and semicolons inside string literals.
+
 ## Helpers
 
 | File | Purpose |

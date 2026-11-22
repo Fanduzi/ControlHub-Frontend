@@ -115,6 +115,12 @@ describe("sqlStatementRanges (lang-sql splitter)", () => {
     expect(list[1]!.text).toBe("SELECT 'x;y'");
   });
 
+  it("keeps a semicolon after a ClickHouse backslash-escaped quote inside the string", () => {
+    const first = "SELECT 'x\\';y' AS first_value;";
+    const list = ranges(`${first} SELECT 2 AS b;`, "clickhouse");
+    expect(list.map(({ text }) => text)).toEqual([first, "SELECT 2 AS b;"]);
+  });
+
   it("skips empty statements", () => {
     const list = ranges("SELECT 1;;\n;SELECT 2");
     expect(list).toHaveLength(2);
