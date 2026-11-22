@@ -719,9 +719,21 @@ export function QueryWorkbench({
 function RedisObjects({ target, label }: { target: QueryTarget; label: string }) {
   return (
     <ul aria-label={label} className="space-y-1 p-2 font-mono text-xs">
-      {target.schemaPreview.filter((node) => node.kind === "redis_key").map((node) => (
-        <li key={node.name} className="break-all">{node.name}</li>
-      ))}
+      {target.schemaPreview.filter((node) => node.kind === "redis_key").map((node) => {
+        const fields = node.children?.filter((child) => child.kind === "redis_hash_field") ?? [];
+        return (
+          <li key={node.name} className="break-all">
+            {node.name}
+            {fields.length > 0 ? (
+              <ul className="ml-2 mt-1 space-y-1 border-l border-border pl-2">
+                {fields.map((field) => (
+                  <li key={field.name} className="break-all">{field.name}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        );
+      })}
     </ul>
   );
 }

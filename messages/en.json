@@ -1518,7 +1518,7 @@
       "accessPlaceholder": "Access requests are not supported here.",
       "statementLabel": "Statement",
       "redisCommandLabel": "Redis command",
-      "redisValidationFailed": "Enter GET with one approved key. Values must be UTF-8 strings of at most 1 KiB.",
+      "redisValidationFailed": "Enter GET with one approved key, or HGET with an approved key and field. Values must be UTF-8 strings of at most 1 KiB.",
       "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",
       "maxRowsRangeError": "Enter a whole number from 1 to 500",
