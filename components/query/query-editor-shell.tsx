@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -15,7 +15,6 @@ import type {
   QueryExecutionHistoryExecution,
   QueryExecutionRecord,
   QueryResultCellValue,
-  QueryResultColumn,
   QueryExecutionStatus,
   TablePreviewRequest,
 } from "@/types/query-execution";
@@ -85,6 +84,13 @@ import { useWorksheetSchemaAdapter } from "@/lib/use-worksheet-schema-adapter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isQueryResultCsvExportable, serializeQueryResultCsv } from "@/lib/query-result-csv";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
+import {
+  isColumnCopyable,
+  resultRangeBetween,
+  resultRangeCopyRefusal,
+  serializeResultRangeTsv,
+  type ResultCellPoint,
+} from "@/lib/query-result-range";
 import {
   DEFAULT_STATEMENT,
   INITIAL_WORKSHEET_ID,
@@ -2485,15 +2491,15 @@ function ExplainPanel({
   );
 }
 
+const RESULT_COLUMN_MIN_WIDTH = 104;
+const RESULT_COLUMN_MAX_WIDTH = 640;
+const RESULT_COLUMN_DEFAULT_WIDTH = 160;
+const RESULT_COLUMN_KEY_STEP = 16;
+
 /**
- * Result grid with roving-tabindex keyboard selection and a single toolbar copy
- * action. The grid uses role="grid" with role="columnheader" / role="gridcell";
- * only the active cell is in the Tab order (tabIndex=0). Arrow keys move the
- * active cell; Enter/Space selects it for copy. A single Copy button in the
- * toolbar copies the currently selected value.
- *
- * Selection resets when columns or rows change (new execution), preventing
- * stale copies of invisible values.
+ * Roving-focus grid for a single delivered result page. Arrow keys move focus
+ * and Enter/Space select a cell or header; Shift extends a data-cell range.
+ * Execution-keyed remounts reset selection and column widths together.
  */
 function ResultTable({
   columns,
@@ -2513,12 +2519,24 @@ function ResultTable({
   exportEnabled: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
+  const gridDescriptionId = useId();
 
   // Roving-tabindex active cell. row = -1 means the header row.
   // Initialized to the first data cell so Tab can enter the grid.
-  const [activeCell, setActiveCell] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
+  const [activeCell, setActiveCell] = useState<ResultCellPoint>({ row: 0, col: 0 });
   // Ref map for programmatic focus during arrow-key navigation.
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  // Per-column widths are presentation-only: never persisted, never part of
+  // the governed payload, and reset on each executionId-keyed remount.
+  const [columnWidths, setColumnWidths] = useState(() => columns.map(() => RESULT_COLUMN_DEFAULT_WIDTH));
+  const resizeDrag = useRef<{ pointerId: number; column: number; startX: number; width: number } | null>(null);
+
+  function adjustColumnWidth(column: number, delta: number, startWidth?: number) {
+    setColumnWidths((widths) => widths.map((width, index) => index === column
+      ? Math.max(RESULT_COLUMN_MIN_WIDTH, Math.min(RESULT_COLUMN_MAX_WIDTH, (startWidth ?? width) + delta))
+      : width));
+  }
 
   function setCellRef(row: number, col: number, el: HTMLElement | null) {
     const key = `${row},${col}`;
@@ -2533,12 +2551,9 @@ function ResultTable({
     cellRefs.current.get(`${row},${col}`)?.focus();
   }
 
-  // Selection for copy (distinct from keyboard focus).
-  const [selectedCell, setSelectedCell] = useState<{
-    rowIndex: number;
-    colIndex: number;
-    value: QueryResultCellValue;
-  } | null>(null);
+  // Selection for copy (distinct from keyboard focus): an anchor/end pair
+  // describing one rectangular range; single-cell selection is a 1x1 range.
+  const [selection, setSelection] = useState<{ anchor: ResultCellPoint; end: ResultCellPoint } | null>(null);
   const [selectedHeader, setSelectedHeader] = useState<{
     colIndex: number;
     name: string;
@@ -2572,6 +2587,15 @@ function ResultTable({
   // column or corrupt matrix disables the control, not only truncation.
   const csvExportable = isQueryResultCsvExportable(columns, rows, cellTruncated);
 
+  // The current selection normalized to one rectangle. Multi-cell ranges are
+  // copy-only: single-cell affordances (viewer, related records) stay bound to
+  // a 1x1 selection so they never act on a rectangle.
+  const range = selection ? resultRangeBetween(selection.anchor, selection.end) : null;
+  const isMultiCell = !!range && (range.top !== range.bottom || range.left !== range.right);
+  const selectedCell = isMultiCell ? null : selection?.end ?? null;
+  const resultPage = { columns, rows, cellTruncated };
+  const copyRefusal = range ? resultRangeCopyRefusal(resultPage, range) : null;
+
   // Compute eligible FKs for the current selected data row.
   const eligibleFKs = useMemo(() => {
     if (!navigationCapability || !selectedCell || selectedHeader) {
@@ -2601,7 +2625,7 @@ function ResultTable({
           eligible = false;
           break;
         }
-        const cellValue = rows[selectedCell.rowIndex]?.[colIndex];
+        const cellValue = rows[selectedCell.row]?.[colIndex];
         if (cellValue === null || cellValue === undefined) {
           eligible = false;
           break;
@@ -2645,20 +2669,21 @@ function ResultTable({
     return String(value);
   }
 
-  function selectCellAt(rowIndex: number, colIndex: number) {
-    const value = rows[rowIndex]?.[colIndex] ?? null;
-    setSelectedCell({ rowIndex, colIndex, value });
+  function selectCellAt(point: ResultCellPoint, extendFrom?: ResultCellPoint) {
+    setSelection((current) => ({ anchor: extendFrom ? current?.anchor ?? extendFrom : point, end: point }));
     setSelectedHeader(null);
   }
 
   function selectHeaderAt(colIndex: number) {
     setSelectedHeader({ colIndex, name: columns[colIndex]?.name ?? "" });
-    setSelectedCell(null);
+    setSelection(null);
   }
 
-  function handleCellClick(row: number, col: number) {
-    setActiveCell({ row, col });
-    selectCellAt(row, col);
+  function handleCellClick(row: number, col: number, extend: boolean) {
+    const point = { row, col };
+    setActiveCell(point);
+    selectCellAt(point, extend ? point : undefined);
+    if (extend) focusCell(row, col);
   }
 
   function handleHeaderClick(col: number) {
@@ -2666,58 +2691,37 @@ function ResultTable({
     selectHeaderAt(col);
   }
 
-  // Defense-in-depth: check both displayMode and copyAllowed to fail closed
-  // on backend drift or bug (e.g., masked_no_copy + copyAllowed:true).
-  function isColumnCopyable(col: QueryResultColumn | undefined): boolean {
-    return col?.displayMode === "raw_copy_allowed" && col?.copyAllowed === true;
-  }
-
   function handleGridKeyDown(event: React.KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c" && isMultiCell) {
+      event.preventDefault();
+      void handleCopy();
+      return;
+    }
     const { row, col } = activeCell;
-
-    switch (event.key) {
-      case "ArrowRight": {
-        event.preventDefault();
-        const nextCol = Math.min(col + 1, colCount - 1);
-        setActiveCell({ row, col: nextCol });
-        focusCell(row, nextCol);
-        break;
+    const key = event.key;
+    if (key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown") {
+      event.preventDefault();
+      const horizontal = key === "ArrowLeft" || key === "ArrowRight";
+      if (event.shiftKey && row === -1 && horizontal) {
+        adjustColumnWidth(col, (key === "ArrowRight" ? 1 : -1) * RESULT_COLUMN_KEY_STEP);
+        return;
       }
-      case "ArrowLeft": {
-        event.preventDefault();
-        const prevCol = Math.max(col - 1, 0);
-        setActiveCell({ row, col: prevCol });
-        focusCell(row, prevCol);
-        break;
-      }
-      case "ArrowDown": {
-        event.preventDefault();
-        if (row < rowCount - 1) {
-          setActiveCell({ row: row + 1, col });
-          focusCell(row + 1, col);
-        }
-        break;
-      }
-      case "ArrowUp": {
-        event.preventDefault();
-        if (row >= 0) {
-          setActiveCell({ row: row - 1, col });
-          focusCell(row - 1, col);
-        }
-        break;
-      }
-      case "Enter":
-      case " ": {
-        event.preventDefault();
-        if (row === -1) {
-          selectHeaderAt(col);
-        } else {
-          selectCellAt(row, col);
-        }
-        break;
-      }
-      default:
-        break;
+      const next = {
+        row: Math.max(event.shiftKey && row >= 0 ? 0 : -1, Math.min(rowCount - 1, row + (key === "ArrowDown" ? 1 : key === "ArrowUp" ? -1 : 0))),
+        col: Math.max(0, Math.min(colCount - 1, col + (key === "ArrowRight" ? 1 : key === "ArrowLeft" ? -1 : 0))),
+      };
+      if (event.shiftKey && row >= 0) selectCellAt(next, activeCell);
+      setActiveCell(next);
+      focusCell(next.row, next.col);
+      return;
+    }
+    if (key === "Enter" || key === " ") {
+      event.preventDefault();
+      if (row === -1) selectHeaderAt(col);
+      else selectCellAt(activeCell);
+    } else if (key === "Escape" && isMultiCell) {
+      event.preventDefault();
+      setSelection(null);
     }
   }
 
@@ -2747,18 +2751,19 @@ function ResultTable({
 
   async function handleCopy() {
     let text: string;
-    if (selectedCell) {
-      const column = columns[selectedCell.colIndex];
-      if (column && !isColumnCopyable(column)) {
+    if (range) {
+      const refusal = resultRangeCopyRefusal(resultPage, range);
+      if (refusal) {
+        showFeedback(t(isMultiCell ? "result.copyRangeBlocked" : refusal === "truncated" ? "result.copyTruncatedBlocked" : "result.copyNotAllowed"), "error");
         return;
       }
-      // A truncated cell only holds the safe backend prefix — never copy it as
-      // if it were the complete value.
-      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
-        showFeedback(t("result.copyTruncatedBlocked"), "error");
-        return;
+      if (isMultiCell) {
+        const tsv = serializeResultRangeTsv(resultPage, range);
+        if (tsv === null) return;
+        text = tsv;
+      } else {
+        text = getCellCopyText(rows[range.top]?.[range.left] ?? null);
       }
-      text = getCellCopyText(selectedCell.value);
     } else if (selectedHeader) {
       text = selectedHeader.name;
     } else {
@@ -2772,15 +2777,17 @@ function ResultTable({
   }
 
   function copyButtonLabel(): string {
-    if (selectedCell) {
-      const column = columns[selectedCell.colIndex];
-      if (column && !isColumnCopyable(column)) {
-        return t("result.copyNotAllowed");
-      }
-      if (isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex)) {
+    if (isMultiCell) {
+      return t(copyRefusal ? "result.copyRangeBlocked" : "result.copyRange");
+    }
+    if (range) {
+      if (copyRefusal === "truncated") {
         return t("result.copyTruncatedBlocked");
       }
-      return t("result.copyCellAriaLabel", { value: getCellCopyText(selectedCell.value) });
+      if (copyRefusal !== null) {
+        return t("result.copyNotAllowed");
+      }
+      return t("result.copyCellAriaLabel", { value: getCellCopyText(rows[range.top]?.[range.left] ?? null) });
     }
     if (selectedHeader) {
       return t("result.copyColumnNameAriaLabel", { name: selectedHeader.name });
@@ -2788,10 +2795,10 @@ function ResultTable({
     return t("result.copyCellValue");
   }
 
-  const viewerValue = selectedCell ? rows[selectedCell.rowIndex]?.[selectedCell.colIndex] : undefined;
-  const viewerColumn = selectedCell ? columns[selectedCell.colIndex] : undefined;
+  const viewerValue = selectedCell ? rows[selectedCell.row]?.[selectedCell.col] : undefined;
+  const viewerColumn = selectedCell ? columns[selectedCell.col] : undefined;
   const viewableCell = selectedCell && viewerColumn && isColumnCopyable(viewerColumn) &&
-    cellTruncated[selectedCell.rowIndex]?.[selectedCell.colIndex] === false &&
+    cellTruncated[selectedCell.row]?.[selectedCell.col] === false &&
     typeof viewerValue === "string" && viewerValue.length > 0
     ? { name: viewerColumn.name, value: viewerValue }
     : null;
@@ -2807,16 +2814,17 @@ function ResultTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!selectedCell && !selectedHeader || (selectedCell ? !isColumnCopyable(columns[selectedCell.colIndex]) || isCellTruncated(selectedCell.rowIndex, selectedCell.colIndex) : false)}
+          disabled={(!range && !selectedHeader) || copyRefusal !== null}
           onClick={() => void handleCopy()}
+          title={t(isMultiCell && copyRefusal ? "result.copyRangeBlocked" : "result.gridSelectionHelp")}
           aria-label={copyButtonLabel()}
           data-testid="copy-selection"
         >
           <Copy className="size-3.5" aria-hidden />
-          {t("result.copyCellValue")}
+          {t(isMultiCell ? "result.copyRange" : "result.copyCellValue")}
         </Button>
         <QueryResultCellViewer
-          key={viewableCell && selectedCell ? `${selectedCell.rowIndex}:${selectedCell.colIndex}` : "unavailable"}
+          key={viewableCell && selectedCell ? `${selectedCell.row}:${selectedCell.col}` : "unavailable"}
           cell={viewableCell}
         />
         {exportEnabled && <Button
@@ -2883,11 +2891,22 @@ function ResultTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
+        <span id={gridDescriptionId} className="sr-only">
+          {t("result.gridSelectionHelp")}
+        </span>
         <table
           role="grid"
-          className="w-full border-collapse text-sm"
+          className="table-fixed border-collapse text-sm"
+          style={{ width: columnWidths.reduce((sum, width) => sum + width, 0) }}
+          aria-multiselectable="true"
+          aria-describedby={gridDescriptionId}
           onKeyDown={handleGridKeyDown}
         >
+          <colgroup>
+            {columnWidths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
               {columns.map((column, colIndex) => {
@@ -2895,19 +2914,44 @@ function ResultTable({
                 const isSelected = selectedHeader?.colIndex === colIndex;
                 return (
                   <th
-                    key={column.name}
+                    key={colIndex}
                     ref={(el) => setCellRef(-1, colIndex, el)}
                     scope="col"
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => handleHeaderClick(colIndex)}
                     onFocus={() => setActiveCell({ row: -1, col: colIndex })}
                     data-selected={isSelected ? "" : undefined}
+                    aria-selected={isSelected}
+                    aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight"
+                    aria-description={t("result.columnWidth", { width: columnWidths[colIndex]! })}
                     className={cn(
-                      "cursor-default select-none px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                      "relative cursor-default select-none px-3 py-2 pr-5 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
                       isSelected && "ring-2 ring-inset ring-ring",
                     )}
                   >
-                    {column.name}
+                    <span className="block truncate">{column.name}</span>
+                    <span
+                      aria-hidden="true"
+                      title={t("result.resizeColumn", { name: column.name })}
+                      data-testid="result-column-resize"
+                      className="absolute inset-y-0 right-0 w-3 cursor-col-resize touch-none border-r border-border hover:border-primary hover:bg-primary/15"
+                      onClick={(event) => event.stopPropagation()}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0 || !event.isPrimary) return;
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        resizeDrag.current = { pointerId: event.pointerId, column: colIndex, startX: event.clientX, width: columnWidths[colIndex]! };
+                      }}
+                      onPointerMove={(event) => {
+                        const drag = resizeDrag.current;
+                        if (drag?.pointerId === event.pointerId && drag.column === colIndex) {
+                          adjustColumnWidth(colIndex, event.clientX - drag.startX, drag.width);
+                        }
+                      }}
+                      onLostPointerCapture={(event) => {
+                        if (resizeDrag.current?.pointerId === event.pointerId) resizeDrag.current = null;
+                      }}
+                    />
                   </th>
                 );
               })}
@@ -2918,18 +2962,24 @@ function ResultTable({
               <tr key={rowIndex} className="border-b border-border/60">
                 {row.map((cell, cellIndex) => {
                   const isActive = activeCell?.row === rowIndex && activeCell.col === cellIndex;
-                  const isSelected = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === cellIndex;
+                  const isSelected = !!range &&
+                    rowIndex >= range.top && rowIndex <= range.bottom &&
+                    cellIndex >= range.left && cellIndex <= range.right;
                   return (
                     <td
                       key={cellIndex}
                       ref={(el) => setCellRef(rowIndex, cellIndex, el)}
                       tabIndex={isActive ? 0 : -1}
-                      onClick={() => handleCellClick(rowIndex, cellIndex)}
+                      onMouseDown={(event) => { if (event.shiftKey) event.preventDefault(); }}
+                      onClick={(event) => handleCellClick(rowIndex, cellIndex, event.shiftKey)}
                       onFocus={() => setActiveCell({ row: rowIndex, col: cellIndex })}
                       data-selected={isSelected ? "" : undefined}
+                      aria-selected={isSelected}
                       className={cn(
                         "cursor-default px-3 py-2 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
-                        isSelected && "ring-2 ring-inset ring-ring",
+                        isSelected && (isMultiCell
+                          ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                          : "ring-2 ring-inset ring-ring"),
                       )}
                     >
                       <ResultCell value={cell} truncated={isCellTruncated(rowIndex, cellIndex)} />
@@ -2956,20 +3006,20 @@ function ResultCell({ value, truncated }: { value: QueryResultCellValue; truncat
 
   const rendered =
     value === null ? (
-      <span className="font-mono text-xs italic text-muted-foreground">{t("result.nullMarker")}</span>
+      <span className="min-w-0 truncate font-mono text-xs italic text-muted-foreground">{t("result.nullMarker")}</span>
     ) : typeof value === "boolean" ? (
-      <span className="font-mono text-xs text-foreground">{value ? "true" : "false"}</span>
+      <span className="min-w-0 truncate font-mono text-xs text-foreground">{value ? "true" : "false"}</span>
     ) : (
-      <span className="font-mono text-xs text-foreground">{String(value)}</span>
+      <span className="min-w-0 truncate font-mono text-xs text-foreground">{String(value)}</span>
     );
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="flex min-w-0 items-center gap-1.5">
       {rendered}
       {truncated ? (
         <Badge
           variant="outline"
-          className="border-amber-500/50 px-1 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+          className="shrink-0 border-amber-500/50 px-1 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300"
           title={t("result.cellTruncated")}
           aria-label={t("result.cellTruncated")}
           data-testid="cell-truncated-badge"

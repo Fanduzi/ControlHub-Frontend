@@ -17,6 +17,7 @@ Shared frontend libraries.
 | `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, owned navigation attempts (single in-flight intent, dedup/supersede, keyed replay/conflict exits), history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation probes with a shared total budget and per-worksheet ownership (a read killed by the total deadline resolves `unknown`, never stale `running`), `hydrate(..., preferFallbackTarget)` activation that lets an explicit deep-linked pin pick its binding worksheet over items[0] restore order, and injectable localized name callbacks (`worksheetName`/`previewName`) with a monotonic suffix counter that skips name collisions and resumes after the largest generated suffix seen at hydrate |
 | `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
 | `query-result-cell-json.ts` | Presentation-only JSON pretty-printer for the result-cell viewer: recognizes object/array text, bounds length and depth, and indents tokens without re-serializing values so number lexemes, duplicate keys, order, and escapes stay verbatim; null for anything else |
+| `query-result-range.ts` | Rectangular result-selection helper: corner-normalizing `ResultRange`, per-cell copy guard (copyable column, untruncated, boolean-flagged, JSON-scalar value — disclosure/truncation/unavailable refusals), and TSV-only serializer with NULL-as-empty field, quoting for tabs/newlines/quotes, and an apostrophe formula guard |
 | `query-credential-operations.ts` | Credential operations read model: composite `credentialRowKey` (resourceId or resourceId@database), per-connection row expansion for PostgreSQL `connections[]`, coverage counts, grouping/filtering, and whitelisted PUT body incl. `defaultSchema` |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
@@ -68,6 +69,15 @@ page — `[masked]`/`[blocked]` placeholders are never serialized. Direct calls
 fail closed on malformed input; TypeScript types are not the gate.
 Values/headers beginning with a spreadsheet formula prefix are emitted as
 literal text.
+
+`query-result-range.ts` emits a selected rectangular range only and owns the
+rectangle eligibility decision at runtime: every column in the rectangle needs
+both `raw_copy_allowed` and `copyAllowed`, every selected cell needs a boolean
+`cellTruncated === false` flag and a JSON-scalar value, and disclosure,
+truncated, or malformed selections are refused rather than serialized.
+Restricted or truncated cells outside the rectangle never block it, but no
+headers are emitted, SQL NULL serializes as an empty field, and string values
+beginning with a spreadsheet formula prefix are apostrophe-guarded.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

@@ -4087,6 +4087,12 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const user = userEvent.setup();
     await renderWithResult();
 
+    // Resize a column from its focused header: width is presentation-only.
+    const idHeader = screen.getByRole("columnheader", { name: "id" });
+    await user.click(idHeader);
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(idHeader).toHaveAttribute("aria-description", "Width: 176px");
+
     // Select a cell.
     const cell = screen.getByRole("cell", { name: "orders-api" });
     await user.click(cell);
@@ -4120,6 +4126,11 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     // New cell should not be selected.
     const newCell = screen.getByRole("cell", { name: "42" });
     expect(newCell).not.toHaveAttribute("data-selected");
+    // Column widths reset with the executionId-keyed remount.
+    expect(screen.getByRole("columnheader", { name: "n" })).toHaveAttribute(
+      "aria-description",
+      "Width: 160px",
+    );
   });
 
   it("first data cell has tabIndex=0 on initial render (Tab can enter grid)", async () => {
@@ -4175,6 +4186,72 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const header = screen.getByRole("columnheader", { name: "id" });
     expect(document.activeElement).toBe(header);
     expect(header).toHaveAttribute("tabindex", "0");
+  });
+
+  it("Shift+Arrow selects a 2x2 range, Ctrl+C copies exact TSV, Escape resets", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const first = screen.getByRole("cell", { name: "1" });
+    await user.click(first);
+
+    // Extend from the focused cell: right one column, then down one row.
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+
+    const grid = screen.getByRole("grid");
+    expect(grid).toHaveAttribute("aria-multiselectable", "true");
+    const cells = within(grid).getAllByRole("cell");
+    const selected = cells.filter((cell) => cell.getAttribute("aria-selected") === "true");
+    expect(selected).toHaveLength(4);
+    for (const cell of selected) {
+      expect(cell).toHaveAttribute("data-selected");
+    }
+
+    // The cell viewer is not offered for a multi-cell selection.
+    expect(screen.getByRole("button", { name: "View value" })).toBeDisabled();
+
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeEnabled();
+    expect(copyButton).toHaveTextContent("Copy selection");
+
+    // Ctrl+C on the focused grid copies the rectangle in row-major TSV order;
+    // the SQL NULL in the second row serializes as an empty trailing field.
+    fireEvent.keyDown(grid, { key: "c", ctrlKey: true });
+    await waitFor(() => {
+      expect(mockCopyToClipboard).toHaveBeenCalledWith("1\torders-api\n2\t");
+    });
+
+    await user.keyboard("{Escape}");
+    expect(cells.filter((cell) => cell.getAttribute("aria-selected") === "true")).toHaveLength(0);
+    expect(copyButton).toBeDisabled();
+  });
+
+  it("refuses a range containing a protected column without touching the clipboard", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({
+      columns: [
+        col("id", "BIGINT", false),
+        { ...col("secret", "VARCHAR", false), displayMode: "masked_no_copy", copyAllowed: false },
+      ],
+      rows: [[1, "[MASKED]"], [2, "[MASKED]"]],
+      cellTruncated: [[false, false], [false, false]],
+    });
+
+    await user.click(screen.getAllByRole("cell", { name: "1" })[0]!);
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeDisabled();
+    expect(copyButton).toHaveAttribute(
+      "aria-label",
+      "Selection contains a protected, truncated, or unavailable value",
+    );
+
+    // Even a Ctrl+C shortcut cannot overwrite the clipboard for a refused range.
+    const grid = screen.getByRole("grid");
+    fireEvent.keyDown(grid, { key: "c", ctrlKey: true });
+    expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 
 });

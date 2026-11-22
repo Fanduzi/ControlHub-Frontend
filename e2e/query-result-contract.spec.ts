@@ -784,4 +784,125 @@ test.describe("T13-A result contract consumption", () => {
     // Inspection is local: exactly one execute request for the whole test.
     expect(executeRequests).toBe(1);
   });
+
+  test("resizes a column and copies only permitted result ranges", async ({
+    page,
+  }) => {
+    await openReady(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Grid order: id | note | pad | secret.
+    await runSql(
+      page,
+      `select id, note, pad, secret from query_e2e_aux.t13_cells where id in (1,2,6,7) order by id`,
+    );
+
+    const noteHeader = page.getByRole("columnheader", {
+      name: "note",
+      exact: true,
+    });
+    const padHeader = page.getByRole("columnheader", {
+      name: "pad",
+      exact: true,
+    });
+    const noteWidth = (await noteHeader.boundingBox())!.width;
+    const padWidth = (await padHeader.boundingBox())!.width;
+
+    // Pointer drag on the note column's resize handle widens only that column.
+    // page.mouse does not auto-scroll like locator actions, so bring the
+    // handle into the viewport before reading its box.
+    const handle = noteHeader.getByTestId("result-column-resize");
+    await handle.scrollIntoViewIfNeeded();
+    const handleBox = (await handle.boundingBox())!;
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2,
+      handleBox.y + handleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2 + 64,
+      handleBox.y + handleBox.height / 2,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+
+    await expect
+      .poll(async () => (await noteHeader.boundingBox())!.width)
+      .toBeGreaterThanOrEqual(noteWidth + 63);
+    expect((await noteHeader.boundingBox())!.width).toBeLessThanOrEqual(
+      noteWidth + 65,
+    );
+    expect((await padHeader.boundingBox())!.width).toBe(padWidth);
+    // Dragging the handle must not select the header.
+    await expect(noteHeader).toHaveAttribute("aria-selected", "false");
+    await expect(noteHeader).not.toHaveAttribute("data-selected");
+
+    // Keyboard: ArrowUp from a focused data cell reaches the header row, then
+    // Shift+ArrowRight on the focused note header widens it by the key step.
+    const idCell = rowWithNote(page, "edge-8192").getByRole("gridcell").nth(0);
+    await idCell.click();
+    await page.keyboard.press("ArrowUp");
+    await expect(
+      page.getByRole("columnheader", { name: "id", exact: true }),
+    ).toBeFocused();
+    await noteHeader.press("Shift+ArrowRight");
+    await expect
+      .poll(async () => (await noteHeader.boundingBox())!.width)
+      .toBeGreaterThanOrEqual(noteWidth + 79);
+    expect((await noteHeader.boundingBox())!.width).toBeLessThanOrEqual(
+      noteWidth + 81,
+    );
+
+    // Shift-click selects a clean 2x2 rectangle (id + note of rows 6,7).
+    await rowWithNote(page, "empty-str").getByRole("gridcell").nth(0).click();
+    await rowWithNote(page, "sql-null")
+      .getByRole("gridcell")
+      .nth(1)
+      .click({ modifiers: ["Shift"] });
+    await expect(page.locator('td[aria-selected="true"]')).toHaveCount(4);
+
+    const copyButton = page.getByTestId("copy-selection");
+    await expect(copyButton).toBeEnabled();
+    await copyButton.click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // A range covering the masked secret column is refused and cannot
+    // overwrite the clipboard, even via Ctrl+C from a focused cell.
+    await rowWithNote(page, "empty-str").getByRole("gridcell").nth(1).click();
+    await rowWithNote(page, "empty-str")
+      .getByRole("gridcell")
+      .nth(3)
+      .click({ modifiers: ["Shift"] });
+    await expect(copyButton).toBeDisabled();
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // A range covering the truncated pad cell is refused; clipboard stays.
+    await rowWithNote(page, "edge-8192").getByRole("gridcell").nth(1).click();
+    await rowWithNote(page, "over-8193")
+      .getByRole("gridcell")
+      .nth(2)
+      .click({ modifiers: ["Shift"] });
+    await expect(copyButton).toBeDisabled();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // Selection, resize and copy are local: exactly one execute request.
+    expect(executeRequests).toBe(1);
+  });
 });

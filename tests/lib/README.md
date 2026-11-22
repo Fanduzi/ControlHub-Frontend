@@ -45,6 +45,14 @@ pretty-printer: exact indentation output, verbatim number lexemes, duplicate
 keys, order and escapes, and null for malformed, scalar, over-depth, and
 over-length input.
 
+`query-result-range.test.ts` covers the rectangular selection helper: reversed
+corners normalize, TSV serializes row-major without headers, SQL NULL and
+empty text both emit empty fields, negative numbers stay verbatim,
+tab/newline/quote fields are quoted, formula-like strings get the apostrophe
+guard, and refusals fire for protected or inconsistently permitted columns,
+truncated cells, missing matrix flags, non-scalar values, and out-of-bounds
+rectangles — while restricted cells outside the rectangle never block it.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |
