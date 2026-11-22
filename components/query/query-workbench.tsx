@@ -601,6 +601,8 @@ export function QueryWorkbench({
                       <ClickHouseWorksheetObjects catalog={chCatalog} />
                     ) : activeTarget.capability.queryKind === "redis" && activeTarget.availableActions.run ? (
                       <RedisObjects target={activeTarget} label={t("schema.redisKeys")} />
+                    ) : activeTarget.capability.queryKind === "mongo" && activeTarget.availableActions.run ? (
+                      <MongoObjects target={activeTarget} label={t("schema.mongoCollections")} />
                     ) : canBrowseSchema(activeTarget) ? (
                       <QueryObjectExplorer
                         key={activeTarget.resourceId}
@@ -665,6 +667,8 @@ export function QueryWorkbench({
                     <ClickHouseWorksheetObjects catalog={chCatalog} />
                   ) : activeTarget.capability.queryKind === "redis" && activeTarget.availableActions.run ? (
                     <RedisObjects target={activeTarget} label={t("schema.redisKeys")} />
+                  ) : activeTarget.capability.queryKind === "mongo" && activeTarget.availableActions.run ? (
+                    <MongoObjects target={activeTarget} label={t("schema.mongoCollections")} />
                   ) : canBrowseSchema(activeTarget) ? (
                     <QueryObjectExplorer
                       key={activeTarget.resourceId}
@@ -717,10 +721,18 @@ export function QueryWorkbench({
 }
 
 function RedisObjects({ target, label }: { target: QueryTarget; label: string }) {
+  return <NativeObjects target={target} label={label} parentKind="redis_key" childKind="redis_hash_field" />;
+}
+
+function MongoObjects({ target, label }: { target: QueryTarget; label: string }) {
+  return <NativeObjects target={target} label={label} parentKind="mongo_collection" childKind="mongo_field" />;
+}
+
+function NativeObjects({ target, label, parentKind, childKind }: { target: QueryTarget; label: string; parentKind: string; childKind: string }) {
   return (
     <ul aria-label={label} className="space-y-1 p-2 font-mono text-xs">
-      {target.schemaPreview.filter((node) => node.kind === "redis_key").map((node) => {
-        const fields = node.children?.filter((child) => child.kind === "redis_hash_field") ?? [];
+      {target.schemaPreview.filter((node) => node.kind === parentKind).map((node) => {
+        const fields = node.children?.filter((child) => child.kind === childKind) ?? [];
         return (
           <li key={node.name} className="break-all">
             {node.name}
