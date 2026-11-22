@@ -40,6 +40,11 @@ including the rate-limited login path returning a controlled 429
 
 `query-result-envelope.test.ts` covers governed result disclosure checks.
 
+`query-result-cell-json.test.ts` covers the bounded result-cell JSON
+pretty-printer: exact indentation output, verbatim number lexemes, duplicate
+keys, order and escapes, and null for malformed, scalar, over-depth, and
+over-length input.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |

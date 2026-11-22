@@ -1607,7 +1607,12 @@
       "cellTruncated": "已截断",
       "truncatedPageNotice": "本页包含已截断的单元格值。本页已禁用 CSV 导出。",
       "copyTruncatedBlocked": "值已截断，无法复制完整值",
-      "exportCsvBlocked": "无法导出 CSV：当前页包含已截断的值"
+      "exportCsvBlocked": "无法导出 CSV：当前页包含已截断的值",
+      "viewCellValue": "查看值",
+      "cellViewerText": "文本",
+      "cellViewerFormattedJson": "格式化 JSON",
+      "cellViewerRawText": "原始文本",
+      "cellViewerContent": "单元格内容"
     },
     "error": {
       "title": "查询未能执行",

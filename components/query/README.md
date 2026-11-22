@@ -22,6 +22,7 @@ React client components for the query workbench feature.
 | query-object-quick-navigator.tsx | Cmd+P quick object search |
 | query-object-tree.tsx | Schema tree rendering (database→object; optional PostgreSQL connection→schema→object); object rows accept an optional right-click context menu via `renderObjectMenu` |
 | query-relationship-map.tsx | FK relationship map dialog with localized controlled errors and transient-only retry |
+| query-result-cell-viewer.tsx | Read-only result-cell viewer owned by the shared `ResultTable`: a disabled View value affordance until a copyable, untruncated, nonempty string cell is selected; pretty-prints bounded JSON, shows long text verbatim, and is local-only (no fetch, copy, or persistence) |
 | query-schema-browser.tsx | Mobile schema browser sheet |
 | sql-code-editor.tsx | Lazy-loaded CodeMirror worksheet editor |
 | sql-code-editor-client.tsx | Client-side CodeMirror editor with engine-specific SQL extensions and completions. Redis uses native command text in the same editor. Declares `.cm-content` keyboard entry explicitly (`tabindex` 0, or -1 while disabled). |

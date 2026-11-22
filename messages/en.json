@@ -1607,7 +1607,12 @@
       "cellTruncated": "Truncated",
       "truncatedPageNotice": "This page contains truncated cell values. CSV export is disabled for this page.",
       "copyTruncatedBlocked": "Value is truncated; the complete value cannot be copied",
-      "exportCsvBlocked": "CSV export unavailable: the current page contains truncated values"
+      "exportCsvBlocked": "CSV export unavailable: the current page contains truncated values",
+      "viewCellValue": "View value",
+      "cellViewerText": "Text",
+      "cellViewerFormattedJson": "Formatted JSON",
+      "cellViewerRawText": "Raw text",
+      "cellViewerContent": "Cell content"
     },
     "error": {
       "title": "Query could not run",

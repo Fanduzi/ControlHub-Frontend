@@ -52,6 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import { QueryHistoryPanel } from "@/components/query/query-history-panel";
 import { QueryGovernancePanel } from "@/components/query/query-governance-panel";
+import { QueryResultCellViewer } from "@/components/query/query-result-cell-viewer";
 import { QuerySavedStatements } from "@/components/query/query-saved-statements";
 import { SqlCodeEditor } from "@/components/query/sql-code-editor";
 import {
@@ -2208,7 +2209,7 @@ function RelatedRecordsPanel({
               <dd>{t("result.durationMs", { count: safeResponse.durationMs })}</dd>
               {safeResponse.truncated ? <dd className="font-medium text-amber-700 dark:text-amber-400">{t("result.relatedRecordsTruncated")}</dd> : null}
             </dl>
-            <ResultTable columns={safeResponse.columns} rows={safeResponse.rows} cellTruncated={safeResponse.cellTruncated} exportEnabled={false} />
+            <ResultTable key={safeResponse.executionId} columns={safeResponse.columns} rows={safeResponse.rows} cellTruncated={safeResponse.cellTruncated} exportEnabled={false} />
           </>
         );
       })()}
@@ -2787,13 +2788,21 @@ function ResultTable({
     return t("result.copyCellValue");
   }
 
+  const viewerValue = selectedCell ? rows[selectedCell.rowIndex]?.[selectedCell.colIndex] : undefined;
+  const viewerColumn = selectedCell ? columns[selectedCell.colIndex] : undefined;
+  const viewableCell = selectedCell && viewerColumn && isColumnCopyable(viewerColumn) &&
+    cellTruncated[selectedCell.rowIndex]?.[selectedCell.colIndex] === false &&
+    typeof viewerValue === "string" && viewerValue.length > 0
+    ? { name: viewerColumn.name, value: viewerValue }
+    : null;
+
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("result.noRows")}</p>;
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           size="sm"
@@ -2806,6 +2815,10 @@ function ResultTable({
           <Copy className="size-3.5" aria-hidden />
           {t("result.copyCellValue")}
         </Button>
+        <QueryResultCellViewer
+          key={viewableCell && selectedCell ? `${selectedCell.rowIndex}:${selectedCell.colIndex}` : "unavailable"}
+          cell={viewableCell}
+        />
         {exportEnabled && <Button
           type="button"
           size="sm"

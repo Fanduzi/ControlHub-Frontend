@@ -6505,4 +6505,126 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
     expect(screen.queryByTestId("related-records")).toBeNull();
     expect(screen.getByTestId("copy-selection")).toBeDisabled();
   });
+
+  const VIEWER_JSON = `{"orderNo":9007199254740993,"status":"open"}`;
+  const VIEWER_LONG_TEXT = "first line\n  indented second line\nthird";
+  const BLOCKED_SENTINEL = "RAW_BLOCKED_SENTINEL";
+
+  function mockViewerRowResponse(executionId: number) {
+    return {
+      executionId,
+      status: "success" as const,
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("doc", "VARCHAR", true, "raw_copy_allowed", true),
+        colWithDisclosure("note", "LONGTEXT", true, "raw_copy_allowed", true),
+        colWithDisclosure("ssn", "VARCHAR", false, "masked_no_copy", false),
+        colWithDisclosure("payload", "VARCHAR", false, "blocked", false),
+        colWithDisclosure("preview", "VARCHAR", true, "raw_copy_allowed", true),
+        colWithDisclosure("extra", "VARCHAR", true, "raw_copy_allowed", true),
+      ],
+      rows: [[VIEWER_JSON, VIEWER_LONG_TEXT, "[MASKED]", BLOCKED_SENTINEL, `{"orderNo":90071992`, null]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false, false, false, false, true, false]],
+    };
+  }
+
+  it("opens a read-only viewer with formatted JSON and verbatim raw text", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1001));
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // The envelope sanitizes blocked cells before they reach the grid.
+    expect(screen.queryByText(BLOCKED_SENTINEL)).toBeNull();
+    expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
+
+    const cells = screen.getAllByRole("cell");
+    await user.click(cells[0]!);
+    const viewButton = screen.getByRole("button", { name: "View value" });
+    expect(viewButton).toBeEnabled();
+
+    await user.click(viewButton);
+    const dialog = await screen.findByRole("dialog");
+    const content = within(dialog).getByTestId("result-cell-content");
+    expect(content).toHaveAttribute("aria-label", "Cell content");
+    expect(content.textContent).toBe(
+      `{\n  "orderNo": 9007199254740993,\n  "status": "open"\n}`,
+    );
+    expect(content.textContent).toContain("9007199254740993");
+
+    await user.click(within(dialog).getByRole("button", { name: "Raw text" }));
+    expect(content.textContent).toBe(VIEWER_JSON);
+
+    await user.click(within(dialog).getByRole("button", { name: "Formatted JSON" }));
+    expect(content.textContent).toContain("\n  \"orderNo\": 9007199254740993,");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View value" })).toHaveFocus();
+    });
+
+    // A plain-text cell shows the delivered value verbatim, including newlines.
+    await user.click(screen.getAllByRole("cell")[1]!);
+    await user.click(screen.getByRole("button", { name: "View value" }));
+    const textDialog = await screen.findByRole("dialog");
+    expect(within(textDialog).getByTestId("result-cell-content").textContent).toBe(VIEWER_LONG_TEXT);
+    expect(within(textDialog).queryByRole("button", { name: "Raw text" })).toBeNull();
+  });
+
+  it("keeps the viewer disabled for non-inspectable cells and resets on a new result", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1001));
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const cells = screen.getAllByRole("cell");
+    const viewButton = () => screen.getByRole("button", { name: "View value" });
+
+    // Masked, blocked, truncated, and NULL cells are never inspectable.
+    await user.click(cells[2]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[3]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[4]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[5]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(screen.getByRole("columnheader", { name: "doc" }));
+    expect(viewButton()).toBeDisabled();
+
+    // A viewable cell, then a replacement result must reset eligibility.
+    await user.click(cells[0]!);
+    expect(viewButton()).toBeEnabled();
+    await user.click(viewButton());
+    await screen.findByRole("dialog");
+
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1002));
+    // The modal makes the page inert, so a real second Run requires closing
+    // the dialog first — dispatch directly to prove the delivered result
+    // unmounts the still-open viewer.
+    fireEvent.click(screen.getByRole("button", { name: /^run$/i, hidden: true }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(screen.queryByTestId("result-cell-content")).toBeNull();
+    expect(screen.getByRole("button", { name: "View value" })).toBeDisabled();
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
+  });
 });

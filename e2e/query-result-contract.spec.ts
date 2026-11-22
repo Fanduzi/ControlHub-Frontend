@@ -693,4 +693,95 @@ test.describe("T13-A result contract consumption", () => {
     await expect(page.getByTestId("cell-truncated-badge")).toHaveCount(1);
     await expect(page.getByTestId("export-csv")).toBeDisabled();
   });
+
+  test("opens only delivered JSON and long-text cell values", async ({
+    page,
+  }) => {
+    await openReady(page);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Grid order: id | pad | note | secret.
+    // row 1: pad is the exact 8192-byte 'a' cell (delivered, not flagged);
+    // row 2: pad truncated, secret masked; row 3: two-line note;
+    // row 4: pad is the large-integer JSON literal.
+    await runSql(
+      page,
+      "select id, pad, note, secret from query_e2e_aux.t13_cells where id in (1,2,10,11) order by id",
+    );
+
+    const viewButton = page.getByRole("button", {
+      name: "View value",
+      exact: true,
+    });
+    const content = page.getByTestId("result-cell-content");
+
+    // JSON pad (row id=11): pretty print keeps the full-precision lexeme.
+    await rowWithNote(page, "p2").getByRole("gridcell").nth(1).click();
+    await expect(viewButton).toBeEnabled();
+    await viewButton.click();
+    await expect(content).toBeVisible();
+    const pretty = await content.textContent();
+    expect(pretty).toBe(
+      `{\n  "orderNo": 9007199254740993,\n  "status": "open"\n}`,
+    );
+    expect(pretty).toContain("9007199254740993");
+
+    await page
+      .getByRole("button", { name: "Raw text", exact: true })
+      .click();
+    expect(await content.textContent()).toBe(
+      `{"orderNo":9007199254740993,"status":"open"}`,
+    );
+
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+    await expect(viewButton).toBeFocused();
+
+    // The delivered 8192-byte 'a' cell opens complete — no fetch, no flag.
+    await rowWithNote(page, "edge-8192")
+      .getByRole("gridcell")
+      .nth(1)
+      .click();
+    await viewButton.click();
+    const longPad = await content.textContent();
+    expect(longPad).toHaveLength(8192);
+    expect(longPad).toMatch(/^a+$/);
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+
+    // The two-line note shows the delivered newline verbatim.
+    await rowWithNote(page, "plain2")
+      .getByRole("gridcell")
+      .nth(2)
+      .click();
+    await viewButton.click();
+    expect(await content.textContent()).toBe("line1\nline2");
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+
+    // Masked secret and flagged truncated pad never open a dialog.
+    await rowWithNote(page, "edge-8192")
+      .getByRole("gridcell")
+      .nth(3)
+      .click();
+    await expect(viewButton).toBeDisabled();
+    await rowWithNote(page, "over-8193")
+      .getByRole("gridcell")
+      .nth(1)
+      .click();
+    await expect(viewButton).toBeDisabled();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Inspection is local: exactly one execute request for the whole test.
+    expect(executeRequests).toBe(1);
+  });
 });
