@@ -266,9 +266,9 @@ export function SqlCodeEditorClient({
         ? MySQL
         : normalizedEngine === "clickhouse" ? clickHouseEditorDialect : StandardSQL;
 
-    const redis = normalizedEngine === "redis";
+    const nativeCommand = normalizedEngine === "redis" || normalizedEngine === "mongodb";
     const extensions: Extension[] = [
-      ...(redis ? [] : [sql({ dialect })]),
+      ...(nativeCommand ? [] : [sql({ dialect })]),
       layoutTheme,
       syntaxThemes[resolvedTheme],
     ];
@@ -298,7 +298,7 @@ export function SqlCodeEditorClient({
         ),
       );
     }
-    if (!readOnly && !redis) {
+    if (!readOnly && !nativeCommand) {
       extensions.push(
         autocompletion({
           override: [sqlCompletionSource],

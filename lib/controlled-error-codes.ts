@@ -39,6 +39,7 @@ export const CONTROLLED_ERROR_CODES = [
   "query_dependency_not_approved",
   "query_execution_not_found",
   "query_explain_not_supported",
+  "query_index_required",
   "query_not_allowed",
   "query_object_definition_unsupported",
   "query_object_not_found",

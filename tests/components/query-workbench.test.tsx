@@ -506,6 +506,49 @@ describe("QueryWorkbench", () => {
     expect(within(nested[0]).queryByText("demo:order:101")).not.toBeInTheDocument();
   });
 
+  it("renders approved MongoDB fields nested under their collection in the Objects pane", async () => {
+    const mongoTarget = buildQueryTarget({
+      resourceId: 42,
+      displayName: "Approved MongoDB Worksheet",
+      resourceName: "approved-mongo-worksheet",
+      connectionContext: {
+        engine: "mongodb",
+        host: "mongo.internal",
+        port: 27017,
+        clusterName: "Approved MongoDB Worksheet",
+      },
+      capability: {
+        queryKind: "mongo",
+        editorMode: "mongo",
+        languageLabel: "MongoDB find",
+      },
+      readiness: "ready",
+      availableActions: { run: true },
+      schemaPreview: [
+        {
+          kind: "mongo_collection",
+          name: "orders",
+          children: [
+            { kind: "mongo_field", name: "orderNo" },
+            { kind: "mongo_field", name: "status" },
+          ],
+        },
+        { kind: "mongo_collection", name: "sessions" },
+      ],
+    });
+    renderWorkbench([mongoTarget]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Objects" }));
+
+    const collections = await screen.findByRole("list", { name: "Approved MongoDB collections" });
+    expect(within(collections).getByText("orders")).toBeInTheDocument();
+    expect(within(collections).getByText("sessions")).toBeInTheDocument();
+    const nested = within(collections).getAllByRole("list");
+    expect(nested).toHaveLength(1);
+    expect(within(nested[0]).getByText("orderNo")).toBeInTheDocument();
+    expect(within(nested[0]).getByText("status")).toBeInTheDocument();
+  });
+
   it("renders query history when that tab is opened", async () => {
     const user = userEvent.setup();
     mockListQueryExecutions.mockResolvedValue(emptyHistory());
@@ -800,6 +843,109 @@ describe("QueryWorkbench execution (ready target)", () => {
     // The actor must never appear in the request arguments.
     const callArgs = mockExecuteQueryTarget.mock.calls[0]![1] as Record<string, unknown>;
     expect(callArgs).not.toHaveProperty("actorUserId");
+  });
+
+
+  function buildMongoTarget(): QueryTarget {
+    return buildQueryTarget({
+      resourceId: 43,
+      displayName: "Mongo Worksheet",
+      resourceName: "mongo-worksheet",
+      connectionContext: {
+        engine: "mongodb",
+        host: "mongo.internal",
+        port: 27017,
+        clusterName: "Mongo Worksheet",
+      },
+      capability: {
+        queryKind: "mongo",
+        editorMode: "mongo",
+        languageLabel: "MongoDB find",
+      },
+      readiness: "ready",
+      availableActions: { run: true, explain: false, export: false, saveSheet: false },
+      schemaPreview: [],
+    });
+  }
+
+  it("runs a Mongo worksheet with an empty statement, sends maxRows and no pagination, and hides the SQL format control", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse({
+        columns: [col("orderNo", "bson", true), col("status", "bson", true)],
+        rows: [[100, "open"]],
+        rowCount: 1,
+        limitApplied: 50,
+      }),
+    );
+    renderReady(buildMongoTarget());
+
+    // Mongo keeps the plain-text editor with an empty default and no SQL
+    // formatting, but retains the max-rows control Redis hides.
+    const statementBox = screen.getByRole("textbox", { name: /statement/i });
+    expect(statementBox).toHaveValue("");
+    expect(screen.queryByRole("button", { name: /^format$/i })).toBeNull();
+    expect(screen.getByLabelText("Max rows")).toBeInTheDocument();
+
+    statementBox.focus();
+    await user.paste('db.orders.find({"status": "open"})');
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(1);
+    const callArgs = mockExecuteQueryTarget.mock.calls[0]![1] as Record<string, unknown>;
+    expect(callArgs).toMatchObject({ statement: 'db.orders.find({"status": "open"})', maxRows: 100 });
+    expect(callArgs).not.toHaveProperty("pagination");
+  });
+
+  it("renders the existing cell truncation badge on a truncated Mongo cell", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse({
+        columns: [col("orderNo", "bson", true), col("note", "bson", true)],
+        rows: [[2000000, null]],
+        rowCount: 1,
+        cellTruncated: [[false, true]],
+      }),
+    );
+    renderReady(buildMongoTarget());
+
+    const pasteBox = screen.getByRole("textbox", { name: /statement/i });
+    pasteBox.focus();
+    await user.paste('db.orders.find({"orderNo": 2000000})');
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    expect(await screen.findByTestId("cell-truncated-badge")).toBeInTheDocument();
+    expect(screen.getByText("NULL")).toBeInTheDocument();
+  });
+
+  it("shows the index-required copy and clears the grid on 400 query_index_required", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(
+      buildExecuteResponse({
+        columns: [col("status", "bson", true)],
+        rows: [["open"]],
+        rowCount: 1,
+      }),
+    );
+    renderReady(buildMongoTarget());
+
+    const runBox = screen.getByRole("textbox", { name: /statement/i });
+    runBox.focus();
+    await user.paste('db.orders.find({"status": "open"})');
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    expect(screen.getByText("open")).toBeInTheDocument();
+
+    mockExecuteQueryTarget.mockRejectedValueOnce(
+      new QueryExecuteError(400, "query_index_required", "filter must hit an index"),
+    );
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+
+    expect(
+      await screen.findByText(/This query must use an index\. Filter on an indexed field\./i),
+    ).toBeInTheDocument();
+    // The refused run leaves no stale rows behind.
+    expect(screen.queryByText("open")).not.toBeInTheDocument();
+    expect(screen.queryByText(/filter must hit an index/)).not.toBeInTheDocument();
   });
 
   it("disables Run while a request is pending and does not double-submit", async () => {

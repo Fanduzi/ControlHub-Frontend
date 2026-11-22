@@ -413,8 +413,9 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const actions = worksheetTarget?.availableActions;
   const canExecute = actions?.run === true;
   const isRedisTarget = worksheetTarget?.capability.editorMode === "redis";
-  const worksheetTabs = isRedisTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
-  const displayedTab = isRedisTarget && activeTab === "savedStatements" ? "worksheet" : activeTab;
+  const isNativeCommandTarget = isRedisTarget || worksheetTarget?.capability.editorMode === "mongo";
+  const worksheetTabs = isNativeCommandTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
+  const displayedTab = isNativeCommandTarget && activeTab === "savedStatements" ? "worksheet" : activeTab;
 
   function activeMaxRowsDraftIsValid(): boolean {
     if (isRedisTarget) return true;
@@ -457,8 +458,9 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     if (worksheets.length <= 1) return;
     const worksheet = worksheets.find((ws) => ws.id === id);
     if (!worksheet) return;
-    const redis = targetsById.get(worksheet.targetResourceId)?.capability.editorMode === "redis";
-    if (worksheet.statement.trim() !== (redis ? "" : DEFAULT_STATEMENT) || worksheet.isDirty) {
+    const editorMode = targetsById.get(worksheet.targetResourceId)?.capability.editorMode;
+    const nativeCommand = editorMode === "redis" || editorMode === "mongo";
+    if (worksheet.statement.trim() !== (nativeCommand ? "" : DEFAULT_STATEMENT) || worksheet.isDirty) {
       setCloseConfirmDialog({ open: true, worksheetId: id });
     } else {
       executeCloseWorksheet(id);
@@ -762,7 +764,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     schemaStore,
   ]);
 
-  const effectiveCompletionDatabase = isRedisTarget || worksheetTarget?.connectionContext.engine === "clickhouse" ? null : isPostgresTarget
+  const effectiveCompletionDatabase = isNativeCommandTarget || worksheetTarget?.connectionContext.engine === "clickhouse" ? null : isPostgresTarget
     ? activeWorksheet.activeDatabase
     : activeWorksheet.activeDatabase ?? schemaStore.getDefaultDatabase(activeWorksheet.targetResourceId);
 
@@ -1364,7 +1366,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
               explainState={activeWorksheet.explain}
               onExplain={handleExplain}
               onCloseExplain={handleCloseExplain}
-              onFormat={isRedisTarget ? undefined : handleFormat}
+              onFormat={isNativeCommandTarget ? undefined : handleFormat}
               onEditorView={(view) => { editorViewRef.current = view; }}
               formatError={activeWorksheet.formatError}
               clickHouseNamespace={
@@ -1793,6 +1795,7 @@ function ReadyWorksheet({
 
   const draftResult = parseMaxRowsDraft(maxRowsDraft);
   const redis = engine === "redis";
+  const mongo = engine === "mongodb";
   const canRun = runEnabled && (redis || draftResult.valid);
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
 
@@ -2007,7 +2010,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {error ? (
-          <ExecuteErrorPanel error={error} onRetry={onRun} redis={redis} />
+          <ExecuteErrorPanel error={error} onRetry={onRun} engine={mongo ? "mongo" : redis ? "redis" : undefined} />
         ) : result ? (
           <>
             <ExecuteResult
@@ -2970,6 +2973,7 @@ const QUERY_EXECUTE_ERROR_COPY_CODES = new Set([
   "query_not_allowed",
   "query_target_not_found",
   "query_explain_not_supported",
+  "query_index_required",
   "query_result_disclosure_blocked",
   "query_binding_mismatch",
   "query_dependency_not_approved",
@@ -3014,15 +3018,17 @@ function explainErrorCopyCode(code: string | null): string {
 function ExecuteErrorPanel({
   error,
   onRetry,
-  redis,
+  engine,
 }: {
   error: QueryExecuteError;
   onRetry: () => void;
-  redis: boolean;
+  engine?: "redis" | "mongo";
 }) {
   const t = useTranslations("queryWorkbench");
   const copyCode = executeErrorCopyCode(error.code);
   const showRetry = isRetryableControlledErrorCode(error.code);
+  const validationCopy =
+    engine === "redis" ? "editor.redisValidationFailed" : engine === "mongo" ? "editor.mongoValidationFailed" : null;
 
   return (
     <div
@@ -3031,7 +3037,7 @@ function ExecuteErrorPanel({
     >
       <p className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
         <TriangleAlert className="size-4 shrink-0" aria-hidden />
-        {redis && copyCode === "validation_failed" ? t("editor.redisValidationFailed") : t(`error.${copyCode}`)}
+        {validationCopy !== null && copyCode === "validation_failed" ? t(validationCopy) : t(`error.${copyCode}`)}
       </p>
       {showRetry ? (
         <Button type="button" size="sm" variant="outline" onClick={onRetry}>

@@ -946,7 +946,7 @@ export class WorksheetSession {
       },
       explain: invalidateExplainState(worksheet.explain),
       ...(statementChanged ? { previewProvenance: null } : {}),
-      ...(engine === "redis" ? { result: null, resultPagination: null } : {}),
+      ...(engine === "redis" || engine === "mongodb" ? { result: null, resultPagination: null } : {}),
     });
     await this.applyPage(worksheet.id, requestId, worksheet.targetResourceId, 1, worksheet.pageSize, worksheet.maxRows, worksheet.templateStatementId);
   }
@@ -1671,7 +1671,8 @@ export class WorksheetSession {
   }
 
   private defaultStatementFor(targetId: number): string {
-    return this.engineFor(targetId) === "redis" ? "" : DEFAULT_STATEMENT;
+    const engine = this.engineFor(targetId);
+    return engine === "redis" || engine === "mongodb" ? "" : DEFAULT_STATEMENT;
   }
 
   private isPostgres(targetId: number): boolean {
@@ -1759,7 +1760,7 @@ export class WorksheetSession {
         controller.signal,
         clientExecutionId,
         generation,
-        engine !== "redis" && (!generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId)),
+        engine !== "redis" && engine !== "mongodb" && (!generation || pageGeneration !== undefined || this.clickHousePagingFor(targetId)),
       );
       if (!response) return;
       // Fail closed on a context echo that mismatches the request binding —
