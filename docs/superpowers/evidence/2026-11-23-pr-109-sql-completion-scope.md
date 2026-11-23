@@ -60,6 +60,22 @@ The full browser suite used CI rather than the local fixture because an
 unchanged PostgreSQL spec asserts proxy port `:8080`, already in use locally.
 This does not change the local test setup or weaken the CI suite.
 
+## Main Delivery
+
+- Normal fast-forward push:
+  `16b768f9b0f76501d88ab9505e197a4b5407dfdd..cd987fe34684e8d30e6430de803e27112e531e9e`.
+  The isolated checkout and remote `main` both reported the range's final
+  SHA after the push. GitHub reports PR 109 `MERGED` at the reviewed product
+  commit `c1b1b83fe331da49475444ab946aaa046a96d401`.
+- [Main CI 45203203115](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/45203203115)
+  succeeded on `cd987fe34684e8d30e6430de803e27112e531e9e`.
+  `release-local` (137791842609) and `release-e2e` (137791843425) both passed;
+  the latter ran `npm run release:e2e` in the main checkout against the pinned
+  backend and reported 228 passed, 0 failed, 0 skipped.
+  [Sanitized E2E artifact](https://github.com/Fanduzi/ControlHub-Frontend/actions/runs/45203203115/artifacts/14834267146).
+- This outcome entry changes only the evidence record, not the application,
+  fixtures, or tests verified by the main run.
+
 ## Preservation
 
 The frontend root (`1adb2552a8514946fb6b4f691411dab9b79efadd`) was
