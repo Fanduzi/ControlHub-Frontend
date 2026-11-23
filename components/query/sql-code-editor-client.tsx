@@ -11,6 +11,14 @@ import { tags } from "@lezer/highlight";
 
 import { clickHouseCompletions } from "@/lib/clickhouse-completion";
 import {
+  quoteQueryIdentifier,
+  type IdentifierDialect,
+} from "@/lib/query-identifiers";
+import {
+  sqlCompletionScope,
+  sqlScopeName,
+} from "@/lib/sql-completion-scope";
+import {
   isNativeCommandEngine,
   resolveWorksheetRunScope,
   sqlDialectForEngine,
@@ -52,8 +60,19 @@ export type SqlCodeEditorProps = {
 export function createSqlCompletionSource(
   ns: SchemaNamespace | undefined,
   fetcher: TableColumnFetcher | undefined,
+  engine: string | undefined = "mysql",
 ): (ctx: CompletionContext) => CompletionResult | Promise<CompletionResult | null> | null {
+  const normalizedEngine = engine?.trim().toLowerCase();
+  const scopedDialect: IdentifierDialect | null =
+    normalizedEngine === "postgresql"
+      ? "postgresql"
+      : normalizedEngine === "mysql"
+        ? "mysql"
+        : null;
   return (ctx: CompletionContext) => {
+    if (scopedDialect !== null) {
+      return scopedCompletion(ctx, ns, fetcher, scopedDialect);
+    }
     const dotMatch = ctx.matchBefore(/[\w`]+\.[\w`]*/);
     if (dotMatch) {
       const lastDot = dotMatch.text.lastIndexOf(".");
@@ -101,6 +120,89 @@ export function createSqlCompletionSource(
 
     return { from: word.from, options, validFor: /[\w`]*/ };
   };
+}
+
+// Scope-aware path for MySQL/PostgreSQL: bindings come from the Lezer tree,
+// never from regex alias extraction. Unresolved or unscoped contexts stay
+// silent on columns while keeping the plain catalog/keyword vocabulary.
+function scopedCompletion(
+  ctx: CompletionContext,
+  ns: SchemaNamespace | undefined,
+  fetcher: TableColumnFetcher | undefined,
+  dialect: IdentifierDialect,
+): CompletionResult | Promise<CompletionResult | null> | null {
+  const word = ctx.matchBefore(/[\w$]*/);
+  const wordFrom = word ? word.from : ctx.pos;
+  const scope = sqlCompletionScope(ctx.state, ctx.pos, wordFrom, dialect);
+  const dotMatch = ctx.matchBefore(
+    dialect === "postgresql"
+      ? /(?:"(?:[^"]|"")*"|[A-Za-z_][\w$]*)\.[\w$]*/
+      : /(?:`(?:[^`]|``)*`|[A-Za-z_][\w$]*)\.[\w$]*/,
+  );
+  if (dotMatch) {
+    // A dot right before the match start means the qualifier is a chained
+    // segment (a.b.c.) whose binding is ambiguous — stay silent.
+    if (
+      dotMatch.from > 0 &&
+      ctx.state.sliceDoc(dotMatch.from - 1, dotMatch.from) === "."
+    ) {
+      return null;
+    }
+    const lastDot = dotMatch.text.lastIndexOf(".");
+    const qualifier = sqlScopeName(dotMatch.text.slice(0, lastDot), dialect);
+    const from = ctx.pos - (dotMatch.text.length - lastDot - 1);
+    const binding = scope?.bindings.get(qualifier);
+    if (!binding) return null;
+    const columnsResult = (columns: readonly string[]): CompletionResult => ({
+      from,
+      options: columns.map((col) => ({
+        label: col,
+        type: "field",
+        apply: quoteQueryIdentifier(col, dialect),
+      })),
+    });
+    if (binding.kind === "local") {
+      return columnsResult(binding.columns);
+    }
+    const loaded = ns?.loadedColumns;
+    if (loaded && Object.hasOwn(loaded, binding.table)) {
+      return columnsResult(loaded[binding.table]!);
+    }
+    if (!ns || !fetcher) return null;
+    ctx.addEventListener("abort", () => {}, { onDocChange: true });
+    return fetcher(binding.table)
+      .then((cols) => (ctx.aborted ? null : columnsResult(cols)))
+      .catch(() => null);
+  }
+
+  const options: import("@codemirror/autocomplete").Completion[] = [];
+  if (ns) {
+    options.push(...buildTableCompletions(ns));
+    options.push(...buildDatabaseQualifiedCompletions(ns));
+  }
+  if (scope?.relationPosition && scope.ctes.size > 0) {
+    const cteNames = [...scope.ctes.keys()];
+    const shadowed = new Set(cteNames);
+    const retained = options.filter(
+      (option) =>
+        (option.type !== "table" && option.type !== "view") ||
+        !shadowed.has(sqlScopeName(String(option.label), dialect)),
+    );
+    options.length = 0;
+    options.push(
+      ...cteNames.map((cte) => ({
+        label: cte,
+        type: "table" as const,
+        apply: quoteQueryIdentifier(cte, dialect),
+      })),
+      ...retained,
+    );
+  }
+  options.push(...buildKeywordCompletions());
+  if (!word || (word.text === "" && !ctx.explicit)) {
+    return null;
+  }
+  return { from: word.from, options };
 }
 
 type ResolvedEditorTheme = Exclude<QueryEditorThemePreference, "system">;
@@ -313,7 +415,7 @@ export function SqlCodeEditorClient({
   const sqlCompletionSource = useCallback(
     (ctx: CompletionContext) => engine === "clickhouse"
       ? clickHouseCompletions(ctx, schemaNamespace)
-      : createSqlCompletionSource(schemaNamespace, columnFetcher)(ctx),
+      : createSqlCompletionSource(schemaNamespace, columnFetcher, engine)(ctx),
     [engine, schemaNamespace, columnFetcher],
   );
 
