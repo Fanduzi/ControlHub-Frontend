@@ -48,6 +48,8 @@ describe("createSqlCompletionSource", () => {
     expect(result!.from).toBe(doc.length - "st".length);
     const labels = (result!.options as { label: string }[]).map((o) => o.label);
     expect(labels).toEqual(["id", "status", "total"]);
+    // End-of-token completion defers to CodeMirror's own narrowing.
+    expect(result?.filter).toBeFalsy();
   });
 });
 
@@ -78,9 +80,9 @@ describe("createSqlCompletionSource scoped bindings", () => {
   }
 
   function labels(result: unknown): string[] {
-    return ((result as { options: { label: string }[] }).options ?? []).map(
-      (o) => o.label,
-    );
+    return ((result as { options: { label: string }[] } | null)?.options ??
+      []
+    ).map((o) => o.label);
   }
 
   it("resolves a quoted PG alias to its catalog table and quotes the apply", async () => {
@@ -310,5 +312,127 @@ describe("createSqlCompletionSource scoped bindings", () => {
     )) as { options: { label: string }[] } | null;
     expect(fetcher).not.toHaveBeenCalled();
     expect(labels(result)).toEqual(["renamed"]);
+  });
+
+  // `|` marks the caret; it is stripped before building the context.
+  function cursorCtx(rawDoc: string, engine = "mysql") {
+    const pos = rawDoc.indexOf("|");
+    const doc = rawDoc.slice(0, pos) + rawDoc.slice(pos + 1);
+    return {
+      ctx: new CompletionContext(sqlWorksheetState(doc, engine), pos, true),
+      doc,
+      pos,
+    };
+  }
+
+  it("offers CTE names in relation position even after trailing whitespace or a comma", async () => {
+    const local: SchemaNamespace = {
+      tables: [{ name: "t1", kind: "table" }],
+      loadedColumns: {},
+    };
+    const source = createSqlCompletionSource(local, undefined);
+    for (const raw of [
+      "WITH picked AS (SELECT 1 AS id) SELECT * FROM |",
+      "WITH picked AS (SELECT 1 AS id) SELECT * FROM t1, |",
+    ]) {
+      const result = await source(cursorCtx(raw).ctx);
+      expect(labels(result)).toContain("picked");
+    }
+    for (const raw of [
+      "WITH picked AS (SELECT 1 AS id) SELECT picked, | FROM t1",
+      "WITH picked AS (SELECT 1 AS id) SELECT * FROM t1 WHERE t1.x IN (1, |)",
+    ]) {
+      const result = await source(cursorCtx(raw).ctx);
+      expect(labels(result)).not.toContain("picked");
+    }
+  });
+
+  it.each(["postgresql", "mysql"] as const)(
+    "replaces the whole qualified field, quoted or unquoted (%s)",
+    async (engine) => {
+      const q = engine === "postgresql" ? '"' : "`";
+      const quotedApply = engine === "postgresql" ? '"name"' : "`name`";
+
+      const rawQuoted = `SELECT d.${q}na|tail${q} FROM (SELECT name, id FROM t1) d`;
+      const { ctx, doc } = cursorCtx(rawQuoted, engine);
+      const result = (await createSqlCompletionSource(ns, undefined, engine)(
+        ctx,
+      )) as {
+        from: number;
+        to: number;
+        options: { label: string; displayLabel?: string; apply?: string }[];
+      } | null;
+      const fieldFrom = doc.indexOf(`${q}natail${q}`);
+      expect(result).not.toBeNull();
+      expect(result!.from).toBe(fieldFrom);
+      expect(result!.to).toBe(fieldFrom + `${q}natail${q}`.length);
+      // Mid-token replacement filters on the typed prefix itself: `id` must
+      // not ride along just because the whole-token range disables
+      // CodeMirror's own matching.
+      expect(result!.options.map((o) => o.displayLabel)).toEqual(["name"]);
+      const opt = result!.options[0]!;
+      expect(opt!.label).toBe(quotedApply);
+      expect(opt!.apply).toBe(quotedApply);
+
+      const rawPlain = "SELECT d.na|tail FROM (SELECT name, id FROM t1) d";
+      const plain = cursorCtx(rawPlain, engine);
+      const plainResult = (await createSqlCompletionSource(
+        ns,
+        undefined,
+        engine,
+      )(plain.ctx)) as {
+        from: number;
+        to: number;
+        options: { label: string; displayLabel?: string; apply?: string }[];
+      } | null;
+      const plainFrom = plain.doc.indexOf("natail");
+      expect(plainResult).not.toBeNull();
+      expect(plainResult!.from).toBe(plainFrom);
+      expect(plainResult!.to).toBe(plainFrom + "natail".length);
+      expect(labels(plainResult)).toEqual(["name"]);
+      const plainOpt = plainResult!.options[0]!;
+      expect(plainOpt!.apply).toBe(quotedApply);
+      expect(plainOpt!.displayLabel).toBeUndefined();
+    },
+  );
+
+  it("refuses chained qualifiers and qualified names in relation position", async () => {
+    const fetcher = vi.fn(async () => ["should-not-be-used"]);
+    const source = createSqlCompletionSource(ns, fetcher);
+    expect(
+      await source(
+        cursorCtx("SELECT z . d.n| FROM (SELECT name FROM t1) d").ctx,
+      ),
+    ).toBeNull();
+    expect(
+      await source(cursorCtx("SELECT * FROM d.na| AS d").ctx),
+    ).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("offers nothing inside string or comment content", async () => {
+    const source = createSqlCompletionSource(ns, undefined);
+    for (const raw of [
+      "SELECT 'na|me' FROM t1",
+      "SELECT -- na|me\n 1 FROM t1",
+    ]) {
+      expect(await source(cursorCtx(raw).ctx)).toBeNull();
+    }
+  });
+
+  it("suppresses ambiguous duplicate projection names and duplicate CTE names", async () => {
+    const result = await createSqlCompletionSource(ns, undefined)(
+      cursorCtx("SELECT d.| FROM (SELECT 1 AS id, 2 AS id, 3 AS name) d").ctx,
+    );
+    expect(labels(result)).toEqual(["name"]);
+
+    const fetcher = vi.fn(async () => ["should-not-be-used"]);
+    const dup = await createSqlCompletionSource(ns, fetcher)(
+      cursorCtx(
+        "WITH c AS (SELECT 1 AS id), c AS (SELECT 2 AS name) SELECT c.| FROM c",
+      ).ctx,
+    );
+    expect(dup).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

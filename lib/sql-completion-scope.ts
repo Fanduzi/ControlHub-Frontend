@@ -45,7 +45,7 @@ function kw(t: Token | undefined) {
 }
 
 /** Unquote a raw token text into its comparable identifier name. */
-export function sqlScopeName(text: string, dialect: IdentifierDialect): string {
+function sqlScopeName(text: string, dialect: IdentifierDialect): string {
   const q = dialect === "postgresql" ? '"' : "`";
   return text.startsWith(q) && text.endsWith(q)
     ? text.slice(1, -1).replaceAll(q + q, q)
@@ -71,7 +71,13 @@ function name(
 ): string | undefined {
   if (!t) return undefined;
   if (t.node.name === "QuotedIdentifier") {
-    return sqlScopeName(t.text, dialect);
+    // Only a complete quoted token can bind a source/name slot; a partially
+    // typed quoted identifier never produces a name.
+    const valid =
+      dialect === "postgresql"
+        ? /^"(?:[^"]|"")*"$/.test(t.text)
+        : /^`(?:[^`]|``)*`$/.test(t.text);
+    return valid ? sqlScopeName(t.text, dialect) : undefined;
   }
   if (!identifierNodes.has(t.node.name) || !namePattern.test(t.text)) {
     return undefined;
@@ -100,6 +106,27 @@ function isQueryParens(node: SyntaxNode, state: EditorState): boolean {
   if (node.name !== "Parens") return false;
   const first = kw(children(node, state)[0]);
   return first === "SELECT" || first === "WITH";
+}
+
+/**
+ * Names offered as output columns must each resolve uniquely: an exact
+ * (PostgreSQL) or case-insensitive (MySQL) duplicate is ambiguous and dropped
+ * entirely, preserving the order of the survivors.
+ */
+function unambiguousColumns(
+  names: readonly string[],
+  dialect: IdentifierDialect,
+): readonly string[] {
+  const key = (name: string) =>
+    dialect === "mysql" ? name.toLowerCase() : name;
+  const seen = new Set<string>();
+  const ambiguous = new Set<string>();
+  for (const name of names) {
+    const id = key(name);
+    if (seen.has(id)) ambiguous.add(id);
+    seen.add(id);
+  }
+  return names.filter((name) => !ambiguous.has(key(name)));
 }
 
 /** tokens[index] is the FROM of `IS [NOT] DISTINCT FROM`, not a clause. */
@@ -137,7 +164,7 @@ function columnList(
       return null;
     }
   }
-  return expectName ? null : out;
+  return expectName ? null : unambiguousColumns(out, dialect);
 }
 
 /**
@@ -179,13 +206,9 @@ function projection(
     }
     items[items.length - 1]!.push(t);
   }
-  const seen = new Set<string>();
   const out: string[] = [];
   const push = (n: string | undefined) => {
-    if (n !== undefined && !seen.has(n)) {
-      seen.add(n);
-      out.push(n);
-    }
+    if (n !== undefined) out.push(n);
   };
   for (const item of items) {
     if (item.length === 0) continue;
@@ -198,7 +221,7 @@ function projection(
       push(name(item[item.length - 1], dialect));
     }
   }
-  return out;
+  return unambiguousColumns(out, dialect);
 }
 
 /**
@@ -223,9 +246,12 @@ function scanWith(
   let i = 1;
   if (kw(tokens[i]) === "RECURSIVE") return null;
   const decls: [string, readonly string[]][] = [];
+  const names = new Set<string>();
   for (;;) {
     const cteName = name(tokens[i], dialect);
-    if (cteName === undefined) return null;
+    // A duplicate CTE name in one WITH is refused, never last-wins.
+    if (cteName === undefined || names.has(cteName)) return null;
+    names.add(cteName);
     i++;
     let explicit: readonly string[] | null = null;
     if (tokens[i]?.node.name === "Parens") {
@@ -294,27 +320,96 @@ function readAlias(
   return { alias, next, columns };
 }
 
+type CompletionSite = {
+  scope: Scope | null;
+  column?: { qualifier: string; from: number; to: number; quoted: boolean };
+};
+
 /**
- * Resolve the innermost query scope at `pos`: FROM/JOIN source bindings for
- * the group containing the cursor, WITH declarations inherited from that
- * group and every enclosing query, and whether the cursor is in relation
- * position (last real token before `wordFrom` is FROM or JOIN). Returns null
- * when the cursor is not inside a usable query — inside strings/comments,
- * in a non-SELECT group, inside a RECURSIVE or compound query, or when the
- * statement is malformed — so callers never fall back to guessing.
+ * Classify the completion site at `pos`: either a `qualifier.` column slot
+ * (with the whole field's replacement range so mid-identifier and quoted
+ * partials replace cleanly) or the plain vocabulary site with its scope.
+ * Returns null inside strings/comments, inside a bare quoted identifier, on
+ * chained qualifiers (`a.b.c`), and on any other shape that must stay silent.
  */
-export function sqlCompletionScope(
+export function sqlCompletionSite(
   state: EditorState,
   pos: number,
   wordFrom: number,
   dialect: IdentifierDialect,
-): Scope | null {
+): CompletionSite | null {
   if (state.doc.length > MAX_SCOPE_DOC_LENGTH) return null;
   const tree = ensureSyntaxTree(state, state.doc.length, 40);
   if (!tree || tree.length !== state.doc.length) return null;
+  let leaf = tree.resolveInner(pos, -1);
+  // Whitespace after the last token may sit outside the Statement node.
+  if (leaf.name === "Script") {
+    const previous = state.sliceDoc(0, pos).trimEnd().length;
+    if (previous !== pos) leaf = tree.resolveInner(previous, -1);
+  }
+  if (opaque.has(leaf.name) && pos <= leaf.to) return null;
+  if (leaf.name === ";") return { scope: null };
+  const composite =
+    leaf.name === "CompositeIdentifier"
+      ? leaf
+      : leaf.parent?.name === "CompositeIdentifier"
+        ? leaf.parent
+        : null;
+  if (composite) {
+    const parts = children(composite, state);
+    const dot = parts.findIndex(
+      (t) => t.node.name === "." && t.node.to <= pos,
+    );
+    if (dot >= 0) {
+      // Only a single qualified name, with the caret in its column slot.
+      const qualifier = name(parts[0], dialect);
+      if (!qualifier || dot !== 1 || parts.length > 3) return null;
+      const field = parts[2];
+      const missing =
+        !field ||
+        (field.node.type.isError && field.node.from === field.node.to);
+      const quoted = field?.node.name === "QuotedIdentifier";
+      if (
+        !missing &&
+        (!field ||
+          pos > field.node.to ||
+          (!quoted && !name(field, dialect)))
+      )
+        return null;
+      const from = missing ? pos : Math.min(pos, field!.node.from);
+      const to = missing ? pos : field!.node.to;
+      const scope = resolveScope(state, leaf, composite.from, dialect);
+      if (!scope || scope.relationPosition) return null;
+      return { scope, column: { qualifier, from, to, quoted } };
+    }
+  }
+  // Unqualified quoted identifiers don't use the plain keyword menu.
+  if (
+    leaf.name === "QuotedIdentifier" &&
+    leaf.from < pos &&
+    pos <= leaf.to
+  )
+    return null;
+  return { scope: resolveScope(state, leaf, wordFrom, dialect) };
+}
+
+/**
+ * Resolve the innermost query scope for `leaf`: FROM/JOIN source bindings
+ * for the group containing the cursor, WITH declarations inherited from
+ * that group and every enclosing query, and whether the cursor is in
+ * relation position (the last real token before `wordFrom` is FROM or JOIN,
+ * or a comma while scanning a FROM clause). Returns null when the cursor is
+ * not inside a usable query — a non-SELECT group, a RECURSIVE or compound
+ * query, or a malformed statement — so callers never fall back to guessing.
+ */
+function resolveScope(
+  state: EditorState,
+  leaf: SyntaxNode,
+  wordFrom: number,
+  dialect: IdentifierDialect,
+): Scope | null {
   const groups: SyntaxNode[] = [];
-  for (let n: SyntaxNode | null = tree.resolveInner(pos, -1); n; n = n.parent) {
-    if (opaque.has(n.name) && pos <= n.to) return null;
+  for (let n: SyntaxNode | null = leaf; n; n = n.parent) {
     if (n.name === "Statement" || isQueryParens(n, state)) groups.push(n);
   }
   groups.reverse();
@@ -342,6 +437,13 @@ export function sqlCompletionScope(
     if (!innermost) continue;
     if (tokens.some((t) => compound.test(kw(t)))) return null;
 
+    // Relation position = the FROM/JOIN trigger or FROM-clause comma that is
+    // the last real token before the word being completed.
+    let lastIndex = -1;
+    for (let j = 0; j < tokens.length; j++) {
+      if (tokens[j]!.node.from >= wordFrom) break;
+      lastIndex = j;
+    }
     let inFrom = false;
     let expectSource = false;
     const bind = (key: string | undefined, binding: Binding) => {
@@ -361,11 +463,15 @@ export function sqlCompletionScope(
       ) {
         inFrom = true;
         expectSource = true;
+        if (j === lastIndex) relationPosition = true;
         continue;
       }
       if (k === "ONLY" || k === "LATERAL") continue;
       if (t.node.name === "Punctuation") {
-        if (inFrom && t.text === ",") expectSource = true;
+        if (inFrom && t.text === ",") {
+          expectSource = true;
+          if (j === lastIndex) relationPosition = true;
+        }
         continue;
       }
       if (!inFrom || !expectSource) continue;
@@ -409,6 +515,8 @@ export function sqlCompletionScope(
         dialect,
         state,
       );
+      // A malformed explicit `AS` must not fall back to the base name.
+      if (kw(tokens[j + 1]) === "AS" && alias === undefined) continue;
       j = next - 1;
       if (isCall) {
         // Table/unknown function output is opaque: an alias must not acquire
@@ -430,16 +538,6 @@ export function sqlCompletionScope(
         bind(key, { kind: "catalog", table: p.join(".") });
       }
     }
-
-    let lastIndex = -1;
-    for (let j = 0; j < tokens.length; j++) {
-      if (tokens[j]!.node.from >= wordFrom) break;
-      lastIndex = j;
-    }
-    const lk = kw(tokens[lastIndex]);
-    relationPosition =
-      lk === "JOIN" ||
-      (lk === "FROM" && !isDistinctFrom(tokens, lastIndex));
   }
 
   return { bindings, ctes, relationPosition };

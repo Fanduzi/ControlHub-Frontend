@@ -262,12 +262,13 @@ test.describe("SQL completion scope", () => {
     await openQueryWorkbench(page);
     await selectPgContext(page);
 
-    // CTE name binds to its declared projection; `p.item_` must complete to
-    // the quoted projection alias, never to the source table's raw columns.
+    // CTE name binds to its declared projection; a quoted partial field
+    // `p."item_` must replace the whole quoted identifier with the quoted
+    // projection alias, never to the source table's raw columns.
     const cte =
-      "WITH picked AS (SELECT name AS item_name FROM e2e.items) SELECT p.item_ FROM picked p ORDER BY p.item_name LIMIT 1";
+      'WITH picked AS (SELECT name AS item_name FROM e2e.items) SELECT p."item_tail" FROM picked p ORDER BY p.item_name LIMIT 1';
     await clearAndType(page, cte);
-    await moveCaretAfter(page, cte, "p.item_");
+    await moveCaretAfter(page, cte, 'p."item_');
     await page.keyboard.press("Control+Space");
     const itemName = page.getByRole("option", {
       name: "item_name",
@@ -276,6 +277,7 @@ test.describe("SQL completion scope", () => {
     await expect(itemName).toBeVisible({ timeout: 10_000 });
     await itemName.click();
     await expect(getEditor(page)).toContainText('p."item_name"');
+    await expect(getEditor(page)).not.toContainText("item_tail");
     await page.getByRole("button", { name: /^run$/i }).click();
     await expect(
       page.getByRole("gridcell", { name: "alpha", exact: true }).first(),
@@ -283,7 +285,7 @@ test.describe("SQL completion scope", () => {
 
     // Page two of the completed statement: the same completed text with an
     // OFFSET yields the next row, proving the suggestion was executable SQL.
-    const completed = cte.replace("p.item_", 'p."item_name"');
+    const completed = cte.replace('p."item_tail"', 'p."item_name"');
     await clearAndType(
       page,
       completed.replace("LIMIT 1", "LIMIT 1 OFFSET 1"),
@@ -310,6 +312,17 @@ test.describe("SQL completion scope", () => {
     await expect(
       page.getByRole("option", { name: "name", exact: true }),
     ).toHaveCount(0);
+
+    // Relation position after `FROM ` offers the visible CTE alongside the
+    // catalog tables.
+    await clearAndType(
+      page,
+      "WITH picked AS (SELECT name AS item_name FROM e2e.items) SELECT * FROM ",
+    );
+    await page.keyboard.press("Control+Space");
+    await expect(
+      page.getByRole("option", { name: "picked", exact: true }),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("MySQL alias columns resolve through scope and execute", async ({

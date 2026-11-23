@@ -14,10 +14,7 @@ import {
   quoteQueryIdentifier,
   type IdentifierDialect,
 } from "@/lib/query-identifiers";
-import {
-  sqlCompletionScope,
-  sqlScopeName,
-} from "@/lib/sql-completion-scope";
+import { sqlCompletionSite } from "@/lib/sql-completion-scope";
 import {
   isNativeCommandEngine,
   resolveWorksheetRunScope,
@@ -132,34 +129,39 @@ function scopedCompletion(
   dialect: IdentifierDialect,
 ): CompletionResult | Promise<CompletionResult | null> | null {
   const word = ctx.matchBefore(/[\w$]*/);
-  const wordFrom = word ? word.from : ctx.pos;
-  const scope = sqlCompletionScope(ctx.state, ctx.pos, wordFrom, dialect);
-  const dotMatch = ctx.matchBefore(
-    dialect === "postgresql"
-      ? /(?:"(?:[^"]|"")*"|[A-Za-z_][\w$]*)\.[\w$]*/
-      : /(?:`(?:[^`]|``)*`|[A-Za-z_][\w$]*)\.[\w$]*/,
+  const site = sqlCompletionSite(
+    ctx.state,
+    ctx.pos,
+    word?.from ?? ctx.pos,
+    dialect,
   );
-  if (dotMatch) {
-    // A dot right before the match start means the qualifier is a chained
-    // segment (a.b.c.) whose binding is ambiguous — stay silent.
-    if (
-      dotMatch.from > 0 &&
-      ctx.state.sliceDoc(dotMatch.from - 1, dotMatch.from) === "."
-    ) {
-      return null;
-    }
-    const lastDot = dotMatch.text.lastIndexOf(".");
-    const qualifier = sqlScopeName(dotMatch.text.slice(0, lastDot), dialect);
-    const from = ctx.pos - (dotMatch.text.length - lastDot - 1);
-    const binding = scope?.bindings.get(qualifier);
+  if (!site) return null;
+  const { scope, column } = site;
+  if (column) {
+    const binding = scope?.bindings.get(column.qualifier);
     if (!binding) return null;
+    // CodeMirror matches the entire replacement range, including suffix text.
+    // For mid-token edits only, match the prefix ourselves before replacing it.
+    const midToken = column.to > ctx.pos;
+    const prefix = ctx.state.sliceDoc(column.from, ctx.pos);
+    const normalize = (text: string) =>
+      column.quoted && dialect === "postgresql" ? text : text.toLowerCase();
+    const typed = normalize(prefix);
     const columnsResult = (columns: readonly string[]): CompletionResult => ({
-      from,
-      options: columns.map((col) => ({
-        label: col,
-        type: "field",
-        apply: quoteQueryIdentifier(col, dialect),
-      })),
+      from: column.from,
+      to: column.to,
+      ...(midToken ? { filter: false } : {}),
+      options: columns.flatMap((name) => {
+        const apply = quoteQueryIdentifier(name, dialect);
+        const label = column.quoted ? apply : name;
+        if (midToken && !normalize(label).startsWith(typed)) return [];
+        return [{
+          label,
+          ...(column.quoted ? { displayLabel: name } : {}),
+          type: "field",
+          apply,
+        }];
+      }),
     });
     if (binding.kind === "local") {
       return columnsResult(binding.columns);
@@ -168,7 +170,7 @@ function scopedCompletion(
     if (loaded && Object.hasOwn(loaded, binding.table)) {
       return columnsResult(loaded[binding.table]!);
     }
-    if (!ns || !fetcher) return null;
+    if (!ns || !fetcher || ctx.aborted) return null;
     ctx.addEventListener("abort", () => {}, { onDocChange: true });
     return fetcher(binding.table)
       .then((cols) => (ctx.aborted ? null : columnsResult(cols)))
@@ -186,7 +188,7 @@ function scopedCompletion(
     const retained = options.filter(
       (option) =>
         (option.type !== "table" && option.type !== "view") ||
-        !shadowed.has(sqlScopeName(String(option.label), dialect)),
+        !shadowed.has(String(option.label)),
     );
     options.length = 0;
     options.push(
