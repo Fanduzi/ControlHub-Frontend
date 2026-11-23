@@ -1521,7 +1521,7 @@
       "accessPlaceholder": "暂不支持在此申请访问授权。",
       "statementLabel": "语句",
       "redisCommandLabel": "Redis 命令",
-      "redisValidationFailed": "请用 GET 读取一个已批准的键，或用 HGET 读取已批准的键和字段。值须为不超过 1 KiB 的 UTF-8 字符串。",
+      "redisValidationFailed": "请用 GET、TYPE 或 TTL 操作一个已批准的键，或用 HGET 读取已批准的键和字段。GET 和 HGET 的值须为不超过 1 KiB 的 UTF-8 字符串。",
       "mongoValidationFailed": "请输入 db.'<集合>'.find('<JSON 过滤条件>', '<JSON 投影>')，可接 .sort('<JSON>')，只使用已批准字段和 $eq、$gt、$gte、$lt、$lte、$in。",
       "statementPlaceholder": "输入一条只读 SQL 语句（如 SELECT … 或 SHOW TABLES）",
       "maxRowsLabel": "最大行数",

@@ -1521,7 +1521,7 @@
       "accessPlaceholder": "Access requests are not supported here.",
       "statementLabel": "Statement",
       "redisCommandLabel": "Redis command",
-      "redisValidationFailed": "Enter GET with one approved key, or HGET with an approved key and field. Values must be UTF-8 strings of at most 1 KiB.",
+      "redisValidationFailed": "Use GET, TYPE, or TTL with one approved key, or HGET with an approved key and field. GET and HGET values must be UTF-8 strings of at most 1 KiB.",
       "mongoValidationFailed": "Enter db.'<collection>'.find('<JSON filter>', '<JSON projection>'), optionally .sort('<JSON>'), with approved fields and $eq, $gt, $gte, $lt, $lte or $in.",
       "statementPlaceholder": "Enter a read-only SQL statement (e.g. SELECT … or SHOW TABLES)",
       "maxRowsLabel": "Max rows",

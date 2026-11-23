@@ -6,7 +6,7 @@ import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect } from "@playwright/test";
 
-const [backend, target, email] = process.argv.slice(2);
+const [backend, target, email, feature] = process.argv.slice(2);
 const controlSecret = process.env.CONTROLHUB_REDIS_FIXTURE_SECRET;
 if (new URL(backend).hostname !== "127.0.0.1" || !/^\d+$/.test(target) ||
     email !== "redis-worksheet-editor@example.com" || !controlSecret) {
@@ -102,6 +102,22 @@ try {
   expect((await execute("GET demo:private:101", 403)).error).toBe("query_result_disclosure_blocked");
   expect((await execute("SET demo:order:note:101 changed", 400)).error).toBe("validation_failed");
 
+  const metadataHistory = [];
+  if (feature === "type-ttl") {
+    await expect(keys.getByText("demo:order:expiring", { exact: true })).toBeVisible();
+    metadataHistory.push([await show("TYPE demo:order:101", "hash"), "Redis TYPE"]);
+    await show("TYPE demo:order:note:101", "string");
+    await show("TYPE demo:order:missing", "none");
+    metadataHistory.push([await show("TTL demo:order:note:101", "-1"), "Redis TTL"]);
+    await show("TTL demo:order:missing", "-2");
+    const ttl = await execute("TTL demo:order:expiring");
+    const seconds = ttl.rows[0][0];
+    expect(seconds).toMatch(/^\d+$/);
+    expect(Number(seconds)).toBeLessThanOrEqual(600);
+    await expect(page.getByRole("gridcell", { name: seconds, exact: true })).toBeVisible();
+    expect((await execute("TYPE demo:order:note:102", 403)).error).toBe("query_result_disclosure_blocked");
+  }
+
   const hgetFirst = await show("HGET demo:order:101 status", "open");
   await show("HGET demo:order:101 region", "cn-east");
   await expect(page.getByRole("gridcell", { name: "open", exact: true })).toHaveCount(0);
@@ -137,20 +153,28 @@ try {
   // Final step: throttle the editor's minute bucket to 1 — the first Run is
   // admitted, the next is refused with 429 and the grid stays cleared.
   await control("throttle");
-  await show("HGET demo:order:101 status", "open");
+  if (feature === "type-ttl") {
+    await show("TTL demo:order:note:101", "-1");
+  } else {
+    await show("HGET demo:order:101 status", "open");
+  }
   const limited = await execute(null, 429);
   expect(limited.error).toBe("query_rate_limited");
   await expect(worksheet.getByRole("alert")).toContainText(/too many runs|运行过于频繁/i);
 
-  const history = await (await page.request.get(`${origin}/api/proxy/query-targets/${target}/executions?pageSize=20`)).json();
-  for (const [id, preview] of [[first, "Redis GET"], [second, "Redis GET"], [hgetFirst, "Redis HGET"]]) {
+  const history = await (await page.request.get(`${origin}/api/proxy/query-targets/${target}/executions?pageSize=50`)).json();
+  for (const [id, preview] of [[first, "Redis GET"], [second, "Redis GET"], [hgetFirst, "Redis HGET"], ...metadataHistory]) {
     expect(history.items).toContainEqual(expect.objectContaining({ id, engine: "redis", status: "success", statementPreview: preview, canRestore: false }));
   }
   const evidence = JSON.stringify(history);
   expect(evidence).not.toContain("demo:order:");
   expect(evidence).not.toContain("open");
   expect(evidence).not.toContain("cn-east");
+  expect(evidence).not.toContain("never-echo-this-value");
   console.log("PASS Redis worksheet: GET and HGET on approved keys and fields, edit and rerun, hash fields in Objects, refused/blocked/too-large clears the grid, revocation and audit failure, throttled 429 clears the grid, evidence labels");
+  if (feature === "type-ttl") {
+    console.log("PASS Redis worksheet TYPE/TTL: metadata-only keys in Objects, type/none/-1/-2 and bounded TTL text, unapproved metadata blocked, TTL throttled, evidence labels");
+  }
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
