@@ -3749,7 +3749,6 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     await renderWithResult();
 
     expect(screen.queryByRole("button", { name: /copy all/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /json/i })).toBeNull();
 
     const createObjectURL = vi.fn(() => "blob:query-results");
     const revokeObjectURL = vi.fn();
@@ -3762,6 +3761,33 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(click).toHaveBeenCalledOnce();
       const anchor = click.mock.instances[0] as HTMLAnchorElement;
       expect(anchor).toMatchObject({ download: "query-results.csv", href: "blob:query-results" });
+      expect(document.body.contains(anchor)).toBe(false);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:query-results");
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("downloads the current result page as JSON with delivered values unchanged", async () => {
+    await renderWithResult();
+
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:query-results");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      await userEvent.setup().click(screen.getByRole("button", { name: "Export JSON" }));
+
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalledOnce();
+      const blob = createObjectURL.mock.calls[0]![0] as Blob;
+      expect(JSON.parse(await blob.text())).toEqual({
+        columns: ["id", "name", "active"],
+        rows: [[1, "orders-api", true], [2, null, false]],
+      });
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor).toMatchObject({ download: "query-results.json", href: "blob:query-results" });
       expect(document.body.contains(anchor)).toBe(false);
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:query-results");
     } finally {
@@ -3794,9 +3820,11 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
     try {
-      const exportButton = screen.getByTestId("export-csv");
-      expect(exportButton).toBeDisabled();
-      await userEvent.setup().click(exportButton);
+      for (const testId of ["export-csv", "export-json"]) {
+        const exportButton = screen.getByTestId(testId);
+        expect(exportButton).toBeDisabled();
+        await userEvent.setup().click(exportButton);
+      }
       expect(createObjectURL).not.toHaveBeenCalled();
       expect(click).not.toHaveBeenCalled();
     } finally {
@@ -3826,6 +3854,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     // WHY: export permission belongs to the active target returned by the
     // server, so a browser-only result must not bypass that decision.
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export JSON" })).toBeNull();
   });
 
   it("does not render Export CSV for an empty current result page", async () => {
@@ -3846,6 +3875,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
       expect(screen.getAllByText("0 rows")).toHaveLength(2);
     });
     expect(screen.queryByRole("button", { name: /export csv/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /export json/i })).toBeNull();
   });
 
   it("keeps disclosure-policy export copy present in both locales", () => {
@@ -4112,6 +4142,12 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const user = userEvent.setup();
     await renderWithResult();
 
+    // Resize a column from its focused header: width is presentation-only.
+    const idHeader = screen.getByRole("columnheader", { name: "id" });
+    await user.click(idHeader);
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(idHeader).toHaveAttribute("aria-description", "Width: 176px");
+
     // Select a cell.
     const cell = screen.getByRole("cell", { name: "orders-api" });
     await user.click(cell);
@@ -4145,6 +4181,11 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     // New cell should not be selected.
     const newCell = screen.getByRole("cell", { name: "42" });
     expect(newCell).not.toHaveAttribute("data-selected");
+    // Column widths reset with the executionId-keyed remount.
+    expect(screen.getByRole("columnheader", { name: "n" })).toHaveAttribute(
+      "aria-description",
+      "Width: 160px",
+    );
   });
 
   it("first data cell has tabIndex=0 on initial render (Tab can enter grid)", async () => {
@@ -4200,6 +4241,72 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const header = screen.getByRole("columnheader", { name: "id" });
     expect(document.activeElement).toBe(header);
     expect(header).toHaveAttribute("tabindex", "0");
+  });
+
+  it("Shift+Arrow selects a 2x2 range, Ctrl+C copies exact TSV, Escape resets", async () => {
+    const user = userEvent.setup();
+    await renderWithResult();
+
+    const first = screen.getByRole("cell", { name: "1" });
+    await user.click(first);
+
+    // Extend from the focused cell: right one column, then down one row.
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+
+    const grid = screen.getByRole("grid");
+    expect(grid).toHaveAttribute("aria-multiselectable", "true");
+    const cells = within(grid).getAllByRole("cell");
+    const selected = cells.filter((cell) => cell.getAttribute("aria-selected") === "true");
+    expect(selected).toHaveLength(4);
+    for (const cell of selected) {
+      expect(cell).toHaveAttribute("data-selected");
+    }
+
+    // The cell viewer is not offered for a multi-cell selection.
+    expect(screen.getByRole("button", { name: "View value" })).toBeDisabled();
+
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeEnabled();
+    expect(copyButton).toHaveTextContent("Copy selection");
+
+    // Ctrl+C on the focused grid copies the rectangle in row-major TSV order;
+    // the SQL NULL in the second row serializes as an empty trailing field.
+    fireEvent.keyDown(grid, { key: "c", ctrlKey: true });
+    await waitFor(() => {
+      expect(mockCopyToClipboard).toHaveBeenCalledWith("1\torders-api\n2\t");
+    });
+
+    await user.keyboard("{Escape}");
+    expect(cells.filter((cell) => cell.getAttribute("aria-selected") === "true")).toHaveLength(0);
+    expect(copyButton).toBeDisabled();
+  });
+
+  it("refuses a range containing a protected column without touching the clipboard", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({
+      columns: [
+        col("id", "BIGINT", false),
+        { ...col("secret", "VARCHAR", false), displayMode: "masked_no_copy", copyAllowed: false },
+      ],
+      rows: [[1, "[MASKED]"], [2, "[MASKED]"]],
+      cellTruncated: [[false, false], [false, false]],
+    });
+
+    await user.click(screen.getAllByRole("cell", { name: "1" })[0]!);
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+
+    const copyButton = screen.getByTestId("copy-selection");
+    expect(copyButton).toBeDisabled();
+    expect(copyButton).toHaveAttribute(
+      "aria-label",
+      "Selection contains a protected, truncated, or unavailable value",
+    );
+
+    // Even a Ctrl+C shortcut cannot overwrite the clipboard for a refused range.
+    const grid = screen.getByRole("grid");
+    fireEvent.keyDown(grid, { key: "c", ctrlKey: true });
+    expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 
 });
@@ -6529,5 +6636,127 @@ describe("QueryWorkbench result grid disclosure (Phase 38Q)", () => {
 
     expect(screen.queryByTestId("related-records")).toBeNull();
     expect(screen.getByTestId("copy-selection")).toBeDisabled();
+  });
+
+  const VIEWER_JSON = `{"orderNo":9007199254740993,"status":"open"}`;
+  const VIEWER_LONG_TEXT = "first line\n  indented second line\nthird";
+  const BLOCKED_SENTINEL = "RAW_BLOCKED_SENTINEL";
+
+  function mockViewerRowResponse(executionId: number) {
+    return {
+      executionId,
+      status: "success" as const,
+      targetResourceId: 30,
+      engine: "mysql",
+      columns: [
+        colWithDisclosure("doc", "VARCHAR", true, "raw_copy_allowed", true),
+        colWithDisclosure("note", "LONGTEXT", true, "raw_copy_allowed", true),
+        colWithDisclosure("ssn", "VARCHAR", false, "masked_no_copy", false),
+        colWithDisclosure("payload", "VARCHAR", false, "blocked", false),
+        colWithDisclosure("preview", "VARCHAR", true, "raw_copy_allowed", true),
+        colWithDisclosure("extra", "VARCHAR", true, "raw_copy_allowed", true),
+      ],
+      rows: [[VIEWER_JSON, VIEWER_LONG_TEXT, "[MASKED]", BLOCKED_SENTINEL, `{"orderNo":90071992`, null]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 10,
+      limitApplied: 100,
+      executedAt: "2026-07-23T10:00:00Z",
+      cellTruncated: [[false, false, false, false, true, false]],
+    };
+  }
+
+  it("opens a read-only viewer with formatted JSON and verbatim raw text", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1001));
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    // The envelope sanitizes blocked cells before they reach the grid.
+    expect(screen.queryByText(BLOCKED_SENTINEL)).toBeNull();
+    expect(screen.getByRole("cell", { name: "[blocked]" })).toBeInTheDocument();
+
+    const cells = screen.getAllByRole("cell");
+    await user.click(cells[0]!);
+    const viewButton = screen.getByRole("button", { name: "View value" });
+    expect(viewButton).toBeEnabled();
+
+    await user.click(viewButton);
+    const dialog = await screen.findByRole("dialog");
+    const content = within(dialog).getByTestId("result-cell-content");
+    expect(content).toHaveAttribute("aria-label", "Cell content");
+    expect(content.textContent).toBe(
+      `{\n  "orderNo": 9007199254740993,\n  "status": "open"\n}`,
+    );
+    expect(content.textContent).toContain("9007199254740993");
+
+    await user.click(within(dialog).getByRole("button", { name: "Raw text" }));
+    expect(content.textContent).toBe(VIEWER_JSON);
+
+    await user.click(within(dialog).getByRole("button", { name: "Formatted JSON" }));
+    expect(content.textContent).toContain("\n  \"orderNo\": 9007199254740993,");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View value" })).toHaveFocus();
+    });
+
+    // A plain-text cell shows the delivered value verbatim, including newlines.
+    await user.click(screen.getAllByRole("cell")[1]!);
+    await user.click(screen.getByRole("button", { name: "View value" }));
+    const textDialog = await screen.findByRole("dialog");
+    expect(within(textDialog).getByTestId("result-cell-content").textContent).toBe(VIEWER_LONG_TEXT);
+    expect(within(textDialog).queryByRole("button", { name: "Raw text" })).toBeNull();
+  });
+
+  it("keeps the viewer disabled for non-inspectable cells and resets on a new result", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1001));
+    renderWorkbench([buildReadyWorkbenchTarget()]);
+
+    await user.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+    });
+
+    const cells = screen.getAllByRole("cell");
+    const viewButton = () => screen.getByRole("button", { name: "View value" });
+
+    // Masked, blocked, truncated, and NULL cells are never inspectable.
+    await user.click(cells[2]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[3]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[4]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(cells[5]!);
+    expect(viewButton()).toBeDisabled();
+    await user.click(screen.getByRole("columnheader", { name: "doc" }));
+    expect(viewButton()).toBeDisabled();
+
+    // A viewable cell, then a replacement result must reset eligibility.
+    await user.click(cells[0]!);
+    expect(viewButton()).toBeEnabled();
+    await user.click(viewButton());
+    await screen.findByRole("dialog");
+
+    mockExecuteQueryTarget.mockResolvedValueOnce(mockViewerRowResponse(1002));
+    // The modal makes the page inert, so a real second Run requires closing
+    // the dialog first — dispatch directly to prove the delivered result
+    // unmounts the still-open viewer.
+    fireEvent.click(screen.getByRole("button", { name: /^run$/i, hidden: true }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(screen.queryByTestId("result-cell-content")).toBeNull();
+    expect(screen.getByRole("button", { name: "View value" })).toBeDisabled();
+    expect(mockExecuteQueryTarget).toHaveBeenCalledTimes(2);
   });
 });

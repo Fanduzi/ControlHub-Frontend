@@ -42,6 +42,26 @@ including the rate-limited login path returning a controlled 429
 
 `query-result-envelope.test.ts` covers governed result disclosure checks.
 
+`query-result-cell-json.test.ts` covers the bounded result-cell JSON
+pretty-printer: exact indentation output, verbatim number lexemes, duplicate
+keys, order and escapes, and null for malformed, scalar, over-depth, and
+over-length input.
+
+`query-result-export.test.ts` covers the shared whole-page export gate and the
+JSON serializer: verbatim `{columns, rows}` output preserving duplicate column
+names and delivered scalar/text values exactly (no formula guard in JSON), and
+table-driven refusals shared by JSON and CSV for masked/blocked/disallowed
+columns, truncated cells, missing/sparse matrices, row-width mismatches, empty
+column names, and non-finite numbers.
+
+`query-result-range.test.ts` covers the rectangular selection helper: reversed
+corners normalize, TSV serializes row-major without headers, SQL NULL and
+empty text both emit empty fields, negative numbers stay verbatim,
+tab/newline/quote fields are quoted, formula-like strings get the apostrophe
+guard, and refusals fire for protected or inconsistently permitted columns,
+truncated cells, missing matrix flags, non-scalar values, and out-of-bounds
+rectangles — while restricted cells outside the rectangle never block it.
+
 Operator Session BFF tests (Phase 38X-1C):
 
 | File | Coverage |

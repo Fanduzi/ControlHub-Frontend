@@ -10,13 +10,16 @@ Shared frontend libraries.
 | `environment-params.ts` | Resolves environment slugs to IDs and the explicit `all` sentinel to unscoped params |
 | `view-models.ts` | Maps backend transport records to console view models; audit actors use the backend privacy-safe projection and targetless events use empty placeholders; database-cluster detail models retain `members: []` |
 | `topology-mapper.ts` | Maps topology transport nodes and edges into graph layout data, including named cluster groups |
-| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV behind a fail-closed whole-page eligibility gate (per-column raw+copy permission, structurally valid truncation matrix, no disclosure-blocked or truncated cell) |
+| `query-result-csv.ts` | Serializes visible query-result pages as RFC-4180 CSV behind the shared fail-closed whole-page eligibility gate in `query-result-export.ts` (per-column raw+copy permission, structurally valid truncation matrix, no disclosure-blocked or truncated cell) |
+| `query-result-export.ts` | Shared whole-page export gate (mirroring the backend DecideCSVExport contract — copyable columns, boolean-aligned truncation matrix, JSON-scalar finite cells) plus the JSON serializer emitting `{columns, rows}` verbatim for the current authorized page |
 | `schema-catalog.ts` | Query workbench schema catalog: lists, table details, schema listing, and SQL completion namespace keyed by database (and PostgreSQL schema scope) |
 | `clickhouse-completion.ts` | Resolves the active SQL statement's FROM slot and direct column references using CodeMirror syntax nodes and the authorized ClickHouse namespace. |
 | `sql-run-scope.ts` | Worksheet statement boundaries and Run scope from the lang-sql syntax tree per engine dialect (selection, cursor statement, whole document; native engines never split); shared by Run/Explain and SQL completion |
 | `use-clickhouse-worksheet-catalog.ts` | Supplies both the object pane and completion from one active target and approval generation; ignores mismatched or superseded responses. |
 | `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, ephemeral `executedStatement` bound to the delivered result for paging instead of the live draft, owned navigation attempts (single in-flight intent, dedup/supersede, keyed replay/conflict exits), history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation probes with a shared total budget and per-worksheet ownership (a read killed by the total deadline resolves `unknown`, never stale `running`), `hydrate(..., preferFallbackTarget)` activation that lets an explicit deep-linked pin pick its binding worksheet over items[0] restore order, and injectable localized name callbacks (`worksheetName`/`previewName`) with a monotonic suffix counter that skips name collisions and resumes after the largest generated suffix seen at hydrate |
 | `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
+| `query-result-cell-json.ts` | Presentation-only JSON pretty-printer for the result-cell viewer: recognizes object/array text, bounds length and depth, and indents tokens without re-serializing values so number lexemes, duplicate keys, order, and escapes stay verbatim; null for anything else |
+| `query-result-range.ts` | Rectangular result-selection helper: corner-normalizing `ResultRange`, per-cell copy guard (copyable column, untruncated, boolean-flagged, JSON-scalar value — disclosure/truncation/unavailable refusals), and TSV-only serializer with NULL-as-empty field, quoting for tabs/newlines/quotes, and an apostrophe formula guard |
 | `query-credential-operations.ts` | Credential operations read model: composite `credentialRowKey` (resourceId or resourceId@database), per-connection row expansion for PostgreSQL `connections[]`, coverage counts, grouping/filtering, and whitelisted PUT body incl. `defaultSchema` |
 
 `auth-role.ts` reads the presentation-only admin gate from the trusted,
@@ -58,16 +61,32 @@ from shareable list URLs. Resource labels retain valid unknown `key` or
 blank, malformed, and overlong values. `parsePositiveDecimalInteger` is the
 shared strict parser for URL IDs.
 
-`query-result-csv.ts` emits the current visible result page only and owns the
-whole-page export eligibility decision at runtime: every column needs both
-`raw_copy_allowed` and `copyAllowed`, the `cellTruncated` matrix must be a
-present, fully boolean, row/column-exact structure, rows must match the column
-count exactly (a missing cell is a refusal, never a SQL NULL, and extra cells
-are never dropped), and any truncated or disclosure-blocked cell refuses the
-page — `[masked]`/`[blocked]` placeholders are never serialized. Direct calls
-fail closed on malformed input; TypeScript types are not the gate.
-Values/headers beginning with a spreadsheet formula prefix are emitted as
-literal text.
+`query-result-export.ts` owns the shared whole-page export eligibility
+decision at runtime, used by both CSV and JSON serializers: every column
+needs both `raw_copy_allowed` and `copyAllowed`, the `cellTruncated` matrix
+must be a present, fully boolean, row/column-exact structure, rows must match
+the column count exactly (a missing cell is a refusal, never a SQL NULL, and
+extra cells are never dropped), and any truncated or disclosure-blocked cell
+refuses the page — `[masked]`/`[blocked]` placeholders are never serialized.
+Direct calls fail closed on malformed input; TypeScript types are not the
+gate.
+
+`query-result-csv.ts` emits the current visible result page only under that
+shared gate; values/headers beginning with a spreadsheet formula prefix are
+emitted as literal text. `serializeQueryResultJson` in `query-result-export.ts`
+emits `{columns, rows}` verbatim — positional column order preserves duplicate
+aliases, SQL `null` stays `null` (distinct from `""` and the literal text
+`NULL`), delivered JSON and large-integer text stay strings, and no formula
+guard or metadata is applied.
+
+`query-result-range.ts` emits a selected rectangular range only and owns the
+rectangle eligibility decision at runtime: every column in the rectangle needs
+both `raw_copy_allowed` and `copyAllowed`, every selected cell needs a boolean
+`cellTruncated === false` flag and a JSON-scalar value, and disclosure,
+truncated, or malformed selections are refused rather than serialized.
+Restricted or truncated cells outside the rectangle never block it, but no
+headers are emitted, SQL NULL serializes as an empty field, and string values
+beginning with a spreadsheet formula prefix are apostrophe-guarded.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

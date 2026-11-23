@@ -83,7 +83,7 @@ insert into t13_cells (id, pad, secret, note, free) values
   (8, 'NULL', 's', 'text-null', 'free'),
   (9, 'plain', 's', 'x,"y', 'free'),
   (10, 'plain2', 's', concat('line1', char(10), 'line2'), 'free'),
-  (11, 'page2-a', 's', 'p2', 'free'),
+  (11, '{"orderNo":9007199254740993,"status":"open"}', 's', 'p2', 'free'),
   (12, 'page2-b', 's', 'p2', 'free'),
   (13, 'page2-c', 's', 'p2', 'free'),
   (14, 'page2-d', 's', 'p2', 'free'),

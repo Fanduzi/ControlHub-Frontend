@@ -333,6 +333,75 @@ test.describe("T13-A result contract consumption", () => {
     expect(rowFor(String(T13_CELLS.csvNewline))?.[2]).toBe("line1\nline2");
   });
 
+  test("downloads only the current page as JSON without changing delivered values", async ({
+    page,
+  }) => {
+    await openReady(page);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Default page of 10 under `id desc`: ids 15→6 are clean; page 2 (ids
+    // 5→1) carries the oversized pads, so only page 1 may serialize.
+    await runSql(
+      page,
+      `select id, pad, note from query_e2e_aux.t13_cells order by id desc`,
+    );
+
+    await expect(
+      page.getByRole("button", { name: /next page/i }),
+    ).toBeEnabled();
+    const exportButton = page.getByTestId("export-json");
+    await expect(exportButton).toBeEnabled();
+
+    const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
+    await exportButton.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("query-results.json");
+    const path = await download.path();
+    if (!path) throw new Error("download produced no file path");
+
+    const fs = await import("node:fs/promises");
+    const payload = JSON.parse(await fs.readFile(path, "utf8")) as {
+      columns: string[];
+      rows: (string | number | boolean | null)[][];
+    };
+    expect(payload).toEqual({
+      columns: ["id", "pad", "note"],
+      rows: [
+        ["15", "page2-e", "p2"],
+        ["14", "page2-d", "p2"],
+        ["13", "page2-c", "p2"],
+        ["12", "page2-b", "p2"],
+        ["11", '{"orderNo":9007199254740993,"status":"open"}', "p2"],
+        ["10", "plain2", "line1\nline2"],
+        ["9", "plain", 'x,"y'],
+        ["8", "NULL", "text-null"],
+        ["7", null, "sql-null"],
+        ["6", "", "empty-str"],
+      ],
+    });
+
+    // The download is a local serialization: exactly one execute happened.
+    expect(executeRequests).toBe(1);
+
+    // Page 2 contains truncated cells — the shared whole-page gate disables
+    // JSON export exactly like CSV. Paging is the second (and last) execute.
+    await page.getByRole("button", { name: /next page/i }).click();
+    await expect(page.getByTestId("truncated-page-notice")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+    expect(executeRequests).toBe(2);
+  });
+
   test("a page with a masked column produces zero download events", async ({
     page,
   }) => {
@@ -349,9 +418,11 @@ test.describe("T13-A result contract consumption", () => {
 
     const downloadEvents: string[] = [];
     page.on("download", (d) => downloadEvents.push(d.suggestedFilename()));
-    const exportButton = page.getByTestId("export-csv");
-    await expect(exportButton).toBeDisabled();
-    await exportButton.click({ force: true });
+    for (const testId of ["export-csv", "export-json"]) {
+      const exportButton = page.getByTestId(testId);
+      await expect(exportButton).toBeDisabled();
+      await exportButton.click({ force: true });
+    }
     await page.waitForTimeout(500);
     expect(downloadEvents).toHaveLength(0);
   });
@@ -542,6 +613,8 @@ test.describe("T13-A result contract consumption", () => {
     await expect(
       relatedPanel.getByTestId("cell-truncated-badge"),
     ).toHaveCount(1);
+    // The related-records grid never offers either export format.
+    await expect(relatedPanel.getByTestId("export-json")).toHaveCount(0);
     const padCell = relatedPanel
       .getByRole("row")
       .filter({ has: page.getByRole("gridcell", { name: "T13_P1", exact: true }) })
@@ -654,6 +727,7 @@ test.describe("T13-A result contract consumption", () => {
       await expect(alert).toBeVisible({ timeout: 15_000 });
       await expect(page.getByRole("grid")).toHaveCount(0);
       await expect(page.getByTestId("export-csv")).toHaveCount(0);
+      await expect(page.getByTestId("export-json")).toHaveCount(0);
     } finally {
       await page.unroute("**/query-targets/*/execute");
     }
@@ -692,5 +766,217 @@ test.describe("T13-A result contract consumption", () => {
       .click();
     await expect(page.getByTestId("cell-truncated-badge")).toHaveCount(1);
     await expect(page.getByTestId("export-csv")).toBeDisabled();
+  });
+
+  test("opens only delivered JSON and long-text cell values", async ({
+    page,
+  }) => {
+    await openReady(page);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Grid order: id | pad | note | secret.
+    // row 1: pad is the exact 8192-byte 'a' cell (delivered, not flagged);
+    // row 2: pad truncated, secret masked; row 3: two-line note;
+    // row 4: pad is the large-integer JSON literal.
+    await runSql(
+      page,
+      "select id, pad, note, secret from query_e2e_aux.t13_cells where id in (1,2,10,11) order by id",
+    );
+
+    const viewButton = page.getByRole("button", {
+      name: "View value",
+      exact: true,
+    });
+    const content = page.getByTestId("result-cell-content");
+
+    // JSON pad (row id=11): pretty print keeps the full-precision lexeme.
+    await rowWithNote(page, "p2").getByRole("gridcell").nth(1).click();
+    await expect(viewButton).toBeEnabled();
+    await viewButton.click();
+    await expect(content).toBeVisible();
+    const pretty = await content.textContent();
+    expect(pretty).toBe(
+      `{\n  "orderNo": 9007199254740993,\n  "status": "open"\n}`,
+    );
+    expect(pretty).toContain("9007199254740993");
+
+    await page
+      .getByRole("button", { name: "Raw text", exact: true })
+      .click();
+    expect(await content.textContent()).toBe(
+      `{"orderNo":9007199254740993,"status":"open"}`,
+    );
+
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+    await expect(viewButton).toBeFocused();
+
+    // The delivered 8192-byte 'a' cell opens complete — no fetch, no flag.
+    await rowWithNote(page, "edge-8192")
+      .getByRole("gridcell")
+      .nth(1)
+      .click();
+    await viewButton.click();
+    const longPad = await content.textContent();
+    expect(longPad).toHaveLength(8192);
+    expect(longPad).toMatch(/^a+$/);
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+
+    // The two-line note shows the delivered newline verbatim.
+    await rowWithNote(page, "plain2")
+      .getByRole("gridcell")
+      .nth(2)
+      .click();
+    await viewButton.click();
+    expect(await content.textContent()).toBe("line1\nline2");
+    await page.keyboard.press("Escape");
+    await expect(content).toHaveCount(0);
+
+    // Masked secret and flagged truncated pad never open a dialog.
+    await rowWithNote(page, "edge-8192")
+      .getByRole("gridcell")
+      .nth(3)
+      .click();
+    await expect(viewButton).toBeDisabled();
+    await rowWithNote(page, "over-8193")
+      .getByRole("gridcell")
+      .nth(1)
+      .click();
+    await expect(viewButton).toBeDisabled();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Inspection is local: exactly one execute request for the whole test.
+    expect(executeRequests).toBe(1);
+  });
+
+  test("resizes a column and copies only permitted result ranges", async ({
+    page,
+  }) => {
+    await openReady(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    // Grid order: id | note | pad | secret.
+    await runSql(
+      page,
+      `select id, note, pad, secret from query_e2e_aux.t13_cells where id in (1,2,6,7) order by id`,
+    );
+
+    const noteHeader = page.getByRole("columnheader", {
+      name: "note",
+      exact: true,
+    });
+    const padHeader = page.getByRole("columnheader", {
+      name: "pad",
+      exact: true,
+    });
+    const noteWidth = (await noteHeader.boundingBox())!.width;
+    const padWidth = (await padHeader.boundingBox())!.width;
+
+    // Pointer drag on the note column's resize handle widens only that column.
+    // page.mouse does not auto-scroll like locator actions, so bring the
+    // handle into the viewport before reading its box.
+    const handle = noteHeader.getByTestId("result-column-resize");
+    await handle.scrollIntoViewIfNeeded();
+    const handleBox = (await handle.boundingBox())!;
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2,
+      handleBox.y + handleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2 + 64,
+      handleBox.y + handleBox.height / 2,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+
+    await expect
+      .poll(async () => (await noteHeader.boundingBox())!.width)
+      .toBeGreaterThanOrEqual(noteWidth + 63);
+    expect((await noteHeader.boundingBox())!.width).toBeLessThanOrEqual(
+      noteWidth + 65,
+    );
+    expect((await padHeader.boundingBox())!.width).toBe(padWidth);
+    // Dragging the handle must not select the header.
+    await expect(noteHeader).toHaveAttribute("aria-selected", "false");
+    await expect(noteHeader).not.toHaveAttribute("data-selected");
+
+    // Keyboard: ArrowUp from a focused data cell reaches the header row, then
+    // Shift+ArrowRight on the focused note header widens it by the key step.
+    const idCell = rowWithNote(page, "edge-8192").getByRole("gridcell").nth(0);
+    await idCell.click();
+    await page.keyboard.press("ArrowUp");
+    await expect(
+      page.getByRole("columnheader", { name: "id", exact: true }),
+    ).toBeFocused();
+    await noteHeader.press("Shift+ArrowRight");
+    await expect
+      .poll(async () => (await noteHeader.boundingBox())!.width)
+      .toBeGreaterThanOrEqual(noteWidth + 79);
+    expect((await noteHeader.boundingBox())!.width).toBeLessThanOrEqual(
+      noteWidth + 81,
+    );
+
+    // Shift-click selects a clean 2x2 rectangle (id + note of rows 6,7).
+    await rowWithNote(page, "empty-str").getByRole("gridcell").nth(0).click();
+    await rowWithNote(page, "sql-null")
+      .getByRole("gridcell")
+      .nth(1)
+      .click({ modifiers: ["Shift"] });
+    await expect(page.locator('td[aria-selected="true"]')).toHaveCount(4);
+
+    const copyButton = page.getByTestId("copy-selection");
+    await expect(copyButton).toBeEnabled();
+    await copyButton.click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // A range covering the masked secret column is refused and cannot
+    // overwrite the clipboard, even via Ctrl+C from a focused cell.
+    await rowWithNote(page, "empty-str").getByRole("gridcell").nth(1).click();
+    await rowWithNote(page, "empty-str")
+      .getByRole("gridcell")
+      .nth(3)
+      .click({ modifiers: ["Shift"] });
+    await expect(copyButton).toBeDisabled();
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // A range covering the truncated pad cell is refused; clipboard stays.
+    await rowWithNote(page, "edge-8192").getByRole("gridcell").nth(1).click();
+    await rowWithNote(page, "over-8193")
+      .getByRole("gridcell")
+      .nth(2)
+      .click({ modifiers: ["Shift"] });
+    await expect(copyButton).toBeDisabled();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("6\tempty-str\n7\tsql-null");
+
+    // Selection, resize and copy are local: exactly one execute request.
+    expect(executeRequests).toBe(1);
   });
 });
