@@ -265,12 +265,13 @@ test.describe("SQL completion scope", () => {
     // CTE name binds to its declared projection; a quoted partial field
     // `p."item_` must replace the whole quoted identifier with the quoted
     // projection alias, never to the source table's raw columns.
+    const completions = page.getByRole("listbox", { name: "Completions" });
     const cte =
       'WITH picked AS (SELECT name AS item_name FROM e2e.items) SELECT p."item_tail" FROM picked p ORDER BY p.item_name LIMIT 1';
     await clearAndType(page, cte);
     await moveCaretAfter(page, cte, 'p."item_');
     await page.keyboard.press("Control+Space");
-    const itemName = page.getByRole("option", {
+    const itemName = completions.getByRole("option", {
       name: "item_name",
       exact: true,
     });
@@ -307,10 +308,10 @@ test.describe("SQL completion scope", () => {
     await moveCaretAfter(page, derived, "d.");
     await page.keyboard.press("Control+Space");
     await expect(
-      page.getByRole("option", { name: "item_name", exact: true }),
+      completions.getByRole("option", { name: "item_name", exact: true }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(
-      page.getByRole("option", { name: "name", exact: true }),
+      completions.getByRole("option", { name: "name", exact: true }),
     ).toHaveCount(0);
 
     // Relation position after `FROM ` offers the visible CTE alongside the
@@ -321,7 +322,7 @@ test.describe("SQL completion scope", () => {
     );
     await page.keyboard.press("Control+Space");
     await expect(
-      page.getByRole("option", { name: "picked", exact: true }),
+      completions.getByRole("option", { name: "picked", exact: true }),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -331,12 +332,13 @@ test.describe("SQL completion scope", () => {
     await openQueryWorkbench(page);
     await selectMysqlContext(page);
 
+    const completions = page.getByRole("listbox", { name: "Completions" });
     const sql =
       "SELECT o.na FROM query_e2e_items AS o ORDER BY o.id LIMIT 1";
     await clearAndType(page, sql);
     await moveCaretAfter(page, sql, "o.na");
     await page.keyboard.press("Control+Space");
-    const name = page.getByRole("option", { name: "name", exact: true });
+    const name = completions.getByRole("option", { name: "name", exact: true });
     await expect(name).toBeVisible({ timeout: 10_000 });
     await name.click();
     await expect(getEditor(page)).toContainText("o.`name`");
@@ -353,10 +355,99 @@ test.describe("SQL completion scope", () => {
     await moveCaretAfter(page, derived, "d.");
     await page.keyboard.press("Control+Space");
     await expect(
-      page.getByRole("option", { name: "item_name", exact: true }),
+      completions.getByRole("option", { name: "item_name", exact: true }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(
-      page.getByRole("option", { name: "name", exact: true }),
+      completions.getByRole("option", { name: "name", exact: true }),
     ).toHaveCount(0);
+  });
+
+  test("PostgreSQL current-page view excludes masked columns and resets on Run", async ({
+    page,
+  }) => {
+    await openQueryWorkbench(page);
+    await selectPgContext(page);
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    await clearAndType(
+      page,
+      "select id, name, secret_note from e2e.items order by id",
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    const grid = page.getByRole("grid");
+    await expect(grid).toBeVisible({ timeout: 30_000 });
+    await expect(
+      grid.getByRole("gridcell", { name: "alpha", exact: true }),
+    ).toBeVisible();
+    await expect(
+      grid.getByRole("gridcell", { name: "beta", exact: true }),
+    ).toBeVisible();
+    // The masked column renders its marker only — never the raw secret.
+    await expect(grid).not.toContainText("topsecret-");
+
+    // Masked cells cannot be inspected: no sort control, no filter option.
+    const filterColumn = page.getByRole("combobox", { name: "Filter column" });
+    await expect(filterColumn).toBeVisible();
+    await expect(
+      filterColumn.locator("option", { hasText: "secret_note" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: "Sort secret_note ascending",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+
+    // Keyboard sort on the copyable name column: two Shift+Enter presses land
+    // on descending and pin the state on the header.
+    await grid
+      .getByRole("columnheader", { name: "name", exact: true })
+      .focus();
+    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.press("Shift+Enter");
+    await expect(
+      grid.getByRole("columnheader", { name: "name", exact: true }),
+    ).toHaveAttribute("aria-sort", "descending");
+    await expect(grid.locator("tbody tr").first()).toContainText("beta");
+
+    await filterColumn.selectOption({ label: "name" });
+    await page.getByRole("textbox", { name: "Contains text" }).fill("ALP");
+    await expect(grid.locator("tbody tr")).toHaveCount(1);
+    await expect(grid.locator("tbody tr").first()).toContainText("alpha");
+    // The masked column keeps the whole delivered page ineligible for export.
+    await expect(page.getByTestId("export-csv")).toBeDisabled();
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+    expect(executeRequests).toBe(1);
+
+    // A new Run delivers a fresh page: the view resets with it.
+    await clearAndType(
+      page,
+      "select id, name from e2e.items where id = 2 order by id",
+    );
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(
+      grid.getByRole("gridcell", { name: "beta", exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      grid.getByRole("gridcell", { name: "alpha", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("textbox", { name: "Contains text" }),
+    ).toHaveValue("");
+    await expect(
+      grid.getByRole("columnheader", { name: "name", exact: true }),
+    ).not.toHaveAttribute("aria-sort", /.*/);
+    await expect(page.getByTestId("export-csv")).toBeEnabled();
+    await expect(page.getByTestId("export-json")).toBeEnabled();
+    expect(executeRequests).toBe(2);
   });
 });

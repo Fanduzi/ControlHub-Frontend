@@ -361,6 +361,21 @@ test.describe("T13-A result contract consumption", () => {
     const exportButton = page.getByTestId("export-json");
     await expect(exportButton).toBeEnabled();
 
+    // The display-only view may reorder and hide rows, but the download must
+    // still serialize the delivered page — ids 15→6, all ten rows.
+    await page
+      .getByRole("button", { name: "Sort id ascending", exact: true })
+      .click();
+    await page
+      .getByRole("combobox", { name: "Filter column" })
+      .selectOption({ label: "note" });
+    await page.getByRole("textbox", { name: "Contains text" }).fill("p2");
+    const contractGrid = page.getByRole("grid");
+    await expect(contractGrid.locator("tbody tr")).toHaveCount(5);
+    await expect(
+      contractGrid.locator("tbody tr").first().getByRole("gridcell").first(),
+    ).toHaveText("11");
+
     const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
     await exportButton.click();
     const download = await downloadPromise;
@@ -399,6 +414,111 @@ test.describe("T13-A result contract consumption", () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId("export-json")).toBeDisabled();
+    expect(executeRequests).toBe(2);
+  });
+
+  test("MySQL current-page view preserves row disclosure and paging", async ({
+    page,
+  }) => {
+    await openReady(page);
+    await page.setViewportSize({ width: 375, height: 900 });
+
+    let executeRequests = 0;
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)
+      ) {
+        executeRequests += 1;
+      }
+    });
+
+    await runSql(
+      page,
+      "select id, pad, note from query_e2e_aux.t13_cells order by id",
+    );
+    const grid = page.getByRole("grid");
+    await expect(
+      grid.locator("tbody tr").first().getByRole("gridcell").first(),
+    ).toHaveText("1");
+
+    // Display-only sort: descending puts id 10 on top, pinned on the header.
+    await page
+      .getByRole("button", { name: "Sort id ascending", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Sort id descending", exact: true })
+      .click();
+    await expect(
+      grid.locator("tbody tr").first().getByRole("gridcell").first(),
+    ).toHaveText("10");
+    await expect(
+      grid.getByRole("columnheader", { name: "id", exact: true }),
+    ).toHaveAttribute("aria-sort", "descending");
+    await expect(
+      page.getByRole("combobox", { name: "Filter column" }),
+    ).toBeVisible();
+    // At 375px the document itself must not scroll sideways — the grid
+    // container owns its own horizontal scroll region.
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(375);
+
+    // The moved truncated row keeps its badge and its copy refusal.
+    const overRow = rowWithNote(page, "over-8193");
+    const overPad = overRow.getByRole("gridcell").nth(1);
+    await expect(overPad.getByTestId("cell-truncated-badge")).toBeVisible();
+    await overPad.click();
+    await expect(page.getByTestId("copy-selection")).toBeDisabled();
+
+    // "bbb" exists only inside the truncated pad prefix — a truncated cell is
+    // never a filter match, so the page empties and the selection clears.
+    await page
+      .getByRole("combobox", { name: "Filter column" })
+      .selectOption({ label: "pad" });
+    await page.getByRole("textbox", { name: "Contains text" }).fill("bbb");
+    await expect(grid.locator("tbody tr")).toHaveCount(0);
+    await expect(
+      page.getByText("No matching rows on this page."),
+    ).toBeVisible();
+    await expect(page.getByTestId("copy-selection")).toBeDisabled();
+
+    // Case-insensitive match on a clean column. The truncation notice and the
+    // export gate still evaluate the *delivered* page — hiding every truncated
+    // row in the view must not re-enable a download.
+    await page
+      .getByRole("combobox", { name: "Filter column" })
+      .selectOption({ label: "note" });
+    await page
+      .getByRole("textbox", { name: "Contains text" })
+      .fill("EDGE-8192");
+    await expect(grid.locator("tbody tr")).toHaveCount(1);
+    await expect(
+      grid.locator("tbody tr").first().getByRole("gridcell").first(),
+    ).toHaveText("1");
+    await expect(grid.getByTestId("cell-truncated-badge")).toHaveCount(0);
+    await expect(page.getByTestId("export-csv")).toBeDisabled();
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+    await expect(page.getByTestId("truncated-page-notice")).toBeVisible();
+    expect(executeRequests).toBe(1);
+
+    // Paging eligibility is unchanged by the view: the next delivered page
+    // arrives with a fresh grid (cleared filter, no sort) and clean exports.
+    await expect(
+      page.getByRole("button", { name: /next page/i }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: /next page/i }).click();
+    await expect(
+      grid.locator("tbody tr").first().getByRole("gridcell").first(),
+    ).toHaveText("11", { timeout: 15_000 });
+    await expect(
+      page.getByRole("textbox", { name: "Contains text" }),
+    ).toHaveValue("");
+    await expect(
+      grid.getByRole("columnheader", { name: "id", exact: true }),
+    ).not.toHaveAttribute("aria-sort", /.*/);
+    await expect(page.getByTestId("export-csv")).toBeEnabled();
+    await expect(page.getByTestId("export-json")).toBeEnabled();
     expect(executeRequests).toBe(2);
   });
 

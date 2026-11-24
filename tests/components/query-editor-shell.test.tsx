@@ -2335,7 +2335,7 @@ describe("Phase 38S: paging reset triggers", () => {
       expect(screen.getByRole("grid")).toBeInTheDocument();
     });
 
-    const statementInput = screen.getByRole("textbox");
+    const statementInput = screen.getByRole("textbox", { name: "Statement" });
     await user.clear(statementInput);
     await user.type(statementInput, "select * from different_table");
     await user.click(screen.getByRole("button", { name: /^run$/i }));

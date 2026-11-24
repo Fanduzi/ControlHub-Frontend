@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Check, ChevronDown, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Check, ChevronDown, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -90,6 +90,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { serializeQueryResultCsv } from "@/lib/query-result-csv";
 import { isQueryResultExportable, serializeQueryResultJson } from "@/lib/query-result-export";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
+import { viewQueryResultPage, type ResultPageFilter, type ResultPageSort } from "@/lib/query-result-page-view";
 import {
   isColumnCopyable,
   resultRangeBetween,
@@ -2199,7 +2200,7 @@ function ExecuteResult({ result, navigationCapability, relatedRecordsTriggerRef,
         </p>
       ) : null}
 
-      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} cellTruncated={safeResult.cellTruncated} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} />
+      <ResultTable key={safeResult.executionId} columns={safeResult.columns} rows={safeResult.rows} cellTruncated={safeResult.cellTruncated} navigationCapability={navigationCapability} relatedRecordsTriggerRef={relatedRecordsTriggerRef} onRelatedRecordsIneligible={onRelatedRecordsIneligible} exportEnabled={exportEnabled} pageViewEnabled />
     </div>
   );
 }
@@ -2551,12 +2552,13 @@ const RESULT_COLUMN_KEY_STEP = 16;
  */
 function ResultTable({
   columns,
-  rows,
-  cellTruncated,
+  rows: deliveredRows,
+  cellTruncated: deliveredTruncation,
   navigationCapability,
   relatedRecordsTriggerRef,
   onRelatedRecordsIneligible,
   exportEnabled,
+  pageViewEnabled = false,
 }: {
   columns: QueryExecuteResponse["columns"];
   rows: QueryExecuteResponse["rows"];
@@ -2565,9 +2567,22 @@ function ResultTable({
   relatedRecordsTriggerRef?: React.RefObject<HTMLButtonElement | null>;
   onRelatedRecordsIneligible?: () => void;
   exportEnabled: boolean;
+  pageViewEnabled?: boolean;
 }) {
   const t = useTranslations("queryWorkbench");
   const gridDescriptionId = useId();
+
+  // Display-only page view: sort/filter reorder and hide *aligned* view rows;
+  // the delivered page stays the source of truth for export and paging.
+  const [sort, setSort] = useState<ResultPageSort | null>(null);
+  const [filter, setFilter] = useState<ResultPageFilter | null>(null);
+  const filterableColumns = pageViewEnabled
+    ? columns.flatMap((column, index) => isColumnCopyable(column) ? [{ column, index }] : [])
+    : [];
+  const { rows, cellTruncated } = useMemo(
+    () => viewQueryResultPage({ columns, rows: deliveredRows, cellTruncated: deliveredTruncation }, sort, filter),
+    [columns, deliveredRows, deliveredTruncation, sort, filter],
+  );
 
   // Roving-tabindex active cell. row = -1 means the header row.
   // Initialized to the first data cell so Tab can enter the grid.
@@ -2632,8 +2647,9 @@ function ResultTable({
   }
 
   // Whole-page eligibility mirrors the serializer boundary: a non-copyable
-  // column or corrupt matrix disables the control, not only truncation.
-  const pageExportable = isQueryResultExportable(columns, rows, cellTruncated);
+  // column or corrupt matrix disables the control, not only truncation. The
+  // gate and download use the delivered page, never the sorted/filtered view.
+  const pageExportable = isQueryResultExportable(columns, deliveredRows, deliveredTruncation);
 
   // The current selection normalized to one rectangle. Multi-cell ranges are
   // copy-only: single-cell affordances (viewer, related records) stay bound to
@@ -2739,6 +2755,20 @@ function ResultTable({
     selectHeaderAt(col);
   }
 
+  function resetViewSelection(active: ResultCellPoint = { row: 0, col: 0 }) {
+    setSelection(null);
+    setSelectedHeader(null);
+    setActiveCell(active);
+  }
+
+  function cycleSort(column: number) {
+    if (!pageViewEnabled || !isColumnCopyable(columns[column])) return;
+    setSort((current) => current?.column !== column ? { column, direction: "ascending" }
+      : current.direction === "ascending" ? { column, direction: "descending" } : null);
+    resetViewSelection({ row: -1, col: column });
+    focusCell(-1, column);
+  }
+
   function handleGridKeyDown(event: React.KeyboardEvent) {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c" && isMultiCell) {
       event.preventDefault();
@@ -2763,6 +2793,11 @@ function ResultTable({
       focusCell(next.row, next.col);
       return;
     }
+    if (key === "Enter" && event.shiftKey && row === -1 && pageViewEnabled && isColumnCopyable(columns[col])) {
+      event.preventDefault();
+      cycleSort(col);
+      return;
+    }
     if (key === "Enter" || key === " ") {
       event.preventDefault();
       if (row === -1) selectHeaderAt(col);
@@ -2778,7 +2813,7 @@ function ResultTable({
     let text: string;
     try {
       const serialize = format === "csv" ? serializeQueryResultCsv : serializeQueryResultJson;
-      text = serialize(columns, rows, cellTruncated);
+      text = serialize(columns, deliveredRows, deliveredTruncation);
     } catch {
       showFeedback(t(format === "csv" ? "result.exportCsvBlocked" : "result.exportJsonBlocked"), "error");
       return;
@@ -2851,7 +2886,7 @@ function ResultTable({
     ? { name: viewerColumn.name, value: viewerValue }
     : null;
 
-  if (rows.length === 0) {
+  if (deliveredRows.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("result.noRows")}</p>;
   }
 
@@ -2951,9 +2986,66 @@ function ResultTable({
           </span>
         )}
       </div>
+      {filterableColumns.length > 0 && (
+        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 px-2.5 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium">{t("result.pageView")}</span>
+            <select
+              aria-label={t("result.filterColumn")}
+              value={filter?.column ?? ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                setFilter(value === "" ? null : { column: Number(value), text: "" });
+                resetViewSelection();
+              }}
+              className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="">{t("result.filterColumn")}</option>
+              {filterableColumns.map(({ column, index }) => (
+                <option key={index} value={index}>
+                  {column.name}
+                  {columns.some((other, otherIndex) => otherIndex !== index && other.name === column.name)
+                    ? ` (${index + 1})`
+                    : ""}
+                </option>
+              ))}
+            </select>
+            <Input
+              aria-label={t("result.filterContains")}
+              placeholder={t("result.filterContains")}
+              disabled={filter === null}
+              value={filter?.text ?? ""}
+              onChange={(event) => {
+                if (!filter) return;
+                setFilter({ ...filter, text: event.target.value });
+                resetViewSelection();
+              }}
+              className="w-44 max-w-full"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSort(null);
+                setFilter(null);
+                resetViewSelection();
+              }}
+            >
+              {t("result.resetPageView")}
+            </Button>
+            {filter?.text ? (
+              <span role="status" className="text-xs text-muted-foreground">
+                {t("result.pageMatchCount", { visible: rows.length, delivered: deliveredRows.length })}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">{t("result.pageViewHelp")}</p>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-lg border border-border">
         <span id={gridDescriptionId} className="sr-only">
-          {t("result.gridSelectionHelp")}
+          {t("result.gridSelectionHelp")}{pageViewEnabled ? ` ${t("result.sortKeyboardHelp")}` : ""}
         </span>
         <table
           role="grid"
@@ -2971,8 +3063,18 @@ function ResultTable({
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
               {columns.map((column, colIndex) => {
-                const isActive = activeCell?.row === -1 && activeCell.col === colIndex;
+                const isActive =
+                  (rowCount === 0 && colIndex === Math.max(0, activeCell.col)) ||
+                  (activeCell?.row === -1 && activeCell.col === colIndex);
                 const isSelected = selectedHeader?.colIndex === colIndex;
+                const sortable = pageViewEnabled && isColumnCopyable(column);
+                const direction = sort?.column === colIndex ? sort.direction : undefined;
+                const SortIcon = direction === "ascending" ? ArrowUp : direction === "descending" ? ArrowDown : ArrowDownUp;
+                const sortLabel = direction === "ascending"
+                  ? t("result.sortDescending", { name: column.name })
+                  : direction === "descending"
+                    ? t("result.sortOriginal", { name: column.name })
+                    : t("result.sortAscending", { name: column.name });
                 return (
                   <th
                     key={colIndex}
@@ -2983,14 +3085,31 @@ function ResultTable({
                     onFocus={() => setActiveCell({ row: -1, col: colIndex })}
                     data-selected={isSelected ? "" : undefined}
                     aria-selected={isSelected}
-                    aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight"
+                    aria-label={column.name}
+                    aria-sort={direction}
+                    aria-keyshortcuts={sortable ? "Shift+ArrowLeft Shift+ArrowRight Shift+Enter" : "Shift+ArrowLeft Shift+ArrowRight"}
                     aria-description={t("result.columnWidth", { width: columnWidths[colIndex]! })}
                     className={cn(
                       "relative cursor-default select-none px-3 py-2 pr-5 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
                       isSelected && "ring-2 ring-inset ring-ring",
                     )}
                   >
-                    <span className="block truncate">{column.name}</span>
+                    <div className="flex min-w-0 items-center justify-between gap-1">
+                      <span className="truncate">{column.name}</span>
+                      {sortable && (
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          aria-label={sortLabel}
+                          title={sortLabel}
+                          className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", direction && "bg-primary/10 text-primary")}
+                          onClick={(event) => { event.stopPropagation(); cycleSort(colIndex); }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <SortIcon className="size-3.5" aria-hidden />
+                        </button>
+                      )}
+                    </div>
                     <span
                       aria-hidden="true"
                       title={t("result.resizeColumn", { name: column.name })}
@@ -3052,6 +3171,9 @@ function ResultTable({
           </tbody>
         </table>
       </div>
+      {rowCount === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("result.pageNoMatches")}</p>
+      ) : null}
     </div>
   );
 }

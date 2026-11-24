@@ -1622,7 +1622,18 @@
       "copyRangeBlocked": "Selection contains a protected, truncated, or unavailable value",
       "gridSelectionHelp": "Shift-click or use Shift with the arrow keys to select a range. On a column header, Shift+Left or Shift+Right resizes that column.",
       "resizeColumn": "Resize {name}",
-      "columnWidth": "Width: {width}px"
+      "columnWidth": "Width: {width}px",
+      "pageView": "Current page only",
+      "filterColumn": "Filter column",
+      "filterContains": "Contains text",
+      "resetPageView": "Reset view",
+      "pageMatchCount": "Showing {visible} of {delivered} rows on this page",
+      "pageViewHelp": "Sorting and filtering affect this page only. Downloads still use the original page.",
+      "pageNoMatches": "No matching rows on this page.",
+      "sortAscending": "Sort {name} ascending",
+      "sortDescending": "Sort {name} descending",
+      "sortOriginal": "Restore original order for {name}",
+      "sortKeyboardHelp": "On a sortable header, Shift+Enter changes the sort order."
     },
     "error": {
       "title": "Query could not run",

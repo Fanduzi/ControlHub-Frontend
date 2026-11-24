@@ -54,6 +54,16 @@ table-driven refusals shared by JSON and CSV for masked/blocked/disallowed
 columns, truncated cells, missing/sparse matrices, row-width mismatches, empty
 column names, and non-finite numbers.
 
+`query-result-page-view.test.ts` covers the display-only page view: exact
+decimal sorting for BIGINT UNSIGNED strings beyond float precision, DECIMAL
+wire strings with negatives and sub-float tails, code-unit ordering for
+VARCHAR numerals, NULL and truncated cells sinking last in both directions
+with delivered tie order, case-insensitive literal filtering that never
+matches truncated/NULL/missing-flag cells, flags traveling with their row,
+masked and copy-denied columns making sort and filter no-ops, legacy columns
+without a string `databaseType` falling back to text ordering, and delivered
+arrays staying unmutated.
+
 `query-result-range.test.ts` covers the rectangular selection helper: reversed
 corners normalize, TSV serializes row-major without headers, SQL NULL and
 empty text both emit empty fields, negative numbers stay verbatim,
