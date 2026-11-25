@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { ArrowDown, ArrowDownUp, ArrowUp, Check, ChevronDown, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Check, ChevronDown, ChevronRight, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -2291,6 +2291,14 @@ function ExplainPanel({
   const t = useTranslations("queryWorkbench");
   const closeRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<"cards" | "text">("cards");
+  const [branches, setBranches] = useState(() => ({ plan: state.response, collapsed: new Set<string>() }));
+  const collapsed = branches.plan === state.response ? branches.collapsed : new Set<string>();
+
+  function toggleBranch(id: string) {
+    const next = new Set(collapsed);
+    if (!next.delete(id)) next.add(id);
+    setBranches({ plan: state.response, collapsed: next });
+  }
 
   useEffect(() => {
     if (state.status === "ready" || state.status === "error") {
@@ -2461,9 +2469,15 @@ function ExplainPanel({
                 ><code>{lines.join("\n")}</code></pre>
               );
             }
+            const parents = new Set(state.response.nodes.map((node) => node.parentId));
+            const hidden = new Set<string>();
             return (
             <ul className="space-y-2" data-testid="explain-nodes">
               {state.response.nodes.map((node) => {
+                  if (node.parentId != null && (hidden.has(node.parentId) || collapsed.has(node.parentId))) {
+                    hidden.add(node.id);
+                    return null;
+                  }
                   const depth = depthById.get(node.id) ?? 0;
                   return (
                     <li
@@ -2483,6 +2497,21 @@ function ExplainPanel({
                       data-node-depth={depth}
                     >
                       <div className="flex flex-wrap items-center gap-2">
+                        {parents.has(node.id) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("explain.toggleBranch", {
+                              id: node.id,
+                              operation: node.label ?? t(`explain.operations.${node.operation}`),
+                            })}
+                            aria-expanded={!collapsed.has(node.id)}
+                            onClick={() => toggleBranch(node.id)}
+                          >
+                            {collapsed.has(node.id) ? <ChevronRight aria-hidden /> : <ChevronDown aria-hidden />}
+                          </Button>
+                        )}
                         <span className="font-medium text-foreground">
                           {node.label ?? t(`explain.operations.${node.operation}`)}
                         </span>

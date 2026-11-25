@@ -26,6 +26,8 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 
 The MySQL and PostgreSQL workbench specs also verify executing a selection and the statement at the cursor. PostgreSQL coverage checks scoped history and semicolons inside string literals.
 
+The MySQL Explain fixture also verifies a single leaf has no branch toggle. The PostgreSQL Explain fixture verifies keyboard collapse, mouse expansion, focus retention, and complete text after collapse on a real multi-level plan.
+
 ## Helpers
 
 | File | Purpose |

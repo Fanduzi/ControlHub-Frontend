@@ -2996,6 +2996,7 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     await expect(page.getByTestId("explain-ready")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
     await expect(page.locator('[data-node-access="full_scan"]')).toBeVisible();
+    await expect(page.getByTestId("explain-nodes").getByRole("button")).toHaveCount(0);
     // D-01: bounded relation/index names are intentionally disclosed, so the
     // accessed table IS visible — raw plan keys and free-form fields stay out.
     await expect(panel.getByText("qe_explain_big").first()).toBeVisible();

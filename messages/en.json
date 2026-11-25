@@ -1879,6 +1879,7 @@
       "usesIndexTrue": "Yes",
       "usesIndexFalse": "No",
       "nodeAriaLabel": "Node {id}: {operation}",
+      "toggleBranch": "Toggle branch for node {id}: {operation}",
       "emptyNodes": "No plan nodes to display",
       "error": {
         "title": "Explain failed",

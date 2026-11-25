@@ -1351,9 +1351,24 @@ test.describe("PG paging, key lifecycle, fault injection and invalid context", (
 
     const panel = page.getByTestId("explain-panel");
     await expect(panel).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId("explain-nodes")).toBeVisible();
+    const cards = page.getByTestId("explain-nodes");
+    await expect(cards).toBeVisible();
+    const branch = cards.getByRole("button", { name: /toggle branch for node 0:/i });
+    const child = cards.locator('[data-node-depth="1"]').first();
+    await expect(child).toBeVisible();
+    await expect(branch).toHaveAttribute("aria-expanded", "true");
+    await branch.focus();
+    await page.keyboard.press("Enter");
+    await expect(branch).toHaveAttribute("aria-expanded", "false");
+    await expect(child).toHaveCount(0);
+    await expect(branch).toBeFocused();
+    await branch.click();
+    await expect(child).toBeVisible();
+    await branch.click();
     await page.getByRole("button", { name: "Text" }).click();
-    await expect(page.getByTestId("explain-text")).toContainText("cost=");
+    const text = page.getByTestId("explain-text");
+    await expect(text).toContainText("cost=");
+    await expect(text).toContainText("items");
     const panelText = await panel.innerText();
     expect(panelText).not.toMatch(/query_block|table_name|password|dsn|credential/i);
   });

@@ -1879,6 +1879,7 @@
       "usesIndexTrue": "是",
       "usesIndexFalse": "否",
       "nodeAriaLabel": "节点 {id}：{operation}",
+      "toggleBranch": "切换节点 {id} 的分支：{operation}",
       "emptyNodes": "没有可显示的计划节点",
       "error": {
         "title": "Explain 失败",

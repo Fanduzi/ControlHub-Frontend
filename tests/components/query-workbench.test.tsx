@@ -5812,6 +5812,44 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     expect(screen.queryByText(/query_block|table_name|secret/i)).toBeNull();
   });
 
+  it("collapses only plan descendants without fetching and keeps the full text plan", async () => {
+    const user = userEvent.setup();
+    const plan = buildExplainResponse({ nodes: [
+      { id: "0", operation: "container", access: "unknown" },
+      { id: "1", parentId: "0", operation: "container", access: "unknown" },
+      { id: "2", parentId: "1", operation: "index_access", access: "index", relation: "nested_items" },
+      { id: "3", operation: "table_access", access: "full_scan", relation: "other_items" },
+    ] });
+    mockExplainQueryTarget.mockResolvedValueOnce(plan).mockResolvedValueOnce({ ...plan });
+    renderExplainable();
+
+    const trigger = await screen.findByTestId("explain-trigger");
+    await user.click(trigger);
+    const root = await screen.findByRole("button", { name: "Toggle branch for node 0: Container" });
+    expect(root).toHaveAttribute("aria-expanded", "true");
+    expect(within(screen.getByTestId("explain-nodes")).getAllByRole("button")).toHaveLength(2);
+    root.focus();
+    await user.keyboard("{Enter}");
+    expect(root).toHaveAttribute("aria-expanded", "false");
+    expect(root).toHaveFocus();
+    expect(screen.queryByText("nested_items")).not.toBeInTheDocument();
+    expect(screen.getByText("other_items")).toBeVisible();
+    expect(screen.getByTestId("explain-risks")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Text" }));
+    expect(screen.getByTestId("explain-text")).toHaveTextContent("nested_items");
+    await user.click(screen.getByRole("button", { name: "Nodes" }));
+    expect(screen.queryByText("nested_items")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Toggle branch for node 0: Container" }));
+    expect(screen.getByText("nested_items")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Toggle branch for node 0: Container" }));
+    expect(mockExplainQueryTarget).toHaveBeenCalledTimes(1);
+
+    await user.click(trigger);
+    expect(await screen.findByText("nested_items")).toBeVisible();
+    expect(mockExplainQueryTarget).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the Explain button visible and disabled while loading", async () => {
     const user = userEvent.setup();
     let resolveExplain: (value: ExplainResponse) => void = () => undefined;
