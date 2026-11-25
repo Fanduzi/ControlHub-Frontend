@@ -55,8 +55,9 @@ columns, truncated cells, missing/sparse matrices, row-width mismatches, empty
 column names, and non-finite numbers.
 
 `query-result-page-view.test.ts` covers the display-only page view: exact
-decimal sorting for BIGINT UNSIGNED strings beyond float precision, DECIMAL
-wire strings with negatives and sub-float tails, code-unit ordering for
+decimal sorting for BIGINT UNSIGNED and ClickHouse UInt32/UInt64 wire strings,
+DECIMAL wire strings with negatives and sub-float tails, PostgreSQL NUMERIC
+special values ordered alongside finite decimals, code-unit ordering for
 VARCHAR numerals, NULL and truncated cells sinking last in both directions
 with delivered tie order, case-insensitive literal filtering that never
 matches truncated/NULL/missing-flag cells, flags traveling with their row,

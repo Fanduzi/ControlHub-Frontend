@@ -9,13 +9,17 @@ type ResultPageData = Pick<QueryExecuteResponse, "columns" | "rows"> & {
 
 // Drivers may preserve integer or decimal values as strings. Only treat them
 // as numeric when the database type explicitly says so.
-const exactNumericType = /^(?:unsigned )?(?:tinyint|smallint|mediumint|int|integer|bigint|int2|int4|int8|decimal|numeric)(?:\(\d+(?:,\s*\d+)?\))?(?: unsigned)?$/i;
+const exactNumericType = /^(?:uint(?:32|64)|(?:unsigned )?(?:tinyint|smallint|mediumint|int|integer|bigint|int2|int4|int8|decimal|numeric)(?:\(\d+(?:,\s*\d+)?\))?(?: unsigned)?)$/i;
 
 function compare<T extends string | number>(left: T, right: T): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function decimalKey(value: string) {
+  // PostgreSQL NUMERIC orders its special values around the finite decimals.
+  if (value === "-Infinity") return -1 as const;
+  if (value === "Infinity") return 1 as const;
+  if (value === "NaN") return 2 as const;
   const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(value);
   if (!match) return null;
   const whole = match[2]!.replace(/^0+(?=\d)/, "");
@@ -29,6 +33,9 @@ function decimalKey(value: string) {
 type DecimalKey = NonNullable<ReturnType<typeof decimalKey>>;
 
 function compareDecimal(left: DecimalKey, right: DecimalKey): number {
+  if (typeof left === "number" || typeof right === "number") {
+    return compare(typeof left === "number" ? left : 0, typeof right === "number" ? right : 0);
+  }
   if (left.negative !== right.negative) return left.negative ? -1 : 1;
   const magnitude = compare(left.whole.length, right.whole.length) ||
     compare(left.whole, right.whole) || compare(left.fraction, right.fraction);

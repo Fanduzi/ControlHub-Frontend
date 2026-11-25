@@ -37,6 +37,21 @@ describe("viewQueryResultPage sorting", () => {
     expect(firstCol(view.rows)).toEqual(["2", "10", "9007199254740992", "9007199254740993"]);
   });
 
+  it.each(["UInt32", "UInt64"])("sorts ClickHouse %s wire strings as exact integers", (databaseType) => {
+    const large = databaseType === "UInt64" ? ["9007199254740993", "9007199254740992"] : ["4000000001", "4000000000"];
+    const data = page([col("n", databaseType)], [...large, "10", "2"].map((value) => [value]));
+    const view = viewQueryResultPage(data, { column: 0, direction: "ascending" }, null);
+    expect(firstCol(view.rows)).toEqual(["2", "10", large[1], large[0]]);
+  });
+
+  it("orders PostgreSQL NUMERIC special values without changing finite values to text sorting", () => {
+    const data = page([col("n", "NUMERIC")], [["10"], ["NaN"], [null], ["2"], ["Infinity"], ["-Infinity"]]);
+    const asc = viewQueryResultPage(data, { column: 0, direction: "ascending" }, null);
+    expect(firstCol(asc.rows)).toEqual(["-Infinity", "2", "10", "Infinity", "NaN", null]);
+    const desc = viewQueryResultPage(data, { column: 0, direction: "descending" }, null);
+    expect(firstCol(desc.rows)).toEqual(["NaN", "Infinity", "10", "2", "-Infinity", null]);
+  });
+
   it("sorts DECIMAL wire strings exactly: negatives before positives, sub-float tails ordered", () => {
     const data = page(
       [col("n", "DECIMAL(38,18)")],
