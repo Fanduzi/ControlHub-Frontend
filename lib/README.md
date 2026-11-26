@@ -20,7 +20,7 @@ Shared frontend libraries.
 | `worksheet-session.ts` | Query workbench worksheet session: run, paging, template enter/exit, explain, ephemeral `executedStatement` bound to the delivered result for paging instead of the live draft, owned navigation attempts (single in-flight intent, dedup/supersede, keyed replay/conflict exits), history union (terminal rows + orphan claims), PostgreSQL connection/schema pinning, keyed execution, and abort-then-reconcile cancellation probes with a shared total budget and per-worksheet ownership (a read killed by the total deadline resolves `unknown`, never stale `running`), `hydrate(..., preferFallbackTarget)` activation that lets an explicit deep-linked pin pick its binding worksheet over items[0] restore order, and injectable localized name callbacks (`worksheetName`/`previewName`) with a monotonic suffix counter that skips name collisions and resumes after the largest generated suffix seen at hydrate |
 | `query-result-envelope.ts` | Governed result envelope: wire execute payload in, grid-safe snapshot or controlled failure out; validates the `cellTruncated` boolean matrix against row/column shape |
 | `query-result-cell-json.ts` | Presentation-only JSON pretty-printer for the result-cell viewer: recognizes object/array text, bounds length and depth, and indents tokens without re-serializing values so number lexemes, duplicate keys, order, and escapes stay verbatim; null for anything else |
-| `query-result-range.ts` | Rectangular result-selection helper: corner-normalizing `ResultRange`, per-cell copy guard (copyable column, untruncated, boolean-flagged, JSON-scalar value — disclosure/truncation/unavailable refusals), and TSV-only serializer with NULL-as-empty field, quoting for tabs/newlines/quotes, and an apostrophe formula guard |
+| `query-result-range.ts` | Rectangular result-selection helper: corner-normalizing `ResultRange`, per-cell copy guard (copyable column, untruncated, boolean-flagged, JSON-scalar value — disclosure/truncation/unavailable refusals), and clipboard serializers for TSV and Markdown using the same eligibility check |
 | `query-result-page-view.ts` | Display-only current-page view for the result grid: one-column sort and one-column case-insensitive contains filter over copyable columns only, never inspecting truncated, NULL, non-scalar, or flag-missing cells (they sink last in both directions and never match); finite wire numbers sort numerically, recognized numeric DB types with decimal wire strings (including ClickHouse UInt32/UInt64) compare exactly without float conversion, PostgreSQL NUMERIC orders negative infinity before finite values and positive infinity then NaN after them, and other types compare as text by code units, with ties keeping delivered order — returns aligned `{rows, cellTruncated}` so flags and selection stay positional, delivered arrays are never mutated, and exports keep using the original page |
 | `query-credential-operations.ts` | Credential operations read model: composite `credentialRowKey` (resourceId or resourceId@database), per-connection row expansion for PostgreSQL `connections[]`, coverage counts, grouping/filtering, and whitelisted PUT body incl. `defaultSchema` |
 
@@ -81,16 +81,15 @@ aliases, SQL `null` stays `null` (distinct from `""` and the literal text
 `NULL`), delivered JSON and large-integer text stay strings, and no formula
 guard or metadata is applied.
 
-`query-result-range.ts` shares its copy guard between TSV and Markdown. Markdown produces a clipboard-only table with numbered structural headers, literal cell escaping, `<br>` for line breaks, and blank fields for NULL and empty strings. It refuses to serialize any range crossing a hidden column,
-using the same original column indices as the grid. It emits a selected
-rectangular range only and owns the
-rectangle eligibility decision at runtime: every column in the rectangle needs
-both `raw_copy_allowed` and `copyAllowed`, every selected cell needs a boolean
-`cellTruncated === false` flag and a JSON-scalar value, and disclosure,
-truncated, or malformed selections are refused rather than serialized.
-Restricted or truncated cells outside the rectangle never block it, but no
-headers are emitted, SQL NULL serializes as an empty field, and string values
-beginning with a spreadsheet formula prefix are apostrophe-guarded.
+`query-result-range.ts` shares its copy guard between TSV and Markdown: no
+hidden crossings, every selected column is `raw_copy_allowed` and copyable,
+and every selected cell is a JSON scalar with `cellTruncated === false`.
+Restricted or truncated cells outside the rectangle never block it. Both
+formats use blank fields for SQL NULL and empty text. TSV adds no headers,
+quotes delimiters, and apostrophe-guards spreadsheet formula prefixes.
+Markdown is clipboard-only, adds numbered structural headers, and uses GFM
+code spans to render data literally (including bare URLs and emails), with
+`<br>` between lines.
 
 `format.ts` provides the caller-locale absolute and native relative timestamp
 labels; relative labels use date-time formatting after 24 hours.

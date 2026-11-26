@@ -1113,7 +1113,7 @@ test.describe("T13-A result contract consumption", () => {
     await cell(4, 2).click({ modifiers: ["Shift"] });
     await expect(markdown).toBeEnabled();
     await markdown.click();
-    await expect.poll(readClipboard).toBe('| 1 | 2 |\n| --- | --- |\n|  | empty-str |\n|  | sql-null |\n| plain | x\\|,"y |\n| plain2 | line1<br>line2 |');
+    await expect.poll(readClipboard).toBe('| 1 | 2 |\n| --- | --- |\n|  | ` empty-str ` |\n|  | ` sql-null ` |\n| ` plain ` | ` x\\|,"y ` |\n| ` plain2 ` | ` line1 `<br>` line2 ` |');
     await cell(4, 2).focus();
     await page.keyboard.press("ControlOrMeta+C");
     const tsv = '\tempty-str\n\tsql-null\nplain\t"x|,""y"\nplain2\t"line1\nline2"';

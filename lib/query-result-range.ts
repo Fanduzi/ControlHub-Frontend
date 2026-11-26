@@ -55,13 +55,15 @@ export function serializeResultRangeMarkdown(page: ResultPage, range: ResultRang
   const rows = page.rows.slice(range.top, range.bottom + 1).map((row) =>
     renderRow(row.slice(range.left, range.right + 1).map((value) => {
       if (value === null) return "";
-      // Keep cell content literal, not Markdown syntax or raw HTML.
-      return String(value).replace(/[&<>*_~`\[\]\\!|:\r\n]/g, (char, offset: number, source: string) => {
-        if (char === "|") return "\\|";
-        if (char === "\r") return source[offset + 1] === "\n" ? "" : "<br>";
-        if (char === "\n") return "<br>";
-        return `&#${char.charCodeAt(0)};`;
-      });
+      // Code spans keep markup and bare links inert when pasted into a GFM table.
+      return String(value).split(/\r\n?|\n/).map((line) => {
+        if (line === "") return "";
+        let fenceLength = 1;
+        for (const run of line.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, run[0].length + 1);
+        const fence = "`".repeat(fenceLength);
+        const text = line.replaceAll("|", "\\|");
+        return /^ +$/.test(line) ? `${fence}${text}${fence}` : `${fence} ${text} ${fence}`;
+      }).join("<br>");
     })),
   );
   return [renderRow(headers), renderRow(headers.map(() => "---")), ...rows].join("\n");

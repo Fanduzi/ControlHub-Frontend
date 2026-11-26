@@ -99,7 +99,14 @@ describe("serializeResultRangeMarkdown", () => {
   it("adds structural headers, keeps the first selected row, and escapes literal content", () => {
     const p = page({ rows: [["not selected", "a|b\\c", "line1\r\nline2\n<em>*x*</em>"], ["not selected", null, ""]] });
     expect(serializeResultRangeMarkdown(p, { top: 0, bottom: 1, left: 1, right: 2 })).toBe(
-      "| 1 | 2 |\n| --- | --- |\n| a\\|b&#92;c | line1<br>line2<br>&#60;em&#62;&#42;x&#42;&#60;/em&#62; |\n|  |  |",
+      "| 1 | 2 |\n| --- | --- |\n| ` a\\|b\\c ` | ` line1 `<br>` line2 `<br>` <em>*x*</em> ` |\n|  |  |",
+    );
+  });
+
+  it("keeps renderer autolinks, backticks, and whitespace literal", () => {
+    const p = page({ rows: [["www.example.com", "team@example.com", "`a``b`"], ["https://example.com", "  edge  ", "  "]] });
+    expect(serializeResultRangeMarkdown(p, { top: 0, bottom: 1, left: 0, right: 2 })).toBe(
+      "| 1 | 2 | 3 |\n| --- | --- | --- |\n| ` www.example.com ` | ` team@example.com ` | ``` `a``b` ``` |\n| ` https://example.com ` | `   edge   ` | `  ` |",
     );
   });
 
