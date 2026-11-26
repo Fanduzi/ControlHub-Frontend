@@ -4282,6 +4282,40 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(copyButton).toBeDisabled();
   });
 
+  it("resets only the hidden column's filter and refuses to copy a range crossing it", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({
+      columns: [col("id", "BIGINT", false), col("name", "VARCHAR", false), col("name", "VARCHAR", false)],
+      rows: [[1, "internal-note", "open"], [2, "other-note", "closed"]],
+      cellTruncated: [[false, false, false], [false, false, false]],
+    });
+    await user.click(screen.getByRole("button", { name: "Sort id ascending" }));
+    const filter = screen.getByRole("combobox", { name: "Filter column" });
+    await user.selectOptions(filter, "1");
+    await user.type(screen.getByRole("textbox", { name: "Contains text" }), "internal");
+    await user.click(screen.getByRole("cell", { name: "internal-note" }));
+    expect(screen.getByRole("button", { name: "View value" })).toBeEnabled();
+    const trigger = screen.getByRole("button", { name: "Visible columns" });
+    await user.click(trigger);
+    const item = await screen.findByRole("menuitemcheckbox", { name: "name (2)" });
+    expect(screen.getByRole("menuitemcheckbox", { name: "name (3)" })).toBeChecked();
+    await user.click(item);
+    if (screen.queryByRole("menu")) await user.keyboard("{Escape}");
+
+    expect(filter).toHaveValue("");
+    expect(screen.getByRole("columnheader", { name: "id" })).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.queryByRole("cell", { name: "internal-note" })).not.toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "closed" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "View value" })).toBeDisabled();
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+    await user.click(screen.getByRole("cell", { name: "1" }));
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(screen.getByRole("cell", { name: "open" })).toHaveFocus();
+    expect(screen.getByTestId("copy-selection")).toBeDisabled();
+    await user.keyboard("{Control>}c{/Control}");
+    expect(mockCopyToClipboard).not.toHaveBeenCalled();
+  });
+
   it("refuses a range containing a protected column without touching the clipboard", async () => {
     const user = userEvent.setup();
     await renderWithResult({

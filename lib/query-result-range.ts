@@ -6,6 +6,7 @@ type ResultPage = {
   columns: readonly QueryResultColumn[];
   rows: readonly (readonly QueryResultCellValue[])[];
   cellTruncated: readonly (readonly boolean[])[];
+  hiddenColumns?: ReadonlySet<number>;
 };
 
 export function resultRangeBetween(anchor: ResultCellPoint, end: ResultCellPoint): ResultRange {
@@ -16,9 +17,10 @@ export function isColumnCopyable(column: QueryResultColumn | undefined): boolean
   return column?.displayMode === "raw_copy_allowed" && column.copyAllowed === true;
 }
 
-export function resultRangeCopyRefusal({ columns, rows, cellTruncated }: ResultPage, { top, bottom, left, right }: ResultRange): "disclosure" | "truncated" | "unavailable" | null {
+export function resultRangeCopyRefusal({ columns, rows, cellTruncated, hiddenColumns }: ResultPage, { top, bottom, left, right }: ResultRange): "disclosure" | "truncated" | "unavailable" | null {
   if (![top, bottom, left, right].every(Number.isInteger) || top < 0 || left < 0 || top > bottom || left > right || bottom >= rows.length || right >= columns.length) return "unavailable";
   for (let col = left; col <= right; col++) {
+    if (hiddenColumns?.has(col)) return "unavailable";
     if (!isColumnCopyable(columns[col])) return "disclosure";
   }
   for (let row = top; row <= bottom; row++) {

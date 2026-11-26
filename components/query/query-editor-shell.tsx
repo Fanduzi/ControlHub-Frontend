@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -2605,9 +2606,19 @@ function ResultTable({
   // the delivered page stays the source of truth for export and paging.
   const [sort, setSort] = useState<ResultPageSort | null>(null);
   const [filter, setFilter] = useState<ResultPageFilter | null>(null);
+  const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<number>>(() => new Set());
+  // Keep the delivered column indices for selection, flags, and copy refusal.
+  const visibleColumns = columns.flatMap((_, index) => hiddenColumns.has(index) ? [] : [index]);
   const filterableColumns = pageViewEnabled
-    ? columns.flatMap((column, index) => isColumnCopyable(column) ? [{ column, index }] : [])
+    ? visibleColumns.filter((index) => isColumnCopyable(columns[index]))
     : [];
+
+  const columnNames = columns.map((column) => column.name);
+  const hasDuplicateNames = new Set(columnNames).size !== columns.length;
+  function columnLabel(index: number) {
+    const name = columnNames[index]!;
+    return hasDuplicateNames ? `${name} (${index + 1})` : name;
+  }
   const { rows, cellTruncated } = useMemo(
     () => viewQueryResultPage({ columns, rows: deliveredRows, cellTruncated: deliveredTruncation }, sort, filter),
     [columns, deliveredRows, deliveredTruncation, sort, filter],
@@ -2666,7 +2677,6 @@ function ResultTable({
     };
   }, []);
 
-  const colCount = columns.length;
   const rowCount = rows.length;
 
   // Per-cell truncation flags follow the validated matrix positionally — the
@@ -2686,7 +2696,7 @@ function ResultTable({
   const range = selection ? resultRangeBetween(selection.anchor, selection.end) : null;
   const isMultiCell = !!range && (range.top !== range.bottom || range.left !== range.right);
   const selectedCell = isMultiCell ? null : selection?.end ?? null;
-  const resultPage = { columns, rows, cellTruncated };
+  const resultPage = { columns, rows, cellTruncated, hiddenColumns };
   const copyRefusal = range ? resultRangeCopyRefusal(resultPage, range) : null;
 
   // Compute eligible FKs for the current selected data row.
@@ -2784,14 +2794,26 @@ function ResultTable({
     selectHeaderAt(col);
   }
 
-  function resetViewSelection(active: ResultCellPoint = { row: 0, col: 0 }) {
+  function resetViewSelection(active: ResultCellPoint = { row: 0, col: visibleColumns[0] ?? 0 }) {
     setSelection(null);
     setSelectedHeader(null);
     setActiveCell(active);
   }
 
+  function toggleColumn(index: number) {
+    const next = new Set(hiddenColumns);
+    if (!next.delete(index)) {
+      if (visibleColumns.length === 1) return;
+      next.add(index);
+      setSort((current) => current?.column === index ? null : current);
+      setFilter((current) => current?.column === index ? null : current);
+    }
+    setHiddenColumns(next);
+    resetViewSelection({ row: 0, col: columns.findIndex((_, column) => !next.has(column)) });
+  }
+
   function cycleSort(column: number) {
-    if (!pageViewEnabled || !isColumnCopyable(columns[column])) return;
+    if (!pageViewEnabled || hiddenColumns.has(column) || !isColumnCopyable(columns[column])) return;
     setSort((current) => current?.column !== column ? { column, direction: "ascending" }
       : current.direction === "ascending" ? { column, direction: "descending" } : null);
     resetViewSelection({ row: -1, col: column });
@@ -2813,9 +2835,10 @@ function ResultTable({
         adjustColumnWidth(col, (key === "ArrowRight" ? 1 : -1) * RESULT_COLUMN_KEY_STEP);
         return;
       }
+      const position = visibleColumns.indexOf(col) + (key === "ArrowRight" ? 1 : key === "ArrowLeft" ? -1 : 0);
       const next = {
         row: Math.max(event.shiftKey && row >= 0 ? 0 : -1, Math.min(rowCount - 1, row + (key === "ArrowDown" ? 1 : key === "ArrowUp" ? -1 : 0))),
-        col: Math.max(0, Math.min(colCount - 1, col + (key === "ArrowRight" ? 1 : key === "ArrowLeft" ? -1 : 0))),
+        col: visibleColumns[Math.max(0, Math.min(visibleColumns.length - 1, position))] ?? col,
       };
       if (event.shiftKey && row >= 0) selectCellAt(next, activeCell);
       setActiveCell(next);
@@ -2965,6 +2988,32 @@ function ResultTable({
           <Download className="size-3.5" aria-hidden />
           {t("result.exportJson")}
         </Button>}
+        {pageViewEnabled && columns.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button type="button" size="sm" variant="outline" />}>
+              {t("result.visibleColumns")}
+              <ChevronDown className="size-3" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-w-[min(20rem,calc(100vw-2rem))]">
+              {columns.map((_, index) => (
+                <DropdownMenuCheckboxItem
+                  key={index}
+                  checked={!hiddenColumns.has(index)}
+                  disabled={visibleColumns.length === 1 && !hiddenColumns.has(index)}
+                  onCheckedChange={() => toggleColumn(index)}
+                >
+                  <span className="truncate" title={columnLabel(index)}>{columnLabel(index)}</span>
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuItem disabled={hiddenColumns.size === 0} onClick={() => {
+                setHiddenColumns(new Set());
+                resetViewSelection({ row: 0, col: 0 });
+              }}>
+                {t("result.showAllColumns")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {eligibleFKs.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -3030,13 +3079,8 @@ function ResultTable({
               className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-sm"
             >
               <option value="">{t("result.filterColumn")}</option>
-              {filterableColumns.map(({ column, index }) => (
-                <option key={index} value={index}>
-                  {column.name}
-                  {columns.some((other, otherIndex) => otherIndex !== index && other.name === column.name)
-                    ? ` (${index + 1})`
-                    : ""}
-                </option>
+              {filterableColumns.map((index) => (
+                <option key={index} value={index}>{columnLabel(index)}</option>
               ))}
             </select>
             <Input
@@ -3079,19 +3123,20 @@ function ResultTable({
         <table
           role="grid"
           className="table-fixed border-collapse text-sm"
-          style={{ width: columnWidths.reduce((sum, width) => sum + width, 0) }}
+          style={{ width: visibleColumns.reduce((sum, index) => sum + columnWidths[index]!, 0) }}
           aria-multiselectable="true"
           aria-describedby={gridDescriptionId}
           onKeyDown={handleGridKeyDown}
         >
           <colgroup>
-            {columnWidths.map((width, index) => (
-              <col key={index} style={{ width }} />
+            {visibleColumns.map((index) => (
+              <col key={index} style={{ width: columnWidths[index] }} />
             ))}
           </colgroup>
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              {columns.map((column, colIndex) => {
+              {visibleColumns.map((colIndex) => {
+                const column = columns[colIndex]!;
                 const isActive =
                   (rowCount === 0 && colIndex === Math.max(0, activeCell.col)) ||
                   (activeCell?.row === -1 && activeCell.col === colIndex);
@@ -3169,7 +3214,8 @@ function ResultTable({
           <tbody>
             {rows.map((row, rowIndex) => (
               <tr key={rowIndex} className="border-b border-border/60">
-                {row.map((cell, cellIndex) => {
+                {visibleColumns.map((cellIndex) => {
+                  const cell = row[cellIndex]!;
                   const isActive = activeCell?.row === rowIndex && activeCell.col === cellIndex;
                   const isSelected = !!range &&
                     rowIndex >= range.top && rowIndex <= range.bottom &&

@@ -28,6 +28,8 @@ The MySQL and PostgreSQL workbench specs also verify executing a selection and t
 
 The MySQL Explain fixture also verifies a single leaf has no branch toggle. The PostgreSQL Explain fixture verifies keyboard collapse, mouse expansion, focus retention, and complete text after collapse on a real multi-level plan.
 
+The result contract suite also verifies keyboard and pointer column visibility changes, the last-visible-column guard, full CSV/JSON payloads despite hidden columns, disabled export when a masked or truncated column is hidden, and visibility reset on paging and rerun.
+
 ## Helpers
 
 | File | Purpose |

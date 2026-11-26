@@ -1624,6 +1624,8 @@
       "resizeColumn": "Resize {name}",
       "columnWidth": "Width: {width}px",
       "pageView": "Current page only",
+      "visibleColumns": "Visible columns",
+      "showAllColumns": "Show all columns",
       "filterColumn": "Filter column",
       "filterContains": "Contains text",
       "resetPageView": "Reset view",

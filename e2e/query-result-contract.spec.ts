@@ -309,6 +309,10 @@ test.describe("T13-A result contract consumption", () => {
     await expect(page.getByTestId("truncated-page-notice")).toHaveCount(0);
     const exportButton = page.getByTestId("export-csv");
     await expect(exportButton).toBeEnabled();
+    await page.getByRole("button", { name: "Visible columns" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "note" }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("columnheader", { name: "note" })).toHaveCount(0);
 
     const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
     await exportButton.click();
@@ -376,6 +380,22 @@ test.describe("T13-A result contract consumption", () => {
       contractGrid.locator("tbody tr").first().getByRole("gridcell").first(),
     ).toHaveText("11");
 
+    // Keyboard-hide pad; the download still contains that delivered column.
+    const columnMenu = page.getByRole("button", { name: "Visible columns" });
+    const pad = page.getByRole("menuitemcheckbox", { name: "pad" });
+    await columnMenu.focus();
+    await page.keyboard.press("Enter");
+    await pad.focus();
+    await page.keyboard.press("Space");
+    await expect(pad).not.toBeChecked();
+    await page.keyboard.press("Escape");
+    await expect(columnMenu).toBeFocused();
+    await expect(contractGrid.getByRole("columnheader", { name: "pad" })).toHaveCount(0);
+    const firstCell = contractGrid.locator("tbody tr").first().getByRole("gridcell").first();
+    await firstCell.click();
+    await page.keyboard.press("ArrowRight");
+    await expect(contractGrid.getByRole("gridcell", { name: "p2", exact: true }).first()).toBeFocused();
+
     const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
     await exportButton.click();
     const download = await downloadPromise;
@@ -414,6 +434,13 @@ test.describe("T13-A result contract consumption", () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId("export-json")).toBeDisabled();
+    await expect(contractGrid.getByRole("columnheader", { name: "pad" })).toBeVisible();
+    await columnMenu.click();
+    await pad.click();
+    await page.keyboard.press("Escape");
+    await expect(contractGrid.getByTestId("cell-truncated-badge")).toHaveCount(0);
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+    await expect(page.getByTestId("export-csv")).toBeDisabled();
     expect(executeRequests).toBe(2);
   });
 
@@ -535,6 +562,29 @@ test.describe("T13-A result contract consumption", () => {
       `select id, pad, secret, note from query_e2e_aux.t13_cells where id in (6,7,8) order by id`,
     );
     await expect(page.getByRole("grid")).toBeVisible();
+
+    const menu = page.getByRole("button", { name: "Visible columns" });
+    await menu.click();
+    for (const name of ["secret", "pad", "note"]) {
+      await page.getByRole("menuitemcheckbox", { name, exact: true }).click();
+    }
+    await expect(page.getByRole("menuitemcheckbox", { name: "id", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    const headers = page.getByRole("grid").getByRole("columnheader");
+    await expect(headers).toHaveText(["id"]);
+    await expect(page.getByTestId("export-csv")).toBeDisabled();
+    await expect(page.getByTestId("export-json")).toBeDisabled();
+
+    // Restore order, then hide again and rerun the same statement.
+    await menu.click();
+    await page.getByRole("menuitem", { name: "Show all columns" }).click();
+    await expect(headers).toHaveText(["id", "pad", "secret", "note"]);
+    await menu.click();
+    await page.getByRole("menuitemcheckbox", { name: "secret", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(headers).toHaveText(["id", "pad", "note"]);
+    await page.getByRole("button", { name: /^run$/i }).click();
+    await expect(headers).toHaveText(["id", "pad", "secret", "note"]);
 
     const downloadEvents: string[] = [];
     page.on("download", (d) => downloadEvents.push(d.suggestedFilename()));

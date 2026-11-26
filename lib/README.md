@@ -81,7 +81,9 @@ aliases, SQL `null` stays `null` (distinct from `""` and the literal text
 `NULL`), delivered JSON and large-integer text stay strings, and no formula
 guard or metadata is applied.
 
-`query-result-range.ts` emits a selected rectangular range only and owns the
+`query-result-range.ts` refuses to serialize any range crossing a hidden column,
+using the same original column indices as the grid. It emits a selected
+rectangular range only and owns the
 rectangle eligibility decision at runtime: every column in the rectangle needs
 both `raw_copy_allowed` and `copyAllowed`, every selected cell needs a boolean
 `cellTruncated === false` flag and a JSON-scalar value, and disclosure,
