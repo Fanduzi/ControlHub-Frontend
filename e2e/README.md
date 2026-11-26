@@ -30,6 +30,8 @@ The MySQL Explain fixture also verifies a single leaf has no branch toggle. The 
 
 The result contract suite also verifies frozen-column geometry after real horizontal scrolling at 375px and its minimum width in narrower layouts, keyboard focus past the frozen column, resize and first-visible-column handoff, column-name search, freeze reset on paging and rerun, keyboard and pointer column visibility changes, the last-visible-column guard, full CSV/JSON payloads despite hidden columns, disabled export when a masked or truncated column is hidden, and visibility reset on paging and rerun.
 
+The result contract suite checks real Markdown clipboard text (pipe, newline, blank NULL/empty) alongside unchanged TSV, and verifies hidden, masked, and truncated ranges cannot replace that clipboard.
+
 ## Helpers
 
 | File | Purpose |

@@ -1619,6 +1619,7 @@
       "cellViewerRawText": "Raw text",
       "cellViewerContent": "Cell content",
       "copyRange": "Copy selection",
+      "copyRangeMarkdown": "Copy as Markdown",
       "copyRangeBlocked": "Selection contains a protected, truncated, or unavailable value",
       "gridSelectionHelp": "Shift-click or use Shift with the arrow keys to select a range. On a column header, Shift+Left or Shift+Right resizes that column.",
       "resizeColumn": "Resize {name}",

@@ -1619,6 +1619,7 @@
       "cellViewerRawText": "原始文本",
       "cellViewerContent": "单元格内容",
       "copyRange": "复制选区",
+      "copyRangeMarkdown": "复制为 Markdown",
       "copyRangeBlocked": "选区包含受保护、已截断或不可用的值",
       "gridSelectionHelp": "按住 Shift 点击或使用 Shift 加方向键选择区域。在列标题上，按 Shift 加左右方向键调整列宽。",
       "resizeColumn": "调整 {name} 的列宽",

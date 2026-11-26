@@ -6,6 +6,7 @@ import {
   resultRangeBetween,
   resultRangeCopyRefusal,
   serializeResultRangeTsv,
+  serializeResultRangeMarkdown,
 } from "@/lib/query-result-range";
 
 function col(
@@ -91,6 +92,27 @@ describe("resultRangeCopyRefusal", () => {
   it("rejects cells whose delivered value is not JSON-scalar", () => {
     const p = page({ rows: [[{ nested: true } as unknown as string, "y1", "z1"], ["x2", "y2", "z2"]] });
     expect(resultRangeCopyRefusal(p, { top: 0, bottom: 0, left: 0, right: 0 })).toBe("unavailable");
+  });
+});
+
+describe("serializeResultRangeMarkdown", () => {
+  it("adds structural headers, keeps the first selected row, and escapes literal content", () => {
+    const p = page({ rows: [["not selected", "a|b\\c", "line1\r\nline2\n<em>*x*</em>"], ["not selected", null, ""]] });
+    expect(serializeResultRangeMarkdown(p, { top: 0, bottom: 1, left: 1, right: 2 })).toBe(
+      "| 1 | 2 |\n| --- | --- |\n| a\\|b&#92;c | line1<br>line2<br>&#60;em&#62;&#42;x&#42;&#60;/em&#62; |\n|  |  |",
+    );
+  });
+
+  it("refuses hidden, masked, copy-denied, truncated, or unflagged cells", () => {
+    const range = { top: 0, bottom: 0, left: 0, right: 2 };
+    const pages = [
+      { ...page(), hiddenColumns: new Set([1]) },
+      page({ columns: [col("a"), col("b", "masked_no_copy", false), col("c")] }),
+      page({ columns: [col("a"), col("b", "raw_copy_allowed", false), col("c")] }),
+      page({ cellTruncated: [[false, true, false]] }),
+      page({ cellTruncated: [[false]] }),
+    ];
+    for (const p of pages) expect(serializeResultRangeMarkdown(p, range)).toBeNull();
   });
 });
 

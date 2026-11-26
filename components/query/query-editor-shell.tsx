@@ -97,6 +97,7 @@ import {
   resultRangeBetween,
   resultRangeCopyRefusal,
   serializeResultRangeTsv,
+  serializeResultRangeMarkdown,
   type ResultCellPoint,
 } from "@/lib/query-result-range";
 import {
@@ -2912,7 +2913,8 @@ function ResultTable({
     }
   }
 
-  async function handleCopy() {
+  async function handleCopy(format: "tsv" | "markdown" = "tsv") {
+    if (format === "markdown" && (!pageViewEnabled || !isMultiCell)) return;
     let text: string;
     if (range) {
       const refusal = resultRangeCopyRefusal(resultPage, range);
@@ -2921,9 +2923,10 @@ function ResultTable({
         return;
       }
       if (isMultiCell) {
-        const tsv = serializeResultRangeTsv(resultPage, range);
-        if (tsv === null) return;
-        text = tsv;
+        const serialize = format === "markdown" ? serializeResultRangeMarkdown : serializeResultRangeTsv;
+        const serialized = serialize(resultPage, range);
+        if (serialized === null) return;
+        text = serialized;
       } else {
         text = getCellCopyText(rows[range.top]?.[range.left] ?? null);
       }
@@ -2986,6 +2989,13 @@ function ResultTable({
           <Copy className="size-3.5" aria-hidden />
           {t(isMultiCell ? "result.copyRange" : "result.copyCellValue")}
         </Button>
+        {pageViewEnabled && isMultiCell && (
+          <Button type="button" size="sm" variant="outline" disabled={copyRefusal !== null}
+            title={copyRefusal ? t("result.copyRangeBlocked") : undefined}
+            onClick={() => void handleCopy("markdown")}>
+            {t("result.copyRangeMarkdown")}
+          </Button>
+        )}
         <QueryResultCellViewer
           key={viewableCell && selectedCell ? `${selectedCell.row}:${selectedCell.col}` : "unavailable"}
           cell={viewableCell}

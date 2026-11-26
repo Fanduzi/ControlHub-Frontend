@@ -81,7 +81,7 @@ aliases, SQL `null` stays `null` (distinct from `""` and the literal text
 `NULL`), delivered JSON and large-integer text stay strings, and no formula
 guard or metadata is applied.
 
-`query-result-range.ts` refuses to serialize any range crossing a hidden column,
+`query-result-range.ts` shares its copy guard between TSV and Markdown. Markdown produces a clipboard-only table with numbered structural headers, literal cell escaping, `<br>` for line breaks, and blank fields for NULL and empty strings. It refuses to serialize any range crossing a hidden column,
 using the same original column indices as the grid. It emits a selected
 rectangular range only and owns the
 rectangle eligibility decision at runtime: every column in the rectangle needs

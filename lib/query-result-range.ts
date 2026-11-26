@@ -47,3 +47,22 @@ export function serializeResultRangeTsv(page: ResultPage, range: ResultRange): s
     .map((row) => row.slice(range.left, range.right + 1).map(escapeTsvField).join("\t"))
     .join("\n");
 }
+
+export function serializeResultRangeMarkdown(page: ResultPage, range: ResultRange): string | null {
+  if (resultRangeCopyRefusal(page, range) !== null) return null;
+  const renderRow = (cells: readonly string[]) => `| ${cells.join(" | ")} |`;
+  const headers = Array.from({ length: range.right - range.left + 1 }, (_, index) => String(index + 1));
+  const rows = page.rows.slice(range.top, range.bottom + 1).map((row) =>
+    renderRow(row.slice(range.left, range.right + 1).map((value) => {
+      if (value === null) return "";
+      // Keep cell content literal, not Markdown syntax or raw HTML.
+      return String(value).replace(/[&<>*_~`\[\]\\!|:\r\n]/g, (char, offset: number, source: string) => {
+        if (char === "|") return "\\|";
+        if (char === "\r") return source[offset + 1] === "\n" ? "" : "<br>";
+        if (char === "\n") return "<br>";
+        return `&#${char.charCodeAt(0)};`;
+      });
+    })),
+  );
+  return [renderRow(headers), renderRow(headers.map(() => "---")), ...rows].join("\n");
+}

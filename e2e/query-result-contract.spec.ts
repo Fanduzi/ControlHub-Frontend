@@ -333,7 +333,7 @@ test.describe("T13-A result contract consumption", () => {
     expect(rowFor(String(T13_CELLS.sqlNull))).toEqual(["7", "", "sql-null"]);
     expect(rowFor(String(T13_CELLS.textNull))).toEqual(["8", "NULL", "text-null"]);
     // Comma+quote and embedded newline round-trip through field-level parsing.
-    expect(rowFor(String(T13_CELLS.csvCommaQuote))?.[2]).toBe('x,"y');
+    expect(rowFor(String(T13_CELLS.csvCommaQuote))?.[2]).toBe('x|,"y');
     expect(rowFor(String(T13_CELLS.csvNewline))?.[2]).toBe("line1\nline2");
   });
 
@@ -417,7 +417,7 @@ test.describe("T13-A result contract consumption", () => {
         ["12", "page2-b", "p2"],
         ["11", '{"orderNo":9007199254740993,"status":"open"}', "p2"],
         ["10", "plain2", "line1\nline2"],
-        ["9", "plain", 'x,"y'],
+        ["9", "plain", 'x|,"y'],
         ["8", "NULL", "text-null"],
         ["7", null, "sql-null"],
         ["6", "", "empty-str"],
@@ -1098,6 +1098,40 @@ test.describe("T13-A result contract consumption", () => {
 
     // Inspection is local: exactly one execute request for the whole test.
     expect(executeRequests).toBe(1);
+  });
+
+  test("copies a Markdown rectangle without changing TSV or copying hidden cells", async ({ page }) => {
+    await openReady(page);
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await runSql(page, "select id, pad, note, secret from query_e2e_aux.t13_cells where id in (2,6,7,9,10) order by id");
+    const grid = page.getByRole("grid");
+    const rows = grid.locator("tbody tr");
+    const cell = (row: number, col: number) => rows.nth(row).getByRole("gridcell").nth(col);
+    const markdown = page.getByRole("button", { name: "Copy as Markdown" });
+    const readClipboard = () => page.evaluate(() => navigator.clipboard.readText());
+    await cell(1, 1).click();
+    await cell(4, 2).click({ modifiers: ["Shift"] });
+    await expect(markdown).toBeEnabled();
+    await markdown.click();
+    await expect.poll(readClipboard).toBe('| 1 | 2 |\n| --- | --- |\n|  | empty-str |\n|  | sql-null |\n| plain | x\\|,"y |\n| plain2 | line1<br>line2 |');
+    await cell(4, 2).focus();
+    await page.keyboard.press("ControlOrMeta+C");
+    const tsv = '\tempty-str\n\tsql-null\nplain\t"x|,""y"\nplain2\t"line1\nline2"';
+    await expect.poll(readClipboard).toBe(tsv);
+
+    await cell(1, 2).click();
+    await cell(1, 3).click({ modifiers: ["Shift"] });
+    await expect(markdown).toBeDisabled();
+    await cell(0, 1).click();
+    await cell(0, 2).click({ modifiers: ["Shift"] });
+    await expect(markdown).toBeDisabled();
+    await page.getByRole("button", { name: "Visible columns" }).click();
+    await page.getByRole("checkbox", { name: "pad", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await cell(1, 0).click();
+    await cell(1, 1).click({ modifiers: ["Shift"] });
+    await expect(markdown).toBeDisabled();
+    await expect.poll(readClipboard).toBe(tsv);
   });
 
   test("resizes a column and copies only permitted result ranges", async ({

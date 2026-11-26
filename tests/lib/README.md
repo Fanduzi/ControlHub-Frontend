@@ -65,7 +65,7 @@ masked and copy-denied columns making sort and filter no-ops, legacy columns
 without a string `databaseType` falling back to text ordering, and delivered
 arrays staying unmutated.
 
-`query-result-range.test.ts` covers the rectangular selection helper: reversed
+`query-result-range.test.ts` covers Markdown escaped literal cells, numbered structural headers, and refusal for hidden or restricted cells. It also covers the rectangular selection helper: reversed
 corners normalize, TSV serializes row-major without headers, SQL NULL and
 empty text both emit empty fields, negative numbers stay verbatim,
 tab/newline/quote fields are quoted, formula-like strings get the apostrophe
