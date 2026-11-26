@@ -2654,9 +2654,9 @@ function ResultTable({
     return () => observer.disconnect();
   }, [pageViewEnabled, deliveredRows.length]);
 
-  // Leave space to read and focus the scrolling columns even after a wide resize.
+  // Reserve room for scrolling columns where possible without shrinking below the minimum.
   const frozenMaxWidth = visibleColumns.length > 1 && scrollportWidth > 0
-    ? Math.min(RESULT_COLUMN_MAX_WIDTH, Math.max(1, scrollportWidth - RESULT_COLUMN_MIN_WIDTH))
+    ? Math.min(RESULT_COLUMN_MAX_WIDTH, Math.max(RESULT_COLUMN_MIN_WIDTH, scrollportWidth - RESULT_COLUMN_MIN_WIDTH))
     : RESULT_COLUMN_MAX_WIDTH;
   function displayedWidth(index: number) {
     return Math.min(columnWidths[index]!, index === frozenColumn ? frozenMaxWidth : RESULT_COLUMN_MAX_WIDTH);

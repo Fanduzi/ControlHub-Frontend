@@ -498,6 +498,11 @@ test.describe("T13-A result contract consumption", () => {
     await header("pad").focus();
     await page.keyboard.press("Shift+ArrowRight");
     await expect(header("pad")).toHaveAttribute("aria-description", "Width: 176px");
+    await page.setViewportSize({ width: 200, height: 900 });
+    await expect.poll(async () => (await widths()).port).toBeLessThan(208);
+    await expect(header("pad")).toHaveAttribute("aria-description", "Width: 104px");
+    expect((await widths()).frozen).toBeGreaterThanOrEqual(103);
+    await page.setViewportSize({ width: 375, height: 900 });
     expect(executes).toBe(1);
 
     await page.getByRole("button", { name: /next page/i }).click();
