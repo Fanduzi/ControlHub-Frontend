@@ -1409,14 +1409,14 @@ describe("Phase 38P: Oracle regression — related-record panel", () => {
     });
     const columnsMenu = screen.getByRole("button", { name: "Visible columns" });
     await user.click(columnsMenu);
-    await user.click(await screen.findByRole("menuitemcheckbox", { name: "user_id" }));
+    await user.click(await screen.findByRole("checkbox", { name: "user_id" }));
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("cell", { name: "1" }));
     expect(screen.queryByTestId("related-records")).not.toBeInTheDocument();
     expect(mockNavigateRelatedRecords).not.toHaveBeenCalled();
 
     await user.click(columnsMenu);
-    await user.click(await screen.findByRole("menuitem", { name: "Show all columns" }));
+    await user.click(await screen.findByRole("button", { name: "Show all columns" }));
     await user.click(screen.getByRole("cell", { name: "42" }));
     await waitFor(() => {
       expect(screen.getByTestId("related-records")).toBeInTheDocument();

@@ -27,11 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -2607,14 +2607,21 @@ function ResultTable({
   const [sort, setSort] = useState<ResultPageSort | null>(null);
   const [filter, setFilter] = useState<ResultPageFilter | null>(null);
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<number>>(() => new Set());
+  const [freezeFirst, setFreezeFirst] = useState(false);
+  const [columnSearch, setColumnSearch] = useState("");
+  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
+  const columnSearchRef = useRef<HTMLInputElement>(null);
   // Keep the delivered column indices for selection, flags, and copy refusal.
   const visibleColumns = columns.flatMap((_, index) => hiddenColumns.has(index) ? [] : [index]);
   const filterableColumns = pageViewEnabled
     ? visibleColumns.filter((index) => isColumnCopyable(columns[index]))
     : [];
+  const frozenColumn = freezeFirst ? visibleColumns[0] : undefined;
 
   const columnNames = columns.map((column) => column.name);
   const hasDuplicateNames = new Set(columnNames).size !== columns.length;
+  const columnNeedle = columnSearch.trim().toLowerCase();
+  const matchingColumns = columnNames.flatMap((name, index) => name.toLowerCase().includes(columnNeedle) ? [index] : []);
   function columnLabel(index: number) {
     const name = columnNames[index]!;
     return hasDuplicateNames ? `${name} (${index + 1})` : name;
@@ -2634,10 +2641,31 @@ function ResultTable({
   // the governed payload, and reset on each executionId-keyed remount.
   const [columnWidths, setColumnWidths] = useState(() => columns.map(() => RESULT_COLUMN_DEFAULT_WIDTH));
   const resizeDrag = useRef<{ pointerId: number; column: number; startX: number; width: number } | null>(null);
+  const scrollportRef = useRef<HTMLDivElement>(null);
+  const [scrollportWidth, setScrollportWidth] = useState(0);
+
+  useEffect(() => {
+    const scrollport = scrollportRef.current;
+    if (!scrollport || !pageViewEnabled || typeof ResizeObserver === "undefined") return;
+    const measure = () => setScrollportWidth(scrollport.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scrollport);
+    return () => observer.disconnect();
+  }, [pageViewEnabled, deliveredRows.length]);
+
+  // Leave space to read and focus the scrolling columns even after a wide resize.
+  const frozenMaxWidth = visibleColumns.length > 1 && scrollportWidth > 0
+    ? Math.min(RESULT_COLUMN_MAX_WIDTH, Math.max(1, scrollportWidth - RESULT_COLUMN_MIN_WIDTH))
+    : RESULT_COLUMN_MAX_WIDTH;
+  function displayedWidth(index: number) {
+    return Math.min(columnWidths[index]!, index === frozenColumn ? frozenMaxWidth : RESULT_COLUMN_MAX_WIDTH);
+  }
 
   function adjustColumnWidth(column: number, delta: number, startWidth?: number) {
+    const maxWidth = column === frozenColumn ? frozenMaxWidth : RESULT_COLUMN_MAX_WIDTH;
     setColumnWidths((widths) => widths.map((width, index) => index === column
-      ? Math.max(RESULT_COLUMN_MIN_WIDTH, Math.min(RESULT_COLUMN_MAX_WIDTH, (startWidth ?? width) + delta))
+      ? Math.min(maxWidth, Math.max(RESULT_COLUMN_MIN_WIDTH, (startWidth ?? Math.min(width, maxWidth)) + delta))
       : width));
   }
 
@@ -2989,30 +3017,47 @@ function ResultTable({
           {t("result.exportJson")}
         </Button>}
         {pageViewEnabled && columns.length > 1 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button type="button" size="sm" variant="outline" />}>
-              {t("result.visibleColumns")}
-              <ChevronDown className="size-3" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-w-[min(20rem,calc(100vw-2rem))]">
-              {columns.map((_, index) => (
-                <DropdownMenuCheckboxItem
-                  key={index}
-                  checked={!hiddenColumns.has(index)}
-                  disabled={visibleColumns.length === 1 && !hiddenColumns.has(index)}
-                  onCheckedChange={() => toggleColumn(index)}
-                >
-                  <span className="truncate" title={columnLabel(index)}>{columnLabel(index)}</span>
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuItem disabled={hiddenColumns.size === 0} onClick={() => {
-                setHiddenColumns(new Set());
-                resetViewSelection({ row: 0, col: 0 });
-              }}>
-                {t("result.showAllColumns")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <>
+            <Button type="button" size="sm" variant={freezeFirst ? "secondary" : "outline"}
+              aria-pressed={freezeFirst} onClick={() => setFreezeFirst((current) => !current)}>
+              {t("result.freezeFirstColumn")}
+            </Button>
+            <Popover open={columnPickerOpen} onOpenChange={(open) => {
+              setColumnPickerOpen(open);
+              if (open) setColumnSearch("");
+            }}>
+              <PopoverTrigger render={<Button type="button" size="sm" variant="outline" />}>
+                {t("result.visibleColumns")}
+                <ChevronDown className="size-3" aria-hidden />
+              </PopoverTrigger>
+              <PopoverContent align="start" initialFocus={columnSearchRef} className="max-w-[calc(100vw-2rem)]">
+                <PopoverTitle>{t("result.visibleColumns")}</PopoverTitle>
+                <Input ref={columnSearchRef} type="search" aria-label={t("result.searchColumns")}
+                  placeholder={t("result.searchColumns")} value={columnSearch}
+                  onChange={(event) => setColumnSearch(event.target.value)} />
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {matchingColumns.length === 0 ? (
+                    <p role="status" className="text-muted-foreground">{t("result.noMatchingColumns")}</p>
+                  ) : matchingColumns.map((index) => (
+                    <label key={index} className="flex min-h-7 items-center gap-2 rounded px-1 has-[:disabled]:opacity-50">
+                      <input type="checkbox" className="size-4 shrink-0 accent-primary"
+                        checked={!hiddenColumns.has(index)}
+                        disabled={visibleColumns.length === 1 && !hiddenColumns.has(index)}
+                        onChange={() => toggleColumn(index)} />
+                      <span className="truncate" title={columnLabel(index)}>{columnLabel(index)}</span>
+                    </label>
+                  ))}
+                </div>
+                <Button type="button" size="sm" variant="ghost" disabled={hiddenColumns.size === 0} onClick={() => {
+                  setHiddenColumns(new Set());
+                  resetViewSelection({ row: 0, col: 0 });
+                  setColumnPickerOpen(false);
+                }}>
+                  {t("result.showAllColumns")}
+                </Button>
+              </PopoverContent>
+            </Popover>
+          </>
         )}
         {eligibleFKs.length > 0 && (
           <DropdownMenu>
@@ -3116,21 +3161,22 @@ function ResultTable({
           <p className="text-xs text-muted-foreground">{t("result.pageViewHelp")}</p>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div ref={scrollportRef} className="overflow-x-auto rounded-lg border border-border"
+        style={frozenColumn === undefined ? undefined : { scrollPaddingInlineStart: displayedWidth(frozenColumn) }}>
         <span id={gridDescriptionId} className="sr-only">
           {t("result.gridSelectionHelp")}{pageViewEnabled ? ` ${t("result.sortKeyboardHelp")}` : ""}
         </span>
         <table
           role="grid"
           className="table-fixed border-collapse text-sm"
-          style={{ width: visibleColumns.reduce((sum, index) => sum + columnWidths[index]!, 0) }}
+          style={{ width: visibleColumns.reduce((sum, index) => sum + displayedWidth(index), 0) }}
           aria-multiselectable="true"
           aria-describedby={gridDescriptionId}
           onKeyDown={handleGridKeyDown}
         >
           <colgroup>
             {visibleColumns.map((index) => (
-              <col key={index} style={{ width: columnWidths[index] }} />
+              <col key={index} style={{ width: displayedWidth(index) }} />
             ))}
           </colgroup>
           <thead>
@@ -3141,6 +3187,7 @@ function ResultTable({
                   (rowCount === 0 && colIndex === Math.max(0, activeCell.col)) ||
                   (activeCell?.row === -1 && activeCell.col === colIndex);
                 const isSelected = selectedHeader?.colIndex === colIndex;
+                const frozen = colIndex === frozenColumn;
                 const sortable = pageViewEnabled && isColumnCopyable(column);
                 const direction = sort?.column === colIndex ? sort.direction : undefined;
                 const SortIcon = direction === "ascending" ? ArrowUp : direction === "descending" ? ArrowDown : ArrowDownUp;
@@ -3162,9 +3209,11 @@ function ResultTable({
                     aria-label={column.name}
                     aria-sort={direction}
                     aria-keyshortcuts={sortable ? "Shift+ArrowLeft Shift+ArrowRight Shift+Enter" : "Shift+ArrowLeft Shift+ArrowRight"}
-                    aria-description={t("result.columnWidth", { width: columnWidths[colIndex]! })}
+                    aria-description={t("result.columnWidth", { width: displayedWidth(colIndex) })}
+                    data-frozen-column={frozen ? "" : undefined}
                     className={cn(
-                      "relative cursor-default select-none px-3 py-2 pr-5 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                      "cursor-default select-none px-3 py-2 pr-5 font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                      frozen ? "sticky start-0 z-20 bg-background shadow-[1px_0_var(--border)]" : "relative",
                       isSelected && "ring-2 ring-inset ring-ring",
                     )}
                   >
@@ -3194,7 +3243,7 @@ function ResultTable({
                         if (event.button !== 0 || !event.isPrimary) return;
                         event.preventDefault();
                         event.currentTarget.setPointerCapture(event.pointerId);
-                        resizeDrag.current = { pointerId: event.pointerId, column: colIndex, startX: event.clientX, width: columnWidths[colIndex]! };
+                        resizeDrag.current = { pointerId: event.pointerId, column: colIndex, startX: event.clientX, width: displayedWidth(colIndex) };
                       }}
                       onPointerMove={(event) => {
                         const drag = resizeDrag.current;
@@ -3216,6 +3265,7 @@ function ResultTable({
               <tr key={rowIndex} className="border-b border-border/60">
                 {visibleColumns.map((cellIndex) => {
                   const cell = row[cellIndex]!;
+                  const frozen = cellIndex === frozenColumn;
                   const isActive = activeCell?.row === rowIndex && activeCell.col === cellIndex;
                   const isSelected = !!range &&
                     rowIndex >= range.top && rowIndex <= range.bottom &&
@@ -3230,10 +3280,13 @@ function ResultTable({
                       onFocus={() => setActiveCell({ row: rowIndex, col: cellIndex })}
                       data-selected={isSelected ? "" : undefined}
                       aria-selected={isSelected}
+                      data-frozen-column={frozen ? "" : undefined}
                       className={cn(
                         "cursor-default px-3 py-2 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring",
+                        frozen && "sticky start-0 z-10 bg-background shadow-[1px_0_var(--border)]",
+                        isSelected && isMultiCell && !frozen && "bg-primary/10",
                         isSelected && (isMultiCell
-                          ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                          ? "ring-1 ring-inset ring-primary/40"
                           : "ring-2 ring-inset ring-ring"),
                       )}
                     >

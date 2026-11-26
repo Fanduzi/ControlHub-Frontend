@@ -4282,6 +4282,33 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(copyButton).toBeDisabled();
   });
 
+  it("freezes the first visible column while name searches leave visibility unchanged", async () => {
+    const user = userEvent.setup();
+    await renderWithResult({
+      columns: [col("id", "BIGINT", false), col("name", "VARCHAR", false), col("name", "VARCHAR", false)],
+      rows: [[1, "internal-note", "open"], [2, "other-note", "closed"]],
+      cellTruncated: [[false, false, false], [false, false, false]],
+    });
+    const freeze = screen.getByRole("button", { name: "Freeze first visible column" });
+    expect(freeze).toHaveAttribute("aria-pressed", "false");
+    await user.click(freeze);
+    expect(screen.getByRole("columnheader", { name: "id" })).toHaveAttribute("data-frozen-column");
+    await user.click(screen.getByRole("button", { name: "Visible columns" }));
+    const search = await screen.findByRole("searchbox", { name: "Search columns" });
+    await user.type(search, "NAME");
+    expect(screen.queryByRole("checkbox", { name: "id (1)" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "name (2)" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "name (3)" })).toBeChecked();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+    await user.clear(search);
+    await user.click(screen.getByRole("checkbox", { name: "id (1)" }));
+    await user.keyboard("{Escape}");
+    expect(screen.getAllByRole("columnheader", { name: "name" })[0]).toHaveAttribute("data-frozen-column");
+    expect(screen.getAllByRole("columnheader", { name: "name" })[1]).not.toHaveAttribute("data-frozen-column");
+    await user.click(freeze);
+    expect(screen.getAllByRole("columnheader", { name: "name" })[0]).not.toHaveAttribute("data-frozen-column");
+  });
+
   it("resets only the hidden column's filter and refuses to copy a range crossing it", async () => {
     const user = userEvent.setup();
     await renderWithResult({
@@ -4297,10 +4324,10 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(screen.getByRole("button", { name: "View value" })).toBeEnabled();
     const trigger = screen.getByRole("button", { name: "Visible columns" });
     await user.click(trigger);
-    const item = await screen.findByRole("menuitemcheckbox", { name: "name (2)" });
-    expect(screen.getByRole("menuitemcheckbox", { name: "name (3)" })).toBeChecked();
+    const item = await screen.findByRole("checkbox", { name: "name (2)" });
+    expect(screen.getByRole("checkbox", { name: "name (3)" })).toBeChecked();
     await user.click(item);
-    if (screen.queryByRole("menu")) await user.keyboard("{Escape}");
+    await user.keyboard("{Escape}");
 
     expect(filter).toHaveValue("");
     expect(screen.getByRole("columnheader", { name: "id" })).toHaveAttribute("aria-sort", "ascending");
@@ -4322,7 +4349,7 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     const grid = within(screen.getByRole("grid"));
     expect(grid.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["2", "closed", "1", "open"]);
     await user.click(trigger);
-    await user.click(await screen.findByRole("menuitemcheckbox", { name: "id (1)" }));
+    await user.click(await screen.findByRole("checkbox", { name: "id (1)" }));
     await user.keyboard("{Escape}");
     expect(filter).toHaveValue("2");
     expect(needle).toHaveValue("o");

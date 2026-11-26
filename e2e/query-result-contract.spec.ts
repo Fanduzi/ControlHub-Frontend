@@ -310,7 +310,7 @@ test.describe("T13-A result contract consumption", () => {
     const exportButton = page.getByTestId("export-csv");
     await expect(exportButton).toBeEnabled();
     await page.getByRole("button", { name: "Visible columns" }).click();
-    await page.getByRole("menuitemcheckbox", { name: "note" }).click();
+    await page.getByRole("checkbox", { name: "note" }).click();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("columnheader", { name: "note" })).toHaveCount(0);
 
@@ -382,7 +382,7 @@ test.describe("T13-A result contract consumption", () => {
 
     // Keyboard-hide pad; the download still contains that delivered column.
     const columnMenu = page.getByRole("button", { name: "Visible columns" });
-    const pad = page.getByRole("menuitemcheckbox", { name: "pad" });
+    const pad = page.getByRole("checkbox", { name: "pad" });
     await columnMenu.focus();
     await page.keyboard.press("Enter");
     await pad.focus();
@@ -442,6 +442,72 @@ test.describe("T13-A result contract consumption", () => {
     await expect(page.getByTestId("export-json")).toBeDisabled();
     await expect(page.getByTestId("export-csv")).toBeDisabled();
     expect(executeRequests).toBe(2);
+  });
+
+  test("freezes a visible column through wide scrolling, resize, and column search", async ({ page }) => {
+    await openReady(page);
+    await page.setViewportSize({ width: 375, height: 900 });
+    let executes = 0;
+    page.on("request", (req) => {
+      if (req.method() === "POST" && /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname)) executes++;
+    });
+    await runSql(page, "select id, pad, note from query_e2e_aux.t13_cells order by id desc");
+    const grid = page.getByRole("grid");
+    const header = (name: string) => grid.getByRole("columnheader", { name, exact: true });
+    const freeze = page.getByRole("button", { name: "Freeze first visible column" });
+    await expect(freeze).toHaveAttribute("aria-pressed", "false");
+    await header("id").focus();
+    for (let i = 0; i < 24; i++) await page.keyboard.press("Shift+ArrowRight");
+    await expect(header("id")).toHaveAttribute("aria-description", "Width: 544px");
+    await freeze.click();
+    await expect(freeze).toHaveAttribute("aria-pressed", "true");
+    const scrollport = grid.locator("..");
+    const widths = async () => grid.evaluate((table) => ({
+      port: table.parentElement!.clientWidth,
+      frozen: table.querySelector("th[data-frozen-column]")!.getBoundingClientRect().width,
+    }));
+    await expect.poll(async () => { const w = await widths(); return w.port - w.frozen; }).toBeGreaterThanOrEqual(103);
+    await expect.poll(async () => { const w = await widths(); return w.frozen; }).toBeLessThan(544);
+    const idBefore = (await header("id").boundingBox())!.x;
+    const noteBefore = (await header("note").boundingBox())!.x;
+    await scrollport.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    await expect.poll(async () => (await header("note").boundingBox())!.x).toBeLessThan(noteBefore - 30);
+    expect(Math.abs((await header("id").boundingBox())!.x - idBefore)).toBeLessThan(2);
+    await header("id").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(header("pad")).toBeFocused();
+    await expect.poll(async () => {
+      const pad = (await header("pad").boundingBox())!;
+      const id = (await header("id").boundingBox())!;
+      return pad.x + pad.width - (id.x + id.width);
+    }).toBeGreaterThan(60);
+
+    await page.getByRole("button", { name: "Visible columns" }).click();
+    const search = page.getByRole("searchbox", { name: "Search columns" });
+    await expect(search).toBeFocused();
+    await search.fill("ID");
+    await expect(page.getByRole("checkbox", { name: "pad" })).toHaveCount(0);
+    await expect(header("pad")).toBeAttached();
+    await page.keyboard.press("Tab");
+    const idCheckbox = page.getByRole("checkbox", { name: "id" });
+    await expect(idCheckbox).toBeFocused();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Escape");
+    await expect(header("id")).toHaveCount(0);
+    await expect(header("pad")).toHaveAttribute("data-frozen-column", "");
+    await header("pad").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(header("pad")).toHaveAttribute("aria-description", "Width: 176px");
+    expect(executes).toBe(1);
+
+    await page.getByRole("button", { name: /next page/i }).click();
+    await expect(header("id")).toBeVisible();
+    await expect(freeze).toHaveAttribute("aria-pressed", "false");
+    await freeze.click();
+    await expect(header("id")).toHaveAttribute("data-frozen-column", "");
+    await runSql(page, "select id, pad, note from query_e2e_aux.t13_cells order by id desc");
+    await expect(freeze).toHaveAttribute("aria-pressed", "false");
+    expect(executes).toBe(3);
   });
 
   test("MySQL current-page view preserves row disclosure and paging", async ({
@@ -566,9 +632,9 @@ test.describe("T13-A result contract consumption", () => {
     const menu = page.getByRole("button", { name: "Visible columns" });
     await menu.click();
     for (const name of ["secret", "pad", "note"]) {
-      await page.getByRole("menuitemcheckbox", { name, exact: true }).click();
+      await page.getByRole("checkbox", { name, exact: true }).click();
     }
-    await expect(page.getByRole("menuitemcheckbox", { name: "id", exact: true })).toBeDisabled();
+    await expect(page.getByRole("checkbox", { name: "id", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape");
     const headers = page.getByRole("grid").getByRole("columnheader");
     await expect(headers).toHaveText(["id"]);
@@ -577,10 +643,10 @@ test.describe("T13-A result contract consumption", () => {
 
     // Restore order, then hide again and rerun the same statement.
     await menu.click();
-    await page.getByRole("menuitem", { name: "Show all columns" }).click();
+    await page.getByRole("button", { name: "Show all columns" }).click();
     await expect(headers).toHaveText(["id", "pad", "secret", "note"]);
     await menu.click();
-    await page.getByRole("menuitemcheckbox", { name: "secret", exact: true }).click();
+    await page.getByRole("checkbox", { name: "secret", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect(headers).toHaveText(["id", "pad", "note"]);
     await page.getByRole("button", { name: /^run$/i }).click();
