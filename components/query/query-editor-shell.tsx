@@ -2718,7 +2718,7 @@ function ResultTable({
       let eligible = true;
       for (const fkCol of fk.columns) {
         const colIndex = columnNames.indexOf(fkCol);
-        if (colIndex === -1 || columnNames.filter((n) => n === fkCol).length !== 1) {
+        if (colIndex === -1 || hiddenColumns.has(colIndex) || columnNames.filter((n) => n === fkCol).length !== 1) {
           eligible = false;
           break;
         }
@@ -2746,7 +2746,7 @@ function ResultTable({
       }
     }
     return result;
-  }, [navigationCapability, selectedCell, selectedHeader, columns, rows]);
+  }, [navigationCapability, selectedCell, selectedHeader, columns, rows, hiddenColumns]);
 
   const prevEligibleCountRef = useRef(eligibleFKs.length);
   useEffect(() => {

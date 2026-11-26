@@ -4314,6 +4314,20 @@ describe("QueryWorkbench result grid copy (Phase 38J)", () => {
     expect(screen.getByTestId("copy-selection")).toBeDisabled();
     await user.keyboard("{Control>}c{/Control}");
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Sort id descending" }));
+    await user.selectOptions(filter, "2");
+    const needle = screen.getByRole("textbox", { name: "Contains text" });
+    await user.type(needle, "o");
+    const grid = within(screen.getByRole("grid"));
+    expect(grid.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["2", "closed", "1", "open"]);
+    await user.click(trigger);
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "id (1)" }));
+    await user.keyboard("{Escape}");
+    expect(filter).toHaveValue("2");
+    expect(needle).toHaveValue("o");
+    expect(grid.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["open", "closed"]);
+    expect(grid.getByRole("cell", { name: "open" })).toHaveAttribute("tabindex", "0");
   });
 
   it("refuses a range containing a protected column without touching the clipboard", async () => {
