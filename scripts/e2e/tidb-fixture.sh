@@ -53,7 +53,7 @@ engine=$(docker create --label "controlhub.e2e.run=$E2E_RUN_ID" -p 127.0.0.1::40
 printf '%s\n' "$engine" > "$state/engine"
 docker start "$engine" >/dev/null
 monitor=$(docker create --label "controlhub.e2e.run=$E2E_RUN_ID" --network "container:$engine" \
-  --entrypoint sleep mysql:8.4.10 infinity)
+  --tmpfs /var/lib/mysql --entrypoint sleep mysql:8.4.10 infinity)
 printf '%s\n' "$monitor" > "$state/monitor"
 docker start "$monitor" >/dev/null
 tidb() { docker exec -i "$monitor" mysql --no-defaults -h 127.0.0.1 -P 4000 -uroot "$@"; }
