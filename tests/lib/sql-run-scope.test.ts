@@ -3,6 +3,7 @@ import { EditorSelection } from "@codemirror/state";
 
 import {
   resolveWorksheetRunScope,
+  selectedMySQLBatchStatements,
   sqlStatementAtPosition,
   sqlStatementRanges,
   sqlWorksheetState,
@@ -19,6 +20,39 @@ function scoped(doc: string, engine = "mysql", anchor?: number, head?: number) {
     engine,
   );
 }
+
+describe("selectedMySQLBatchStatements", () => {
+  function batch(doc: string, from = 0, to = doc.length) {
+    const base = sqlWorksheetState(doc, "mysql");
+    return selectedMySQLBatchStatements(base.update({ selection: { anchor: from, head: to } }).state);
+  }
+
+  it("uses full-editor boundaries and retains comments and semicolons inside quoted values", () => {
+    const first = "-- first; step\nSELECT 'a;b';";
+    const second = "/* second; step */ SELECT 'c\\'d;e';";
+    const selected = `${first}\n${second}`;
+    const preceding = "SELECT 'outside';\n";
+    expect(batch(preceding + selected + "\nSELECT 9;", preceding.length, preceding.length + selected.length)).toEqual([first, second]);
+  });
+
+  it.each([
+    "SELECT 1;", "SELECT 1; SELECT 2", "SELECT 1;; SELECT 2;",
+    "SELECT 1; SELECT 'incomplete;", "SELECT 1; SELECT 2; /* unterminated",
+    "SELECT 1; /*! SELECT 2 */; SELECT 3;", "DELIMITER //\nSELECT 1//; SELECT 2;",
+    "SELECT 1; SELECT 2; SELECT 3; SELECT 4; SELECT 5; SELECT 6;",
+    `SELECT '${"中".repeat(5500)}'; SELECT 2;`,
+  ])("refuses ambiguous or out-of-budget selection %# without yielding a prefix", (doc) => {
+    expect(batch(doc)).toBeNull();
+  });
+
+  it("refuses selection boundaries inside a statement or comment", () => {
+    const doc = "SELECT 0; /* SELECT 1; SELECT 2; */ SELECT 3; SELECT 4;";
+    expect(batch(doc, doc.indexOf("SELECT 1"))).toBeNull();
+    expect(batch(doc, 2)).toBeNull();
+    expect(batch(doc, 0, doc.length - 1)).toBeNull();
+    expect(batch(doc, 0, 0)).toBeNull();
+  });
+});
 
 describe("sqlStatementRanges (lang-sql splitter)", () => {
   const ranges = (doc: string, engine = "mysql") => {

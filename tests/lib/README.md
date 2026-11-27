@@ -8,7 +8,7 @@ ClickHouse completion tests cover table and unqualified column positions, quoted
 
 Worksheet session tests cover approval-generation pinning across ClickHouse page turns and compatibility with older single-result servers.
 
-The SQL run-scope tests cover dialect-specific statement boundaries and selection/cursor behavior. Worksheet session coverage pins paging to the last delivered statement, including after an edit or a cancelled replacement Run.
+The SQL run-scope tests cover dialect-specific statement boundaries and selection/cursor behavior, plus the explicit MySQL batch preflight: full-document selection boundaries, comment retention, quoted semicolons, and refusal of partial, ambiguous or oversized batches. Worksheet session coverage pins paging to the last delivered statement, including after an edit or a cancelled replacement Run.
 
 - Tests exercise exported library functions with literal input/output contracts.
 - `worksheet-session`/`schema-catalog` tests cover the PostgreSQL composite context: connection/schema pinning, keyed execution, abort-then-reconcile cancellation, and the terminal+claim history union.
