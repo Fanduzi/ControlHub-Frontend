@@ -972,8 +972,10 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     const view = editorViewRef.current;
     if (!view || !runEnabled || !activeMaxRowsDraftIsValid()) return false;
     const worksheetId = session.activeId;
-    const accepted = await session.runMySQLBatch(view.state);
-    if (accepted && session.activeId === worksheetId) void refreshHistory(worksheetId);
+    const request = session.runMySQLBatch(view.state);
+    const batchId = session.activeBatch?.id;
+    const accepted = await request;
+    if (accepted && batchId && session.activeBatch?.id === batchId) void refreshHistory(worksheetId);
     return accepted;
   }
 

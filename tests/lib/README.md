@@ -6,7 +6,7 @@ Vitest unit tests for frontend library modules.
 
 ClickHouse completion tests cover table and unqualified column positions, quoted source tables, statement isolation, and ambiguous sources. Catalog hook tests cover target changes, approval generations, late and denied responses, and exclusion of preview-only tables.
 
-Worksheet session tests cover approval-generation pinning across ClickHouse page turns and compatibility with older single-result servers. The MySQL batch tests cover one-at-a-time execution, ordered first-page results, server rejection, and no follow-up requests or late result publication after cancellation or context invalidation.
+Worksheet session tests cover approval-generation pinning across ClickHouse page turns and compatibility with older single-result servers. The MySQL batch tests cover one-at-a-time execution, ordered first-page results, server rejection, and no follow-up requests or late result publication after cancellation or context invalidation, including loss of batch identity when retarget keeps the same worksheet ID.
 
 The SQL run-scope tests cover dialect-specific statement boundaries and selection/cursor behavior, plus the explicit MySQL batch preflight: full-document selection boundaries, comment retention, quoted semicolons, and refusal of partial, ambiguous or oversized batches. Worksheet session coverage pins paging to the last delivered statement, including after an edit or a cancelled replacement Run.
 

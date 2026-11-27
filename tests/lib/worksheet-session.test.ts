@@ -81,7 +81,10 @@ describe("WorksheetSession MySQL batch", () => {
     let deliver!: (result: QueryExecuteResponse) => void;
     const execute = vi.fn().mockResolvedValueOnce(emptyResult()).mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }));
     const { session, state } = setup(execute);
+    const worksheetId = session.activeId;
     const running = session.runMySQLBatch(state);
+    const batchId = session.activeBatch?.id;
+    expect(batchId).toBeDefined();
     await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
     const signal = execute.mock.calls[1]![2].signal as AbortSignal;
     if (action === "cancel") session.cancel();
@@ -94,8 +97,14 @@ describe("WorksheetSession MySQL batch", () => {
     deliver(emptyResult({ executionId: 2 }));
     await running;
     expect(execute).toHaveBeenCalledTimes(2);
-    if (action === "cancel") expect(session.activeBatch).toMatchObject({ phase: "cancelled", results: [{ executionId: 1 }] });
+    if (action === "cancel") expect(session.activeBatch).toMatchObject({ id: batchId, phase: "cancelled", results: [{ executionId: 1 }] });
     else expect(session.activeBatch).toBeNull();
+    if (action === "retarget") {
+      // The shell must key its history refresh to the batch, not the reused worksheet ID.
+      expect(session.activeId).toBe(worksheetId);
+      expect(session.active.targetResourceId).toBe(2);
+      expect(session.activeBatch?.id).not.toBe(batchId);
+    }
   });
 
   it("retains all successful first pages and rejects other engines", async () => {
