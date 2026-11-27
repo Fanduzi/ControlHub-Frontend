@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { parse } from "csv-parse/sync";
+import type { QueryExecuteResponse } from "../types/query-execution";
 
 import { checkBackendHealth } from "./harness/backend-health";
 import { getAuthToken, apiFetch } from "./api.helpers";
@@ -515,6 +516,51 @@ test.describe("T13-A result contract consumption", () => {
     expect(executes).toBe(3);
   });
 
+  test("keeps the lead column visible on a real twelve-column order result at desktop width", async ({ page }) => {
+    await openReady(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await runSql(page, "select * from query_e2e_aux.t13_wide_orders order by id desc");
+    const grid = page.getByRole("grid");
+    const header = (name: string) => grid.getByRole("columnheader", { name, exact: true });
+    const port = grid.locator("..");
+    const frozen = page.getByRole("button", { name: "Freeze first visible column" });
+    await expect(grid.getByRole("columnheader")).toHaveCount(12);
+    await expect(grid.getByRole("gridcell", { name: "order-15" })).toHaveCount(1);
+    await expect(header("id")).toHaveAttribute("aria-description", "Width: 160px");
+    expect(await port.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(200);
+    await expect(frozen).toHaveAttribute("aria-pressed", "false");
+    await frozen.click();
+    const leadX = (await header("id").boundingBox())!.x;
+    const tailX = (await header("note").boundingBox())!.x;
+    await port.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+    await expect.poll(async () => (await header("note").boundingBox())!.x).toBeLessThan(tailX - 200);
+    expect(Math.abs((await header("id").boundingBox())!.x - leadX)).toBeLessThan(2);
+
+    await header("id").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(header("id")).toHaveAttribute("aria-description", "Width: 176px");
+    await page.keyboard.press("ArrowRight");
+    await expect(header("status")).toBeFocused();
+    const statusBox = (await header("status").boundingBox())!;
+    expect(statusBox.x + statusBox.width).toBeGreaterThan(leadX + 200);
+
+    await page.getByRole("button", { name: "Visible columns" }).click();
+    await page.getByRole("searchbox", { name: "Search columns" }).fill("ID");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("checkbox", { name: "id", exact: true })).toBeFocused();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Escape");
+    await expect(grid.getByRole("columnheader")).toHaveCount(11);
+    await expect(header("status")).toHaveAttribute("data-frozen-column", "");
+    const nextLeadX = (await header("status").boundingBox())!.x;
+    await port.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+    expect(await port.evaluate((el) => el.scrollLeft)).toBeGreaterThan(200);
+    expect(Math.abs((await header("status").boundingBox())!.x - nextLeadX)).toBeLessThan(2);
+    await header("status").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(header("customer")).toBeFocused();
+  });
+
   test("MySQL current-page view preserves row disclosure and paging", async ({
     page,
   }) => {
@@ -924,55 +970,60 @@ test.describe("T13-A result contract consumption", () => {
     }
   });
 
-  test("corrupted matrix fault injection fails closed instead of rendering", async ({
-    page,
-  }) => {
-    await openReady(page);
+  for (const fault of ["missing truncation flag", "explicit copy denial on a raw column"] as const) {
+    test(`Markdown copy fails closed on ${fault}`, async ({ page }) => {
+      await openReady(page);
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      const sql = "select id, note from query_e2e_aux.t13_cells where id = 1";
+      await runSql(page, sql);
+      const cells = page.getByRole("grid").getByRole("gridcell");
+      await cells.nth(0).click();
+      await cells.nth(1).click({ modifiers: ["Shift"] });
+      const markdown = page.getByRole("button", { name: "Copy as Markdown" });
+      await expect(markdown).toBeEnabled();
+      await markdown.click();
+      const readClipboard = () => page.evaluate(() => navigator.clipboard.readText());
+      const cleanCopy = "| 1 | 2 |\n| --- | --- |\n| ` 1 ` | ` edge-8192 ` |";
+      await expect.poll(readClipboard).toBe(cleanCopy);
 
-    // FAULT INJECTION: fabricate a well-formed execute envelope whose matrix
-    // is one cell short. The backend never emits this; the point is proving
-    // normalizeExecuteResponse fails closed instead of rendering unchecked
-    // rows. No real response is mutated — the whole body is synthetic.
-    await page.route("**/query-targets/*/execute", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        json: {
-          executionId: "fault-injection-exec",
-          columns: [
-            { name: "id", displayMode: "raw_copy_allowed", copyAllowed: true },
-            { name: "note", displayMode: "raw_copy_allowed", copyAllowed: true },
-          ],
-          rows: [[1, "edge-8192"]],
-          rowCount: 1,
-          cellTruncated: [[false]],
-          truncated: false,
-          durationMs: 1,
-          limitApplied: 100,
-          executedAt: "2026-10-10T00:00:00Z",
-        },
-      });
+      // FAULT INJECTION: the real backend cannot emit missing flags or a
+      // raw_copy_allowed column with copyAllowed=false. Test each independently
+      // with a synthetic envelope; the positive copy above used the real backend.
+      const invalidResult: QueryExecuteResponse = {
+        executionId: 123456,
+        targetResourceId: readyTargetResourceId!,
+        status: "success",
+        engine: "mysql",
+        columns: [
+          { name: "id", databaseType: "BIGINT", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: true },
+          { name: "note", databaseType: "VARCHAR", nullable: false, displayMode: "raw_copy_allowed", copyAllowed: fault !== "explicit copy denial on a raw column" },
+        ],
+        rows: [[1, "unavailable-note"]],
+        rowCount: 1,
+        cellTruncated: [fault === "missing truncation flag" ? [false] : [false, false]],
+        truncated: false,
+        durationMs: 1,
+        limitApplied: 100,
+        executedAt: "2026-10-10T00:00:00Z",
+      };
+      await page.route("**/query-targets/*/execute", (route) => route.fulfill({ json: invalidResult }));
+
+      try {
+        await page.getByRole("button", { name: /^(run|执行)$/i }).click();
+
+        // The invalid response must clear the previous copyable/exportable grid.
+        const alert = page.getByTestId("query-workbench-grid").getByRole("alert");
+        await expect(alert).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByRole("grid")).toHaveCount(0);
+        await expect(markdown).toHaveCount(0);
+        await expect(page.getByTestId("export-csv")).toHaveCount(0);
+        await expect(page.getByTestId("export-json")).toHaveCount(0);
+        await expect.poll(readClipboard).toBe(cleanCopy);
+      } finally {
+        await page.unroute("**/query-targets/*/execute");
+      }
     });
-
-    try {
-      await clearAndType(
-        page,
-        "select id, pad, note from query_e2e_aux.t13_cells where id = 1",
-      );
-      await page.getByRole("button", { name: /^(run|执行)$/i }).click();
-
-      // Malformed matrix must never reach a copyable/exportable result state.
-      const alert = page
-        .getByTestId("query-workbench-grid")
-        .getByRole("alert");
-      await expect(alert).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByRole("grid")).toHaveCount(0);
-      await expect(page.getByTestId("export-csv")).toHaveCount(0);
-      await expect(page.getByTestId("export-json")).toHaveCount(0);
-    } finally {
-      await page.unroute("**/query-targets/*/execute");
-    }
-  });
+  }
 
   test("two worksheets keep truncated and clean result states isolated", async ({
     page,

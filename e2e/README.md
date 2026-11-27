@@ -28,9 +28,9 @@ The MySQL and PostgreSQL workbench specs also verify executing a selection and t
 
 The MySQL Explain fixture verifies a single leaf has no branch toggle and that its summary leaves both costs unreported. PostgreSQL compares every displayed summary node to the real normalized response, including reported cost and missing fields. The PostgreSQL Explain fixture verifies keyboard collapse, mouse expansion, focus retention, and complete text after collapse on a real multi-level plan.
 
-The result contract suite also verifies frozen-column geometry after real horizontal scrolling at 375px and its minimum width in narrower layouts, keyboard focus past the frozen column, resize and first-visible-column handoff, column-name search, freeze reset on paging and rerun, keyboard and pointer column visibility changes, the last-visible-column guard, full CSV/JSON payloads despite hidden columns, disabled export when a masked or truncated column is hidden, and visibility reset on paging and rerun.
+The result contract suite also verifies frozen-column geometry on a real 12-column MySQL orders result that overflows at default column widths on desktop, plus horizontal scrolling at 375px and the minimum width in narrower layouts, keyboard focus past the frozen column, resize and first-visible-column handoff, column-name search, freeze reset on paging and rerun, keyboard and pointer column visibility changes, the last-visible-column guard, full CSV/JSON payloads despite hidden columns, disabled export when a masked or truncated column is hidden, and visibility reset on paging and rerun.
 
-The result contract suite checks real Markdown clipboard text (literal code spans, pipe, newline, blank NULL/empty) alongside unchanged TSV, and verifies hidden, masked, and truncated ranges cannot replace that clipboard.
+The result contract suite checks real Markdown clipboard text (literal code spans, pipe, newline, blank NULL/empty) alongside unchanged TSV, and verifies hidden, masked, and truncated ranges cannot replace that clipboard. Two labeled synthetic response faults independently cover a missing truncation flag and an explicit copy denial on an otherwise raw column. Each starts with a real query and successful Markdown copy, then asserts the rejected response removes the grid and Markdown control without rewriting the clipboard.
 
 ## Helpers
 

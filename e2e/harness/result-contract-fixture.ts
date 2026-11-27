@@ -58,6 +58,11 @@ function fixturePassword(): string {
   return value;
 }
 
+const WIDE_FIELDS = [
+  "status", "customer", "region", "warehouse", "carrier", "currency",
+  "channel", "priority", "item_count", "fulfillment", "note",
+];
+
 function seedFixtureTables(): void {
   // utf8mb4 REPEAT builds the byte-exact boundary cells in the DB itself —
   // 中 is 3 bytes, 😀 is 4 bytes, so both cross the 8192 cut mid-codepoint.
@@ -93,6 +98,17 @@ on duplicate key update
   secret = values(secret),
   note = values(note),
   free = values(free);
+
+create table if not exists t13_wide_orders (
+  id bigint unsigned not null primary key,
+  ${WIDE_FIELDS.map((name) => `${name} varchar(32) not null`).join(",\n  ")}
+) engine=InnoDB;
+
+insert into t13_wide_orders (id, ${WIDE_FIELDS.join(", ")})
+select id, 'paid', concat('customer-', id), 'north', 'central', 'parcel', 'USD',
+  'web', 'normal', '2', 'queued', concat('order-', id)
+from t13_cells order by id
+on duplicate key update note = values(note);
 
 create table if not exists t13_parent (
   id bigint unsigned not null auto_increment,
@@ -163,6 +179,12 @@ const POLICIES: Policy[] = [
     columnName: "secret",
     mode: "masked_no_copy",
   },
+  ...["id", ...WIDE_FIELDS].map((columnName) => ({
+    databaseName: "query_e2e_aux",
+    objectName: "t13_wide_orders",
+    columnName,
+    mode: "raw_copy_allowed" as const,
+  })),
   // t13_parent / t13_child — all projected columns copyable.
   ...["id", "parent_code", "pad"].map((columnName) => ({
     databaseName: "query_e2e_aux",
