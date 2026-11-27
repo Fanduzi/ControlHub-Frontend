@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { QueryExecuteError } from "@/services/query-executions";
 import { MAX_WORKSHEETS, WorksheetSession } from "@/lib/worksheet-session";
+import { sqlWorksheetState } from "@/lib/sql-run-scope";
 import type { QueryExecuteResponse } from "@/types/query-execution";
 import type { QuerySavedStatementRecord } from "@/types/query-saved-statement";
 
@@ -48,6 +49,66 @@ function createSession(ports: ConstructorParameters<typeof WorksheetSession>[0][
     ports,
   });
 }
+
+describe("WorksheetSession MySQL batch", () => {
+  const sql = "SELECT 1; SELECT 2; SELECT 3;";
+  function setup(execute: WorksheetSessionPortsForTest, engine = "mysql") {
+    const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => engine, ports: { execute } });
+    session.editStatement(sql);
+    const state = sqlWorksheetState(sql, "mysql").update({ selection: { anchor: 0, head: sql.length } }).state;
+    return { session, state };
+  }
+  type WorksheetSessionPortsForTest = NonNullable<ConstructorParameters<typeof WorksheetSession>[0]["ports"]>["execute"];
+
+  it("waits for each response and stops at the first governed rejection", async () => {
+    let deliver!: (result: QueryExecuteResponse) => void;
+    const execute = vi.fn().mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }))
+      .mockRejectedValueOnce(new QueryExecuteError(403, "validation_failed", "not allowed"));
+    const { session, state } = setup(execute);
+    const running = session.runMySQLBatch(state);
+    expect(execute).toHaveBeenCalledTimes(1);
+    await session.run();
+    expect(execute).toHaveBeenCalledTimes(1);
+    deliver(emptyResult());
+    await expect(running).resolves.toBe(true);
+    expect(execute.mock.calls.map((call) => call[1].statement)).toEqual(["SELECT 1;", "SELECT 2;"]);
+    expect(session.activeBatch).toMatchObject({ phase: "failed", total: 3, results: [{ executionId: 1 }], errorCode: "validation_failed" });
+    expect(session.active.isExecuting).toBe(false);
+    expect(session.active.resultPagination).toBeNull();
+  });
+
+  it.each(["cancel", "edit", "switch", "database", "retarget", "dispose"] as const)("does not dispatch after %s, even when an aborted request resolves late", async (action) => {
+    let deliver!: (result: QueryExecuteResponse) => void;
+    const execute = vi.fn().mockResolvedValueOnce(emptyResult()).mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }));
+    const { session, state } = setup(execute);
+    const running = session.runMySQLBatch(state);
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    const signal = execute.mock.calls[1]![2].signal as AbortSignal;
+    if (action === "cancel") session.cancel();
+    if (action === "edit") session.editStatement("SELECT 4;");
+    if (action === "switch") session.add(1);
+    if (action === "database") session.setActiveDatabase("other");
+    if (action === "retarget") session.retarget(session.activeId, 2);
+    if (action === "dispose") session.dispose();
+    expect(signal.aborted).toBe(true);
+    deliver(emptyResult({ executionId: 2 }));
+    await running;
+    expect(execute).toHaveBeenCalledTimes(2);
+    if (action === "cancel") expect(session.activeBatch).toMatchObject({ phase: "cancelled", results: [{ executionId: 1 }] });
+    else expect(session.activeBatch).toBeNull();
+  });
+
+  it("retains all successful first pages and rejects other engines", async () => {
+    const execute = vi.fn().mockResolvedValueOnce(emptyResult()).mockResolvedValueOnce(emptyResult({ executionId: 2 })).mockResolvedValueOnce(emptyResult({ executionId: 3 }));
+    const { session, state } = setup(execute);
+    await session.runMySQLBatch(state);
+    expect(session.activeBatch).toMatchObject({ phase: "complete", results: [{ executionId: 1 }, { executionId: 2 }, { executionId: 3 }] });
+    expect(execute.mock.calls.map((call) => call[1].pagination.page)).toEqual([1, 1, 1]);
+    const other = setup(execute, "tidb");
+    await expect(other.session.runMySQLBatch(other.state)).resolves.toBe(false);
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+});
 
 describe("ClickHouse worksheet paging", () => {
   it("keeps the original approval generation for navigation and picks up a new one on Run", async () => {

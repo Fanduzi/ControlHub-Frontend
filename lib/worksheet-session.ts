@@ -1,4 +1,7 @@
 import { useSyncExternalStore } from "react";
+import type { EditorState } from "@codemirror/state";
+import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
+import { selectedMySQLBatchStatements } from "@/lib/sql-run-scope";
 
 import {
   executeQueryTarget,
@@ -121,6 +124,14 @@ export type ExplainState = {
   targetId: number | null;
   response: ExplainResponse | null;
   errorCode: string | null;
+};
+
+export type MySQLBatchResult = {
+  readonly id: string;
+  readonly phase: "running" | "complete" | "failed" | "cancelled";
+  readonly total: number;
+  readonly results: readonly QueryExecuteResponse[];
+  readonly errorCode?: string;
 };
 
 export type Worksheet = {
@@ -394,6 +405,7 @@ export class WorksheetSession {
   private readonly generationFor: (targetId: number) => string | undefined;
   private readonly engineFor: (targetId: number) => string | undefined;
   private readonly inflight = new Map<string, InflightAttempt>();
+  private batch: { worksheetId: string; controller: AbortController; state: MySQLBatchResult } | null = null;
   private readonly navInflight = new Map<string, NavAttempt>();
   private readonly probes = new Map<string, ProbeAttempt>();
   private nextIndex: number;
@@ -461,11 +473,24 @@ export class WorksheetSession {
     return this.worksheets.find((ws) => ws.id === this.activeWorksheetId) ?? this.worksheets[0]!;
   }
 
+  get activeBatch(): MySQLBatchResult | null {
+    return this.batch?.worksheetId === this.activeWorksheetId ? this.batch.state : null;
+  }
+
+  private discardBatch(worksheetId: string): boolean {
+    if (this.batch?.worksheetId !== worksheetId) return false;
+    const batch = this.batch;
+    this.batch = null;
+    batch.controller.abort();
+    return batch.state.phase === "running";
+  }
+
   activate(worksheetId: string): void {
     if (worksheetId === this.activeWorksheetId) return;
+    const stoppedBatch = this.discardBatch(this.activeWorksheetId);
     this.worksheets = this.worksheets.map((ws) =>
       ws.id === this.activeWorksheetId
-        ? { ...ws, parameterValues: {}, templateFieldErrors: {} }
+        ? { ...ws, parameterValues: {}, templateFieldErrors: {}, ...(stoppedBatch ? { isExecuting: false } : {}) }
         : ws,
     );
     this.activeWorksheetId = worksheetId;
@@ -511,6 +536,7 @@ export class WorksheetSession {
     fallbackTargetId: number,
     preferFallbackTarget = false,
   ): void {
+    this.discardBatch(this.activeWorksheetId);
     const maxRows = this.active.maxRows;
     const pageSize = this.active.pageSize;
     if (items.length === 0) {
@@ -582,6 +608,7 @@ export class WorksheetSession {
 
   close(id: string): void {
     if (this.worksheets.length <= 1) return;
+    this.discardBatch(id);
     this.abortInflight(id);
     const closedIndex = this.worksheets.findIndex((ws) => ws.id === id);
     const filtered = this.worksheets.filter((ws) => ws.id !== id);
@@ -816,7 +843,8 @@ export class WorksheetSession {
     this.worksheets = this.worksheets.map((worksheet) => {
       if (worksheet.targetResourceId === targetId && worksheet.activeDatabase === null) {
         changed = true;
-        return { ...worksheet, activeDatabase: defaultDb };
+        const stoppedBatch = this.discardBatch(worksheet.id);
+        return { ...worksheet, activeDatabase: defaultDb, ...(stoppedBatch ? { isExecuting: false } : {}) };
       }
       return worksheet;
     });
@@ -964,6 +992,62 @@ export class WorksheetSession {
       ...(engine === "redis" || engine === "mongodb" ? { result: null, resultPagination: null } : {}),
     });
     await this.applyPage(worksheet.id, requestId, worksheet.targetResourceId, 1, worksheet.pageSize, worksheet.maxRows, worksheet.templateStatementId, undefined, executedStatement);
+  }
+
+  async runMySQLBatch(editor: EditorState): Promise<boolean> {
+    const worksheet = this.active;
+    if (worksheet.isExecuting || worksheet.templateStatementId !== null || worksheet.parameters.length > 0 ||
+      worksheet.previewProvenance !== null || this.engineFor(worksheet.targetResourceId) !== "mysql" ||
+      editor.doc.toString() !== worksheet.statement) return false;
+    const statements = selectedMySQLBatchStatements(editor);
+    if (!statements) return false;
+
+    const id = this.createId();
+    const controller = new AbortController();
+    const batch = { worksheetId: worksheet.id, controller, state: {
+      id, phase: "running", total: statements.length, results: [],
+    } as MySQLBatchResult };
+    this.abortInflight(worksheet.id);
+    this.batch = batch;
+    this.patch(worksheet.id, {
+      requestId: id,
+      isExecuting: true,
+      isDirty: false,
+      result: null,
+      resultPagination: null,
+      resultGeneration: undefined,
+      currentPage: 1,
+      executedStatement: null,
+      error: null,
+      cancellation: { phase: "idle" },
+      explain: invalidateExplainState(worksheet.explain),
+      relatedRecords: { status: "idle", generation: worksheet.relatedRecords.generation + 1 },
+    });
+    let terminal: Pick<MySQLBatchResult, "phase" | "errorCode"> = { phase: "complete" };
+    try {
+      for (const statement of statements) {
+        if (this.batch !== batch || controller.signal.aborted) break;
+        const response = await this.executePage(worksheet, worksheet.targetResourceId, 1, worksheet.pageSize,
+          worksheet.maxRows, controller.signal, undefined, undefined, true, statement);
+        if (this.batch !== batch || controller.signal.aborted) break;
+        const normalized = response && normalizeExecuteResponse(response);
+        if (!response || response.status !== "success" || response.targetResourceId !== worksheet.targetResourceId ||
+          response.engine !== "mysql" || !normalized || !normalized.ok) {
+          terminal = { phase: "failed", errorCode: "internal_error" };
+          break;
+        }
+        batch.state = { ...batch.state, results: [...batch.state.results, normalized.response] };
+        this.notify();
+      }
+    } catch (error) {
+      terminal = { phase: "failed", errorCode: error instanceof QueryExecuteError ? error.code : "internal_error" };
+    } finally {
+      if (this.batch === batch) {
+        batch.state = { ...batch.state, ...(controller.signal.aborted ? { phase: "cancelled" } as const : terminal) };
+        this.patch(worksheet.id, { isExecuting: false });
+      }
+    }
+    return true;
   }
 
   async nextPage(): Promise<void> {
@@ -1428,6 +1512,10 @@ export class WorksheetSession {
   cancel(): void {
     const worksheet = this.active;
     if (!worksheet.isExecuting) return;
+    if (this.batch?.worksheetId === worksheet.id && this.batch.state.phase === "running") {
+      this.batch.controller.abort();
+      return;
+    }
     const inflight = this.inflight.get(worksheet.id);
     if (!inflight || worksheet.cancellation.phase !== "idle") return;
     if (inflight.key === null) {
@@ -1656,6 +1744,7 @@ export class WorksheetSession {
 
   /** Abort every request the session still owns: unmount, logout, teardown. */
   dispose(): void {
+    if (this.discardBatch(this.activeWorksheetId)) this.patch(this.activeWorksheetId, { isExecuting: false });
     for (const worksheetId of new Set([
       ...this.inflight.keys(),
       ...this.navInflight.keys(),
@@ -1869,7 +1958,17 @@ export class WorksheetSession {
   }
 
   private patch(worksheetId: string, patch: Partial<Worksheet>): void {
-    this.worksheets = this.worksheets.map((ws) => (ws.id === worksheetId ? { ...ws, ...patch } : ws));
+    this.worksheets = this.worksheets.map((ws) => {
+      if (ws.id !== worksheetId) return ws;
+      const batch = this.batch;
+      const contextChanged = batch?.worksheetId === worksheetId && (
+        (patch.requestId !== undefined && patch.requestId !== batch.state.id) ||
+        (patch.statement !== undefined && patch.statement !== ws.statement) ||
+        (patch.activeDatabase !== undefined && patch.activeDatabase !== ws.activeDatabase)
+      );
+      const stoppedBatch = contextChanged && this.discardBatch(worksheetId);
+      return { ...ws, ...patch, ...(stoppedBatch && patch.isExecuting === undefined ? { isExecuting: false } : {}) };
+    });
     this.notify();
   }
 

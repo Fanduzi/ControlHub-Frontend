@@ -108,6 +108,7 @@ import {
   MAX_WORKSHEETS,
   WorksheetSession,
   useWorksheetSessionVersion,
+  type MySQLBatchResult,
   type CancellationState,
   type ExplainState,
   type PreviewProvenance,
@@ -967,6 +968,15 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     void refreshHistory(session.activeId);
   }
 
+  async function handleRunBatch() {
+    const view = editorViewRef.current;
+    if (!view || !runEnabled || !activeMaxRowsDraftIsValid()) return false;
+    const worksheetId = session.activeId;
+    const accepted = await session.runMySQLBatch(view.state);
+    if (accepted && session.activeId === worksheetId) void refreshHistory(worksheetId);
+    return accepted;
+  }
+
   async function handleNextPage() {
     if (!activeMaxRowsDraftIsValid()) return;
     await session.nextPage();
@@ -1394,6 +1404,8 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
               runEnabled={runEnabled}
               isExecuting={activeWorksheet.isExecuting}
               onRun={handleRun}
+              onRunBatch={handleRunBatch}
+              batch={session.activeBatch}
               onCancel={handleCancel}
               onRefreshCancellation={handleRefreshCancellation}
               cancellation={activeWorksheet.cancellation}
@@ -1719,6 +1731,8 @@ function ReadyWorksheet({
   runEnabled,
   isExecuting,
   onRun,
+  onRunBatch,
+  batch,
   onCancel,
   onRefreshCancellation,
   cancellation,
@@ -1769,6 +1783,8 @@ function ReadyWorksheet({
   runEnabled: boolean;
   isExecuting: boolean;
   onRun: () => void;
+  onRunBatch: () => Promise<boolean>;
+  batch: MySQLBatchResult | null;
   onCancel: () => void;
   onRefreshCancellation: () => void;
   cancellation: CancellationState;
@@ -1839,6 +1855,8 @@ function ReadyWorksheet({
   const canRun = runEnabled && (redis || draftResult.valid);
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
   const [runScope, setRunScope] = useState<WorksheetRunScope>("document");
+  const [invalidBatch, setInvalidBatch] = useState<{ worksheetId: string; statement: string } | null>(null);
+  const batchAvailable = engine === "mysql" && !templateMode && parameters.length === 0 && !previewProvenance;
   // Template-bound runs ignore selection/cursor and send the draft as before,
   // so the Run description stays the unscoped one in that mode.
   const effectiveScope = templateMode ? "document" : runScope;
@@ -1865,6 +1883,17 @@ function ReadyWorksheet({
           <Play className="size-3.5" aria-hidden />
           {t("editor.runReady")}
         </Button>
+        {batchAvailable && (
+          <Button type="button" size="sm" variant="outline"
+            disabled={!canRun || explainLoading || effectiveScope !== "selection"}
+            title={t("batch.selectionHint")}
+            onClick={async () => {
+              setInvalidBatch(null);
+              if (!(await onRunBatch())) setInvalidBatch({ worksheetId, statement });
+            }}>
+            {t("batch.run")}
+          </Button>
+        )}
         {isExecuting ? (
           <Button
             type="button"
@@ -1920,6 +1949,7 @@ function ReadyWorksheet({
               }
             }}
             aria-label={t("editor.maxRowsLabel")}
+            disabled={batch?.phase === "running"}
             aria-invalid={!draftResult.valid || undefined}
             aria-describedby={!draftResult.valid ? "max-rows-range-error" : undefined}
             className="h-8 w-20"
@@ -1963,6 +1993,11 @@ function ReadyWorksheet({
         </div>
       ) : null}
 
+      {batchAvailable && invalidBatch?.worksheetId === worksheetId && invalidBatch.statement === statement && (
+        <p role="alert" className="border-b border-border px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+          {t("batch.selectionHint")}
+        </p>
+      )}
       <div className="border-b border-border bg-muted/20 p-3">
         <label className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {statementLabel}
@@ -2069,7 +2104,9 @@ function ReadyWorksheet({
       )}
 
       <div className="p-3">
-        {error ? (
+        {batch ? (
+          <MySQLBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} />
+        ) : error ? (
           <ExecuteErrorPanel error={error} onRetry={onRun} engine={mongo ? "mongo" : redis ? "redis" : undefined} />
         ) : result ? (
           <>
@@ -2156,6 +2193,52 @@ function ReadyWorksheet({
         )}
       </div>
     </div>
+  );
+}
+
+function MySQLBatchPanel({ batch, exportEnabled }: { batch: MySQLBatchResult; exportEnabled: boolean }) {
+  const t = useTranslations("queryWorkbench");
+  const id = useId();
+  const [selected, setSelected] = useState(0);
+  const result = batch.results[selected];
+  return (
+    <section aria-label={t("batch.results")} className="min-w-0 space-y-2">
+      <p role="status" className="text-sm text-muted-foreground">
+        {t(`batch.${batch.phase}`, { done: batch.results.length, total: batch.total })}
+      </p>
+      {batch.phase === "failed" && (
+        <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
+          {t(`error.${executeErrorCopyCode(batch.errorCode ?? "internal_error")}`)}
+        </p>
+      )}
+      {result && (
+        <>
+          <div role="tablist" aria-label={t("batch.results")} className="flex flex-wrap gap-1">
+            {batch.results.map((_, index) => (
+              <Button type="button" role="tab" key={index} id={`${id}-tab-${index}`}
+                aria-controls={`${id}-panel`} aria-selected={selected === index} tabIndex={selected === index ? 0 : -1}
+                size="sm" variant={selected === index ? "secondary" : "outline"} onClick={() => setSelected(index)}
+                onKeyDown={(event) => {
+                  const count = batch.results.length;
+                  const next = event.key === "Home" ? 0 : event.key === "End" ? count - 1
+                    : event.key === "ArrowLeft" ? (index + count - 1) % count
+                    : event.key === "ArrowRight" ? (index + 1) % count : null;
+                  if (next === null) return;
+                  event.preventDefault();
+                  setSelected(next);
+                  (event.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+                }}>
+                {t("batch.statement", { number: index + 1 })}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{t("batch.firstPage")}</p>
+          <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${selected}`}>
+            <ExecuteResult key={selected} result={result} exportEnabled={exportEnabled} />
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

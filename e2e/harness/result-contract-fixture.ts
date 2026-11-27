@@ -1,5 +1,7 @@
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
+import { createInterface } from "node:readline";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -156,6 +158,32 @@ on duplicate key update
     ],
     { input: sql, stdio: ["pipe", "pipe", "pipe"] },
   );
+}
+
+/** Hold a lock only on the disposable wide fixture table, until the callback exits. */
+export async function withWideOrdersWriteLock(run: () => Promise<void>): Promise<void> {
+  const process = spawn("docker", ["exec", "-i", "-e", `MYSQL_PWD=${fixturePassword()}`, CONTAINER,
+    "mysql", "-uroot", "--batch", "--unbuffered", "--skip-column-names"], { stdio: ["pipe", "pipe", "pipe"] });
+  const closed = once(process, "close").then(([exit]) => exit, () => null);
+  const lines = createInterface({ input: process.stdout });
+  process.stderr.resume();
+  process.stdin.on("error", () => { /* The close status reports fixture client failure. */ });
+  try {
+    const ready = once(lines, "line", { signal: AbortSignal.timeout(8_000) });
+    process.stdin.write("SET SESSION lock_wait_timeout = 5; LOCK TABLES query_e2e_aux.t13_wide_orders WRITE; SELECT 'locked';\n");
+    const [output] = await ready;
+    if (String(output).trim() !== "locked") throw new Error("Could not acquire the disposable wide-orders lock");
+    await run();
+  } finally {
+    process.stdin.end("UNLOCK TABLES;\n");
+    const cleanupTimer = setTimeout(() => process.kill(), 5_000);
+    try {
+      if (await closed !== 0) throw new Error("Disposable MySQL lock client did not exit cleanly");
+    } finally {
+      clearTimeout(cleanupTimer);
+      lines.close();
+    }
+  }
 }
 
 type Policy = {

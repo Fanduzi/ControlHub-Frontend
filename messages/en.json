@@ -1872,6 +1872,17 @@
       "cancel": "Cancel",
       "confirm": "Close worksheet"
     },
+    "batch": {
+      "run": "Run selected batch",
+      "selectionHint": "Select 2–5 complete statements ending in semicolons, up to 16 KiB. Ambiguous selections cannot run as a batch.",
+      "results": "Batch results",
+      "statement": "Statement {number}",
+      "firstPage": "Only the first delivered page of each statement is available in batch results.",
+      "running": "Running batch: {done} of {total} statements completed.",
+      "complete": "Batch complete: {done} of {total} statements completed.",
+      "failed": "Batch stopped after a statement failed: {done} of {total} completed. No further statements were sent.",
+      "cancelled": "Batch cancelled: {done} of {total} completed. No further statements were sent; the current statement’s database status is unknown."
+    },
     "explain": {
       "title": "Explain",
       "trigger": "Explain",

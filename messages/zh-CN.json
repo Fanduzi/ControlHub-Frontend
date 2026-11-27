@@ -1872,6 +1872,17 @@
       "cancel": "取消",
       "confirm": "关闭工作表"
     },
+    "batch": {
+      "run": "运行选中批次",
+      "selectionHint": "请选择 2–5 条以分号结尾的完整语句，最多 16 KiB。边界不明确的选区不能批量运行。",
+      "results": "批次结果",
+      "statement": "语句 {number}",
+      "firstPage": "批次结果只保留每条语句交付的第一页。",
+      "running": "正在运行批次：已完成 {done} / {total} 条语句。",
+      "complete": "批次完成：已完成 {done} / {total} 条语句。",
+      "failed": "一条语句失败，批次已停止：已完成 {done} / {total} 条，未提交后续语句。",
+      "cancelled": "批次已取消：已完成 {done} / {total} 条。未提交后续语句；当前语句在数据库中的状态未知。"
+    },
     "explain": {
       "title": "Explain",
       "trigger": "Explain",

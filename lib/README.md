@@ -37,6 +37,8 @@ worksheet completion, and Cmd+P read it.
 
 For Redis, `worksheet-session.ts` starts a blank command draft, sends a single-response Run without paging, and clears the grid when a new attempt starts.
 
+`worksheet-session.ts` owns the explicit MySQL batch: it validates the matching editor selection, sends one ordinary governed first-page request at a time, retains valid delivered results and stops at the first failure or abort. Replacing the statement, switching worksheet or execution context, closing or disposal invalidates ownership and drops late responses. It never persists batch state or claims remote cancellation.
+
 `worksheet-session.ts` sends the approved generation on ordinary and saved ClickHouse Run and reuses it for page navigation. Editing a ClickHouse template value clears the previous result and cancels its in-flight request. Older servers receive a single-result request for ordinary SQL. The shared page size defaults to 10 and also offers 5. It is the query workbench 工作表 session: run, paging,
 template enter/exit, explain, related records, history, and persisted drafts.
 Typing uses `editStatement`; load/replace still use `replaceStatement`.

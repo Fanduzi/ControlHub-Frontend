@@ -7,6 +7,7 @@ import { getAuthToken, apiFetch } from "./api.helpers";
 import {
   ensureResultContractFixture,
   T13_CELLS,
+  withWideOrdersWriteLock,
 } from "./harness/result-contract-fixture";
 import {
   installSavedStatementTeardown,
@@ -206,6 +207,90 @@ test.describe("T13-A result contract consumption", () => {
     }
     assertClean(remainingConsole, remainingNetwork);
   });
+
+  for (const outcome of ["complete", "rejected", "cancelled"] as const) {
+    test(`MySQL batch ${outcome} preserves the earlier governed result`, async ({ page }) => {
+      await openReady(page);
+      const marker = `batch_${Date.now()}`;
+      const first = `select id as ${marker}_first, note from query_e2e_aux.t13_cells where id = 6;`;
+      const second = outcome === "rejected" ? `select free as ${marker}_second from query_e2e_aux.t13_cells where id = 7;`
+        : outcome === "cancelled" ? `select id as ${marker}_second from query_e2e_aux.t13_wide_orders where id = 7;`
+        : `select id as ${marker}_second, secret from query_e2e_aux.t13_cells where id = 7;`;
+      const third = `select id as ${marker}_third, note from query_e2e_aux.t13_cells where id = 9;`;
+      const posts: string[] = [];
+      const isExecute = (req: PlaywrightRequest) => req.method() === "POST" && /\/query-targets\/\d+\/execute$/.test(new URL(req.url()).pathname);
+      page.on("request", (req) => {
+        if (!isExecute(req)) return;
+        const body = req.postDataJSON();
+        assertResultContractBody(body);
+        posts.push(body.statement);
+      });
+      await clearAndType(page, [first, second, third].join("\n"));
+      const runBatch = page.getByRole("button", { name: "Run selected batch" });
+      await expect(runBatch).toBeDisabled();
+      await page.keyboard.press("ControlOrMeta+A");
+      await expect(runBatch).toBeEnabled();
+      const batch = page.getByRole("region", { name: "Batch results" });
+      const status = batch.getByRole("status");
+
+      if (outcome === "cancelled") {
+        await withWideOrdersWriteLock(async () => {
+          const pending = page.waitForRequest((req) => isExecute(req) && req.postDataJSON().statement === second);
+          await runBatch.click();
+          const request = await pending;
+          const failed = page.waitForEvent("requestfailed", { predicate: (req) => req === request });
+          await page.getByTestId("cancel-execution").click();
+          expect((await failed).failure()?.errorText).toMatch(/ERR_ABORTED/);
+          await expect(status).toContainText("database status is unknown");
+        });
+      } else if (outcome === "rejected") {
+        const denied = page.waitForResponse((res) => isExecute(res.request()) && res.request().postDataJSON().statement === second);
+        await runBatch.click();
+        const response = await denied;
+        expect(response.status()).toBe(403);
+        consumableHttpErrors.push({ url: response.url(), method: "POST", status: 403, consumeConsoleStatusEcho: true });
+        await expect(status).toContainText("1 of 3 completed");
+        await expect(batch.getByRole("alert")).toBeVisible();
+      } else {
+        await runBatch.click();
+        await expect(status).toContainText("3 of 3 statements completed");
+      }
+      await expect(batch.getByRole("gridcell", { name: "empty-str" })).toBeVisible();
+      await expect(batch.getByTestId("result-paging")).toHaveCount(0);
+      expect(posts).toEqual(outcome === "complete" ? [first, second, third] : [first, second]);
+      await expect(batch.getByRole("tab")).toHaveCount(outcome === "complete" ? 3 : 1);
+      await expect(batch.getByTestId("export-csv")).toBeEnabled();
+      await expect(batch.getByTestId("export-json")).toBeEnabled();
+      if (outcome === "complete") {
+        const fs = await import("node:fs/promises");
+        for (const format of ["csv", "json"] as const) {
+          const downloaded = page.waitForEvent("download");
+          await batch.getByTestId(`export-${format}`).click();
+          const path = await (await downloaded).path();
+          if (!path) throw new Error("Batch download produced no file path");
+          const text = await fs.readFile(path, "utf8");
+          if (format === "csv") expect(parse(text)).toEqual([[`${marker}_first`, "note"], ["6", "empty-str"]]);
+          else expect(JSON.parse(text)).toEqual({ columns: [`${marker}_first`, "note"], rows: [["6", "empty-str"]] });
+        }
+        await batch.getByRole("tab", { name: "Statement 1" }).focus();
+        await page.keyboard.press("ArrowRight");
+        await expect(batch.getByRole("tab", { name: "Statement 2" })).toBeFocused();
+        await expect(batch.getByRole("gridcell", { name: "[MASKED]" })).toBeVisible();
+        await expect(batch.getByTestId("export-csv")).toBeDisabled();
+        await expect(batch.getByTestId("export-json")).toBeDisabled();
+        await page.keyboard.press("ArrowRight");
+        await expect(batch.getByRole("gridcell", { name: 'x|,"y' })).toBeVisible();
+        await page.getByRole("tab", { name: /query history/i }).click();
+        for (const ordinal of ["first", "second", "third"]) {
+          await expect(page.getByText(new RegExp(`${marker}_${ordinal}`)).first()).toBeVisible();
+        }
+        await page.getByRole("tab", { name: "Worksheet", exact: true }).click();
+        await runSql(page, first);
+        await expect(batch).toHaveCount(0);
+        expect(posts).toEqual([first, second, third, first]);
+      }
+    });
+  }
 
   test("execute declares cellTruncated and renders positional badges on real truncated cells", async ({
     page,
