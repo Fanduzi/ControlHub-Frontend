@@ -6399,7 +6399,7 @@ describe("QueryWorkbench URL synchronization idempotence (Phase 38P)", () => {
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument();
     });
 
     const callsBefore = replace.mock.calls.length;
@@ -6416,7 +6416,7 @@ describe("QueryWorkbench URL synchronization idempotence (Phase 38P)", () => {
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument();
     });
 
     const callsBefore = replace.mock.calls.length;
@@ -6431,7 +6431,7 @@ describe("QueryWorkbench URL synchronization idempotence (Phase 38P)", () => {
     renderWorkbench([buildReadyWorkbenchTarget()]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument();
     });
 
     const lastCall = replace.mock.calls[replace.mock.calls.length - 1]?.[0] as string | undefined;
