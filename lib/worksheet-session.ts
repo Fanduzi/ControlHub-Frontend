@@ -1537,12 +1537,12 @@ export class WorksheetSession {
   cancel(): void {
     const worksheet = this.active;
     if (!worksheet.isExecuting) return;
-    if (worksheet.cancellation.phase !== "idle") return;
     const inflight = this.inflight.get(worksheet.id);
     if (!inflight) {
       if (this.batch?.worksheetId === worksheet.id && this.batch.state.phase === "running") this.batch.controller.abort();
       return;
     }
+    if (worksheet.cancellation.phase !== "idle") return;
     if (inflight.key === null) {
       // Keyless engines (MySQL/TiDB): the local abort ends the request; the
       // backend records its own terminal status and no keyed read-back exists.
