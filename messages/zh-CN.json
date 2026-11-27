@@ -1949,7 +1949,18 @@
       },
       "viewSwitch": "视图切换",
       "viewCards": "节点视图",
-      "viewText": "文本视图"
+      "viewText": "文本视图",
+      "viewSummary": "摘要表",
+      "summary": {
+        "title": "计划节点摘要",
+        "operation": "操作",
+        "relation": "关系",
+        "index": "索引",
+        "startupCost": "启动成本",
+        "totalCost": "总成本",
+        "notReported": "未提供",
+        "costNote": "成本是当前数据库引擎的估算值，不可跨引擎比较。"
+      }
     },
     "savedStatements": {
       "searchPlaceholder": "搜索已保存的查询…",

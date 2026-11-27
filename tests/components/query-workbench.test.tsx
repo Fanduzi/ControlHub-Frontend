@@ -5925,6 +5925,33 @@ describe("QueryWorkbench Explain (Phase 38N)", () => {
     expect(mockExplainQueryTarget).toHaveBeenCalledTimes(2);
   });
 
+  it("summarizes every node in delivery order without guessing missing planner values", async () => {
+    const user = userEvent.setup();
+    mockExplainQueryTarget.mockResolvedValueOnce(buildExplainResponse({ nodes: [
+      { id: "0", operation: "container", access: "unknown", label: "Limit", totalCost: 0 },
+      { id: "1", parentId: "0", operation: "index_access", access: "index", relation: "orders", index: "orders_pkey", estimatedRows: 0, startupCost: 1.25 },
+    ] }));
+    renderExplainable();
+    const trigger = await screen.findByTestId("explain-trigger");
+    await user.click(trigger);
+    const branch = await screen.findByRole("button", { name: "Toggle branch for node 0: Limit" });
+    await user.click(branch);
+    await user.click(screen.getByRole("button", { name: "Summary table" }));
+    const table = within(screen.getByRole("table", { name: "Plan node summary" }));
+    const rows = table.getAllByRole("row");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[1]!).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Limit", "Not reported", "Not reported", "Not reported", "Not reported", "0"]);
+    expect(within(rows[2]!).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Index access", "orders", "orders_pkey", "0", "1.25", "Not reported"]);
+    expect(screen.getByTestId("explain-risks")).toBeVisible();
+    expect(mockExplainQueryTarget).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Nodes" }));
+    expect(branch).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle branch for node 0: Limit" })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: "Summary table" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("keeps the Explain button visible and disabled while loading", async () => {
     const user = userEvent.setup();
     let resolveExplain: (value: ExplainResponse) => void = () => undefined;

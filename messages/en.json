@@ -1949,7 +1949,18 @@
       },
       "viewSwitch": "View mode",
       "viewCards": "Nodes",
-      "viewText": "Text"
+      "viewText": "Text",
+      "viewSummary": "Summary table",
+      "summary": {
+        "title": "Plan node summary",
+        "operation": "Operation",
+        "relation": "Relation",
+        "index": "Index",
+        "startupCost": "Startup cost",
+        "totalCost": "Total cost",
+        "notReported": "Not reported",
+        "costNote": "Costs are estimates from this database engine. Do not compare them across engines."
+      }
     },
     "savedStatements": {
       "searchPlaceholder": "Search saved queries…",

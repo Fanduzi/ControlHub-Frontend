@@ -1313,6 +1313,9 @@ test.describe("PG paging, key lifecycle, fault injection and invalid context", (
         operation?: string;
         access?: string;
         label?: string;
+        relation?: string;
+        index?: string;
+        estimatedRows?: number;
         startupCost?: number;
         totalCost?: number;
       }[];
@@ -1369,6 +1372,20 @@ test.describe("PG paging, key lifecycle, fault injection and invalid context", (
     const text = page.getByTestId("explain-text");
     await expect(text).toContainText("cost=");
     await expect(text).toContainText("items");
+    await panel.getByRole("button", { name: "Summary table" }).click();
+    const summary = panel.getByRole("table", { name: "Plan node summary" });
+    const nodes = body.nodes ?? [];
+    await expect(summary.getByRole("row")).toHaveCount(nodes.length + 1);
+    for (const [i, node] of nodes.entries()) {
+      const cells = summary.getByRole("row").nth(i + 1).getByRole("cell");
+      await expect(cells.nth(0)).toHaveText(node.label!);
+      await expect(cells.nth(1)).toHaveText(node.relation ?? "Not reported");
+      await expect(cells.nth(2)).toHaveText(node.index ?? "Not reported");
+      for (const [j, value] of [node.estimatedRows, node.startupCost, node.totalCost].entries()) {
+        await expect(cells.nth(j + 3)).toHaveText(value === undefined ? "Not reported" : String(value));
+      }
+    }
+    await expect(summary).toHaveAccessibleDescription(/do not compare them across engines/i);
     const panelText = await panel.innerText();
     expect(panelText).not.toMatch(/query_block|table_name|password|dsn|credential/i);
   });

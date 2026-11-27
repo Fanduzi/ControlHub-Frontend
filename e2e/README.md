@@ -26,7 +26,7 @@ Playwright end-to-end tests running against real Chromium with a live backend.
 
 The MySQL and PostgreSQL workbench specs also verify executing a selection and the statement at the cursor. PostgreSQL coverage checks scoped history and semicolons inside string literals.
 
-The MySQL Explain fixture also verifies a single leaf has no branch toggle. The PostgreSQL Explain fixture verifies keyboard collapse, mouse expansion, focus retention, and complete text after collapse on a real multi-level plan.
+The MySQL Explain fixture verifies a single leaf has no branch toggle and that its summary leaves both costs unreported. PostgreSQL compares every displayed summary node to the real normalized response, including reported cost and missing fields. The PostgreSQL Explain fixture verifies keyboard collapse, mouse expansion, focus retention, and complete text after collapse on a real multi-level plan.
 
 The result contract suite also verifies frozen-column geometry after real horizontal scrolling at 375px and its minimum width in narrower layouts, keyboard focus past the frozen column, resize and first-visible-column handoff, column-name search, freeze reset on paging and rerun, keyboard and pointer column visibility changes, the last-visible-column guard, full CSV/JSON payloads despite hidden columns, disabled export when a masked or truncated column is hidden, and visibility reset on paging and rerun.
 

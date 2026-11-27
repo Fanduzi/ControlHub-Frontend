@@ -3000,6 +3000,13 @@ test.describe("Query Workbench Explain (Phase 38N)", () => {
     // D-01: bounded relation/index names are intentionally disclosed, so the
     // accessed table IS visible — raw plan keys and free-form fields stay out.
     await expect(panel.getByText("qe_explain_big").first()).toBeVisible();
+    await panel.getByRole("button", { name: "Summary table" }).click();
+    const summary = panel.getByRole("table", { name: "Plan node summary" });
+    const row = summary.getByRole("row").filter({ has: page.getByRole("cell", { name: "qe_explain_big", exact: true }) });
+    await expect(row.getByRole("cell").nth(3)).toHaveText(/^\d+$/);
+    await expect(row.getByRole("cell").nth(4)).toHaveText("Not reported");
+    await expect(row.getByRole("cell").nth(5)).toHaveText("Not reported");
+    await expect(panel.locator('[data-risk-code="full_table_scan"]')).toBeVisible();
     await expect(
       panel.getByText(/query_block|table_name|possible_keys|used_columns|cost_info/i),
     ).toHaveCount(0);

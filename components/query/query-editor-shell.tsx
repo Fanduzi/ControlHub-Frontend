@@ -9,6 +9,7 @@ import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
 import type {
+  ExplainResponse,
   QueryExecutePaginationResponse,
   QueryExecuteResponse,
   QueryExecutionFilter,
@@ -40,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2292,7 +2294,9 @@ function ExplainPanel({
 }) {
   const t = useTranslations("queryWorkbench");
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [view, setView] = useState<"cards" | "text">("cards");
+  const [view, setView] = useState<"cards" | "text" | "summary">("cards");
+  const supportsSummary = state.response?.engine === "mysql" || state.response?.engine === "postgresql";
+  const activeView = view === "summary" && !supportsSummary ? "cards" : view;
   const [branches, setBranches] = useState(() => ({ plan: state.response, collapsed: new Set<string>() }));
   const collapsed = branches.plan === state.response ? branches.collapsed : new Set<string>();
 
@@ -2347,20 +2351,28 @@ function ExplainPanel({
             <span className="ml-3 inline-flex rounded-md border border-border text-xs" role="group" aria-label={t("explain.viewSwitch")}>
               <button
                 type="button"
-                className={cn("px-2 py-0.5", view === "cards" ? "bg-muted font-medium" : "text-muted-foreground")}
-                aria-pressed={view === "cards"}
+                className={cn("px-2 py-0.5", activeView === "cards" ? "bg-muted font-medium" : "text-muted-foreground")}
+                aria-pressed={activeView === "cards"}
                 onClick={() => setView("cards")}
               >
                 {t("explain.viewCards")}
               </button>
               <button
                 type="button"
-                className={cn("px-2 py-0.5", view === "text" ? "bg-muted font-medium" : "text-muted-foreground")}
-                aria-pressed={view === "text"}
+                className={cn("px-2 py-0.5", activeView === "text" ? "bg-muted font-medium" : "text-muted-foreground")}
+                aria-pressed={activeView === "text"}
                 onClick={() => setView("text")}
               >
                 {t("explain.viewText")}
               </button>
+              {supportsSummary && (
+                <button type="button"
+                  className={cn("px-2 py-0.5", activeView === "summary" ? "bg-muted font-medium" : "text-muted-foreground")}
+                  aria-pressed={activeView === "summary"}
+                  onClick={() => setView("summary")}>
+                  {t("explain.viewSummary")}
+                </button>
+              )}
             </span>
           ) : null}
         </h3>
@@ -2436,6 +2448,8 @@ function ExplainPanel({
 
           {state.response.nodes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("explain.emptyNodes")}</p>
+          ) : activeView === "summary" ? (
+            <ExplainSummaryTable nodes={state.response.nodes} />
           ) : (() => {
             // Nodes arrive depth-first with monotonic ids; parents always
             // precede children, so one pass resolves every depth.
@@ -2446,7 +2460,7 @@ function ExplainPanel({
                 n.parentId != null ? (depthById.get(n.parentId) ?? 0) + 1 : 0,
               );
             }
-            if (view === "text") {
+            if (activeView === "text") {
               const lines = state.response.nodes.map((node) => {
                 const depth = depthById.get(node.id) ?? 0;
                 const name = node.label ?? t(`explain.operations.${node.operation}`);
@@ -2567,6 +2581,43 @@ function ExplainPanel({
           })()}
         </div>
       )}
+    </div>
+  );
+}
+
+function ExplainSummaryTable({ nodes }: { nodes: ExplainResponse["nodes"] }) {
+  const t = useTranslations("queryWorkbench");
+  const costNoteId = useId();
+  const missing = <span className="text-muted-foreground">{t("explain.summary.notReported")}</span>;
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <p id={costNoteId} className="text-xs text-muted-foreground">{t("explain.summary.costNote")}</p>
+      <Table aria-label={t("explain.summary.title")} aria-describedby={costNoteId} tabIndex={0}
+        className="text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">{t("explain.summary.operation")}</TableHead>
+            <TableHead scope="col">{t("explain.summary.relation")}</TableHead>
+            <TableHead scope="col">{t("explain.summary.index")}</TableHead>
+            <TableHead scope="col">{t("explain.estimatedRowsLabel")}</TableHead>
+            <TableHead scope="col">{t("explain.summary.startupCost")}</TableHead>
+            <TableHead scope="col">{t("explain.summary.totalCost")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {nodes.map((node) => (
+            <TableRow key={node.id}>
+              <TableCell>{node.label ?? t(`explain.operations.${node.operation}`)}</TableCell>
+              <TableCell className="font-mono">{node.relation ?? missing}</TableCell>
+              <TableCell className="font-mono">{node.index ?? missing}</TableCell>
+              <TableCell className="tabular-nums">{node.estimatedRows ?? missing}</TableCell>
+              <TableCell className="tabular-nums">{node.startupCost ?? missing}</TableCell>
+              <TableCell className="tabular-nums">{node.totalCost ?? missing}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
