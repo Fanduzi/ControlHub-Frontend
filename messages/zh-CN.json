@@ -1881,7 +1881,8 @@
       "running": "正在运行批次：已完成 {done} / {total} 条语句。",
       "complete": "批次完成：已完成 {done} / {total} 条语句。",
       "failed": "一条语句失败，批次已停止：已完成 {done} / {total} 条，未提交后续语句。",
-      "cancelled": "批次已取消：已完成 {done} / {total} 条。未提交后续语句；当前语句在数据库中的状态未知。"
+      "cancelled": "批次已取消：已完成 {done} / {total} 条。未提交后续语句；当前语句在数据库中的状态未知。",
+      "cancelledPostgres": "批次已取消：已完成 {done} / {total} 条。未提交后续语句。"
     },
     "explain": {
       "title": "Explain",

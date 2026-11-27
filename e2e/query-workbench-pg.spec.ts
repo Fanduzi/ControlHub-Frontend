@@ -625,6 +625,66 @@ test.describe("PG cancellation and history", () => {
     );
   }
 
+  for (const scenario of ["complete", "rejected", "cancelled"] as const) {
+    test(`PostgreSQL batch ${scenario} binds each statement and preserves the first result`, async ({ page }) => {
+      await openQueryWorkbench(page);
+      await selectPgContext(page, PG_CONN_LABDB, PG_SCHEMA_E2E);
+      const postedBodies = captureExecutePosts(page);
+      const marker = `pg-batch-${crypto.randomUUID().slice(0, 8)}`;
+      const statements = [
+        "select id, name from e2e.items where id = 1;",
+        scenario === "cancelled" ? `${markedLoadSql(marker)};`
+          : scenario === "rejected" ? "insert into e2e.items (id, name) values (99, 'nope');"
+          : "select id, name from e2e.items where id = 2;",
+        "select id, name from e2e.items order by id;",
+      ];
+      if (scenario === "rejected") {
+        consumableHttpErrors = [{ method: "POST", url: `http://localhost:3100/api/proxy/query-targets/${pgTargetResourceId}/execute`,
+          status: 403, consumeConsoleStatusEcho: true }];
+      }
+      await clearAndType(page, statements.join("\n"));
+      await page.locator(".cm-content").click();
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.getByRole("button", { name: "Run selected batch", exact: true }).click();
+      const tabs = page.getByRole("tablist", { name: "Batch results" });
+      await expect(tabs.getByRole("tab").first()).toBeVisible({ timeout: 15_000 });
+      if (scenario === "cancelled") {
+        const active = await awaitPgActive(marker);
+        expect(active.pid).toBeGreaterThan(0);
+        await page.getByTestId("cancel-execution").click();
+        await expect(page.getByTestId("cancel-outcome")).toContainText("Server confirmed the execution stopped.", { timeout: 30_000 });
+        await expect.poll(() => pgStatActivityForMarker(marker).some((row) => row.pid === active.pid && row.state === "active")).toBe(false);
+      }
+      const delivered = scenario === "complete" ? 3 : 1;
+      const submitted = scenario === "complete" ? 3 : 2;
+      await expect(page.getByRole("status").filter({ hasText: new RegExp(`batch ${scenario === "rejected" ? "stopped" : scenario}`, "i") })).toContainText(`${delivered} of 3`);
+      await expect(tabs.getByRole("tab")).toHaveCount(delivered);
+      await expect(page.getByRole("grid")).toContainText("alpha");
+      await expect(page.getByRole("grid")).not.toContainText("beta");
+      if (scenario === "complete") {
+        await tabs.getByRole("tab").nth(1).click();
+        await expect(page.getByRole("grid")).toContainText("beta");
+        await tabs.getByRole("tab").nth(2).click();
+        await expect(page.getByRole("grid")).toContainText("alpha");
+        await expect(page.getByRole("grid")).toContainText("beta");
+      }
+      expect(postedBodies).toHaveLength(submitted);
+      const bodies = postedBodies.map((raw) => JSON.parse(raw));
+      expect(bodies.map((body) => body.statement)).toEqual(statements.slice(0, submitted));
+      expect(new Set(bodies.map((body) => body.clientExecutionId)).size).toBe(submitted);
+      for (const body of bodies) {
+        expect(body).toMatchObject({ database: PG_CONN_LABDB, schema: PG_SCHEMA_E2E,
+          clientExecutionId: expect.any(String), pagination: { page: 1 } });
+      }
+      for (const body of bodies.slice(0, delivered)) {
+        expect(await keyedExecutionRecord(body.clientExecutionId)).toMatchObject({ kind: "execution", status: "success" });
+      }
+      if (scenario === "cancelled") {
+        expect(await keyedExecutionRecord(bodies[1].clientExecutionId)).toMatchObject({ kind: "execution", status: "cancelled", remoteState: "stopped" });
+      }
+    });
+  }
+
   test("cancel propagates browser → BFF → proxy → backend (positive chain)", async ({
     page,
   }) => {

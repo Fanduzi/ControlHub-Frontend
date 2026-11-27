@@ -3,7 +3,7 @@ import { EditorSelection } from "@codemirror/state";
 
 import {
   resolveWorksheetRunScope,
-  selectedMySQLBatchStatements,
+  selectedSqlBatchStatements,
   sqlStatementAtPosition,
   sqlStatementRanges,
   sqlWorksheetState,
@@ -21,10 +21,10 @@ function scoped(doc: string, engine = "mysql", anchor?: number, head?: number) {
   );
 }
 
-describe("selectedMySQLBatchStatements", () => {
+describe("selectedSqlBatchStatements", () => {
   function batch(doc: string, from = 0, to = doc.length) {
     const base = sqlWorksheetState(doc, "mysql");
-    return selectedMySQLBatchStatements(base.update({ selection: { anchor: from, head: to } }).state);
+    return selectedSqlBatchStatements(base.update({ selection: { anchor: from, head: to } }).state, "mysql");
   }
 
   it("uses full-editor boundaries and retains comments and semicolons inside quoted values", () => {
@@ -43,6 +43,14 @@ describe("selectedMySQLBatchStatements", () => {
     `SELECT '${"中".repeat(5500)}'; SELECT 2;`,
   ])("refuses ambiguous or out-of-budget selection %# without yielding a prefix", (doc) => {
     expect(batch(doc)).toBeNull();
+  });
+
+  it("keeps PostgreSQL dollar strings, casts and nested comments intact", () => {
+    const first = "SELECT $tag$a;b$tag$::text;";
+    const second = "/* outer /* inner; */ comment */ SELECT 2;";
+    const doc = `${first}\n${second}`;
+    const state = sqlWorksheetState(doc, "postgresql").update({ selection: { anchor: 0, head: doc.length } }).state;
+    expect(selectedSqlBatchStatements(state, "postgresql")).toEqual([first, second]);
   });
 
   it("refuses selection boundaries inside a statement or comment", () => {

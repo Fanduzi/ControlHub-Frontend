@@ -65,7 +65,7 @@ describe("WorksheetSession MySQL batch", () => {
     const execute = vi.fn().mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }))
       .mockRejectedValueOnce(new QueryExecuteError(403, "validation_failed", "not allowed"));
     const { session, state } = setup(execute);
-    const running = session.runMySQLBatch(state);
+    const running = session.runSelectedSqlBatch(state);
     expect(execute).toHaveBeenCalledTimes(1);
     await session.run();
     expect(execute).toHaveBeenCalledTimes(1);
@@ -82,7 +82,7 @@ describe("WorksheetSession MySQL batch", () => {
     const execute = vi.fn().mockResolvedValueOnce(emptyResult()).mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }));
     const { session, state } = setup(execute);
     const worksheetId = session.activeId;
-    const running = session.runMySQLBatch(state);
+    const running = session.runSelectedSqlBatch(state);
     const batchId = session.activeBatch?.id;
     expect(batchId).toBeDefined();
     await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
@@ -110,12 +110,73 @@ describe("WorksheetSession MySQL batch", () => {
   it("retains all successful first pages and rejects other engines", async () => {
     const execute = vi.fn().mockResolvedValueOnce(emptyResult()).mockResolvedValueOnce(emptyResult({ executionId: 2 })).mockResolvedValueOnce(emptyResult({ executionId: 3 }));
     const { session, state } = setup(execute);
-    await session.runMySQLBatch(state);
+    await session.runSelectedSqlBatch(state);
     expect(session.activeBatch).toMatchObject({ phase: "complete", results: [{ executionId: 1 }, { executionId: 2 }, { executionId: 3 }] });
     expect(execute.mock.calls.map((call) => call[1].pagination.page)).toEqual([1, 1, 1]);
     const other = setup(execute, "tidb");
-    await expect(other.session.runMySQLBatch(other.state)).resolves.toBe(false);
+    await expect(other.session.runSelectedSqlBatch(other.state)).resolves.toBe(false);
     expect(execute).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("WorksheetSession PostgreSQL batch", () => {
+  const sql = "SELECT 1; SELECT 2; SELECT 3;";
+  function start(ports: ConstructorParameters<typeof WorksheetSession>[0]["ports"], schema: string | null = null) {
+    let count = 0;
+    const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => "postgresql", createId: () => `key-${++count}`, ports });
+    session.selectConnection(session.activeId, "labdb");
+    session.selectSchema(session.activeId, schema);
+    session.editStatement(sql);
+    const editor = sqlWorksheetState(sql, "postgresql").update({ selection: { anchor: 0, head: sql.length } }).state;
+    return { session, running: session.runSelectedSqlBatch(editor) };
+  }
+  function pgResult(schema: string, executionId: number) {
+    return emptyResult({ engine: "postgresql", context: { database: "labdb", schema }, executionId });
+  }
+
+  it("pins the first resolved schema, uses separate keys and refuses a mismatched echo", async () => {
+    const execute = vi.fn().mockResolvedValueOnce(pgResult("resolved", 1)).mockResolvedValueOnce(pgResult("other", 2));
+    const { session, running } = start({ execute });
+    await running;
+    expect(execute).toHaveBeenCalledTimes(2);
+    const [first, second] = execute.mock.calls.map((call) => call[1]);
+    expect(first).toMatchObject({ database: "labdb", clientExecutionId: expect.any(String), pagination: { page: 1 } });
+    expect(first).not.toHaveProperty("schema");
+    expect(second).toMatchObject({ database: "labdb", schema: "resolved", clientExecutionId: expect.any(String), pagination: { page: 1 } });
+    expect(second.clientExecutionId).not.toBe(first.clientExecutionId);
+    expect(session.activeBatch).toMatchObject({ phase: "failed", errorCode: "internal_error", results: [{ executionId: 1 }] });
+  });
+
+  it.each(["cancel", "schema change", "connection change", "timeout"] as const)("prevents the third request after %s", async (action) => {
+    let settle!: (result: QueryExecuteResponse) => void;
+    let reject!: (error: unknown) => void;
+    const execute = vi.fn().mockResolvedValueOnce(pgResult("analytics", 1)).mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve, fail) => { settle = resolve; reject = fail; }));
+    const listExecutions = vi.fn().mockImplementation(async (_, options) => ({ items: [{
+      kind: "execution", clientExecutionId: options.clientExecutionId, status: "cancelled", remoteState: "stopped",
+    }], nextCursor: null }));
+    const { session, running } = start({ execute, listExecutions }, "analytics");
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    const [, second, options] = execute.mock.calls[1]!;
+    expect(second.schema).toBe("analytics");
+    if (action === "cancel") session.cancel();
+    if (action === "schema change") session.selectSchema(session.activeId, "other");
+    if (action === "connection change") session.selectConnection(session.activeId, "other");
+    if (action === "timeout") reject(new QueryExecuteError(504, "query_timeout", "timed out"));
+    else {
+      expect(options.signal.aborted).toBe(true);
+      settle(pgResult("analytics", 2));
+    }
+    await running;
+    expect(execute).toHaveBeenCalledTimes(2);
+    if (action === "cancel") {
+      expect(listExecutions).toHaveBeenCalledWith(1, expect.objectContaining({ database: "labdb", clientExecutionId: second.clientExecutionId }));
+      expect(session.active.cancellation).toMatchObject({ phase: "resolved", outcome: { kind: "terminal", remoteState: "stopped" } });
+      expect(session.activeBatch).toMatchObject({ phase: "cancelled", results: [{ executionId: 1 }] });
+    } else {
+      expect(listExecutions).not.toHaveBeenCalled();
+      if (action === "timeout") expect(session.activeBatch).toMatchObject({ phase: "failed", errorCode: "query_timeout", results: [{ executionId: 1 }] });
+      else expect(session.activeBatch).toBeNull();
+    }
   });
 });
 

@@ -108,7 +108,7 @@ import {
   MAX_WORKSHEETS,
   WorksheetSession,
   useWorksheetSessionVersion,
-  type MySQLBatchResult,
+  type WorksheetBatchResult,
   type CancellationState,
   type ExplainState,
   type PreviewProvenance,
@@ -972,7 +972,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     const view = editorViewRef.current;
     if (!view || !runEnabled || !activeMaxRowsDraftIsValid()) return false;
     const worksheetId = session.activeId;
-    const request = session.runMySQLBatch(view.state);
+    const request = session.runSelectedSqlBatch(view.state);
     const batchId = session.activeBatch?.id;
     const accepted = await request;
     if (accepted && batchId && session.activeBatch?.id === batchId) void refreshHistory(worksheetId);
@@ -1786,7 +1786,7 @@ function ReadyWorksheet({
   isExecuting: boolean;
   onRun: () => void;
   onRunBatch: () => Promise<boolean>;
-  batch: MySQLBatchResult | null;
+  batch: WorksheetBatchResult | null;
   onCancel: () => void;
   onRefreshCancellation: () => void;
   cancellation: CancellationState;
@@ -1858,7 +1858,7 @@ function ReadyWorksheet({
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
   const [runScope, setRunScope] = useState<WorksheetRunScope>("document");
   const [invalidBatch, setInvalidBatch] = useState<{ worksheetId: string; statement: string } | null>(null);
-  const batchAvailable = engine === "mysql" && !templateMode && parameters.length === 0 && !previewProvenance;
+  const batchAvailable = (engine === "mysql" || engine === "postgresql") && !templateMode && parameters.length === 0 && !previewProvenance;
   // Template-bound runs ignore selection/cursor and send the draft as before,
   // so the Run description stays the unscoped one in that mode.
   const effectiveScope = templateMode ? "document" : runScope;
@@ -2107,7 +2107,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {batch ? (
-          <MySQLBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} />
+          <WorksheetBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} postgres={engine === "postgresql"} />
         ) : error ? (
           <ExecuteErrorPanel error={error} onRetry={onRun} engine={mongo ? "mongo" : redis ? "redis" : undefined} />
         ) : result ? (
@@ -2198,7 +2198,7 @@ function ReadyWorksheet({
   );
 }
 
-function MySQLBatchPanel({ batch, exportEnabled }: { batch: MySQLBatchResult; exportEnabled: boolean }) {
+function WorksheetBatchPanel({ batch, exportEnabled, postgres }: { batch: WorksheetBatchResult; exportEnabled: boolean; postgres: boolean }) {
   const t = useTranslations("queryWorkbench");
   const id = useId();
   const [selected, setSelected] = useState(0);
@@ -2206,7 +2206,8 @@ function MySQLBatchPanel({ batch, exportEnabled }: { batch: MySQLBatchResult; ex
   return (
     <section aria-label={t("batch.results")} className="min-w-0 space-y-2">
       <p role="status" className="text-sm text-muted-foreground">
-        {t(`batch.${batch.phase}`, { done: batch.results.length, total: batch.total })}
+        {t(batch.phase === "cancelled" && postgres ? "batch.cancelledPostgres" : `batch.${batch.phase}`,
+          { done: batch.results.length, total: batch.total })}
       </p>
       {batch.phase === "failed" && (
         <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">

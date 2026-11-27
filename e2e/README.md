@@ -32,7 +32,7 @@ The result contract suite also verifies frozen-column geometry on a real 12-colu
 
 The result contract suite checks real Markdown clipboard text (literal code spans, pipe, newline, blank NULL/empty) alongside unchanged TSV, and verifies hidden, masked, and truncated ranges cannot replace that clipboard. Two labeled synthetic response faults independently cover a missing truncation flag and an explicit copy denial on an otherwise raw column. Each starts with a real query and successful Markdown copy, then asserts the rejected response removes the grid and Markdown control without rewriting the clipboard.
 
-The real MySQL batch cases verify three individually recorded statements, result tabs, governed CSV/JSON, and preservation of the first result after a backend refusal or cancellation. A disposable table lock holds the second request for deterministic cancellation; the third is never sent.
+The real MySQL batch cases verify three individually recorded statements, result tabs, governed CSV/JSON, and preservation of the first result after a backend refusal or cancellation. A disposable table lock holds the second request for deterministic cancellation; the third is never sent. PostgreSQL batch cases verify database/schema binding, distinct keys and keyed history, governed refusal, and preservation of the first result after server-confirmed cancellation of the active second statement. Neither refusal nor cancellation sends the third statement.
 
 ## Helpers
 

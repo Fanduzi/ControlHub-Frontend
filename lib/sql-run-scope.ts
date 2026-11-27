@@ -104,15 +104,16 @@ export function sqlStatementAtPosition(
   return chosen;
 }
 
-export const MYSQL_BATCH_MAX_STATEMENTS = 5;
-export const MYSQL_BATCH_MAX_BYTES = 16 * 1024;
+const SQL_BATCH_MAX_STATEMENTS = 5;
+const SQL_BATCH_MAX_BYTES = 16 * 1024;
 
-/** Separate explicit MySQL batch action; the backend still guards each statement. */
-export function selectedMySQLBatchStatements(state: EditorState): string[] | null {
+/** Explicit batch only; the backend still guards each statement. */
+export function selectedSqlBatchStatements(state: EditorState, engine: "mysql" | "postgresql"): string[] | null {
   const { from, to, empty } = state.selection.main;
-  if (empty || state.selection.ranges.length !== 1 || to - from > MYSQL_BATCH_MAX_BYTES) return null;
+  if (empty || state.selection.ranges.length !== 1 || to - from > SQL_BATCH_MAX_BYTES) return null;
   const selected = state.sliceDoc(from, to);
-  if (new TextEncoder().encode(selected).length > MYSQL_BATCH_MAX_BYTES || /\/\*(?:!|M!)|\bDELIMITER\b/i.test(selected)) return null;
+  if (new TextEncoder().encode(selected).length > SQL_BATCH_MAX_BYTES ||
+    (engine === "mysql" && /\/\*(?:!|M!)|\bDELIMITER\b/i.test(selected))) return null;
   // Parsing the selection in isolation could turn text inside a string or comment into SQL.
   const tree = ensureSyntaxTree(state, state.doc.length, 100);
   if (!tree || tree.length !== state.doc.length) return null;
@@ -129,7 +130,7 @@ export function selectedMySQLBatchStatements(state: EditorState): string[] | nul
     if (node.name !== "Statement" || node.lastChild?.name !== ";" || !isExecutableStatement(state, node)) return null;
     let ambiguous = false;
     node.toTree().iterate({ enter(child) { if (child.type.isError) ambiguous = true; } });
-    if (ambiguous || statements.length === MYSQL_BATCH_MAX_STATEMENTS) return null;
+    if (ambiguous || statements.length === SQL_BATCH_MAX_STATEMENTS) return null;
     statements.push(state.sliceDoc(partStart, node.to).trim());
     partStart = node.to;
   }
