@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
 import { getAuthToken } from "./api.helpers";
-import { assertClean, collectConsoleMessages, collectNetworkErrors } from "./harness/console-guards";
+import {
+  assertClean, collectConsoleMessages, collectNetworkErrors, takeExpectedConsoleStatusError, takeExpectedNetworkError,
+} from "./harness/console-guards";
 import { clearAndType, openConnectionNavigator, openQueryWorkbench } from "./harness/workbench";
 
 const proxy = process.env.CONTROLHUB_API_PROXY_URL ?? "http://localhost:8081";
@@ -56,9 +58,20 @@ async function openTiDbWorksheet(page: Page) {
   } };
 }
 
-test("TiDB ordinary Run delivers governed pages and withholds masked data", async ({ page }) => {
-  const consoleMessages = collectConsoleMessages(page);
+function guardBrowser(page: Page) {
+  const consoleMessages = collectConsoleMessages(page, {
+    allowedErrors: [/Fast Refresh/, /HMR/, /Download the React DevTools/],
+    allowedWarnings: [/was preloaded using link preload but not used/],
+  });
   const networkErrors = collectNetworkErrors(page);
+  return (refusedUrl?: string) => assertClean(
+    refusedUrl ? takeExpectedConsoleStatusError(consoleMessages, 403) : consoleMessages,
+    refusedUrl ? takeExpectedNetworkError(networkErrors, { method: "POST", url: refusedUrl, status: 403 }) : networkErrors,
+  );
+}
+
+test("TiDB ordinary Run delivers governed pages and withholds masked data", async ({ page }) => {
+  const verifyBrowser = guardBrowser(page);
   const { posted } = await openTiDbWorksheet(page);
   const run = page.getByRole("button", { name: "Run", exact: true });
   await clearAndType(page, "select id, name from tidb_e2e.items order by id");
@@ -80,11 +93,12 @@ test("TiDB ordinary Run delivers governed pages and withholds masked data", asyn
   await expect(page.getByRole("button", { name: /^JSON export unavailable:/ })).toBeDisabled();
   expect(posted.map((body) => body.pagination)).toEqual([{ page: 1, pageSize: 10 }, { page: 1, pageSize: 5 }, { page: 2, pageSize: 5 }, { page: 1, pageSize: 5 }]);
   expect(posted.every((body) => !Object.hasOwn(body, "clientExecutionId"))).toBe(true);
-  assertClean(consoleMessages, networkErrors);
+  verifyBrowser();
 });
 
 for (const scenario of ["complete", "rejected", "cancelled"] as const) {
   test(`TiDB batch ${scenario} keeps governed results without extra submissions`, async ({ page }) => {
+    const verifyBrowser = guardBrowser(page);
     const { executePath, posted, record } = await openTiDbWorksheet(page);
     const marker = `tidbbatch${crypto.randomUUID().replaceAll("-", "")}`;
     const statements = [
@@ -100,7 +114,8 @@ for (const scenario of ["complete", "rejected", "cancelled"] as const) {
     await page.locator(".cm-content").click();
     await page.keyboard.press("ControlOrMeta+a");
     await page.getByRole("button", { name: "Run selected batch", exact: true }).click();
-    if (scenario === "rejected") expect((await refused)?.status()).toBe(403);
+    const refusal = await refused;
+    if (scenario === "rejected") expect(refusal?.status()).toBe(403);
     if (scenario === "cancelled") {
       const monitor = process.env.E2E_TIDB_MONITOR_CONTAINER;
       if (!monitor) throw new Error("Expected the disposable TiDB processlist monitor.");
@@ -130,6 +145,10 @@ for (const scenario of ["complete", "rejected", "cancelled"] as const) {
     expect(new Set(keys).size).toBe(sent);
     for (const key of keys) expect(key).toEqual(expect.any(String));
     for (const key of keys.slice(0, count)) expect(await record(key)).toMatchObject({ kind: "execution", status: "success" });
-    if (scenario === "cancelled") expect(await record(keys[1]!)).toMatchObject({ kind: "execution", status: "failed", errorCode: "query_canceled" });
+    if (scenario === "cancelled") {
+      await expect(batch.getByRole("status").filter({ hasText: /batch cancelled/i })).toContainText("database status is unknown");
+      expect(await record(keys[1]!)).toMatchObject({ kind: "execution", status: "failed", errorCode: "query_canceled" });
+    }
+    verifyBrowser(refusal?.url());
   });
 }

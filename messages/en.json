@@ -1882,7 +1882,7 @@
       "complete": "Batch complete: {done} of {total} statements completed.",
       "failed": "Batch stopped after a statement failed: {done} of {total} completed. No further statements were sent.",
       "cancelled": "Batch cancelled: {done} of {total} completed. No further statements were sent; the current statement’s database status is unknown.",
-      "cancelledKeyed": "Batch cancelled: {done} of {total} completed. No further statements were sent."
+      "cancelledPostgres": "Batch cancelled: {done} of {total} completed. No further statements were sent."
     },
     "explain": {
       "title": "Explain",

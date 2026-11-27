@@ -2107,7 +2107,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {batch ? (
-          <WorksheetBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} keyed={engine === "postgresql" || engine === "tidb"} />
+          <WorksheetBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} postgres={engine === "postgresql"} />
         ) : error ? (
           <ExecuteErrorPanel error={error} onRetry={onRun} engine={mongo ? "mongo" : redis ? "redis" : undefined} />
         ) : result ? (
@@ -2198,7 +2198,7 @@ function ReadyWorksheet({
   );
 }
 
-function WorksheetBatchPanel({ batch, exportEnabled, keyed }: { batch: WorksheetBatchResult; exportEnabled: boolean; keyed: boolean }) {
+function WorksheetBatchPanel({ batch, exportEnabled, postgres }: { batch: WorksheetBatchResult; exportEnabled: boolean; postgres: boolean }) {
   const t = useTranslations("queryWorkbench");
   const id = useId();
   const [selected, setSelected] = useState(0);
@@ -2206,7 +2206,7 @@ function WorksheetBatchPanel({ batch, exportEnabled, keyed }: { batch: Worksheet
   return (
     <section aria-label={t("batch.results")} className="min-w-0 space-y-2">
       <p role="status" className="text-sm text-muted-foreground">
-        {t(batch.phase === "cancelled" && keyed ? "batch.cancelledKeyed" : `batch.${batch.phase}`,
+        {t(batch.phase === "cancelled" && postgres ? "batch.cancelledPostgres" : `batch.${batch.phase}`,
           { done: batch.results.length, total: batch.total })}
       </p>
       {batch.phase === "failed" && (
