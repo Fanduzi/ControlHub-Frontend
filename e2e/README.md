@@ -32,7 +32,7 @@ The result contract suite also verifies frozen-column geometry on a real 12-colu
 
 The result contract suite checks real Markdown clipboard text (literal code spans, pipe, newline, blank NULL/empty) alongside unchanged TSV, and verifies hidden, masked, and truncated ranges cannot replace that clipboard. Two labeled synthetic response faults independently cover a missing truncation flag and an explicit copy denial on an otherwise raw column. Each starts with a real query and successful Markdown copy, then asserts the rejected response removes the grid and Markdown control without rewriting the clipboard.
 
-The real MySQL batch cases verify three individually recorded statements, result tabs, governed CSV/JSON, and preservation of the first result after a backend refusal or cancellation. A disposable table lock holds the second request for deterministic cancellation; the third is never sent. PostgreSQL batch cases verify database/schema binding, distinct keys and keyed history, governed refusal, and preservation of the first result after server-confirmed cancellation of the active second statement. Neither refusal nor cancellation sends the third statement.
+The real MySQL batch cases verify three individually recorded statements, result tabs, governed CSV/JSON, and preservation of the first result after a backend refusal or cancellation. A disposable table lock holds the second request for deterministic cancellation; the third is never sent. PostgreSQL batch cases verify database/schema binding, distinct keys and keyed history, governed refusal, and preservation of the first result after server-confirmed cancellation of the active second statement. Neither refusal nor cancellation sends the third statement. `query-workbench-tidb.spec.ts` uses disposable TiDB 8.5.0 for ordinary Run paging, masked-data export denial, and batch success, refusal, and in-flight cancellation. A run-owned processlist monitor proves statement two reached TiDB; the keyed record reports `failed`/`query_canceled` without a remote stop claim.
 
 ## Helpers
 
@@ -111,6 +111,10 @@ fails closed (nonzero) unless the assembly document reports the pinned
 foreign/stale listener is rejected, never skipped. The PG spec's `beforeAll`
 repeats the same identity assertions plus the playwright-managed proxy's
 `runId`, so a missing fixture cannot silently pass.
+
+## TiDB fixture lifecycle
+
+The full browser suite needs the real TiDB target in the same disposable metadata DB. After migrations and fixture operator provisioning, set `E2E_TIDB_STATE_DIR` to a private absolute directory and run `bash scripts/e2e/tidb-fixture.sh up`. Pass the generated `runtime.env` variables to the backend fixture launcher and the monitor ID to Playwright (CI uses `GITHUB_ENV`; do not print or source the file as shell code). The metadata DSN must point to a disposable `controlhub_*e2e` database on loopback. The TiDB engine binds an ephemeral loopback port; the monitor shares the owned engine's container network. After stopping the backend fixture, `bash scripts/e2e/tidb-fixture.sh down` removes the registered containers and private state, including credentials. Use a fresh metadata DB per run.
 
 ## Saved Statement teardown
 

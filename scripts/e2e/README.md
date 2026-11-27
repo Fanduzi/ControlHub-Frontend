@@ -4,7 +4,7 @@
 
 `clickhouse-preview.mjs` is launched by the companion backend's `TestClickHousePreviewHTTP` when `CONTROLHUB_CH_BROWSER_CHECKOUT` points to this checkout. It opens a real Chromium session against an isolated Next.js/BFF instance. The completion flow waits for the authorized Objects catalog to render before typing. The script checks ClickHouse personal template save/reload, two date ranges, missing and invalid parameters, paging and policy revocation, ClickHouse Explain pruning and removal of an earlier plan after refusal, selecting `events` and `request_id` from real CodeMirror suggestions before Run, developer-authored SQL in the shared editor (edit, rerun, half-open date ranges, grouped counts, 5/5/2 page navigation with live policy revocation, exact current-page CSV downloads and refusal on masked projections, nested policy refusals and history), disclosure, column reselection, exact UInt64 display and UTC daily counts.
 
-Disposable PostgreSQL E2E fixture scripts.
+Disposable SQL E2E fixture scripts.
 
 | Script | Purpose |
 |--------|---------|
@@ -12,3 +12,4 @@ Disposable PostgreSQL E2E fixture scripts.
 | `pg-fixture-up.sh` | Brings up the disposable PG fixture: builds the e2e server from the exact pinned backend SHA/tree (requires a clean exact SHA/tree plus a VCS-stamped binary — `vcs.revision` equal to the pin and `vcs.modified` not true; use a real clone when linked-worktree builds lack the stamp), then launches the listener with `CONTROLHUB_E2E_FIXTURE_MODE=1` and `CONTROLHUB_PG_HTTP_ENTRIES=on` so the governed PostgreSQL HTTP entries (execution, read model, Explain) are exposed for this run only — production defaults stay off |
 | `pg-fixture-down.sh` | Tears down the fixture run |
 | `pg-fixture-evidence.sh` | Collects run evidence |
+| `tidb-fixture.sh` | `up` seeds TiDB 8.5.0 and disclosure metadata for the same test-only listener (disposable loopback metadata DSN required); `down` removes only the run's recorded, label-verified engine and monitor containers and credential handoff. |

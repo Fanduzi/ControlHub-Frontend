@@ -113,9 +113,43 @@ describe("WorksheetSession MySQL batch", () => {
     await session.runSelectedSqlBatch(state);
     expect(session.activeBatch).toMatchObject({ phase: "complete", results: [{ executionId: 1 }, { executionId: 2 }, { executionId: 3 }] });
     expect(execute.mock.calls.map((call) => call[1].pagination.page)).toEqual([1, 1, 1]);
-    const other = setup(execute, "tidb");
+    const other = setup(execute, "clickhouse");
     await expect(other.session.runSelectedSqlBatch(other.state)).resolves.toBe(false);
     expect(execute).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("WorksheetSession TiDB batch", () => {
+  it("uses fresh keys without PostgreSQL scope and reads back a cancellation without claiming a database stop", async () => {
+    const sql = "SELECT 1; SELECT 2; SELECT 3;";
+    let finish!: (result: QueryExecuteResponse) => void;
+    const execute = vi.fn().mockResolvedValueOnce(emptyResult({ engine: "tidb" }))
+      .mockImplementationOnce(() => new Promise<QueryExecuteResponse>((resolve) => { finish = resolve; }));
+    const listExecutions = vi.fn().mockImplementation(async (_, options) => ({ items: [{
+      kind: "execution", clientExecutionId: options.clientExecutionId, status: "failed", errorCode: "query_canceled",
+    }], nextCursor: null }));
+    let count = 0;
+    const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => "tidb", createId: () => `key-${++count}`, ports: { execute, listExecutions } });
+    session.editStatement(sql);
+    const editor = sqlWorksheetState(sql, "tidb").update({ selection: { anchor: 0, head: sql.length } }).state;
+    const running = session.runSelectedSqlBatch(editor);
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    const [first, second] = execute.mock.calls.map((call) => call[1]);
+    expect(first).toMatchObject({ clientExecutionId: expect.any(String), pagination: { page: 1 } });
+    expect(second).toMatchObject({ clientExecutionId: expect.any(String), pagination: { page: 1 } });
+    expect(first.clientExecutionId).not.toBe(second.clientExecutionId);
+    expect(second).not.toHaveProperty("database");
+    expect(second).not.toHaveProperty("schema");
+    session.cancel();
+    expect(execute.mock.calls[1][2].signal.aborted).toBe(true);
+    finish(emptyResult({ engine: "tidb", executionId: 2 }));
+    await running;
+    expect(execute).toHaveBeenCalledTimes(2);
+    const [, probe] = listExecutions.mock.calls[0];
+    expect(probe).toMatchObject({ clientExecutionId: second.clientExecutionId });
+    expect(probe).not.toHaveProperty("database");
+    expect(session.active.cancellation).toMatchObject({ phase: "resolved", outcome: { kind: "terminal", status: "failed", remoteState: null } });
+    expect(session.activeBatch).toMatchObject({ phase: "cancelled", results: [{ executionId: 1 }] });
   });
 });
 

@@ -1858,7 +1858,7 @@ function ReadyWorksheet({
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
   const [runScope, setRunScope] = useState<WorksheetRunScope>("document");
   const [invalidBatch, setInvalidBatch] = useState<{ worksheetId: string; statement: string } | null>(null);
-  const batchAvailable = (engine === "mysql" || engine === "postgresql") && !templateMode && parameters.length === 0 && !previewProvenance;
+  const batchAvailable = (engine === "mysql" || engine === "postgresql" || engine === "tidb") && !templateMode && parameters.length === 0 && !previewProvenance;
   // Template-bound runs ignore selection/cursor and send the draft as before,
   // so the Run description stays the unscoped one in that mode.
   const effectiveScope = templateMode ? "document" : runScope;
@@ -2107,7 +2107,7 @@ function ReadyWorksheet({
 
       <div className="p-3">
         {batch ? (
-          <WorksheetBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} postgres={engine === "postgresql"} />
+          <WorksheetBatchPanel key={batch.id} batch={batch} exportEnabled={exportEnabled} keyed={engine === "postgresql" || engine === "tidb"} />
         ) : error ? (
           <ExecuteErrorPanel error={error} onRetry={onRun} engine={mongo ? "mongo" : redis ? "redis" : undefined} />
         ) : result ? (
@@ -2198,7 +2198,7 @@ function ReadyWorksheet({
   );
 }
 
-function WorksheetBatchPanel({ batch, exportEnabled, postgres }: { batch: WorksheetBatchResult; exportEnabled: boolean; postgres: boolean }) {
+function WorksheetBatchPanel({ batch, exportEnabled, keyed }: { batch: WorksheetBatchResult; exportEnabled: boolean; keyed: boolean }) {
   const t = useTranslations("queryWorkbench");
   const id = useId();
   const [selected, setSelected] = useState(0);
@@ -2206,7 +2206,7 @@ function WorksheetBatchPanel({ batch, exportEnabled, postgres }: { batch: Worksh
   return (
     <section aria-label={t("batch.results")} className="min-w-0 space-y-2">
       <p role="status" className="text-sm text-muted-foreground">
-        {t(batch.phase === "cancelled" && postgres ? "batch.cancelledPostgres" : `batch.${batch.phase}`,
+        {t(batch.phase === "cancelled" && keyed ? "batch.cancelledKeyed" : `batch.${batch.phase}`,
           { done: batch.results.length, total: batch.total })}
       </p>
       {batch.phase === "failed" && (

@@ -331,7 +331,7 @@ function buildTemplateValues(
 /** Owned in-flight request: one intent, one controller, one pinned scope. */
 type OwnedAttempt = {
   readonly worksheetId: string;
-  /** clientExecutionId for keyed engines (PostgreSQL); null for keyless. */
+  /** clientExecutionId for keyed attempts; null for keyless. */
   readonly key: string | null;
   readonly targetId: number;
   readonly database: string | null;
@@ -1005,9 +1005,9 @@ export class WorksheetSession {
     const engine = this.engineFor(worksheet.targetResourceId);
     const pg = engine === "postgresql";
     if (worksheet.isExecuting || worksheet.templateStatementId !== null || worksheet.parameters.length > 0 ||
-      worksheet.previewProvenance !== null || (engine !== "mysql" && !pg) || (pg && !worksheet.activeDatabase) ||
-      editor.doc.toString() !== worksheet.statement) return false;
-    const statements = selectedSqlBatchStatements(editor, engine);
+      worksheet.previewProvenance !== null || (engine !== "mysql" && engine !== "tidb" && !pg) ||
+      (pg && !worksheet.activeDatabase) || editor.doc.toString() !== worksheet.statement) return false;
+    const statements = selectedSqlBatchStatements(editor, pg ? "postgresql" : "mysql");
     if (!statements) return false;
 
     const id = this.createId();
@@ -1036,7 +1036,7 @@ export class WorksheetSession {
     try {
       for (const statement of statements) {
         if (this.batch !== batch || controller.signal.aborted) break;
-        const clientExecutionId = pg ? this.createId() : undefined;
+        const clientExecutionId = engine !== "mysql" ? this.createId() : undefined;
         const attempt: InflightAttempt = { worksheetId: worksheet.id, requestId: id, targetId: worksheet.targetResourceId,
           key: clientExecutionId ?? null, database: pg ? worksheet.activeDatabase : null, controller };
         this.inflight.set(worksheet.id, attempt);
@@ -1544,7 +1544,7 @@ export class WorksheetSession {
     }
     if (worksheet.cancellation.phase !== "idle") return;
     if (inflight.key === null) {
-      // Keyless engines (MySQL/TiDB): the local abort ends the request; the
+      // Keyless attempts: the local abort ends the request; the
       // backend records its own terminal status and no keyed read-back exists.
       inflight.controller.abort();
       return;
