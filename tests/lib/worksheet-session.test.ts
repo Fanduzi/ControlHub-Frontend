@@ -113,7 +113,7 @@ describe("WorksheetSession MySQL batch", () => {
     await session.runSelectedSqlBatch(state);
     expect(session.activeBatch).toMatchObject({ phase: "complete", results: [{ executionId: 1 }, { executionId: 2 }, { executionId: 3 }] });
     expect(execute.mock.calls.map((call) => call[1].pagination.page)).toEqual([1, 1, 1]);
-    const other = setup(execute, "clickhouse");
+    const other = setup(execute, "redis");
     await expect(other.session.runSelectedSqlBatch(other.state)).resolves.toBe(false);
     expect(execute).toHaveBeenCalledTimes(3);
   });
@@ -211,6 +211,47 @@ describe("WorksheetSession PostgreSQL batch", () => {
       if (action === "timeout") expect(session.activeBatch).toMatchObject({ phase: "failed", errorCode: "query_timeout", results: [{ executionId: 1 }] });
       else expect(session.activeBatch).toBeNull();
     }
+  });
+});
+
+describe("WorksheetSession ClickHouse batch", () => {
+  const sql = "SELECT request_id FROM events LIMIT 1; SELECT request_id FROM events LIMIT 2; SELECT request_id FROM events LIMIT 3;";
+  const editor = sqlWorksheetState(sql, "clickhouse").update({ selection: { anchor: 0, head: sql.length } }).state;
+
+  it("pins the admitted approval, uses no execution key and stops on a server refusal", async () => {
+    const execute = vi.fn().mockResolvedValueOnce(emptyResult({ engine: "clickhouse" }))
+      .mockRejectedValueOnce(new QueryExecuteError(403, "query_not_allowed", "approval changed"));
+    const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => "clickhouse", generationFor: () => "approved", clickHousePagingFor: () => true, ports: { execute } });
+    session.editStatement(sql);
+    expect(await session.runSelectedSqlBatch(editor)).toBe(true);
+    const bodies = execute.mock.calls.map(([, body]) => body);
+    expect(bodies.map((body) => body.statement)).toEqual(sql.match(/[^;]+;/g)?.slice(0, 2).map((s) => s.trim()));
+    for (const body of bodies) {
+      expect(body).toMatchObject({ clickHouseGeneration: "approved", pagination: { page: 1 } });
+      expect(body).not.toHaveProperty("clientExecutionId");
+    }
+    expect(session.activeBatch).toMatchObject({ phase: "failed", errorCode: "query_not_allowed", results: [{ executionId: 1 }] });
+  });
+
+  it.each(["approval changed", "cancelled"] as const)("drops a late result when %s without sending the next statement", async (change) => {
+    let generation: string | undefined;
+    let deliver!: (result: QueryExecuteResponse) => void;
+    const execute = vi.fn(() => new Promise<QueryExecuteResponse>((resolve) => { deliver = resolve; }));
+    const listExecutions = vi.fn();
+    const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => "clickhouse", generationFor: () => generation, ports: { execute, listExecutions } });
+    session.editStatement(sql);
+    expect(await session.runSelectedSqlBatch(editor)).toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+    generation = "approved";
+    const running = session.runSelectedSqlBatch(editor);
+    expect(execute).toHaveBeenCalledTimes(1);
+    if (change === "approval changed") generation = "other";
+    else session.cancel();
+    deliver(emptyResult({ engine: "clickhouse" }));
+    await running;
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(listExecutions).not.toHaveBeenCalled();
+    expect(session.activeBatch).toMatchObject({ phase: change === "approval changed" ? "failed" : "cancelled", results: [] });
   });
 });
 

@@ -330,6 +330,58 @@ try {
   console.log(
     "PASS ClickHouse worksheet paging: 5/5/2, previous, edited LIMIT and live policy revocation",
   );
+  async function runBatch(statements, delivered, expectedStatuses, generation) {
+    const isExecute = (req) => req.method() === "POST" && req.url().endsWith(`/query-targets/${target}/execute`);
+    const requests = [];
+    const responses = [];
+    const onRequest = (req) => { if (isExecute(req)) requests.push(req.postDataJSON()); };
+    const onResponse = (res) => { if (isExecute(res.request())) responses.push(res.status()); };
+    page.on("request", onRequest);
+    page.on("response", onResponse);
+    try {
+      await editor.click();
+      await editor.press("ControlOrMeta+a");
+      await page.keyboard.insertText(statements.join("\n"));
+      await editor.press("ControlOrMeta+a");
+      await page.getByRole("button", { name: /^(Run selected batch|运行选中批次)$/ }).click();
+      const batch = page.getByRole("region", { name: /^(Batch results|批次结果)$/ });
+      const failed = delivered < statements.length;
+      await expect(batch.getByRole("status").filter({ hasText: failed ? /Batch stopped|批次已停止/ : /Batch complete|批次完成/ }))
+        .toContainText(new RegExp(`${delivered} (?:of|/) 3`));
+      await expect(batch.getByRole("tab")).toHaveCount(delivered);
+      await expect(batch.getByRole("gridcell")).toHaveText(["42"]);
+      if (!failed) {
+        await batch.getByRole("tab", { name: /^(Statement|语句) 2$/ }).click();
+        await expect(batch.getByRole("gridcell")).toHaveText(["43"]);
+        await batch.getByRole("tab", { name: /^(Statement|语句) 3$/ }).click();
+        await expect(batch.getByRole("gridcell")).toHaveText(["42"]);
+      }
+      await expect(batch.getByRole("button", { name: /^(Next page|下一页)$/ })).toHaveCount(0);
+      expect(responses).toEqual(expectedStatuses);
+      expect(requests.map((body) => body.statement)).toEqual(statements.slice(0, expectedStatuses.length));
+      for (const body of requests) {
+        expect(body).toMatchObject({ clickHouseGeneration: generation, pagination: { page: 1, pageSize: 5 } });
+        expect(body).not.toHaveProperty("clientExecutionId");
+      }
+    } finally {
+      page.off("request", onRequest);
+      page.off("response", onResponse);
+    }
+  }
+  const editorTargetRes = await page.request.get(`${origin}/api/proxy/query-targets?targetId=${target}`);
+  expect(editorTargetRes.status()).toBe(200);
+  const { items: batchTargets } = await editorTargetRes.json();
+  const approvedGeneration = batchTargets.find((item) => String(item.resourceId) === target)?.clickHouseGeneration;
+  expect(approvedGeneration).toMatch(/^[a-f0-9]{64}$/);
+  const firstBatch = "SELECT request_id FROM events WHERE request_id = 42 LIMIT 1;";
+  await runBatch([firstBatch, "SELECT request_id FROM events WHERE request_id = 43 LIMIT 1;", firstBatch], 3, [200, 200, 200], approvedGeneration);
+  await setPolicy("masked_no_copy");
+  try {
+    await runBatch([firstBatch, "SELECT request_id FROM page_events WHERE request_id = 1 LIMIT 1;", firstBatch], 1, [200, 403], approvedGeneration);
+  } finally {
+    await setPolicy("raw_copy_allowed");
+  }
+  console.log("PASS ClickHouse selected batch: three ordered first pages, immutable approval, real second-statement disclosure refusal, no third request");
   const grouped = await executeSQL(
     "SELECT request_id, count() AS hits FROM events GROUP BY request_id ORDER BY hits DESC LIMIT 1",
     200,

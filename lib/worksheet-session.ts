@@ -1004,10 +1004,13 @@ export class WorksheetSession {
     const worksheet = this.active;
     const engine = this.engineFor(worksheet.targetResourceId);
     const pg = engine === "postgresql";
+    const ch = engine === "clickhouse";
     if (worksheet.isExecuting || worksheet.templateStatementId !== null || worksheet.parameters.length > 0 ||
-      worksheet.previewProvenance !== null || (engine !== "mysql" && engine !== "tidb" && !pg) ||
+      worksheet.previewProvenance !== null || (engine !== "mysql" && engine !== "tidb" && !pg && !ch) ||
       (pg && !worksheet.activeDatabase) || editor.doc.toString() !== worksheet.statement) return false;
-    const statements = selectedSqlBatchStatements(editor, pg ? "postgresql" : "mysql");
+    const generation = ch ? this.generationFor(worksheet.targetResourceId) : undefined;
+    if (ch && !generation) return false;
+    const statements = selectedSqlBatchStatements(editor, engine === "tidb" ? "mysql" : engine);
     if (!statements) return false;
 
     const id = this.createId();
@@ -1033,21 +1036,31 @@ export class WorksheetSession {
     });
     let terminal: Pick<WorksheetBatchResult, "phase" | "errorCode"> = { phase: "complete" };
     let boundWorksheet = worksheet;
+    const stillApproved = () => !ch || this.generationFor(worksheet.targetResourceId) === generation;
+    const includePagination = !ch || this.clickHousePagingFor(worksheet.targetResourceId);
     try {
       for (const statement of statements) {
         if (this.batch !== batch || controller.signal.aborted) break;
-        const clientExecutionId = engine !== "mysql" ? this.createId() : undefined;
+        if (!stillApproved()) {
+          terminal = { phase: "failed", errorCode: "query_not_allowed" };
+          break;
+        }
+        const clientExecutionId = pg || engine === "tidb" ? this.createId() : undefined;
         const attempt: InflightAttempt = { worksheetId: worksheet.id, requestId: id, targetId: worksheet.targetResourceId,
           key: clientExecutionId ?? null, database: pg ? worksheet.activeDatabase : null, controller };
         this.inflight.set(worksheet.id, attempt);
         let response: QueryExecuteResponse | null;
         try {
           response = await this.executePage(boundWorksheet, worksheet.targetResourceId, 1, worksheet.pageSize,
-            worksheet.maxRows, controller.signal, clientExecutionId, undefined, true, statement);
+            worksheet.maxRows, controller.signal, clientExecutionId, generation, includePagination, statement);
         } finally {
           if (this.inflight.get(worksheet.id) === attempt) this.inflight.delete(worksheet.id);
         }
         if (this.batch !== batch || controller.signal.aborted) break;
+        if (!stillApproved()) {
+          terminal = { phase: "failed", errorCode: "query_not_allowed" };
+          break;
+        }
         const normalized = response && normalizeExecuteResponse(response);
         const context = response?.context;
         if (!response || response.status !== "success" || response.targetResourceId !== worksheet.targetResourceId ||

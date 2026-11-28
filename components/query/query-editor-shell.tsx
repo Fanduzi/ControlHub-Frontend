@@ -1858,7 +1858,9 @@ function ReadyWorksheet({
   const statementLabel = t(redis ? "editor.redisCommandLabel" : "editor.statementLabel");
   const [runScope, setRunScope] = useState<WorksheetRunScope>("document");
   const [invalidBatch, setInvalidBatch] = useState<{ worksheetId: string; statement: string } | null>(null);
-  const batchAvailable = (engine === "mysql" || engine === "postgresql" || engine === "tidb") && !templateMode && parameters.length === 0 && !previewProvenance;
+  const batchAvailable = (engine === "mysql" || engine === "postgresql" || engine === "tidb" || engine === "clickhouse") &&
+    !templateMode && parameters.length === 0 && !previewProvenance;
+  const batchSelectionHint = t(engine === "clickhouse" ? "batch.clickHouseSelectionHint" : "batch.selectionHint");
   // Template-bound runs ignore selection/cursor and send the draft as before,
   // so the Run description stays the unscoped one in that mode.
   const effectiveScope = templateMode ? "document" : runScope;
@@ -1888,7 +1890,7 @@ function ReadyWorksheet({
         {batchAvailable && (
           <Button type="button" size="sm" variant="outline"
             disabled={!canRun || explainLoading || effectiveScope !== "selection"}
-            title={t("batch.selectionHint")}
+            title={batchSelectionHint}
             onClick={async () => {
               setInvalidBatch(null);
               if (!(await onRunBatch())) setInvalidBatch({ worksheetId, statement });
@@ -1997,7 +1999,7 @@ function ReadyWorksheet({
 
       {batchAvailable && invalidBatch?.worksheetId === worksheetId && invalidBatch.statement === statement && (
         <p role="alert" className="border-b border-border px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
-          {t("batch.selectionHint")}
+          {batchSelectionHint}
         </p>
       )}
       <div className="border-b border-border bg-muted/20 p-3">

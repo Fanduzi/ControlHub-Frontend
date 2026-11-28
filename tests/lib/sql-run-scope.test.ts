@@ -53,6 +53,21 @@ describe("selectedSqlBatchStatements", () => {
     expect(selectedSqlBatchStatements(state, "postgresql")).toEqual([first, second]);
   });
 
+  it("keeps ClickHouse backtick identifiers and escaped strings intact", () => {
+    const first = "SELECT `request;id` FROM events;";
+    const second = String.raw`SELECT request_id FROM events WHERE label = 'test\';value';`;
+    const doc = `${first}\n${second}`;
+    const state = sqlWorksheetState(doc, "clickhouse").update({ selection: { anchor: 0, head: doc.length } }).state;
+    expect(selectedSqlBatchStatements(state, "clickhouse")).toEqual([first, second]);
+  });
+
+  it("fails closed for ClickHouse-only quoting, ambiguous comments and statements over its byte cap", () => {
+    for (const doc of ["# SELECT 1; SELECT 2;", "// SELECT 1; SELECT 2;", "/* SELECT 1; */ SELECT 2; SELECT 3;", "SELECT $tag$one;two$tag$; SELECT 2;", `SELECT '${"界".repeat(2730)}'; SELECT 2;`]) {
+      const state = sqlWorksheetState(doc, "clickhouse").update({ selection: { anchor: doc.indexOf("SELECT"), head: doc.length } }).state;
+      expect(selectedSqlBatchStatements(state, "clickhouse")).toBeNull();
+    }
+  });
+
   it("refuses selection boundaries inside a statement or comment", () => {
     const doc = "SELECT 0; /* SELECT 1; SELECT 2; */ SELECT 3; SELECT 4;";
     expect(batch(doc, doc.indexOf("SELECT 1"))).toBeNull();

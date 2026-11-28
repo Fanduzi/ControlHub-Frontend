@@ -108,12 +108,15 @@ const SQL_BATCH_MAX_STATEMENTS = 5;
 const SQL_BATCH_MAX_BYTES = 16 * 1024;
 
 /** Explicit batch only; the backend still guards each statement. */
-export function selectedSqlBatchStatements(state: EditorState, engine: "mysql" | "postgresql"): string[] | null {
+export function selectedSqlBatchStatements(state: EditorState, engine: "mysql" | "postgresql" | "clickhouse"): string[] | null {
   const { from, to, empty } = state.selection.main;
   if (empty || state.selection.ranges.length !== 1 || to - from > SQL_BATCH_MAX_BYTES) return null;
   const selected = state.sliceDoc(from, to);
-  if (new TextEncoder().encode(selected).length > SQL_BATCH_MAX_BYTES ||
+  const utf8 = new TextEncoder();
+  if (utf8.encode(selected).length > SQL_BATCH_MAX_BYTES ||
     (engine === "mysql" && /\/\*(?:!|M!)|\bDELIMITER\b/i.test(selected))) return null;
+  // shortcut: refuse ambiguous ClickHouse comment/heredoc markers until the editor models their full syntax.
+  if (engine === "clickhouse" && /\/\*|\/\/|#|\$/.test(state.doc.toString())) return null;
   // Parsing the selection in isolation could turn text inside a string or comment into SQL.
   const tree = ensureSyntaxTree(state, state.doc.length, 100);
   if (!tree || tree.length !== state.doc.length) return null;
@@ -131,7 +134,9 @@ export function selectedSqlBatchStatements(state: EditorState, engine: "mysql" |
     let ambiguous = false;
     node.toTree().iterate({ enter(child) { if (child.type.isError) ambiguous = true; } });
     if (ambiguous || statements.length === SQL_BATCH_MAX_STATEMENTS) return null;
-    statements.push(state.sliceDoc(partStart, node.to).trim());
+    const statement = state.sliceDoc(partStart, node.to).trim();
+    if (engine === "clickhouse" && utf8.encode(statement).length > 8192) return null;
+    statements.push(statement);
     partStart = node.to;
   }
   return statements.length >= 2 && state.sliceDoc(partStart, to).trim() === "" ? statements : null;
