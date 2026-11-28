@@ -948,6 +948,8 @@ vi.mock("@/lib/clipboard", () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
 }));
 
+const draftEditorOverride = vi.hoisted(() => ({ current: null as { detached: boolean; stale: boolean } | null }));
+
 vi.mock("@/components/query/sql-code-editor", () => ({
   SqlCodeEditor: ({
     value,
@@ -957,6 +959,7 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     disabled,
     themePreference,
     height,
+    onEditorView,
   }: {
     value: string;
     onChange: (v: string) => void;
@@ -965,8 +968,15 @@ vi.mock("@/components/query/sql-code-editor", () => ({
     disabled?: boolean;
     themePreference?: string;
     height?: number;
+    onEditorView?: (view: { dom: HTMLElement; state: { doc: { toString(): string } } }) => void;
   }) => (
     <textarea
+      ref={(element) => {
+        const override = draftEditorOverride.current;
+        if (!element || !override) return;
+        onEditorView?.({ dom: override.detached ? document.createElement("div") : element,
+          state: { doc: { toString: () => override.stale ? "SELECT 99;" : value } } });
+      }}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
@@ -2993,12 +3003,21 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
   });
 
-  it("refuses a draft download when the visible editor is not ready", async () => {
+  it.each(["missing", "detached", "stale"] as const)("refuses a draft download when the editor is %s", async (state) => {
     const user = userEvent.setup();
-    renderReady();
-    await user.click(screen.getByRole("button", { name: "Download SQL draft" }));
-    expect(screen.getByText("The SQL draft could not be downloaded. Check the active worksheet and try again.")).toBeVisible();
-    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+    const createObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL });
+    draftEditorOverride.current = state === "missing" ? null : { detached: state === "detached", stale: state === "stale" };
+    try {
+      renderReady();
+      await user.click(screen.getByRole("button", { name: "Download SQL draft" }));
+      expect(screen.getByText("The SQL draft could not be downloaded. Check the active worksheet and try again.")).toBeVisible();
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+    } finally {
+      draftEditorOverride.current = null;
+      vi.unstubAllGlobals();
+    }
   });
 
   it("hides Explain and SQL download in template mode so placeholder SQL stays in the editor", async () => {
