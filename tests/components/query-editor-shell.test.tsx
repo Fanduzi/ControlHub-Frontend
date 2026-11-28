@@ -2993,6 +2993,14 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
   });
 
+  it("refuses a draft download when the visible editor is not ready", async () => {
+    const user = userEvent.setup();
+    renderReady();
+    await user.click(screen.getByRole("button", { name: "Download SQL draft" }));
+    expect(screen.getByText("The SQL draft could not be downloaded. Check the active worksheet and try again.")).toBeVisible();
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+
   it("hides Explain and SQL download in template mode so placeholder SQL stays in the editor", async () => {
     const user = userEvent.setup();
     renderReady(buildReadyTarget({

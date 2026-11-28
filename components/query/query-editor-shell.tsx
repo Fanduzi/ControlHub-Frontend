@@ -491,6 +491,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const isNativeCommandTarget = isRedisTarget || worksheetTarget?.capability.editorMode === "mongo";
   const worksheetTabs = isNativeCommandTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
   const displayedTab = isNativeCommandTarget && activeTab === "savedStatements" ? "worksheet" : activeTab;
+  // Saving the visible draft is independent of server availability and result export.
   const showSqlDraftDownload = showSqlFilePicker && displayedTab === "worksheet" && isOrdinarySqlDraft(activeWorksheet);
 
   function activeMaxRowsDraftIsValid(): boolean {

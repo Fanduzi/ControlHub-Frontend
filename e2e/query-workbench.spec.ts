@@ -503,9 +503,9 @@ test.describe("Query Workbench shell", () => {
       res.url().endsWith("/query-workspace") && res.request().postDataJSON().worksheets.some((w: { statement: string }) => w.statement === statement));
     await clearAndType(page, statement);
     expect((await synced).status()).toBe(200);
-    const apiRequests: string[] = [];
+    const httpRequests: string[] = [];
     const capture = (req: PlaywrightRequest) => {
-      if (/^\/(api\/proxy\/|__api\/)/.test(new URL(req.url()).pathname)) apiRequests.push(req.url());
+      if (/^https?:\/\//.test(req.url())) httpRequests.push(req.url());
     };
     page.on("request", capture);
     const [download] = await Promise.all([
@@ -517,7 +517,7 @@ test.describe("Query Workbench shell", () => {
     if (!filePath) throw new Error("Expected a local SQL download");
     const bytes = await readFile(filePath);
     expect(bytes).toEqual(Buffer.from(statement, "utf8"));
-    expect(apiRequests).toEqual([]);
+    expect(httpRequests).toEqual([]);
     page.off("request", capture);
 
     const tabs = page.getByRole("tablist", { name: "Worksheet", exact: true });
