@@ -1875,7 +1875,7 @@
     "batch": {
       "run": "Run selected batch",
       "selectionHint": "Select 2–5 complete statements ending in semicolons, up to 16 KiB. Ambiguous selections cannot run as a batch.",
-      "clickHouseSelectionHint": "Select 2–5 complete statements ending in semicolons, up to 8 KiB each and 16 KiB total. Batch Run does not support block comments, # or // comments, or dollar-quoted text.",
+      "clickHouseSelectionHint": "Select 2–5 complete statements ending in semicolons, up to 8 KiB each and 16 KiB total. Batch Run is unavailable if the draft contains /*, //, #, or $.",
       "results": "Batch results",
       "statement": "Statement {number}",
       "firstPage": "Only the first delivered page of each statement is available in batch results.",

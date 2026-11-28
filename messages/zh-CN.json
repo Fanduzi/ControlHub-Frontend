@@ -1875,7 +1875,7 @@
     "batch": {
       "run": "运行选中批次",
       "selectionHint": "请选择 2–5 条以分号结尾的完整语句，最多 16 KiB。边界不明确的选区不能批量运行。",
-      "clickHouseSelectionHint": "请选择 2–5 条以分号结尾的完整语句，每条最多 8 KiB，总计最多 16 KiB。批次不支持块注释、# 或 // 注释及美元符号引用文本。",
+      "clickHouseSelectionHint": "请选择 2–5 条以分号结尾的完整语句，每条最多 8 KiB，总计最多 16 KiB。草稿含 /*、//、# 或 $ 时不可运行批次。",
       "results": "批次结果",
       "statement": "语句 {number}",
       "firstPage": "批次结果只保留每条语句交付的第一页。",
