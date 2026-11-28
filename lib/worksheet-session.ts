@@ -607,7 +607,7 @@ export class WorksheetSession {
     readonly statement: string;
     readonly activeDatabase: string | null;
     readonly activeSchema?: string | null;
-  }, enforceWorkspaceBudget = false): Worksheet | null {
+  }, options?: { readonly enforceWorkspaceBudget: boolean }): Worksheet | null {
     const next = this.newWorksheet(input.targetId);
     if (!next) return null;
     const worksheet: Worksheet = {
@@ -620,7 +620,7 @@ export class WorksheetSession {
         : {}),
       isDirty: true,
     };
-    if (enforceWorkspaceBudget && !workspaceSnapshotFits([...this.persistedSnapshot(), this.persistedWorksheet(worksheet)])) return null;
+    if (options?.enforceWorkspaceBudget && !workspaceSnapshotFits([...this.persistedSnapshot(), this.persistedWorksheet(worksheet)])) return null;
     return this.appendWorksheet(worksheet, next.index);
   }
 

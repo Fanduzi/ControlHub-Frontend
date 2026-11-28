@@ -117,6 +117,13 @@ import {
   type RelatedRecordsState,
 } from "@/lib/worksheet-session";
 
+type SqlFileNotice = SqlFileError | "context" | "capacity" | "opened";
+
+function sqlFileScope(worksheet: Worksheet): string {
+  const { id, targetResourceId, activeDatabase, activeSchema } = worksheet;
+  return JSON.stringify([id, targetResourceId, activeDatabase, activeSchema]);
+}
+
 type QueryEditorShellProps = {
   clickHouseCatalog?: ClickHouseWorksheetCatalog;
   targets: QueryTarget[];
@@ -210,10 +217,16 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const [workspaceProblem, setWorkspaceProblem] = useState<"load" | "save" | null>(null);
   const [workspaceConflict, setWorkspaceConflict] = useState(false);
   const [worksheetLimitReached, setWorksheetLimitReached] = useState(false);
-  const [sqlFileNotice, setSqlFileNotice] = useState<SqlFileError | "context" | "capacity" | "opened" | null>(null);
+  const [sqlFileNotice, setSqlFileNotice] = useState<{ kind: SqlFileNotice; scope: string } | null>(null);
   const [isReadingSqlFile, setIsReadingSqlFile] = useState(false);
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
-  const sqlFileScopeRef = useRef<Pick<Worksheet, "id" | "targetResourceId" | "activeDatabase" | "activeSchema"> | null>(null);
+  const sqlFileRequestRef = useRef<{ scope: string; invalidated: boolean; reading: boolean } | null>(null);
+  useEffect(() => session.subscribe(() => {
+    const request = sqlFileRequestRef.current;
+    const scope = sqlFileScope(session.active);
+    if (request && request.scope !== scope) request.invalidated = true;
+    setSqlFileNotice((notice) => notice?.scope === scope ? notice : null);
+  }), [session]);
   const [historyRestoreError, setHistoryRestoreError] = useState<string | null>(null);
   const [isRestoringHistoryStatement, setIsRestoringHistoryStatement] = useState(false);
   const savedWorkspaceSignatureRef = useRef<string | null>(null);
@@ -483,34 +496,43 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     if (worksheetTarget?.connectionContext.engine === "clickhouse") setActiveTab("worksheet");
   }
 
+  function showSqlFileNotice(kind: SqlFileNotice) {
+    setSqlFileNotice({ kind, scope: sqlFileScope(session.active) });
+  }
+
   function chooseSqlFile() {
-    if (!canOpenSqlFile || isReadingSqlFile) return;
+    if (!canOpenSqlFile || sqlFileRequestRef.current?.reading) return;
     if (session.list.length >= MAX_WORKSHEETS) {
       setWorksheetLimitReached(true);
       return;
     }
-    const { id, targetResourceId, activeDatabase, activeSchema } = session.active;
-    sqlFileScopeRef.current = { id, targetResourceId, activeDatabase, activeSchema };
+    sqlFileRequestRef.current = { scope: sqlFileScope(session.active), invalidated: false, reading: false };
     setSqlFileNotice(null);
     sqlFileInputRef.current?.click();
   }
 
   async function openSqlFile(file: File) {
-    const source = sqlFileScopeRef.current;
-    sqlFileScopeRef.current = null;
-    if (!source) return;
+    const request = sqlFileRequestRef.current;
+    if (!request || request.reading) return;
+    const source = session.active;
+    const scopeUnchanged = () => sqlFileAllowedRef.current && !request.invalidated && request.scope === sqlFileScope(session.active);
+    if (!scopeUnchanged()) {
+      sqlFileRequestRef.current = null;
+      showSqlFileNotice("context");
+      return;
+    }
+    request.reading = true;
     setIsReadingSqlFile(true);
     const result = await readWorksheetSqlFile(file);
     if (!persistAliveRef.current) return;
+    sqlFileRequestRef.current = null;
     setIsReadingSqlFile(false);
-    const current = session.active;
-    if (!sqlFileAllowedRef.current || current.id !== source.id || current.targetResourceId !== source.targetResourceId ||
-      current.activeDatabase !== source.activeDatabase || current.activeSchema !== source.activeSchema) {
-      setSqlFileNotice("context");
+    if (!scopeUnchanged()) {
+      showSqlFileNotice("context");
       return;
     }
     if ("error" in result) {
-      setSqlFileNotice(result.error);
+      showSqlFileNotice(result.error);
       return;
     }
     if (session.list.length >= MAX_WORKSHEETS) {
@@ -518,13 +540,13 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
       return;
     }
     if (!session.restoreDraft({ targetId: source.targetResourceId, statement: result.statement,
-      activeDatabase: source.activeDatabase, activeSchema: source.activeSchema }, true)) {
-      setSqlFileNotice("capacity");
+      activeDatabase: source.activeDatabase, activeSchema: source.activeSchema }, { enforceWorkspaceBudget: true })) {
+      showSqlFileNotice("capacity");
       return;
     }
     localWorkspaceChangedRef.current = true;
     setActiveTab("worksheet");
-    setSqlFileNotice("opened");
+    showSqlFileNotice("opened");
   }
 
   function addWorksheet() {
@@ -1115,9 +1137,9 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
           {t("workspace.limitReached")}
         </p>
       ) : null}
-      {sqlFileNotice && (
-        <p role={sqlFileNotice === "opened" ? "status" : "alert"} className="border-b border-border px-3 py-2 text-sm text-muted-foreground">
-          {t(`sqlFile.${sqlFileNotice}`)}
+      {sqlFileNotice?.scope === sqlFileScope(activeWorksheet) && (
+        <p role={sqlFileNotice.kind === "opened" ? "status" : "alert"} className="border-b border-border px-3 py-2 text-sm text-muted-foreground">
+          {t(`sqlFile.${sqlFileNotice.kind}`)}
         </p>
       )}
       <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1">
@@ -1215,7 +1237,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
                 const file = event.currentTarget.files?.length === 1 ? event.currentTarget.files[0] : null;
                 event.currentTarget.value = "";
                 if (file) void openSqlFile(file);
-                else sqlFileScopeRef.current = null;
+                else if (!sqlFileRequestRef.current?.reading) sqlFileRequestRef.current = null;
               }} />
           </>
         )}

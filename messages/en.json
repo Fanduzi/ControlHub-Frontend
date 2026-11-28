@@ -1880,8 +1880,8 @@
       "size": "Choose a SQL file no larger than 16 KiB.",
       "text": "Choose a non-empty UTF-8 SQL file without hidden control characters.",
       "read": "Could not read the file. Try opening it again.",
-      "context": "The active worksheet changed. Open the file again in the intended worksheet.",
-      "capacity": "This draft would exceed the workspace storage limit. Shorten or close an existing draft first."
+      "context": "The worksheet or workspace changed. Open the file again in the intended worksheet.",
+      "capacity": "The workspace would exceed its save limits. Shorten or close an existing draft first."
     },
     "batch": {
       "run": "Run selected batch",

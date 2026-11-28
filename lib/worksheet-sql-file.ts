@@ -1,5 +1,6 @@
 import type { QueryWorkspaceWorksheet } from "@/types/query-workspace";
 
+// Match backend MaxSavedStatementSize and MaxQueryWorkspaceJSONSize.
 const MAX_SQL_DRAFT_BYTES = 16 * 1024;
 const MAX_WORKSPACE_BYTES = 256 * 1024;
 const utf8 = new TextEncoder();
@@ -22,7 +23,7 @@ export async function readWorksheetSqlFile(file: Pick<File, "name" | "size" | "a
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     // Keep editor whitespace, but reject hidden controls that make a draft hard to inspect.
-    if (!text.trim() || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u.test(text)) return { error: "text" };
+    if (!text.trim() || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\p{Cf}\u2028\u2029]/u.test(text)) return { error: "text" };
     return { statement: text.replace(/\r\n?/g, "\n") };
   } catch {
     return { error: "text" };

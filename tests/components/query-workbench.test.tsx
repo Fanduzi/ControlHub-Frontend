@@ -132,6 +132,7 @@ import {
   QueryExecuteError,
 } from "@/services/query-executions";
 import { getQueryTargets } from "@/services/query-targets";
+import { getQueryWorkspace, putQueryWorkspace } from "@/services/query-workspace";
 import { getSchemaDatabases, getSchemaObjects, getObjectDetails } from "@/services/query-schema";
 import { buildQueryTarget, type DeepPartial } from "@/tests/fixtures/query-targets";
 import type { QueryTarget } from "@/types/query-target";
@@ -1462,6 +1463,7 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
     expect(screen.queryByText("untrusted.sql")).toBeNull();
     await user.click(screen.getByRole("tab", { name: /^Worksheet 1$/ }));
+    expect(screen.queryByText("Opened in a new worksheet. Nothing was run.")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
   });
 
@@ -1477,10 +1479,31 @@ describe("QueryWorkbench target switching (ready targets)", () => {
     await chooseFile(user);
     fireEvent.change(screen.getByTestId("worksheet-sql-file"), { target: { files: [file] } });
     await pickTarget(user, /Staging MySQL/);
+    await user.click(screen.getByRole("tab", { name: /^Worksheet 1$/ }));
     await act(async () => deliver(new TextEncoder().encode(sql).buffer));
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
-    expect(screen.getByText("The active worksheet changed. Open the file again in the intended worksheet.")).toBeVisible();
+    expect(screen.getByText("The worksheet or workspace changed. Open the file again in the intended worksheet.")).toBeVisible();
     expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
+
+  it("does not open or save a SQL file that would exceed the workspace limit", async () => {
+    const user = userEvent.setup();
+    vi.mocked(putQueryWorkspace).mockClear();
+    const large = "<>&".repeat(5461);
+    vi.mocked(getQueryWorkspace).mockResolvedValueOnce({
+      version: 1, updatedAt: "2026-08-30T00:00:00Z",
+      worksheets: [1, 2].map((n) => ({ id: `existing-${n}`, name: `Existing ${n}`, targetResourceId: TARGET_A_ID, activeDatabase: null, statement: large })),
+    });
+    renderWithTargets();
+    const file = new File([large], "capacity.sql");
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode(large).buffer });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open SQL file" })).toBeEnabled());
+    await chooseFile(user);
+    fireEvent.change(screen.getByTestId("worksheet-sql-file"), { target: { files: [file] } });
+    await expect(screen.findByText("The workspace would exceed its save limits. Shorten or close an existing draft first.")).resolves.toBeVisible();
+    expect(within(screen.getByRole("tablist", { name: "Worksheet" })).getAllByRole("tab")).toHaveLength(2);
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue(large);
+    expect(putQueryWorkspace).not.toHaveBeenCalled();
   });
 });
 

@@ -480,7 +480,9 @@ test.describe("Query Workbench shell", () => {
     await expect(tabs.getByRole("tab")).toHaveCount(beforeCount + 1);
     await expect.poll(async () => (await getEditorContent(page)).includes("<strong>literal</strong>")).toBe(true);
     await expect(page.locator(".cm-content strong")).toHaveCount(0);
-    expect((await synced).status()).toBe(200);
+    const workspaceSave = await synced;
+    expect(workspaceSave.status()).toBe(200);
+    expect(workspaceSave.request().postData()).not.toContain("untrusted.sql");
     expect(runs).toEqual([]);
     await clearAndType(page, "SELECT 43 AS imported_value;");
     await page.getByRole("button", { name: "Run", exact: true }).click();

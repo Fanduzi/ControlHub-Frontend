@@ -29,7 +29,7 @@ describe("worksheet .sql file", () => {
     expect(await readWorksheetSqlFile(pick(Uint8Array.of(0xc3, 0x28)))).toEqual({ error: "text" });
   });
 
-  it.each([" \n\t", "SELECT\u00001;", "SELECT '\u202e'", "SELECT '\u001b'"])("rejects blank and control-laden content", async (sql) => {
+  it.each([" \n\t", "SELECT\u00001;", "SELECT '\u202e'", "SELECT '\u001b'", "SELECT '\u200b'"])("rejects blank and control-laden content", async (sql) => {
     expect(await readWorksheetSqlFile(pick(utf8.encode(sql)))).toEqual({ error: "text" });
   });
 
@@ -50,9 +50,9 @@ it("reserves the actual server JSON byte budget, including Go's HTML-safe charac
   const session = new WorksheetSession({ initialTargetId: 1, engineFor: () => "postgresql" });
   session.hydrate(existing.slice(0, 2), 1);
   const before = session.persistedSnapshot();
-  expect(session.restoreDraft({ targetId: 1, activeDatabase: "labdb", statement: existing[2]!.statement }, true)).toBeNull();
+  expect(session.restoreDraft({ targetId: 1, activeDatabase: "labdb", statement: existing[2]!.statement }, { enforceWorkspaceBudget: true })).toBeNull();
   expect(session.persistedSnapshot()).toEqual(before);
   expect(session.activeId).toBe("0");
-  const draft = session.restoreDraft({ targetId: 1, activeDatabase: "labdb", activeSchema: "analytics", statement: "SELECT 1;" }, true);
+  const draft = session.restoreDraft({ targetId: 1, activeDatabase: "labdb", activeSchema: "analytics", statement: "SELECT 1;" }, { enforceWorkspaceBudget: true });
   expect(draft).toMatchObject({ activeDatabase: "labdb", activeSchema: "analytics", result: null, isExecuting: false });
 });
