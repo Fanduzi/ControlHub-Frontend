@@ -1,8 +1,3 @@
--- input: psql -v ro_password=... -f e2e/pg-fixture-seed.sql as superuser inside the disposable PG container (scripts/e2e/pg-fixture-up.sh)
--- output: databases labdb/labdb_other, role ro_user (SELECT-only, per-run password), schemas/tables/data/grants required by e2e/query-workbench-pg.spec.ts
--- pos: deterministic reproduction of the verified local PG fixture (chub-pg-lab) — same objects, rows, and grants the 218-suite runs against; runs once per disposable container
--- note: if this file changes, update e2e/README.md; no secrets live here — the ro_user password arrives via the :ro_password psql variable
-
 -- ── Role + databases (cluster scope) ──────────────────────────────────
 DROP DATABASE IF EXISTS labdb;
 DROP DATABASE IF EXISTS labdb_other;
