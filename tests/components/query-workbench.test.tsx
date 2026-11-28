@@ -1443,6 +1443,45 @@ describe("QueryWorkbench target switching (ready targets)", () => {
 
     expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
   });
+
+  function chooseFile(user: ReturnType<typeof userEvent.setup>) {
+    return user.click(screen.getByRole("button", { name: "Open SQL file" }));
+  }
+
+  it("imports a SQL file as plain text without running or overwriting the source worksheet", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockClear();
+    renderWithTargets();
+    const draft = "-- <strong>literal</strong>\nselect 2";
+    const file = new File([draft], "untrusted.sql", { type: "text/html" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode(draft).buffer });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open SQL file" })).toBeEnabled());
+    await chooseFile(user);
+    fireEvent.change(screen.getByTestId("worksheet-sql-file"), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue(draft));
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+    expect(screen.queryByText("untrusted.sql")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: /^Worksheet 1$/ }));
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+  });
+
+  it("ignores a delayed SQL file import after switching targets", async () => {
+    const user = userEvent.setup();
+    mockExecuteQueryTarget.mockClear();
+    renderWithTargets();
+    const sql = "select 99";
+    let deliver!: (data: ArrayBuffer) => void;
+    const file = new File([sql], "delayed.sql");
+    Object.defineProperty(file, "arrayBuffer", { value: () => new Promise<ArrayBuffer>((resolve) => { deliver = resolve; }) });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open SQL file" })).toBeEnabled());
+    await chooseFile(user);
+    fireEvent.change(screen.getByTestId("worksheet-sql-file"), { target: { files: [file] } });
+    await pickTarget(user, /Staging MySQL/);
+    await act(async () => deliver(new TextEncoder().encode(sql).buffer));
+    expect(screen.getByRole("textbox", { name: /statement/i })).toHaveValue("select 1");
+    expect(screen.getByText("The active worksheet changed. Open the file again in the intended worksheet.")).toBeVisible();
+    expect(mockExecuteQueryTarget).not.toHaveBeenCalled();
+  });
 });
 
 describe("QueryWorkbench target picker search", () => {

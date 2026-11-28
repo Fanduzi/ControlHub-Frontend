@@ -1872,6 +1872,17 @@
       "cancel": "Cancel",
       "confirm": "Close worksheet"
     },
+    "sqlFile": {
+      "open": "Open SQL file",
+      "hint": "Open a UTF-8 .sql file up to 16 KiB in a new draft. Drafts sync to your workspace. Nothing runs automatically.",
+      "opened": "Opened in a new worksheet. Nothing was run.",
+      "type": "Choose a .sql file.",
+      "size": "Choose a SQL file no larger than 16 KiB.",
+      "text": "Choose a non-empty UTF-8 SQL file without hidden control characters.",
+      "read": "Could not read the file. Try opening it again.",
+      "context": "The active worksheet changed. Open the file again in the intended worksheet.",
+      "capacity": "This draft would exceed the workspace storage limit. Shorten or close an existing draft first."
+    },
     "batch": {
       "run": "Run selected batch",
       "selectionHint": "Select 2–5 complete statements ending in semicolons, up to 16 KiB. Ambiguous selections cannot run as a batch.",

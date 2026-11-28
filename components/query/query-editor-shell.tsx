@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { ArrowDown, ArrowDownUp, ArrowUp, Check, ChevronDown, ChevronRight, Copy, Download, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Check, ChevronDown, ChevronRight, Copy, Download, FileUp, ListTree, Lock, Play, SearchCode, TriangleAlert } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 
 import type { QueryTarget } from "@/types/query-target";
@@ -78,6 +78,7 @@ import {
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
+import { readWorksheetSqlFile, type SqlFileError } from "@/lib/worksheet-sql-file";
 import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
 import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
 import {
@@ -108,6 +109,7 @@ import {
   MAX_WORKSHEETS,
   WorksheetSession,
   useWorksheetSessionVersion,
+  type Worksheet,
   type WorksheetBatchResult,
   type CancellationState,
   type ExplainState,
@@ -208,6 +210,10 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const [workspaceProblem, setWorkspaceProblem] = useState<"load" | "save" | null>(null);
   const [workspaceConflict, setWorkspaceConflict] = useState(false);
   const [worksheetLimitReached, setWorksheetLimitReached] = useState(false);
+  const [sqlFileNotice, setSqlFileNotice] = useState<SqlFileError | "context" | "capacity" | "opened" | null>(null);
+  const [isReadingSqlFile, setIsReadingSqlFile] = useState(false);
+  const sqlFileInputRef = useRef<HTMLInputElement>(null);
+  const sqlFileScopeRef = useRef<Pick<Worksheet, "id" | "targetResourceId" | "activeDatabase" | "activeSchema"> | null>(null);
   const [historyRestoreError, setHistoryRestoreError] = useState<string | null>(null);
   const [isRestoringHistoryStatement, setIsRestoringHistoryStatement] = useState(false);
   const savedWorkspaceSignatureRef = useRef<string | null>(null);
@@ -443,6 +449,13 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const worksheetTarget = targetsById.get(activeWorksheet.targetResourceId) ?? null;
   const actions = worksheetTarget?.availableActions;
   const canExecute = actions?.run === true;
+  const worksheetEngine = worksheetTarget?.connectionContext.engine;
+  const showSqlFilePicker = worksheetEngine === "mysql" || worksheetEngine === "postgresql" ||
+    worksheetEngine === "tidb" || worksheetEngine === "clickhouse";
+  const canOpenSqlFile = showSqlFilePicker && workspaceVersion !== null && !workspaceProblem && !workspaceConflict;
+  const sqlFileAllowedRef = useRef(canOpenSqlFile);
+  sqlFileAllowedRef.current = canOpenSqlFile;
+  const sqlFileHintId = useId();
   const isRedisTarget = worksheetTarget?.capability.editorMode === "redis";
   const isNativeCommandTarget = isRedisTarget || worksheetTarget?.capability.editorMode === "mongo";
   const worksheetTabs = isNativeCommandTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
@@ -468,6 +481,50 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
     localWorkspaceChangedRef.current = true;
     session.loadSavedStatement(item);
     if (worksheetTarget?.connectionContext.engine === "clickhouse") setActiveTab("worksheet");
+  }
+
+  function chooseSqlFile() {
+    if (!canOpenSqlFile || isReadingSqlFile) return;
+    if (session.list.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
+    const { id, targetResourceId, activeDatabase, activeSchema } = session.active;
+    sqlFileScopeRef.current = { id, targetResourceId, activeDatabase, activeSchema };
+    setSqlFileNotice(null);
+    sqlFileInputRef.current?.click();
+  }
+
+  async function openSqlFile(file: File) {
+    const source = sqlFileScopeRef.current;
+    sqlFileScopeRef.current = null;
+    if (!source) return;
+    setIsReadingSqlFile(true);
+    const result = await readWorksheetSqlFile(file);
+    if (!persistAliveRef.current) return;
+    setIsReadingSqlFile(false);
+    const current = session.active;
+    if (!sqlFileAllowedRef.current || current.id !== source.id || current.targetResourceId !== source.targetResourceId ||
+      current.activeDatabase !== source.activeDatabase || current.activeSchema !== source.activeSchema) {
+      setSqlFileNotice("context");
+      return;
+    }
+    if ("error" in result) {
+      setSqlFileNotice(result.error);
+      return;
+    }
+    if (session.list.length >= MAX_WORKSHEETS) {
+      setWorksheetLimitReached(true);
+      return;
+    }
+    if (!session.restoreDraft({ targetId: source.targetResourceId, statement: result.statement,
+      activeDatabase: source.activeDatabase, activeSchema: source.activeSchema }, true)) {
+      setSqlFileNotice("capacity");
+      return;
+    }
+    localWorkspaceChangedRef.current = true;
+    setActiveTab("worksheet");
+    setSqlFileNotice("opened");
   }
 
   function addWorksheet() {
@@ -1058,6 +1115,11 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
           {t("workspace.limitReached")}
         </p>
       ) : null}
+      {sqlFileNotice && (
+        <p role={sqlFileNotice === "opened" ? "status" : "alert"} className="border-b border-border px-3 py-2 text-sm text-muted-foreground">
+          {t(`sqlFile.${sqlFileNotice}`)}
+        </p>
+      )}
       <div className="flex items-center gap-1 border-b border-border bg-muted/30 px-2 py-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label={t("editor.worksheetTab")}>
           {worksheets.map((ws) => (
@@ -1139,6 +1201,24 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
         >
           +
         </button>
+        {showSqlFilePicker && (
+          <>
+            <span id={sqlFileHintId} className="sr-only">{t("sqlFile.hint")}</span>
+            <Button type="button" variant="ghost" size="sm" className="shrink-0"
+              aria-label={t("sqlFile.open")} aria-describedby={sqlFileHintId} title={t("sqlFile.hint")}
+              disabled={!canOpenSqlFile || isReadingSqlFile} onClick={chooseSqlFile}>
+              <FileUp aria-hidden="true" />
+              <span className="hidden sm:inline">{t("sqlFile.open")}</span>
+            </Button>
+            <input ref={sqlFileInputRef} type="file" accept=".sql" hidden data-testid="worksheet-sql-file"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.length === 1 ? event.currentTarget.files[0] : null;
+                event.currentTarget.value = "";
+                if (file) void openSqlFile(file);
+                else sqlFileScopeRef.current = null;
+              }} />
+          </>
+        )}
         {renamingWorksheetId === null ? (
           <>
             <button

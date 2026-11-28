@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { EditorState } from "@codemirror/state";
 import { normalizeExecuteResponse } from "@/lib/query-result-envelope";
 import { selectedSqlBatchStatements } from "@/lib/sql-run-scope";
+import { workspaceSnapshotFits } from "@/lib/worksheet-sql-file";
 
 import {
   executeQueryTarget,
@@ -504,16 +505,22 @@ export class WorksheetSession {
   }
 
   add(targetResourceId: number): Worksheet | null {
+    const next = this.newWorksheet(targetResourceId);
+    return next ? this.appendWorksheet(next.worksheet, next.index) : null;
+  }
+
+  private newWorksheet(targetResourceId: number): { worksheet: Worksheet; index: number } | null {
     if (this.worksheets.length >= MAX_WORKSHEETS) return null;
+    let index = this.nextIndex;
     let name: string;
     do {
-      this.nextIndex += 1;
-      if (!Number.isSafeInteger(this.nextIndex)) this.nextIndex = 0;
-      name = this.worksheetName(this.nextIndex);
+      index += 1;
+      if (!Number.isSafeInteger(index)) index = 0;
+      name = this.worksheetName(index);
     } while (this.worksheets.some((ws) => ws.name === name));
     const unique = this.createId();
     const worksheet = createWorksheetRecord(
-      `worksheet-${this.nextIndex}-${unique}`,
+      `worksheet-${index}-${unique}`,
       name,
       targetResourceId,
       `req-${unique}`,
@@ -521,20 +528,23 @@ export class WorksheetSession {
       this.active.pageSize,
       this.defaultStatementFor(targetResourceId),
     );
+    return { worksheet, index };
+  }
+
+  private appendWorksheet(worksheet: Worksheet, index: number): Worksheet {
+    this.nextIndex = index;
     this.worksheets = [...this.worksheets, worksheet];
     this.activate(worksheet.id);
     return worksheet;
   }
 
+  private persistedWorksheet(worksheet: Worksheet): QueryWorkspaceWorksheet {
+    const { id, name, targetResourceId, statement, activeDatabase, activeSchema } = worksheet;
+    return { id, name, targetResourceId, statement, activeDatabase, activeSchema };
+  }
+
   persistedSnapshot(): readonly QueryWorkspaceWorksheet[] {
-    return this.worksheets.map((worksheet) => ({
-      id: worksheet.id,
-      name: worksheet.name,
-      targetResourceId: worksheet.targetResourceId,
-      statement: worksheet.statement,
-      activeDatabase: worksheet.activeDatabase,
-      activeSchema: worksheet.activeSchema,
-    }));
+    return this.worksheets.map((worksheet) => this.persistedWorksheet(worksheet));
   }
 
   hydrate(
@@ -597,10 +607,11 @@ export class WorksheetSession {
     readonly statement: string;
     readonly activeDatabase: string | null;
     readonly activeSchema?: string | null;
-  }): Worksheet | null {
-    const worksheet = this.add(input.targetId);
-    if (!worksheet) return null;
-    this.patch(worksheet.id, {
+  }, enforceWorkspaceBudget = false): Worksheet | null {
+    const next = this.newWorksheet(input.targetId);
+    if (!next) return null;
+    const worksheet: Worksheet = {
+      ...next.worksheet,
       statement: input.statement,
       activeDatabase: input.activeDatabase,
       activeSchema: input.activeSchema ?? null,
@@ -608,8 +619,9 @@ export class WorksheetSession {
         ? { history: createHistoryState(input.targetId, input.activeDatabase) }
         : {}),
       isDirty: true,
-    });
-    return this.active;
+    };
+    if (enforceWorkspaceBudget && !workspaceSnapshotFits([...this.persistedSnapshot(), this.persistedWorksheet(worksheet)])) return null;
+    return this.appendWorksheet(worksheet, next.index);
   }
 
   close(id: string): void {

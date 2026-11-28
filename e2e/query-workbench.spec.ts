@@ -447,6 +447,49 @@ test.describe("Query Workbench shell", () => {
     expect(JSON.parse(postedBodies[1]!).statement).toBe("SELECT 1 AS a;");
   });
 
+  test("opens a local SQL file as a new draft and only runs it after an explicit Run", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const readyIndex = await findReadyOptionIndex(page);
+    if (readyIndex === null) throw new Error("SQL file test requires a runnable SQL fixture target");
+    await selectConnectionTarget(page, readyIndex);
+    const executeUrl = await exactExecuteUrlForActiveTarget(page);
+    const baseline = await getEditorContent(page);
+    const tabs = page.getByRole("tablist", { name: "Worksheet", exact: true });
+    const original = tabs.getByRole("tab", { selected: true });
+    const originalName = (await original.textContent())?.replace("×", "").trim();
+    const beforeCount = await tabs.getByRole("tab").count();
+    const runs: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url() === executeUrl) runs.push(req.postDataJSON().statement);
+    });
+    async function pick(buffer: Buffer) {
+      const pending = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Open SQL file", exact: true }).click();
+      await (await pending).setFiles({ name: "untrusted.sql", mimeType: "application/octet-stream", buffer });
+    }
+    await pick(Buffer.from([0xc3, 0x28]));
+    await expect(page.getByRole("alert").filter({ hasText: /non-empty UTF-8 SQL file/ })).toBeVisible();
+    await expect(tabs.getByRole("tab")).toHaveCount(beforeCount);
+    await expect.poll(() => getEditorContent(page)).toBe(baseline);
+    expect(runs).toEqual([]);
+    const draft = "-- <strong>literal</strong>\nSELECT 42 AS imported_value;";
+    const synced = page.waitForResponse((res) => res.request().method() === "PUT" &&
+      res.url().endsWith("/query-workspace") && res.request().postDataJSON().worksheets.some((w: { statement: string }) => w.statement === draft));
+    await pick(Buffer.from(draft));
+    await expect(page.getByText("Opened in a new worksheet. Nothing was run.")).toBeVisible();
+    await expect(tabs.getByRole("tab")).toHaveCount(beforeCount + 1);
+    await expect.poll(async () => (await getEditorContent(page)).includes("<strong>literal</strong>")).toBe(true);
+    await expect(page.locator(".cm-content strong")).toHaveCount(0);
+    expect((await synced).status()).toBe(200);
+    expect(runs).toEqual([]);
+    await clearAndType(page, "SELECT 43 AS imported_value;");
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.getByRole("gridcell", { name: "43", exact: true })).toBeVisible();
+    expect(runs).toEqual(["SELECT 43 AS imported_value;"]);
+    await tabs.getByRole("tab", { name: originalName, exact: true }).click();
+    await expect.poll(() => getEditorContent(page)).toBe(baseline);
+  });
+
   test("SHOW TABLES is blocked by disclosure policy", async ({ page }) => {
     await openQueryWorkbench(page);
 
