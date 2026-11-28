@@ -7,6 +7,16 @@ const utf8 = new TextEncoder();
 
 export type SqlFileError = "type" | "size" | "text" | "read";
 
+function isSqlFileText(text: string): boolean {
+  // Reject invisible formatting and non-text code points, but keep editor whitespace.
+  return !!text.trim() && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\p{Cf}\p{Cs}\u2028\u2029]/u.test(text);
+}
+
+export function canDownloadWorksheetSql(text: string): boolean {
+  return text.length <= MAX_SQL_DRAFT_BYTES && !text.includes("\r") && isSqlFileText(text) &&
+    utf8.encode(text).length <= MAX_SQL_DRAFT_BYTES;
+}
+
 export async function readWorksheetSqlFile(file: Pick<File, "name" | "size" | "arrayBuffer">): Promise<
   { statement: string } | { error: SqlFileError }
 > {
@@ -22,8 +32,7 @@ export async function readWorksheetSqlFile(file: Pick<File, "name" | "size" | "a
   if (bytes.byteLength > MAX_SQL_DRAFT_BYTES) return { error: "size" };
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    // Keep editor whitespace, but reject hidden controls that make a draft hard to inspect.
-    if (!text.trim() || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\p{Cf}\u2028\u2029]/u.test(text)) return { error: "text" };
+    if (!isSqlFileText(text)) return { error: "text" };
     return { statement: text.replace(/\r\n?/g, "\n") };
   } catch {
     return { error: "text" };

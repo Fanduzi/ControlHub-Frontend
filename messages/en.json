@@ -1874,6 +1874,9 @@
     },
     "sqlFile": {
       "open": "Open SQL file",
+      "download": "Download SQL draft",
+      "downloadHint": "Save the visible SQL draft locally as worksheet.sql, up to 16 KiB. Blank drafts or unsupported control characters cannot be saved.",
+      "downloadUnavailable": "The SQL draft could not be downloaded. Check the active worksheet and try again.",
       "hint": "Open a UTF-8 .sql file up to 16 KiB in a new draft. Drafts sync to your workspace. Nothing runs automatically.",
       "opened": "Opened in a new worksheet. Nothing was run.",
       "type": "Choose a .sql file.",

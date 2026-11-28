@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { readWorksheetSqlFile, workspaceSnapshotFits } from "@/lib/worksheet-sql-file";
+import { canDownloadWorksheetSql, readWorksheetSqlFile, workspaceSnapshotFits } from "@/lib/worksheet-sql-file";
 import { WorksheetSession } from "@/lib/worksheet-session";
 
 function pick(bytes: Uint8Array, name = "draft.sql", size = bytes.byteLength) {
@@ -39,6 +39,19 @@ describe("worksheet .sql file", () => {
     const file = pick(utf8.encode("SELECT 1;"));
     file.arrayBuffer.mockRejectedValueOnce(new Error("disk"));
     expect(await readWorksheetSqlFile(file)).toEqual({ error: "read" });
+  });
+});
+
+describe("downloadable worksheet SQL", () => {
+  it("accepts exact UTF-8 text at the import limit and rejects text that cannot round-trip", async () => {
+    const sql = "-- " + "界".repeat(5460) + "\n;";
+    expect(utf8.encode(sql)).toHaveLength(16385);
+    const fits = sql.slice(1);
+    expect(canDownloadWorksheetSql(fits)).toBe(true);
+    expect(await readWorksheetSqlFile(pick(utf8.encode(fits), "worksheet.sql"))).toEqual({ statement: fits });
+    for (const invalid of [sql, "\t\n ", "SELECT 1;\r\n", "-- \u200b\nSELECT 1;", "-- \ud800\nSELECT 1;"]) {
+      expect(canDownloadWorksheetSql(invalid)).toBe(false);
+    }
   });
 });
 

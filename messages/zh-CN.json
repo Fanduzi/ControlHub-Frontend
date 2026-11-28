@@ -1874,6 +1874,9 @@
     },
     "sqlFile": {
       "open": "打开 SQL 文件",
+      "download": "下载 SQL 草稿",
+      "downloadHint": "将可见 SQL 草稿保存为本地 worksheet.sql，最多 16 KiB。不支持空草稿或含不受支持控制字符的草稿。",
+      "downloadUnavailable": "无法下载 SQL 草稿。请确认当前工作表后重试。",
       "hint": "在新草稿中打开不超过 16 KiB 的 UTF-8 .sql 文件。草稿会同步到工作区，不会自动执行。",
       "opened": "已在新工作表中打开，未执行任何语句。",
       "type": "请选择 .sql 文件。",

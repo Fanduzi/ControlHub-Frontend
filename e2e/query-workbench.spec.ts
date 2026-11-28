@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page, type Request as PlaywrightRequest } from "@playwright/test";
 import { checkBackendHealth } from "./harness/backend-health";
 import { loginViaUI } from "./harness/auth";
@@ -490,6 +491,48 @@ test.describe("Query Workbench shell", () => {
     expect(runs).toEqual(["SELECT 43 AS imported_value;"]);
     await tabs.getByRole("tab", { name: originalName, exact: true }).click();
     await expect.poll(() => getEditorContent(page)).toBe(baseline);
+  });
+
+  test("downloads the visible SQL draft locally and reopens the exact text", async ({ page }) => {
+    await openQueryWorkbench(page);
+    const index = await findReadyOptionIndex(page);
+    if (index === null) throw new Error("SQL file test requires a runnable SQL fixture target");
+    await selectConnectionTarget(page, index);
+    const statement = "-- 例 <strong>literal</strong>\nSELECT 1;\nSELECT 2;";
+    const synced = page.waitForResponse((res) => res.request().method() === "PUT" &&
+      res.url().endsWith("/query-workspace") && res.request().postDataJSON().worksheets.some((w: { statement: string }) => w.statement === statement));
+    await clearAndType(page, statement);
+    expect((await synced).status()).toBe(200);
+    const apiRequests: string[] = [];
+    const capture = (req: PlaywrightRequest) => {
+      if (/^\/(api\/proxy\/|__api\/)/.test(new URL(req.url()).pathname)) apiRequests.push(req.url());
+    };
+    page.on("request", capture);
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Download SQL draft", exact: true }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("worksheet.sql");
+    const filePath = await download.path();
+    if (!filePath) throw new Error("Expected a local SQL download");
+    const bytes = await readFile(filePath);
+    expect(bytes).toEqual(Buffer.from(statement, "utf8"));
+    expect(apiRequests).toEqual([]);
+    page.off("request", capture);
+
+    const tabs = page.getByRole("tablist", { name: "Worksheet", exact: true });
+    const initialTabs = await tabs.getByRole("tab").count();
+    const original = tabs.getByRole("tab", { selected: true });
+    const originalId = await original.getAttribute("id");
+    const pending = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Open SQL file", exact: true }).click();
+    await (await pending).setFiles({ name: download.suggestedFilename(), mimeType: "text/plain", buffer: bytes });
+    await expect(tabs.getByRole("tab")).toHaveCount(initialTabs + 1);
+    await expect.poll(() => page.locator(".cm-line").allTextContents()).toEqual(statement.split("\n"));
+    await clearAndType(page, "SELECT 3;");
+    if (!originalId) throw new Error("Expected the original worksheet tab ID");
+    await page.locator(`[id=${JSON.stringify(originalId)}]`).click();
+    await expect.poll(() => page.locator(".cm-line").allTextContents()).toEqual(statement.split("\n"));
   });
 
   test("SHOW TABLES is blocked by disclosure policy", async ({ page }) => {

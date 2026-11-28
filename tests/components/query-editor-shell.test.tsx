@@ -2993,7 +2993,7 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     expect(screen.getByRole("button", { name: /^run$/i })).toBeEnabled();
   });
 
-  it("hides Explain in template mode so placeholder SQL never reaches the explain route", async () => {
+  it("hides Explain and SQL download in template mode so placeholder SQL stays in the editor", async () => {
     const user = userEvent.setup();
     renderReady(buildReadyTarget({
       availableActions: { run: true, explain: true, export: false, saveSheet: false, requestAccess: false },
@@ -3001,11 +3001,13 @@ describe("Phase 38W-3: template execution through the governed route", () => {
     await loadTemplate(user);
 
     expect(screen.queryByRole("button", { name: /explain/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download SQL draft" })).not.toBeInTheDocument();
 
-    // Exiting template mode (by editing SQL) restores the Explain control.
+    // Exiting template mode (by editing SQL) restores the ordinary controls.
     const editor = screen.getByRole("textbox", { name: /statement/i });
     await user.type(editor, " WHERE 1 = 1");
     expect(screen.getByRole("button", { name: /explain/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Download SQL draft" })).toBeEnabled();
   });
 
   it("editing the SQL exits template mode and restores the ordinary run route", async () => {

@@ -78,7 +78,7 @@ import {
 } from "@/lib/query-editor-preferences";
 import type { QueryEditorThemePreference } from "@/lib/query-editor-preferences";
 import { formatQueryStatement } from "@/lib/query-sql-format";
-import { readWorksheetSqlFile, type SqlFileError } from "@/lib/worksheet-sql-file";
+import { canDownloadWorksheetSql, readWorksheetSqlFile, type SqlFileError } from "@/lib/worksheet-sql-file";
 import { QueryObjectQuickNavigator } from "@/components/query/query-object-quick-navigator";
 import { insertIdentifierAtSelection, objectIdentifier } from "@/lib/query-identifiers";
 import {
@@ -117,7 +117,25 @@ import {
   type RelatedRecordsState,
 } from "@/lib/worksheet-session";
 
-type SqlFileNotice = SqlFileError | "context" | "capacity" | "opened";
+type SqlFileNotice = SqlFileError | "context" | "capacity" | "opened" | "downloadUnavailable";
+
+function isOrdinarySqlDraft(worksheet: Worksheet): boolean {
+  return worksheet.templateStatementId === null && worksheet.parameters.length === 0 && worksheet.previewProvenance === null;
+}
+
+function downloadTextFile(text: string, filename: string, mime: string): void {
+  const anchor = document.createElement("a");
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  try {
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.append(anchor);
+    anchor.click();
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+}
 
 function sqlFileScope(worksheet: Worksheet): string {
   const { id, targetResourceId, activeDatabase, activeSchema } = worksheet;
@@ -473,6 +491,7 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
   const isNativeCommandTarget = isRedisTarget || worksheetTarget?.capability.editorMode === "mongo";
   const worksheetTabs = isNativeCommandTarget ? WORKSHEET_TABS.filter((tab) => tab.id !== "savedStatements") : WORKSHEET_TABS;
   const displayedTab = isNativeCommandTarget && activeTab === "savedStatements" ? "worksheet" : activeTab;
+  const showSqlDraftDownload = showSqlFilePicker && displayedTab === "worksheet" && isOrdinarySqlDraft(activeWorksheet);
 
   function activeMaxRowsDraftIsValid(): boolean {
     if (isRedisTarget) return true;
@@ -498,6 +517,22 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
 
   function showSqlFileNotice(kind: SqlFileNotice) {
     setSqlFileNotice({ kind, scope: sqlFileScope(session.active) });
+  }
+
+  function downloadSqlDraft() {
+    const worksheet = session.active;
+    const view = editorViewRef.current;
+    if (!showSqlDraftDownload || worksheet.id !== activeWorksheetId || !isOrdinarySqlDraft(worksheet)) return;
+    const text = view?.dom.isConnected ? view.state.doc.toString() : null;
+    if (text === null || text !== worksheet.statement || !canDownloadWorksheetSql(text)) {
+      showSqlFileNotice("downloadUnavailable");
+      return;
+    }
+    try {
+      downloadTextFile(text, "worksheet.sql", "text/plain;charset=utf-8");
+    } catch {
+      showSqlFileNotice("downloadUnavailable");
+    }
   }
 
   function chooseSqlFile() {
@@ -1240,6 +1275,14 @@ export function QueryEditorShell({ clickHouseCatalog, targets, activeTarget, tar
                 else if (!sqlFileRequestRef.current?.reading) sqlFileRequestRef.current = null;
               }} />
           </>
+        )}
+        {showSqlDraftDownload && (
+          <Button type="button" variant="ghost" size="sm" className="shrink-0"
+            aria-label={t("sqlFile.download")} title={t("sqlFile.downloadHint")}
+            disabled={!canDownloadWorksheetSql(activeWorksheet.statement)} onClick={downloadSqlDraft}>
+            <Download aria-hidden="true" />
+            <span className="hidden sm:inline">{t("sqlFile.download")}</span>
+          </Button>
         )}
         {renamingWorksheetId === null ? (
           <>
@@ -3141,17 +3184,7 @@ function ResultTable({
       return;
     }
     const mime = format === "csv" ? "text/csv;charset=utf-8" : "application/json;charset=utf-8";
-    const url = URL.createObjectURL(new Blob([text], { type: mime }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `query-results.${format}`;
-    document.body.append(anchor);
-    try {
-      anchor.click();
-    } finally {
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    }
+    downloadTextFile(text, `query-results.${format}`, mime);
   }
 
   async function handleCopy(format: "tsv" | "markdown" = "tsv") {
