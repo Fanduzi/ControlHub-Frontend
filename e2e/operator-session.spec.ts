@@ -575,16 +575,19 @@ test.describe("Operator session BFF boundary (38X-1C)", () => {
     // in the default zh-CN — match both locales.
     await expect(page.getByText(/session ended|会话已结束/i)).toBeVisible();
     const parts = valid!.value.split(".");
+    expect(parts.length).toBe(5);
     // Change the decoded fixture ciphertext: replacing a fixed suffix can be a no-op.
     const ciphertext = Buffer.from(parts[3]!, "base64url");
     expect(ciphertext.length).toBeGreaterThan(0);
     ciphertext[0] = ciphertext[0]! ^ 1;
     parts[3] = ciphertext.toString("base64url");
+    const tampered = parts.join(".");
+    expect(tampered !== valid!.value, "fixture cookie must differ without logging it").toBe(true);
     await context.clearCookies();
     await context.addCookies([
       {
         name: SESSION_COOKIE,
-        value: parts.join("."),
+        value: tampered,
         domain: "localhost",
         path: "/",
         httpOnly: true,
